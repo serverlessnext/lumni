@@ -1,0 +1,18 @@
+[package]
+name = "lakestream_py"
+version = "0.0.0-0"
+edition = "2021"
+
+[lib]
+name = "lakestream"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.14", features = ["extension-module"] }
+lakestream = { path = "../lakestream" }
+
+[build-dependencies]
+maturin = "0.12"
+
+[package.metadata.maturin]
+project-name = "lakestream"

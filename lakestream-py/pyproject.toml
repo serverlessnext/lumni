@@ -1,0 +1,33 @@
+[build-system]
+requires = ["maturin>=0.14,<0.15"]
+build-backend = "maturin"
+
+[project]
+name = "lakestream"
+version = "0.0.0-0"
+description = "Python interface for Lakestream"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[dependencies]
+
+[project.license]
+text = "MIT"
+
+[[project.maintainers]]
+name = "Anthony Potappel"
+email = "anthony.potappel@gmail.com"
+
+[tool.maturin]
+module-name = "lakestream"

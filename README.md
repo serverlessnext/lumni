@@ -26,7 +26,7 @@ pip install lakestream
 Clone the repository and compile the project using Cargo:
 
 ```sh
-git clone https://github.com/yourusername/lakestream.git
+git clone https://github.com/serverlessnext/lakestream.git
 cd lakestream
 cargo build --release
 ```

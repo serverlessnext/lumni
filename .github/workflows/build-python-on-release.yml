@@ -21,7 +21,7 @@ jobs:
       - name: Get release version
         id: get_version
         run: |
-          VERSION=$(echo $GITHUB_REF | sed 's/.*\///')
+          VERSION=$(echo $GITHUB_REF | sed 's/.*\/v\?//')
           echo "::set-output name=version::$VERSION"
 
       - name: Set environment variable for maturin

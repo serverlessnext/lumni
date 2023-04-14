@@ -8,7 +8,7 @@ In the short term, the focus is on implementing basic features such as List, Cop
 
 
 ## Prerequisites
-- AWS account with valid access key and secret key
+- S3 account with valid access key and secret key
 - either Python or Rust
 
 

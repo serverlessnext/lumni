@@ -1,6 +1,6 @@
 [package]
 name = "lakestream"
-version = "0.0.1"
+version = "0.0.2-pre"
 edition = "2021"
 description = "Portable file-utility for object-stores"
 license = "MIT"
@@ -17,13 +17,13 @@ path = "src/main.rs"
 percent-encoding = { version = "2.1", default-features = false, features = ["alloc"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", features = ["derive", "alloc"] }
-hmac = { version = "0.11.0", default-features = false }
-sha2 = { version = "0.9.8", default-features = false }
-serde_json = {version = "1.0.95", default-features = false, features = ["alloc"]}
-itertools = "0.10.1"
-serde-xml-rs = "0.4.1"
-url = "2.2.2"
-regex = "1.7"
+hmac = { version = "0.11", default-features = false }
+sha2 = { version = "0.9.9", default-features = false }
+serde_json = {version = "1.0", default-features = false, features = ["alloc"]}
+regex = { version = "1.7", default-features = false, features = ["std", "unicode"] }
+itertools = "0.10"
+serde-xml-rs = "0.6"
+url = "2.3"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
@@ -35,4 +35,5 @@ time = { version = "0.3", features = ["parsing"]}
 # web-sys = { version = "0.3", features = ["Request", "RequestInit", "Response", "Window"] }
 # wasm-bindgen = "0.2.84"
 # wasm-bindgen-futures = "0.4"
+
 

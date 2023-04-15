@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 
-use lakestream as lakestream_rs;
-use lakestream_rs::{
+// start with :: to ensure local crate is used
+use ::lakestream::{
     cli, ListObjectsResult, ObjectStoreHandler, DEFAULT_AWS_REGION,
 };
 use pyo3::prelude::*;

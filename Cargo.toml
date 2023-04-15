@@ -1,6 +1,18 @@
 [workspace]
 
+# Rust package
 members = [
     "lakestream",
+]
+
+# Python interface to lakestream
+# exclude to prevent publishing to crates.io
+exclude = [
     "lakestream-py",
 ]
+
+[profile.release]
+lto = true
+opt-level = "z"
+debug = false
+rpath = false

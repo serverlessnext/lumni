@@ -1,39 +1,49 @@
 use std::collections::HashMap;
 use std::env;
 
-use clap::Parser;
+use clap::{Arg, Command};
 
 use crate::{ListObjectsResult, ObjectStoreHandler, DEFAULT_AWS_REGION};
 
 const PROGRAM_NAME: &str = "lakestream";
 
-#[derive(Parser)]
-#[command(author, version, about = format!("List objects in an S3 bucket\n\nExample:\n {} ls s3://bucket-name/ --max-files 100", PROGRAM_NAME))]
-struct Cli {
-    #[clap(long, short, default_value = DEFAULT_AWS_REGION)]
-    region: String,
-
-    #[clap(subcommand)]
-    cmd: SubCommand,
-}
-
-#[derive(Parser)]
-enum SubCommand {
-    Ls(Ls),
-}
-
-#[derive(Parser)]
-struct Ls {
-    #[clap(index = 1)]
-    uri: String,
-
-    #[clap(long, short, default_value = "1000")]
-    max_files: u32,
-}
-
 pub fn run_cli(args: Vec<String>) {
-    let cli = Cli::parse_from(args);
+    let app =
+        Command::new(PROGRAM_NAME)
+            .version(env!("CARGO_PKG_VERSION"))
+            .arg_required_else_help(true)
+            .about(format!(
+                "List objects in an S3 bucket\n\nExample:\n {} ls \
+                 s3://bucket-name/ --max-files 100",
+                PROGRAM_NAME
+            ))
+            .arg(
+                Arg::new("region")
+                    .long("region")
+                    .short('r')
+                    .default_value(DEFAULT_AWS_REGION)
+                    .help("Region to use"),
+            )
+            .subcommand(
+                Command::new("ls")
+                    .about("List objects in an S3 bucket")
+                    .arg(Arg::new("uri").index(1).required(true).help(
+                        "URI to list objects from. E.g. s3://bucket-name/",
+                    ))
+                    .arg(
+                        Arg::new("max_files")
+                            .long("max-files")
+                            .short('m')
+                            .default_value("1000")
+                            .help("Maximum number of files to list"),
+                    ),
+            );
 
+    let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
+        e.exit();
+    });
+
+    let region = matches.get_one::<String>("region").unwrap().to_string();
     let access_key = env::var("AWS_ACCESS_KEY_ID")
         .expect("Missing environment variable AWS_ACCESS_KEY_ID");
     let secret_key = env::var("AWS_SECRET_ACCESS_KEY")
@@ -42,17 +52,21 @@ pub fn run_cli(args: Vec<String>) {
     let mut config = HashMap::new();
     config.insert("access_key".to_string(), access_key);
     config.insert("secret_key".to_string(), secret_key);
-    config.insert("region".to_string(), cli.region);
+    config.insert("region".to_string(), region);
 
-    match cli.cmd {
-        SubCommand::Ls(ls) => {
-            handle_ls(ls, config);
-        }
+    if let Some(ls_matches) = matches.subcommand_matches("ls") {
+        let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
+        let max_files = ls_matches
+            .get_one::<String>("max_files")
+            .unwrap()
+            .parse::<u32>()
+            .expect("Invalid value for max_files");
+        handle_ls(uri, max_files, config);
     }
 }
 
-fn handle_ls(ls: Ls, config: HashMap<String, String>) {
-    match ObjectStoreHandler::list_objects(ls.uri, config, Some(ls.max_files)) {
+fn handle_ls(uri: String, max_files: u32, config: HashMap<String, String>) {
+    match ObjectStoreHandler::list_objects(uri, config, Some(max_files)) {
         ListObjectsResult::FileObjects(file_objects) => {
             // Print file objects to stdout
             println!("Found {} file objects:", file_objects.len());

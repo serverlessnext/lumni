@@ -5,7 +5,7 @@ use serde::Deserialize;
 use super::client::S3Client;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
-use crate::utils::timeparse::rfc3339_to_epoch;
+use crate::utils::time::rfc3339_to_epoch;
 use crate::{FileObject, ObjectStore};
 
 // allow non snake case for the XML response

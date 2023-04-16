@@ -24,16 +24,15 @@ regex = { version = "1.7", default-features = false, features = ["std", "unicode
 itertools = "0.10"
 serde-xml-rs = "0.6"
 url = "2.3"
+clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
-ureq = { version = "2.2", default-features = false, features = ["tls"]}
 time = { version = "0.3", features = ["parsing"]}
+ureq = { version = "2.2", default-features = false, features = ["tls"]}
 
 # [target.'cfg(target_arch = "wasm32")'.dependencies]
 # js-sys = "0.3"
-# web-sys = { version = "0.3", features = ["Request", "RequestInit", "Response", "Window"] }
+# web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
 # wasm-bindgen = "0.2.84"
 # wasm-bindgen-futures = "0.4"
-
 

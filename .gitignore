@@ -32,6 +32,7 @@ tmp/
 build/
 # archive/
 dist/
+pkg/
 
 data/
 

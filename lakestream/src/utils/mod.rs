@@ -1,6 +1,10 @@
 pub mod formatters;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod timeparse;
+pub mod time;
 
-// #[cfg(target_arch = "wasm32")]
+#[cfg(not(target_arch = "wasm32"))]
+mod timeparse;
+
+#[cfg(target_arch = "wasm32")]
+#[path = "timeparse_wasm32.rs"]
+mod timeparse;
 // pub mod requests_wasm;

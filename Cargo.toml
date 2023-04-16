@@ -3,6 +3,7 @@
 # Rust package
 members = [
     "lakestream",
+    "lakestream-web",
 ]
 
 # Python interface to lakestream

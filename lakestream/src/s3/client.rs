@@ -4,10 +4,10 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use sha2::{Digest, Sha256};
-use time::OffsetDateTime;
 use url::Url;
 
 use super::bucket::S3Credentials;
+use crate::utils::time::UtcTimeNow;
 
 const CUSTOM_ENCODE_SET: &AsciiSet = &CONTROLS.add(b'/');
 
@@ -24,7 +24,7 @@ pub struct S3Client {
     region: String,
     credentials: S3Credentials,
     endpoint_url: String,
-    utc_now: OffsetDateTime,
+    utc_now: UtcTimeNow,
     query_string: Option<String>,
 }
 
@@ -35,7 +35,7 @@ impl S3Client {
         credentials: S3Credentials,
     ) -> S3Client {
         let resource = "".to_string();
-        let utc_now = OffsetDateTime::now_utc();
+        let utc_now = UtcTimeNow::new();
 
         S3Client {
             resource,
@@ -81,16 +81,9 @@ impl S3Client {
     }
 
     fn generate_signing_key(&self) -> Vec<u8> {
-        let date_stamp = format!(
-            "{:04}{:02}{:02}",
-            self.utc_now.year(),
-            self.utc_now.month() as u8,
-            self.utc_now.day()
-        );
-
         let k_date = sign(
             format!("AWS4{}", self.credentials.secret_key()).as_bytes(),
-            date_stamp.as_bytes(),
+            self.utc_now.date_stamp().as_bytes(),
         );
         let k_region = sign(&k_date, self.region.as_bytes());
         let k_service = sign(&k_region, b"s3");
@@ -211,19 +204,8 @@ impl S3Client {
         headers: Option<HashMap<String, String>>,
         payload_hash: Option<&str>,
     ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
-        let date_stamp = format!(
-            "{:04}{:02}{:02}",
-            self.utc_now.year(),
-            self.utc_now.month() as u8,
-            self.utc_now.day()
-        );
-        let x_amz_date = format!(
-            "{}T{:02}{:02}{:02}Z",
-            &date_stamp,
-            self.utc_now.hour(),
-            self.utc_now.minute(),
-            self.utc_now.second()
-        );
+        let date_stamp = self.utc_now.date_stamp();
+        let x_amz_date = self.utc_now.x_amz_date();
 
         let credential_scope =
             format!("{}/{}/s3/aws4_request", date_stamp, self.region);

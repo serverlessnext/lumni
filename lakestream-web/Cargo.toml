@@ -1,0 +1,22 @@
+[package]
+name = "lakestream-web"
+version = "0.0.2"
+edition = "2021"
+
+[dependencies]
+lakestream = { path = "../lakestream" }
+wasm-bindgen = "0.2.84"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies.console_error_panic_hook]
+version = "0.1.6"
+optional = true
+

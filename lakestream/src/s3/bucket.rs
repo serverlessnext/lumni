@@ -6,7 +6,7 @@ use super::client::S3Client;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::utils::time::rfc3339_to_epoch;
-use crate::{FileObject, ObjectStore};
+use crate::{FileObject, ObjectStore, DEFAULT_AWS_REGION};
 
 // allow non snake case for the XML response
 #[allow(non_snake_case)]
@@ -84,9 +84,17 @@ pub struct S3Bucket {
 
 impl S3Bucket {
     pub fn new(name: &str, config: HashMap<String, String>) -> S3Bucket {
+        let updated_config = if !config.contains_key("region") {
+            let mut updated_config = config.clone();
+            updated_config
+                .insert("region".to_string(), DEFAULT_AWS_REGION.to_owned());
+            updated_config
+        } else {
+            config
+        };
         S3Bucket {
             name: name.to_string(),
-            config,
+            config: updated_config,
         }
     }
 }
@@ -101,11 +109,6 @@ impl ObjectStoreTrait for S3Bucket {
         prefix: Option<&str>,
         max_keys: Option<u32>,
     ) -> Vec<FileObject> {
-        let mut region = self
-            .config
-            .get("region")
-            .expect("Missing region in the configuration")
-            .to_owned();
         let access_key = self
             .config
             .get("access_key")
@@ -114,6 +117,11 @@ impl ObjectStoreTrait for S3Bucket {
             .config
             .get("secret_key")
             .expect("Missing secret_key in the configuration");
+        let mut region = self
+            .config
+            .get("region")
+            .expect("Missing region in the configuration")
+            .to_owned();
 
         let credentials = S3Credentials::new(
             String::from(access_key),
@@ -179,7 +187,8 @@ impl ObjectStoreTrait for S3Bucket {
 pub fn list_buckets(config: &HashMap<String, String>) -> Vec<ObjectStore> {
     let region = config
         .get("region")
-        .expect("Missing region in the configuration");
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_AWS_REGION.to_string());
     let access_key = config
         .get("access_key")
         .expect("Missing access_key in the configuration");

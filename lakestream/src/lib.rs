@@ -1,6 +1,7 @@
 pub(crate) mod base;
 pub(crate) mod default;
 pub(crate) mod http;
+pub(crate) mod localfs;
 pub(crate) mod s3;
 pub(crate) mod utils;
 

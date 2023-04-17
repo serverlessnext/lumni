@@ -4,6 +4,7 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+use crate::localfs::bucket::LocalFs;
 use crate::s3::bucket::{list_buckets, S3Bucket};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
@@ -29,7 +30,11 @@ impl ObjectStoreHandler {
         let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
 
         if let Some(bucket) = bucket {
-            let bucket_uri = format!("{}://{}", scheme.unwrap(), bucket);
+            let bucket_uri = if let Some(scheme) = scheme {
+                format!("{}://{}", scheme, bucket)
+            } else {
+                format!("localfs://{}", bucket)
+            };
             let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
             let file_objects =
                 object_store.list_files(prefix.as_deref(), max_files);
@@ -90,8 +95,25 @@ impl ObjectStoreHandler {
 
             (Some(scheme.to_string()), bucket, prefix)
         } else {
-            eprintln!("Error: Invalid URI or missing scheme.");
-            (None, None, None)
+            // Assume LocalFs if the scheme is empty
+            let mut parts = uri.splitn(2, '/');
+            let bucket = parts.next().map(|s| s.to_string());
+            let prefix = parts
+                .next()
+                .map(|s| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        if s.ends_with('/') {
+                            Some(s.to_string())
+                        } else {
+                            Some(format!("{}/", s))
+                        }
+                    }
+                })
+                .flatten();
+
+            (None, bucket, prefix)
         }
     }
 
@@ -135,7 +157,7 @@ pub trait ObjectStoreTrait {
 
 pub enum ObjectStore {
     S3Bucket(S3Bucket),
-    // Add more object store types here later.
+    LocalFs(LocalFs),
 }
 
 impl ObjectStore {
@@ -147,6 +169,10 @@ impl ObjectStore {
             let name = name.trim_start_matches("s3://");
             let bucket = S3Bucket::new(name, config);
             Ok(ObjectStore::S3Bucket(bucket))
+        } else if name.starts_with("localfs://") {
+            let name = name.trim_start_matches("localfs://");
+            let local_fs = LocalFs::new(name, config);
+            Ok(ObjectStore::LocalFs(local_fs))
         } else {
             Err("Unsupported object store.".to_string())
         }
@@ -155,6 +181,7 @@ impl ObjectStore {
     pub fn name(&self) -> &str {
         match self {
             ObjectStore::S3Bucket(bucket) => bucket.name(),
+            ObjectStore::LocalFs(local_fs) => local_fs.name(),
         }
     }
 
@@ -166,6 +193,9 @@ impl ObjectStore {
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket.list_files(prefix, max_keys)
+            }
+            ObjectStore::LocalFs(local_fs) => {
+                local_fs.list_files(prefix, max_keys)
             }
         }
     }

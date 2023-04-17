@@ -3,7 +3,7 @@ use std::env;
 
 use clap::{Arg, Command};
 
-use crate::{ListObjectsResult, ObjectStoreHandler, DEFAULT_AWS_REGION};
+use crate::{ListObjectsResult, ObjectStoreHandler};
 
 const PROGRAM_NAME: &str = "lakestream";
 
@@ -21,7 +21,8 @@ pub fn run_cli(args: Vec<String>) {
                 Arg::new("region")
                     .long("region")
                     .short('r')
-                    .default_value(DEFAULT_AWS_REGION)
+                    .allow_hyphen_values(true)
+                    // .default_value(DEFAULT_AWS_REGION)
                     .help("Region to use"),
             )
             .subcommand(
@@ -43,16 +44,7 @@ pub fn run_cli(args: Vec<String>) {
         e.exit();
     });
 
-    let region = matches.get_one::<String>("region").unwrap().to_string();
-    let access_key = env::var("AWS_ACCESS_KEY_ID")
-        .expect("Missing environment variable AWS_ACCESS_KEY_ID");
-    let secret_key = env::var("AWS_SECRET_ACCESS_KEY")
-        .expect("Missing environment variable AWS_SECRET_ACCESS_KEY");
-
-    let mut config = HashMap::new();
-    config.insert("access_key".to_string(), access_key);
-    config.insert("secret_key".to_string(), secret_key);
-    config.insert("region".to_string(), region);
+    let region = matches.get_one::<String>("region").map(ToString::to_string);
 
     if let Some(ls_matches) = matches.subcommand_matches("ls") {
         let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
@@ -61,11 +53,23 @@ pub fn run_cli(args: Vec<String>) {
             .unwrap()
             .parse::<u32>()
             .expect("Invalid value for max_files");
-        handle_ls(uri, max_files, config);
+        handle_ls(uri, max_files, region);
     }
 }
 
-fn handle_ls(uri: String, max_files: u32, config: HashMap<String, String>) {
+fn handle_ls(uri: String, max_files: u32, region: Option<String>) {
+    let access_key = env::var("AWS_ACCESS_KEY_ID")
+        .expect("Missing environment variable AWS_ACCESS_KEY_ID");
+    let secret_key = env::var("AWS_SECRET_ACCESS_KEY")
+        .expect("Missing environment variable AWS_SECRET_ACCESS_KEY");
+
+    let mut config = HashMap::new();
+    config.insert("access_key".to_string(), access_key);
+    config.insert("secret_key".to_string(), secret_key);
+    if let Some(region) = region {
+        config.insert("region".to_string(), region);
+    }
+
     match ObjectStoreHandler::list_objects(uri, config, Some(max_files)) {
         ListObjectsResult::FileObjects(file_objects) => {
             // Print file objects to stdout

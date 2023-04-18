@@ -37,6 +37,7 @@ struct Bucket {
 struct ListBucketResult {
     Contents: Option<Vec<Content>>,
     CommonPrefixes: Option<Vec<CommonPrefix>>,
+    NextContinuationToken: Option<String>,
 }
 
 // allow non snake case for the XML response
@@ -62,7 +63,6 @@ pub fn list_files(
     recursive: bool,
     max_keys: Option<u32>,
 ) -> Vec<FileObject> {
-    // The code from list_files() in s3/bucket.rs goes here
     let access_key = s3_bucket
         .config()
         .get("access_key")
@@ -80,34 +80,35 @@ pub fn list_files(
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
 
-    let mut attempt = 0;
+    let mut all_file_objects = Vec::new();
+    let mut continuation_token: Option<String> = None;
+    let mut body = String::new();
+
+    let mut s3_client;
+    let mut endpoint_url;
+
+    // Check for a 301 redirect and update the region if necessary
     loop {
-        let endpoint_url = format!(
+        endpoint_url = format!(
             "https://{}.s3.{}.amazonaws.com:443",
             s3_bucket.name(),
             region
         );
-        let mut s3_client =
+        s3_client =
             S3Client::new(endpoint_url, region.clone(), credentials.clone());
         let headers = s3_client
-            .generate_list_objects_headers(prefix, max_keys)
+            .generate_list_objects_headers(prefix, max_keys, None)
             .unwrap();
 
         let result = http_get_request_with_headers(&s3_client.url(), &headers);
 
         match result {
-            Ok((body, status, response_headers)) => {
+            Ok((response_body, status, response_headers)) => {
                 if status == 301 {
                     if let Some(new_region) =
                         response_headers.get("x-amz-bucket-region")
                     {
                         region = new_region.to_owned();
-                        attempt += 1;
-                        if attempt > 1 {
-                            eprintln!("Error: Multiple redirect attempts");
-                            return Vec::new();
-                        }
-                        continue;
                     } else {
                         eprintln!(
                             "Error: Redirect without x-amz-bucket-region \
@@ -115,20 +116,85 @@ pub fn list_files(
                         );
                         return Vec::new();
                     }
-                }
-                return match parse_file_objects(&body) {
-                    Ok(file_objects) => file_objects,
-                    Err(e) => {
-                        eprintln!("Error listing objects: {}", e);
-                        Vec::new()
+                } else {
+                    if response_body.is_empty() {
+                        eprintln!("Error: Received an empty response from S3");
+                        return Vec::new();
+                    } else {
+                        body = response_body;
+                        break;
                     }
-                };
+                }
             }
             Err(e) => {
                 eprintln!("Error in http_get_request: {}", e);
                 return Vec::new();
             }
         }
+    }
+
+    // Handle the XML response and continuation tokens
+    loop {
+        match parse_file_objects(&body) {
+            Ok(mut file_objects) => {
+                let remaining_keys = max_keys.map(|max| {
+                    max.saturating_sub(all_file_objects.len() as u32)
+                });
+
+                if let Some(remaining) = remaining_keys {
+                    if remaining == 0 {
+                        break;
+                    } else if file_objects.len() as u32 > remaining {
+                        file_objects.truncate(remaining as usize);
+                    }
+                }
+
+                all_file_objects.append(&mut file_objects);
+                continuation_token = extract_continuation_token(&body);
+
+                if continuation_token.is_none() {
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "Error parsing file objects. Invalid XML response: {}",
+                    e.to_string()
+                );
+                return Vec::new();
+            }
+        }
+
+        let headers = s3_client
+            .generate_list_objects_headers(
+                prefix,
+                max_keys,
+                continuation_token.as_deref(),
+            )
+            .unwrap();
+
+        let result = http_get_request_with_headers(&s3_client.url(), &headers);
+
+        match result {
+            Ok((response_body, _, _)) => {
+                body = response_body;
+            }
+            Err(e) => {
+                eprintln!("Error in http_get_request: {}", e);
+                return Vec::new();
+            }
+        }
+    }
+    all_file_objects
+}
+
+fn extract_continuation_token(body: &str) -> Option<String> {
+    let list_bucket_result: Result<ListBucketResult, _> =
+        serde_xml_rs::from_str(body);
+
+    match list_bucket_result {
+        Ok(result) => result.NextContinuationToken,
+        Err(_) => None,
     }
 }
 

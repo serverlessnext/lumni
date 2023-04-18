@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
-use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
+use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
-use url::Url;
+use url::{form_urlencoded, Url};
 
 use super::bucket::S3Credentials;
 use crate::utils::time::UtcTimeNow;
 
-const CUSTOM_ENCODE_SET: &AsciiSet = &CONTROLS.add(b'/');
+const MAX_LIST_OBJECTS: u32 = 1000;
 
 fn sign(key: &[u8], msg: &[u8]) -> Vec<u8> {
     let mut hmac = Hmac::<Sha256>::new_from_slice(key)
@@ -106,11 +106,10 @@ impl S3Client {
     }
 
     fn get_canonical_uri(&self, url: &Url, resource: &str) -> String {
-        let canonical_resource = utf8_percent_encode(
-            resource.trim_end_matches('/'),
-            CUSTOM_ENCODE_SET,
+        let canonical_resource = form_urlencoded::byte_serialize(
+            resource.trim_end_matches('/').as_bytes(),
         )
-        .to_string();
+        .collect::<String>();
         let endpoint_path =
             url.path().trim_start_matches('/').trim_end_matches('/');
 
@@ -119,7 +118,8 @@ impl S3Client {
         } else {
             format!(
                 "{}/{}",
-                utf8_percent_encode(endpoint_path, CUSTOM_ENCODE_SET),
+                form_urlencoded::byte_serialize(endpoint_path.as_bytes())
+                    .collect::<String>(),
                 canonical_resource
             )
         }
@@ -172,29 +172,30 @@ impl S3Client {
         &mut self,
         prefix: Option<&str>,
         max_keys: Option<u32>,
+        continuation_token: Option<&str>,
     ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
         let method = "GET";
 
-        // Generate the query string for listing files
-        let mut query_parts = vec![
-            "list-type=2".to_string(),
-            format!("max-keys={}", max_keys.unwrap_or(1000)),
-            format!(
-                "delimiter={}",
-                utf8_percent_encode("/", &CUSTOM_ENCODE_SET)
-            ),
-            "encoding-type=url".to_string(),
-        ];
+        // Ensure max_keys does not exceed MAX_LIST_OBJECTS
+        let max_keys = max_keys
+            .map(|keys| std::cmp::min(keys, MAX_LIST_OBJECTS))
+            .unwrap_or(MAX_LIST_OBJECTS);
+
+        let mut query_parts = form_urlencoded::Serializer::new(String::new());
+        query_parts.append_pair("list-type", "2");
+        query_parts.append_pair("max-keys", &max_keys.to_string());
+        query_parts.append_pair("delimiter", "/");
+        query_parts.append_pair("encoding-type", "url");
 
         if let Some(p) = prefix {
-            query_parts.push(format!(
-                "prefix={}",
-                utf8_percent_encode(&p, &CUSTOM_ENCODE_SET)
-            ));
+            query_parts.append_pair("prefix", p);
         }
-        self.query_string = Some(query_parts.join("&"));
+        if let Some(token) = continuation_token {
+            query_parts.append_pair("continuation-token", token);
+        }
 
-        // Call generate_headers with the generated query_string
+        self.query_string = Some(query_parts.finish());
+
         self.generate_headers(method, None, None)
     }
 
@@ -225,7 +226,7 @@ impl S3Client {
         let canonical_headers = self.get_canonical_headers(&headers);
         let signed_headers = headers
             .keys()
-            .cloned()
+            .map(|key| key.to_lowercase())
             .sorted()
             .collect::<Vec<String>>()
             .join(";");

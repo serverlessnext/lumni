@@ -12,11 +12,14 @@ pub struct LocalFs {
 }
 
 impl LocalFs {
-    pub fn new(name: &str, config: HashMap<String, String>) -> LocalFs {
-        LocalFs {
+    pub fn new(
+        name: &str,
+        config: HashMap<String, String>,
+    ) -> Result<LocalFs, &'static str> {
+        Ok(LocalFs {
             name: name.to_string(),
             config,
-        }
+        })
     }
 }
 
@@ -25,11 +28,15 @@ impl ObjectStoreTrait for LocalFs {
         &self.name
     }
 
+    fn config(&self) -> &HashMap<String, String> {
+        &self.config
+    }
+
     fn list_files(
         &self,
         prefix: Option<&str>,
+        recursive: bool,
         max_keys: Option<u32>,
-        // recursive: bool, // Add the 'recursive' parameter
     ) -> Vec<FileObject> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
@@ -39,7 +46,6 @@ impl ObjectStoreTrait for LocalFs {
         // list_files_in_directory() appears to work correctly on recursive
         // but should still make this parameter work for both S3Bucket and LocalFs
         // also, the print to stdout in FileObject Impl needs to be fixed
-        let recursive = false;
         list_files_in_directory(&path, max_keys, recursive)
     }
 }

@@ -25,21 +25,27 @@ impl ObjectStoreHandler {
     pub fn list_objects(
         uri: String,
         config: HashMap<String, String>,
+        recursive: bool,
         max_files: Option<u32>,
     ) -> ListObjectsResult {
         let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
 
         if let Some(bucket) = bucket {
+            // list files in a bucket
             let bucket_uri = if let Some(scheme) = scheme {
                 format!("{}://{}", scheme, bucket)
             } else {
                 format!("localfs://{}", bucket)
             };
             let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
-            let file_objects =
-                object_store.list_files(prefix.as_deref(), max_files);
+            let file_objects = object_store.list_files(
+                prefix.as_deref(),
+                recursive,
+                max_files,
+            );
             ListObjectsResult::FileObjects(file_objects)
         } else {
+            // list buckets
             let mut object_store_configuration = HashMap::new();
             let config_map: Map<String, Value> = config
                 .into_iter()
@@ -137,7 +143,10 @@ impl ObjectStoreHandler {
                 .collect();
 
             if uri.starts_with("s3://") {
-                object_stores.append(&mut list_buckets(&config_hashmap));
+                match list_buckets(&config_hashmap) {
+                    Ok(mut buckets) => object_stores.append(&mut buckets),
+                    Err(err) => eprintln!("Error listing buckets: {}", err),
+                }
             } else {
                 eprintln!("Unsupported object store type: {}", uri);
             }
@@ -148,9 +157,11 @@ impl ObjectStoreHandler {
 
 pub trait ObjectStoreTrait {
     fn name(&self) -> &str;
+    fn config(&self) -> &HashMap<String, String>;
     fn list_files(
         &self,
         prefix: Option<&str>,
+        recursive: bool,
         max_keys: Option<u32>,
     ) -> Vec<FileObject>;
 }
@@ -167,11 +178,13 @@ impl ObjectStore {
     ) -> Result<ObjectStore, String> {
         if name.starts_with("s3://") {
             let name = name.trim_start_matches("s3://");
-            let bucket = S3Bucket::new(name, config);
+            let bucket =
+                S3Bucket::new(name, config).map_err(|err| err.to_string())?;
             Ok(ObjectStore::S3Bucket(bucket))
         } else if name.starts_with("localfs://") {
             let name = name.trim_start_matches("localfs://");
-            let local_fs = LocalFs::new(name, config);
+            let local_fs =
+                LocalFs::new(name, config).map_err(|err| err.to_string())?;
             Ok(ObjectStore::LocalFs(local_fs))
         } else {
             Err("Unsupported object store.".to_string())
@@ -185,17 +198,25 @@ impl ObjectStore {
         }
     }
 
+    pub fn config(&self) -> &HashMap<String, String> {
+        match self {
+            ObjectStore::S3Bucket(bucket) => bucket.config(),
+            ObjectStore::LocalFs(local_fs) => local_fs.config(),
+        }
+    }
+
     pub fn list_files(
         &self,
         prefix: Option<&str>,
+        recursive: bool,
         max_keys: Option<u32>,
     ) -> Vec<FileObject> {
         match self {
             ObjectStore::S3Bucket(bucket) => {
-                bucket.list_files(prefix, max_keys)
+                bucket.list_files(prefix, recursive, max_keys)
             }
             ObjectStore::LocalFs(local_fs) => {
-                local_fs.list_files(prefix, max_keys)
+                local_fs.list_files(prefix, recursive, max_keys)
             }
         }
     }

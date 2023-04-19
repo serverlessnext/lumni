@@ -50,7 +50,8 @@ fn handle_directory(
         return 1;
     }
 
-    list_files_next(entry.path().as_path(), max_keys, recursive, file_objects) + 1
+    list_files_next(entry.path().as_path(), max_keys, recursive, file_objects)
+        + 1
 }
 
 fn list_files_next(

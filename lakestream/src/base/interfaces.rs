@@ -66,7 +66,9 @@ impl ObjectStoreHandler {
         }
     }
 
-    pub fn parse_uri(uri: String) -> (Option<String>, Option<String>, Option<String>) {
+    pub fn parse_uri(
+        uri: String,
+    ) -> (Option<String>, Option<String>, Option<String>) {
         if uri.is_empty() {
             return (None, None, None);
         }
@@ -265,17 +267,14 @@ fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
     let is_absolute = cleaned_uri.starts_with('/');
     let mut parts = cleaned_uri.splitn(2, '/');
     let bucket = parts.next().map(|s| s.to_string());
-    let prefix = parts
-        .next()
-        .filter(|s| !s.is_empty())
-        .map(|s| {
-            let cleaned_prefix = s.replace("./", "");
-            if cleaned_prefix.ends_with('/') {
-                cleaned_prefix
-            } else {
-                format!("{}/", cleaned_prefix)
-            }
-        });
+    let prefix = parts.next().filter(|s| !s.is_empty()).map(|s| {
+        let cleaned_prefix = s.replace("./", "");
+        if cleaned_prefix.ends_with('/') {
+            cleaned_prefix
+        } else {
+            format!("{}/", cleaned_prefix)
+        }
+    });
 
     if let Some(bucket) = bucket {
         let formatted_bucket = if is_absolute {
@@ -288,4 +287,3 @@ fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
 
     (Some(".".to_string()), None)
 }
-

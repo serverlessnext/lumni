@@ -8,8 +8,7 @@ use url::{form_urlencoded, Url};
 
 use super::bucket::S3Credentials;
 use crate::utils::time::UtcTimeNow;
-
-const MAX_LIST_OBJECTS: u32 = 1000;
+use crate::AWS_MAX_LIST_OBJECTS;
 
 fn sign(key: &[u8], msg: &[u8]) -> Vec<u8> {
     let mut hmac = Hmac::<Sha256>::new_from_slice(key)
@@ -176,10 +175,10 @@ impl S3Client {
     ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
         let method = "GET";
 
-        // Ensure max_keys does not exceed MAX_LIST_OBJECTS
+        // Ensure max_keys does not exceed AWS_MAX_LIST_OBJECTS
         let max_keys = max_keys
-            .map(|keys| std::cmp::min(keys, MAX_LIST_OBJECTS))
-            .unwrap_or(MAX_LIST_OBJECTS);
+            .map(|keys| std::cmp::min(keys, AWS_MAX_LIST_OBJECTS))
+            .unwrap_or(AWS_MAX_LIST_OBJECTS);
 
         let mut query_parts = form_urlencoded::Serializer::new(String::new());
         query_parts.append_pair("list-type", "2");

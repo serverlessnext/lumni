@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 
-use crate::DEFAULT_AWS_REGION;
+use crate::AWS_DEFAULT_REGION;
 
 pub fn update_config(
     config: &HashMap<String, String>,
@@ -10,7 +10,7 @@ pub fn update_config(
 
     if !config.contains_key("region") {
         updated_config
-            .insert("region".to_string(), DEFAULT_AWS_REGION.to_owned());
+            .insert("region".to_string(), AWS_DEFAULT_REGION.to_owned());
     }
 
     if !config.contains_key("access_key") {

@@ -9,4 +9,5 @@ pub use base::cli;
 pub use base::interfaces::{
     FileObject, ListObjectsResult, ObjectStore, ObjectStoreHandler,
 };
-pub use default::DEFAULT_AWS_REGION;
+// re-export all defaults
+pub use default::*;

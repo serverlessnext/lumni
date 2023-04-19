@@ -8,7 +8,9 @@ use super::config::update_config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::utils::time::rfc3339_to_epoch;
-use crate::{FileObject, ObjectStore, DEFAULT_AWS_REGION};
+use crate::{
+    FileObject, ObjectStore, AWS_DEFAULT_REGION, AWS_MAX_LIST_OBJECTS,
+};
 
 // allow non snake case for the XML response
 #[allow(non_snake_case)]
@@ -81,8 +83,8 @@ pub fn list_files(
         S3Credentials::new(String::from(access_key), String::from(secret_key));
 
     let mut all_file_objects = Vec::new();
-    let mut continuation_token: Option<String> = None;
-    let mut body = String::new();
+    let continuation_token: Option<String>;
+    let body: String;
 
     let mut s3_client;
     let mut endpoint_url;
@@ -133,56 +135,106 @@ pub fn list_files(
         }
     }
 
-    // Handle the XML response and continuation tokens
+    let initial_file_objects = parse_file_objects(&body).unwrap_or_default();
+    all_file_objects.extend(initial_file_objects);
+    continuation_token = extract_continuation_token(&body);
+
+    // enter recursive lookup if max_keys not yet satisfied
+    let remaining_keys =
+        max_keys.map(|max| max.saturating_sub(all_file_objects.len() as u32));
+    let should_continue = remaining_keys.map_or(true, |keys| keys > 0);
+
+    if (recursive || continuation_token.is_some()) && should_continue {
+        let file_objects = list_files_next(
+            s3_bucket,
+            prefix,
+            remaining_keys,
+            &mut s3_client,
+            continuation_token,
+            recursive,
+        );
+        all_file_objects.extend(file_objects);
+    }
+    all_file_objects
+}
+
+fn list_files_next(
+    s3_bucket: &S3Bucket,
+    prefix: Option<&str>,
+    max_keys: Option<u32>,
+    s3_client: &mut S3Client,
+    continuation_token: Option<String>,
+    recursive: bool
+) -> Vec<FileObject> {
+    let mut all_file_objects = Vec::new();
+    let mut virtual_directories = Vec::new();
+
+    let mut current_continuation_token = continuation_token;
+
+    // loop until we have all regular files or we have reached the max_keys
     loop {
-        match parse_file_objects(&body) {
-            Ok(mut file_objects) => {
-                let remaining_keys = max_keys.map(|max| {
-                    max.saturating_sub(all_file_objects.len() as u32)
-                });
-
-                if let Some(remaining) = remaining_keys {
-                    if remaining == 0 {
-                        break;
-                    } else if file_objects.len() as u32 > remaining {
-                        file_objects.truncate(remaining as usize);
-                    }
-                }
-
-                all_file_objects.append(&mut file_objects);
-                continuation_token = extract_continuation_token(&body);
-
-                if continuation_token.is_none() {
-                    break;
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "Error parsing file objects. Invalid XML response: {}",
-                    e.to_string()
-                );
-                return Vec::new();
-            }
-        }
-
         let headers = s3_client
             .generate_list_objects_headers(
                 prefix,
                 max_keys,
-                continuation_token.as_deref(),
+                current_continuation_token.as_deref(),
             )
             .unwrap();
 
         let result = http_get_request_with_headers(&s3_client.url(), &headers);
 
-        match result {
-            Ok((response_body, _, _)) => {
-                body = response_body;
+        if let Ok((response_body, _, _)) = result {
+            let file_objects =
+                parse_file_objects(&response_body).unwrap_or_default();
+
+            for file_object in file_objects {
+                if all_file_objects.len()
+                    == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+                {
+                    break;
+                }
+
+                if file_object.name().ends_with('/') {
+                    if recursive {
+                        virtual_directories.push(file_object.name().to_owned());
+                    }
+                } else {
+                    all_file_objects.push(file_object);
+                }
             }
-            Err(e) => {
-                eprintln!("Error in http_get_request: {}", e);
-                return Vec::new();
+
+            current_continuation_token =
+                extract_continuation_token(&response_body);
+        }
+
+        if current_continuation_token.is_none()
+            || all_file_objects.len()
+                >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+        {
+            break;
+        }
+    }
+
+    if recursive {
+        // if recursive is True, and we have not reached the max_keys,
+        // continue with the virtual directories
+        for virtual_directory in virtual_directories {
+            if all_file_objects.len()
+                == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+            {
+                break;
             }
+
+            let subdir_prefix = Some(virtual_directory);
+            let subdir_objects = list_files_next(
+                s3_bucket,
+                subdir_prefix.as_deref(),
+                max_keys.map(|max| max - all_file_objects.len() as u32),
+                s3_client,
+                None,
+                recursive,
+            );
+            all_file_objects.extend(subdir_objects);
         }
     }
     all_file_objects
@@ -206,7 +258,7 @@ pub fn list_buckets(
     let region = updated_config
         .get("region")
         .cloned()
-        .unwrap_or_else(|| DEFAULT_AWS_REGION.to_string());
+        .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
     let access_key = updated_config
         .get("access_key")
         .expect("Missing access_key in the configuration");

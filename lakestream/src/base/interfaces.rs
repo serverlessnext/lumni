@@ -66,9 +66,7 @@ impl ObjectStoreHandler {
         }
     }
 
-    pub fn parse_uri(
-        uri: String,
-    ) -> (Option<String>, Option<String>, Option<String>) {
+    pub fn parse_uri(uri: String) -> (Option<String>, Option<String>, Option<String>) {
         if uri.is_empty() {
             return (None, None, None);
         }
@@ -76,51 +74,23 @@ impl ObjectStoreHandler {
         let re = Regex::new(r"^(?P<scheme>[a-z0-9]+)://").unwrap();
         let scheme_match = re.captures(&uri);
 
-        if let Some(scheme_captures) = scheme_match {
-            let scheme = scheme_captures.name("scheme").unwrap().as_str();
-            let uri_without_scheme = re.replace(&uri, "");
-            if uri_without_scheme.is_empty() {
-                return (Some(scheme.to_string()), None, None);
-            }
-            let mut parts = uri_without_scheme.splitn(2, '/');
-            let bucket = parts.next().map(|s| s.to_string());
-            let prefix = parts
-                .next()
-                .map(|s| {
-                    if s.is_empty() {
-                        None
-                    } else {
-                        if s.ends_with('/') {
-                            Some(s.to_string())
-                        } else {
-                            Some(format!("{}/", s))
-                        }
-                    }
-                })
-                .flatten();
-
-            (Some(scheme.to_string()), bucket, prefix)
-        } else {
-            // Assume LocalFs if the scheme is empty
-            let mut parts = uri.splitn(2, '/');
-            let bucket = parts.next().map(|s| s.to_string());
-            let prefix = parts
-                .next()
-                .map(|s| {
-                    if s.is_empty() {
-                        None
-                    } else {
-                        if s.ends_with('/') {
-                            Some(s.to_string())
-                        } else {
-                            Some(format!("{}/", s))
-                        }
-                    }
-                })
-                .flatten();
-
-            (None, bucket, prefix)
-        }
+        scheme_match.map_or_else(
+            || {
+                // uri has no scheme, assume LocalFs
+                let (bucket, prefix) = parse_uri_path(&uri);
+                (None, bucket, prefix)
+            },
+            |scheme_captures| {
+                let scheme = scheme_captures.name("scheme").unwrap().as_str();
+                let uri_without_scheme = re.replace(&uri, "").to_string();
+                if uri_without_scheme.is_empty() {
+                    (Some(scheme.to_string()), None, None)
+                } else {
+                    let (bucket, prefix) = parse_uri_path(&uri_without_scheme);
+                    (Some(scheme.to_string()), bucket, prefix)
+                }
+            },
+        )
     }
 
     pub fn list_object_stores(&self) -> Vec<ObjectStore> {
@@ -284,3 +254,38 @@ impl FileObject {
         )
     }
 }
+
+fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
+    let cleaned_uri = uri_path.trim_end_matches('.');
+
+    if cleaned_uri.is_empty() {
+        return (Some(".".to_string()), None);
+    }
+
+    let is_absolute = cleaned_uri.starts_with('/');
+    let mut parts = cleaned_uri.splitn(2, '/');
+    let bucket = parts.next().map(|s| s.to_string());
+    let prefix = parts
+        .next()
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let cleaned_prefix = s.replace("./", "");
+            if cleaned_prefix.ends_with('/') {
+                cleaned_prefix
+            } else {
+                format!("{}/", cleaned_prefix)
+            }
+        });
+
+    if let Some(bucket) = bucket {
+        let formatted_bucket = if is_absolute {
+            format!("/{}", bucket)
+        } else {
+            bucket
+        };
+        return (Some(formatted_bucket), prefix);
+    }
+
+    (Some(".".to_string()), None)
+}
+

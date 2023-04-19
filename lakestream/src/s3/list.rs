@@ -164,7 +164,7 @@ fn list_files_next(
     max_keys: Option<u32>,
     s3_client: &mut S3Client,
     continuation_token: Option<String>,
-    recursive: bool
+    recursive: bool,
 ) -> Vec<FileObject> {
     let mut all_file_objects = Vec::new();
     let mut virtual_directories = Vec::new();

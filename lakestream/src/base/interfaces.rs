@@ -233,17 +233,22 @@ impl FileObject {
         &self.tags
     }
 
-    pub fn printable(&self) -> String {
+    pub fn printable(&self, full_path: bool) -> String {
         let name_without_trailing_slash = self.name.trim_end_matches('/');
-        let mut basename = name_without_trailing_slash
-            .split('/')
-            .last()
-            .unwrap_or(name_without_trailing_slash)
-            .to_string();
+        let mut name_to_print = if full_path {
+            name_without_trailing_slash.to_string()
+        } else {
+            name_without_trailing_slash
+                .split('/')
+                .last()
+                .unwrap_or(name_without_trailing_slash)
+                .to_string()
+        };
 
         if self.name.ends_with('/') {
-            basename.push('/');
+            name_to_print.push('/');
         }
+
         format!(
             "{:8} {} {}",
             bytes_human_readable(self.size()),
@@ -252,7 +257,7 @@ impl FileObject {
             } else {
                 "PRE".to_string()
             },
-            basename
+            name_to_print
         )
     }
 }

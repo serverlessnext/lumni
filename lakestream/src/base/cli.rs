@@ -85,7 +85,8 @@ fn handle_ls(
             // Print file objects to stdout
             println!("Found {} file objects:", file_objects.len());
             for fo in file_objects {
-                println!("{}", fo.printable());
+                let full_path = true;
+                println!("{}", fo.printable(full_path));
             }
         }
         ListObjectsResult::Buckets(buckets) => {

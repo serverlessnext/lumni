@@ -155,6 +155,7 @@ pub fn list_files(
         );
         all_file_objects.extend(file_objects);
     }
+
     all_file_objects
 }
 

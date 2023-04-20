@@ -4,7 +4,7 @@ use super::config::update_config;
 pub use super::list::list_buckets;
 use super::list::list_files;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::FileObject;
+use crate::{FileObject, FileObjectFilter};
 
 #[derive(Clone)]
 pub struct S3Credentials {
@@ -62,7 +62,8 @@ impl ObjectStoreTrait for S3Bucket {
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
+        filter: &Option<FileObjectFilter>,
     ) -> Vec<FileObject> {
-        list_files(self, prefix, recursive, max_keys)
+        list_files(self, prefix, recursive, max_keys, filter)
     }
 }

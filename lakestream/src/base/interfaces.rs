@@ -7,6 +7,7 @@ use serde_json::{Map, Value};
 use crate::localfs::bucket::LocalFs;
 use crate::s3::bucket::{list_buckets, S3Bucket};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
+use crate::FileObjectFilter;
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),
@@ -27,6 +28,7 @@ impl ObjectStoreHandler {
         config: HashMap<String, String>,
         recursive: bool,
         max_files: Option<u32>,
+        filter: &Option<FileObjectFilter>,
     ) -> ListObjectsResult {
         let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
 
@@ -38,10 +40,12 @@ impl ObjectStoreHandler {
                 format!("localfs://{}", bucket)
             };
             let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
+
             let file_objects = object_store.list_files(
                 prefix.as_deref(),
                 recursive,
                 max_files,
+                filter,
             );
             ListObjectsResult::FileObjects(file_objects)
         } else {
@@ -135,6 +139,7 @@ pub trait ObjectStoreTrait {
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
+        filter: &Option<FileObjectFilter>,
     ) -> Vec<FileObject>;
 }
 
@@ -182,13 +187,14 @@ impl ObjectStore {
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
+        filter: &Option<FileObjectFilter>,
     ) -> Vec<FileObject> {
         match self {
             ObjectStore::S3Bucket(bucket) => {
-                bucket.list_files(prefix, recursive, max_keys)
+                bucket.list_files(prefix, recursive, max_keys, filter)
             }
             ObjectStore::LocalFs(local_fs) => {
-                local_fs.list_files(prefix, recursive, max_keys)
+                local_fs.list_files(prefix, recursive, max_keys, filter)
             }
         }
     }

@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::env;
 
 use clap::{Arg, ArgAction, Command};
+use regex::Regex;
 
-use crate::{ListObjectsResult, ObjectStoreHandler};
+use crate::{FileObjectFilter, ListObjectsResult, ObjectStoreHandler};
 
 const PROGRAM_NAME: &str = "lakestream";
 
@@ -30,6 +31,15 @@ pub fn run_cli(args: Vec<String>) {
                         "URI to list objects from. E.g. s3://bucket-name/",
                     ))
                     .arg(
+                        Arg::new("size_filter")
+                            .long("size-filter")
+                            .short('s')
+                            .help(
+                                "Filter objects based on size. E.g. '+1G', \
+                                 '-1G', '5G', '1G-2G'",
+                            ),
+                    )
+                    .arg(
                         Arg::new("recursive")
                             .long("recursive")
                             .short('r')
@@ -54,11 +64,23 @@ pub fn run_cli(args: Vec<String>) {
         let recursive =
             *ls_matches.get_one::<bool>("recursive").unwrap_or(&false);
         let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
+
+        // let name_pattern = ls_matches
+        //     .get_one::<String>("name_pattern")
+        //     .map(ToString::to_string);
+        // let size_filter = ls_matches
+        //     .get_one::<String>("size_filter")
+        //     .map(ToString::to_string);
+        // let modified_time_offset = ls_matches
+        //     .get_one::<String>("modified_time_offset")
+        //     .map(ToString::to_string);
+
         let max_files = ls_matches
             .get_one::<String>("max_files")
             .unwrap()
             .parse::<u32>()
             .expect("Invalid value for max_files");
+
         handle_ls(uri, recursive, max_files, region);
     }
 }
@@ -75,11 +97,22 @@ fn handle_ls(
         config.insert("region".to_string(), region);
     }
 
+    // TODO: implement this via CLI
+    // uncomment this to test the filter
+    // let name_pattern = Some(String::from(r".*"));
+    // let min_size = Some("1M".to_string());
+    // let equal_size = None;
+    // let max_size = Some("4M".to_string());
+    // let modified_time_offset = None;
+    // let filter = Some(FileObjectFilter::new(name_pattern, min_size, equal_size, max_size, modified_time_offset));
+    let filter = None;
+
     match ObjectStoreHandler::list_objects(
         uri,
         config,
         recursive,
         Some(max_files),
+        &filter,
     ) {
         ListObjectsResult::FileObjects(file_objects) => {
             // Print file objects to stdout
@@ -96,5 +129,15 @@ fn handle_ls(
                 println!("{}", bucket.name());
             }
         }
+    }
+}
+
+fn size_filter_validator(s: &str) -> Result<(), String> {
+    let regex = Regex::new(r"^([+\-]?)(\d+(?:\.\d+)?)([bkMGTP])?$").unwrap();
+
+    if regex.is_match(s) {
+        Ok(())
+    } else {
+        Err(format!("Invalid size filter format: {}", s))
     }
 }

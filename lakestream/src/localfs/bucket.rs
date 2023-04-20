@@ -3,7 +3,7 @@ use std::path::Path;
 
 use super::list::list_files;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::FileObject;
+use crate::{FileObject, FileObjectFilter};
 
 pub struct LocalFs {
     name: String,
@@ -37,12 +37,12 @@ impl ObjectStoreTrait for LocalFs {
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
+        filter: &Option<FileObjectFilter>,
     ) -> Vec<FileObject> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
-        // also, the print to stdout in FileObject Impl needs to be fixed
-        list_files(&path, max_keys, recursive)
+        list_files(&path, max_keys, recursive, filter)
     }
 }

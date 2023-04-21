@@ -1,10 +1,3 @@
-<style>
-pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
-</style>
-
 # List files
 
 ## CLI

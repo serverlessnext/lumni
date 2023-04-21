@@ -1,45 +1,49 @@
 // TEMPORARILY - this likely needs to be replaced in Web builds
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 
 use crate::FileObject;
 
 pub struct FileObjectFilter {
-    name_pattern: Option<Regex>,
+    name_regex: Option<Regex>,
     min_size: Option<u64>,
-    equal_size: Option<u64>,
     max_size: Option<u64>,
-    min_modified_time: Option<u64>,
+    min_mtime: Option<u64>,
+    max_mtime: Option<u64>,
 }
 
 impl FileObjectFilter {
     pub fn new(
-        name_pattern: Option<String>,
-        min_size: Option<String>,
-        equal_size: Option<String>,
-        max_size: Option<String>,
-        modified_time_offset: Option<String>,
-    ) -> Self {
-        let name_regex =
-            name_pattern.map(|pattern| Regex::new(&pattern).unwrap());
+        name: Option<&str>,
+        size: Option<&str>,
+        mtime: Option<&str>,
+    ) -> Result<Self, String> {
+        // Define name_regex
+        let name_regex = name.map(|pattern| Regex::new(&pattern).unwrap());
 
-        let min_size = min_size.map(parse_size);
-        let equal_size = equal_size.map(parse_size);
-        let max_size = max_size.map(parse_size);
-        let min_modified_time = modified_time_offset.map(parse_time_offset);
+        let (min_size, max_size) = match size.as_deref() {
+            Some(s) => parse_size(s)?,
+            None => (None, None),
+        };
 
-        FileObjectFilter {
-            name_pattern: name_regex,
+        let (min_mtime, max_mtime) = match mtime.as_deref() {
+            Some(m) => parse_time_offset(m)?,
+            None => (None, None),
+        };
+
+        Ok(FileObjectFilter {
+            name_regex,
             min_size,
-            equal_size,
             max_size,
-            min_modified_time,
-        }
+            min_mtime,
+            max_mtime,
+        })
     }
 
     pub fn matches(&self, file_object: &FileObject) -> bool {
-        let name_match = match &self.name_pattern {
+        let name_match = match &self.name_regex {
             Some(re) => re.is_match(&file_object.name()),
             None => true,
         };
@@ -47,80 +51,142 @@ impl FileObjectFilter {
         let size_match = {
             (self.min_size.map_or(true, |min| file_object.size() >= min))
                 && (self.max_size.map_or(true, |max| file_object.size() <= max))
-                && (self.equal_size.map_or(true, |eq| file_object.size() == eq))
         };
 
-        let modified_time_match = match self.min_modified_time {
-            Some(min_time) => file_object
-                .modified()
-                .map_or(false, |mtime| mtime > min_time),
-            None => true,
+        let mtime_match = {
+            (self.min_mtime.map_or(true, |min| {
+                file_object.modified().map_or(false, |mtime| mtime >= min)
+            })) && (self.max_mtime.map_or(true, |max| {
+                file_object.modified().map_or(false, |mtime| mtime <= max)
+            }))
         };
 
-        name_match && size_match && modified_time_match
+        name_match && size_match && mtime_match
     }
 }
 
-fn parse_size(size_str: String) -> u64 {
+fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
     const BYTE_UNITS: &[(&str, u64)] = &[
-        ("b", 1),
-        ("k", 1024),
-        ("M", 1024 * 1024),
-        ("G", 1024 * 1024 * 1024),
-        ("T", 1024 * 1024 * 1024 * 1024),
+        ("b", 1u64),
+        ("k", 1024u64),
+        ("M", 1024u64 * 1024u64),
+        ("G", 1024u64 * 1024u64 * 1024u64),
+        ("T", 1024u64 * 1024u64 * 1024u64 * 1024u64),
     ];
+    const PERCENTAGE: f64 = 0.05;
 
-    let re = Regex::new(r"(?P<value>\d+)(?P<unit>[bBkKmMGtT]?)").unwrap();
-    let caps = re.captures(&size_str).expect("Invalid size string");
+    let re = Regex::new(
+        r"^(?P<modifier>[+\-=]?)(?P<value>\d+)(?P<unit>[bBkKmMGtT]?)$",
+    )
+    .unwrap();
+    let range_re = Regex::new(r"^(?P<min_value>\d+)(?P<unit1>[bBkKmMGtT]?)-(?P<max_value>\d+)(?P<unit2>[bBkKmMGtT]?)$").unwrap();
 
-    let value: u64 = caps["value"].parse().expect("Invalid numeric value");
-    let unit = caps["unit"].to_ascii_lowercase();
+    if let Some(caps) = range_re.captures(size) {
+        // Handle range case
+        let min_value: u64 =
+            caps["min_value"].parse().expect("Invalid numeric value");
+        let max_value: u64 =
+            caps["max_value"].parse().expect("Invalid numeric value");
+        let unit1 = caps["unit1"].to_ascii_lowercase();
+        let unit2 = caps["unit2"].to_ascii_lowercase();
 
-    if unit.is_empty() {
-        value
+        let multiplier1 = BYTE_UNITS
+            .iter()
+            .find(|(u, _)| u.to_lowercase() == unit1)
+            .map(|(_, m)| m)
+            .unwrap_or(&1u64);
+
+        let multiplier2 = BYTE_UNITS
+            .iter()
+            .find(|(u, _)| u.to_lowercase() == unit2)
+            .map(|(_, m)| m)
+            .unwrap_or(&1u64);
+
+        let min_size = min_value * multiplier1;
+        let max_size = max_value * multiplier2;
+
+        Ok((Some(min_size), Some(max_size)))
+    } else if let Some(caps) = re.captures(size) {
+        let modifier = &caps["modifier"];
+        let value: u64 = caps["value"].parse().expect("Invalid numeric value");
+        let unit = caps["unit"].to_ascii_lowercase();
+
+        let multiplier = BYTE_UNITS
+            .iter()
+            .find(|(u, _)| u.to_lowercase() == unit)
+            .map(|(_, m)| m)
+            .unwrap_or(&1u64);
+
+        let size = value * multiplier;
+
+        match modifier {
+            "+" => Ok((Some(size), None)),
+            "-" => Ok((None, Some(size))),
+            "=" => Ok((Some(size), Some(size))),
+            "" => {
+                let min_size = (size as f64 * (1.0 - PERCENTAGE)).ceil() as u64;
+                let max_size =
+                    (size as f64 * (1.0 + PERCENTAGE)).floor() as u64;
+                Ok((Some(min_size), Some(max_size)))
+            }
+            _ => Err(format!("Invalid modifier: {}", modifier)),
+        }
     } else {
-        value
-            * BYTE_UNITS
-                .iter()
-                .find(|(u, _)| u.to_lowercase() == unit)
-                .unwrap()
-                .1
+        Err(format!("Invalid size string: {}", size))
     }
 }
 
-fn parse_time_offset(time_offset_str: String) -> u64 {
-    const TIME_UNITS: &[(&str, u64)] = &[
-        ("S", 1),
-        ("M", 60),
-        ("H", 3600),
-        ("d", 86400),
-        ("w", 604800),
+fn parse_time_offset(
+    time_offset_str: &str,
+) -> Result<(Option<u64>, Option<u64>), String> {
+    const TIME_UNITS: &[(&str, f64)] = &[
+        ("Y", 365.25 * 86400.0),
+        ("M", 30.5 * 86400.0),
+        ("W", 7.0 * 86400.0),
+        ("D", 86400.0),
+        ("h", 3600.0),
+        ("m", 60.0),
+        ("s", 1.0),
     ];
+    let re = Regex::new(r"(?P<value>\d+)(?P<unit>[YMWDhms])").unwrap();
 
-    let re = Regex::new(r"(?P<value>\d+)(?P<unit>[sSmMhHdDwW])").unwrap();
-    let caps = re
-        .captures(&time_offset_str)
-        .expect("Invalid time offset string");
+    let mut seconds = 0;
+    for caps in re.captures_iter(time_offset_str) {
+        let value: u64 = caps["value"].parse().expect("Invalid numeric value");
+        let unit = &caps["unit"];
+        let seconds_multiplier =
+            TIME_UNITS.iter().find(|(u, _)| u == &unit).unwrap().1;
+        seconds += (value as f64 * seconds_multiplier).round() as u64;
+    }
+    let sign = if time_offset_str.starts_with('-') {
+        "-"
+    } else {
+        ""
+    };
+    let total_offset_seconds = if sign == "-" {
+        -1 * seconds as i64
+    } else {
+        seconds as i64
+    };
 
-    let value: u64 = caps["value"].parse().expect("Invalid numeric value");
-    let unit = caps["unit"].to_ascii_uppercase();
-
-    let seconds_multiplier = TIME_UNITS
-        .iter()
-        .find(|(u, _)| u.to_uppercase() == unit)
-        .unwrap()
-        .1;
+    if re.find_iter(time_offset_str).count() == 0 {
+        return Err(format!("Invalid time offset string: {}", time_offset_str));
+    }
 
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs();
 
-    let offset_seconds = value * seconds_multiplier;
-
-    if current_time > offset_seconds {
-        current_time - offset_seconds
+    let min_time = if total_offset_seconds < 0 {
+        current_time.checked_sub(total_offset_seconds.abs() as u64)
     } else {
-        0
-    }
+        None
+    };
+    let max_time = if total_offset_seconds > 0 {
+        current_time.checked_sub(total_offset_seconds.abs() as u64)
+    } else {
+        None
+    };
+    Ok((min_time, max_time))
 }

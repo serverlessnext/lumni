@@ -1,8 +1,8 @@
 use std::env;
 
-use lakestream::cli;
+use lakestream::run_cli;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    cli::run_cli(args);
+    run_cli(args);
 }

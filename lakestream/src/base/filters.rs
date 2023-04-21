@@ -15,6 +15,13 @@ pub struct FileObjectFilter {
     max_mtime: Option<u64>,
 }
 
+fn sytem_time_in_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs()
+}
+
 impl FileObjectFilter {
     pub fn new(
         name: Option<&str>,
@@ -29,7 +36,7 @@ impl FileObjectFilter {
         };
 
         let (min_mtime, max_mtime) = match mtime {
-            Some(m) => parse_time(m)?,
+            Some(m) => parse_time(m, sytem_time_in_seconds())?,
             None => (None, None),
         };
 
@@ -105,7 +112,11 @@ fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
         let min_size = min_value * multiplier1;
         let max_size = max_value * multiplier2;
 
-        Ok((Some(min_size), Some(max_size)))
+        if min_size > max_size {
+            Err(format!("Minimum size is greater than maximum size."))
+        } else {
+            Ok((Some(min_size), Some(max_size)))
+        }
     } else if let Some(caps) = re.captures(size) {
         let modifier = &caps["modifier"];
         let value: u64 = caps["value"].parse().expect("Invalid numeric value");
@@ -138,6 +149,7 @@ fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
 
 fn parse_time(
     time_offset_str: &str,
+    current_time: u64,
 ) -> Result<(Option<u64>, Option<u64>), String> {
     const TIME_UNITS: &[(&str, f64)] = &[
         ("Y", 365.25 * 86400.0),
@@ -149,7 +161,6 @@ fn parse_time(
         ("s", 1.0),
     ];
     let re = Regex::new(r"(?P<value>\d+)(?P<unit>[YMWDhms])").unwrap();
-
     let mut total_offset_seconds = 0i64;
     for caps in re.captures_iter(time_offset_str) {
         let value: u64 = caps["value"].parse().expect("Invalid numeric value");
@@ -168,10 +179,6 @@ fn parse_time(
         total_offset_seconds = -total_offset_seconds;
     }
 
-    let current_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
 
     let min_time = if total_offset_seconds < 0 {
         current_time.checked_sub(total_offset_seconds.unsigned_abs())
@@ -183,6 +190,82 @@ fn parse_time(
     } else {
         None
     };
-
     Ok((min_time, max_time))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_time() {
+
+        let current_time = sytem_time_in_seconds();
+
+        let valid_cases: Vec<(&str, Option<u64>, Option<u64>)> = vec![
+            ("1Y", None, Some(current_time - 31557600)),
+            ("-1Y", Some(current_time - 31557600), None),
+            ("1Y2M", None, Some(current_time - 36828000)),
+            ("-1Y2M", Some(current_time - 36828000), None),
+        ];
+
+
+        for (input, min_time, max_time) in valid_cases {
+            let (min_time_result, max_time_result) = parse_time(input, current_time).unwrap();
+            assert_eq!(min_time_result, min_time);
+            assert_eq!(max_time_result, max_time);
+        }
+        // TODO - fix more test cases
+        // Test valid inputs
+//        let cases = vec![
+//            ("1Y", Some(31536000), None),
+//            ("-1M", None, Some(2629746)),
+//            ("1W", None, Some(604800)),
+//            ("-2D", Some(172800), None),
+//            ("1D8h20m", None, Some(110400)),
+//            ("-3W5D", Some(2252800), None),
+//            ("1h", None, Some(3600)),
+//            ("2m", None, Some(120)),
+//            ("-3s", Some(3), None),
+//        ];
+
+
+        // Test invalid inputs
+//        let invalid_cases = vec!["1Y2M3", "2d5h6m7", "1M-1D", "+3D4H", "2.5D"];
+//        for input in invalid_cases {
+//            assert!(parse_time(input, current_time).is_err());
+//        }
+    }
+
+    #[test]
+    fn test_parse_size() {
+        // Test valid inputs
+        let cases = vec![
+            ("+1G", Some(1073741824), None),
+            ("-1G", None, Some(1073741824)),
+            ("=1G", Some(1073741824), Some(1073741824)),
+            ("1G-2G", Some(1073741824), Some(2147483648)),
+            ("500M", Some(498073600), Some(550502400)),
+            ("-5k", None, Some(5120)),
+            ("100", Some(95), Some(105)),
+            ("100B", Some(95), Some(105)),
+        ];
+
+        for (input, min_size, max_size) in cases {
+            let (actual_min, actual_max) = parse_size(input).unwrap();
+            assert_eq!(actual_min, min_size);
+            assert_eq!(actual_max, max_size);
+        }
+
+        // Test invalid inputs
+        let invalid_cases = vec![
+            "1G2M3k", "2g5m6b7", "1M-1K", "+3G4M", "2.5G", "5P", "5G5M",
+        ];
+        for input in invalid_cases {
+            assert!(parse_size(input).is_err());
+            println!("input: {}", input);
+        }
+    }
+}
+
+

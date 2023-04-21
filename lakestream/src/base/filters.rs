@@ -6,6 +6,7 @@ use regex::Regex;
 
 use crate::FileObject;
 
+#[derive(Debug, Clone)]
 pub struct FileObjectFilter {
     name_regex: Option<Regex>,
     min_size: Option<u64>,
@@ -21,14 +22,14 @@ impl FileObjectFilter {
         mtime: Option<&str>,
     ) -> Result<Self, String> {
         // Define name_regex
-        let name_regex = name.map(|pattern| Regex::new(&pattern).unwrap());
+        let name_regex = name.map(|pattern| Regex::new(pattern).unwrap());
 
-        let (min_size, max_size) = match size.as_deref() {
+        let (min_size, max_size) = match size {
             Some(s) => parse_size(s)?,
             None => (None, None),
         };
 
-        let (min_mtime, max_mtime) = match mtime.as_deref() {
+        let (min_mtime, max_mtime) = match mtime {
             Some(m) => parse_time_offset(m)?,
             None => (None, None),
         };
@@ -44,7 +45,7 @@ impl FileObjectFilter {
 
     pub fn matches(&self, file_object: &FileObject) -> bool {
         let name_match = match &self.name_regex {
-            Some(re) => re.is_match(&file_object.name()),
+            Some(re) => re.is_match(file_object.name()),
             None => true,
         };
 
@@ -150,27 +151,22 @@ fn parse_time_offset(
     ];
     let re = Regex::new(r"(?P<value>\d+)(?P<unit>[YMWDhms])").unwrap();
 
-    let mut seconds = 0;
+    let mut total_offset_seconds = 0i64;
     for caps in re.captures_iter(time_offset_str) {
         let value: u64 = caps["value"].parse().expect("Invalid numeric value");
         let unit = &caps["unit"];
         let seconds_multiplier =
             TIME_UNITS.iter().find(|(u, _)| u == &unit).unwrap().1;
-        seconds += (value as f64 * seconds_multiplier).round() as u64;
+        total_offset_seconds +=
+            (value as f64 * seconds_multiplier).round() as i64;
     }
-    let sign = if time_offset_str.starts_with('-') {
-        "-"
-    } else {
-        ""
-    };
-    let total_offset_seconds = if sign == "-" {
-        -1 * seconds as i64
-    } else {
-        seconds as i64
-    };
 
     if re.find_iter(time_offset_str).count() == 0 {
         return Err(format!("Invalid time offset string: {}", time_offset_str));
+    }
+
+    if time_offset_str.starts_with('-') {
+        total_offset_seconds = -total_offset_seconds;
     }
 
     let current_time = SystemTime::now()
@@ -179,14 +175,15 @@ fn parse_time_offset(
         .as_secs();
 
     let min_time = if total_offset_seconds < 0 {
-        current_time.checked_sub(total_offset_seconds.abs() as u64)
+        current_time.checked_sub(total_offset_seconds.unsigned_abs())
     } else {
         None
     };
     let max_time = if total_offset_seconds > 0 {
-        current_time.checked_sub(total_offset_seconds.abs() as u64)
+        current_time.checked_sub(total_offset_seconds.unsigned_abs())
     } else {
         None
     };
+
     Ok((min_time, max_time))
 }

@@ -84,30 +84,28 @@ fn list_files_next(
     let mut count = 0;
 
     if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                if let Some(max_keys) = max_keys {
-                    if file_objects.len() >= max_keys as usize {
-                        break;
-                    }
+        for entry in entries.flatten() {
+            if let Some(max_keys) = max_keys {
+                if file_objects.len() >= max_keys as usize {
+                    break;
                 }
+            }
 
-                let metadata = match entry.metadata() {
-                    Ok(md) => md,
-                    Err(_) => continue,
-                };
+            let metadata = match entry.metadata() {
+                Ok(md) => md,
+                Err(_) => continue,
+            };
 
-                if metadata.is_file() {
-                    count += handle_file(&entry, filter, file_objects);
-                } else if metadata.is_dir() {
-                    count += handle_directory(
-                        &entry,
-                        max_keys,
-                        recursive,
-                        filter,
-                        file_objects,
-                    );
-                }
+            if metadata.is_file() {
+                count += handle_file(&entry, filter, file_objects);
+            } else if metadata.is_dir() {
+                count += handle_directory(
+                    &entry,
+                    max_keys,
+                    recursive,
+                    filter,
+                    file_objects,
+                );
             }
         }
     }

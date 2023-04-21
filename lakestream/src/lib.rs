@@ -10,6 +10,6 @@ pub use base::filters::FileObjectFilter;
 pub use base::interfaces::{
     FileObject, ListObjectsResult, ObjectStore, ObjectStoreHandler,
 };
-pub use cli::cli::run_cli;
+pub use cli::parser::run_cli;
 // re-export all defaults
 pub use default::*;

@@ -59,7 +59,7 @@ impl ObjectStoreHandler {
                 .insert("config".to_string(), Value::Object(config_map));
             object_store_configuration.insert(
                 "uri".to_string(),
-                Value::String(format!("{}://", scheme.unwrap()).to_string()),
+                Value::String(format!("{}://", scheme.unwrap())),
             );
 
             let configs = vec![object_store_configuration];

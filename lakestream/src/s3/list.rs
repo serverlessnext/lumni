@@ -85,13 +85,12 @@ pub fn list_files(
         S3Credentials::new(String::from(access_key), String::from(secret_key));
 
     let mut all_file_objects = Vec::new();
-    let continuation_token: Option<String>;
     let body: String;
 
     let mut s3_client;
     let mut endpoint_url;
 
-    let effective_max_keys = get_effective_max_keys(&filter, max_keys);
+    let effective_max_keys = get_effective_max_keys(filter, max_keys);
 
     // Check for a 301 redirect and update the region if necessary
     loop {
@@ -126,14 +125,12 @@ pub fn list_files(
                         );
                         return Vec::new();
                     }
+                } else if response_body.is_empty() {
+                    eprintln!("Error: Received an empty response from S3");
+                    return Vec::new();
                 } else {
-                    if response_body.is_empty() {
-                        eprintln!("Error: Received an empty response from S3");
-                        return Vec::new();
-                    } else {
-                        body = response_body;
-                        break;
-                    }
+                    body = response_body;
+                    break;
                 }
             }
             Err(e) => {
@@ -165,7 +162,7 @@ pub fn list_files(
         |file_object| filter.as_ref().map_or(true, |f| f.matches(file_object)),
     ));
 
-    continuation_token = extract_continuation_token(&body);
+    let continuation_token = extract_continuation_token(&body);
 
     // enter recursive lookup if max_keys not yet satisfied
     let remaining_keys =
@@ -180,7 +177,7 @@ pub fn list_files(
                 &mut s3_client,
                 continuation_token,
                 recursive,
-                filter.clone(),
+                &(*filter).clone(),
             ));
         }
 
@@ -210,7 +207,7 @@ pub fn list_files(
 }
 
 fn list_files_next(
-    s3_bucket: &S3Bucket,
+    _s3_bucket: &S3Bucket,
     prefix: Option<&str>,
     max_keys: Option<u32>,
     s3_client: &mut S3Client,
@@ -223,7 +220,7 @@ fn list_files_next(
 
     let mut current_continuation_token = continuation_token;
 
-    let effective_max_keys = get_effective_max_keys(&filter, max_keys);
+    let effective_max_keys = get_effective_max_keys(filter, max_keys);
     // loop until we have all regular files or we have reached the max_keys
     loop {
         let headers = s3_client
@@ -242,7 +239,7 @@ fn list_files_next(
 
             for file_object in file_objects {
                 if all_file_objects.len()
-                    == max_keys.unwrap_or_else(|| AWS_MAX_LIST_OBJECTS) as usize
+                    == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
                 {
                     break;
                 }
@@ -271,7 +268,7 @@ fn list_files_next(
 
         if current_continuation_token.is_none()
             || all_file_objects.len()
-                >= max_keys.unwrap_or_else(|| AWS_MAX_LIST_OBJECTS) as usize
+                >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
         {
             break;
         }
@@ -289,7 +286,7 @@ fn list_files_next(
 
             let subdir_prefix = Some(virtual_directory);
             let subdir_objects = list_files_next(
-                s3_bucket,
+                _s3_bucket,
                 subdir_prefix.as_deref(),
                 max_keys.map(|max| max - all_file_objects.len() as u32),
                 s3_client,
@@ -332,8 +329,7 @@ pub fn list_buckets(
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
     let endpoint_url = format!("https://s3.{}.amazonaws.com", region);
-    let mut s3_client =
-        S3Client::new(endpoint_url, String::from(region), credentials);
+    let mut s3_client = S3Client::new(endpoint_url, region, credentials);
     let headers = s3_client.generate_list_buckets_headers().unwrap();
 
     let result = http_get_request(&s3_client.url(), &headers);
@@ -368,7 +364,7 @@ fn parse_bucket_objects(
         .iter()
         .map(|bucket| {
             let name = bucket.Name.clone();
-            let config = config.clone().unwrap_or_else(HashMap::new);
+            let config = config.clone().unwrap_or_default();
             ObjectStore::new(&format!("s3://{}", name), config).unwrap()
         })
         .collect();

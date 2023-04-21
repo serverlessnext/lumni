@@ -1,2 +1,2 @@
-pub mod cli;
 mod ls_command;
+pub mod parser;

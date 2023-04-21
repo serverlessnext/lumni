@@ -4,10 +4,16 @@ use std::io::Read;
 
 use ureq::{Agent, Response};
 
+type ResponseData = (String, u16, HashMap<String, String>);
+type HttpResult = Result<ResponseData, Box<dyn Error>>;
+type ResponseDataWithoutHeaders = (String, u16);
+type HttpResultWithoutHeaders =
+    Result<ResponseDataWithoutHeaders, Box<dyn Error>>;
+
 pub fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
-) -> Result<(String, u16), Box<dyn Error>> {
+) -> HttpResultWithoutHeaders {
     let response = perform_request(url, headers)?;
     let status = response.status();
 
@@ -22,7 +28,7 @@ pub fn http_get_request(
 pub fn http_get_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
-) -> Result<(String, u16, HashMap<String, String>), Box<dyn Error>> {
+) -> HttpResult {
     let response = perform_request(url, headers)?;
     let status = response.status();
     let headers_map = parse_response_headers(&response);
@@ -45,7 +51,7 @@ fn perform_request(
 
     // Add headers to the request
     for (key, value) in headers {
-        request_builder = request_builder.set(&key, &value);
+        request_builder = request_builder.set(key, value);
     }
 
     let response = request_builder.call()?;

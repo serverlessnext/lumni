@@ -24,7 +24,7 @@ pub fn run_cli(args: Vec<String>) {
             )
             .subcommand(
                 Command::new("ls")
-                    .about("List objects in an S3 bucket")
+                    .about("List objects on Local Filesystem or an S3 bucket")
                     .arg(Arg::new("uri").index(1).required(true).help(
                         "URI to list objects from. E.g. s3://bucket-name/",
                     ))
@@ -39,8 +39,8 @@ pub fn run_cli(args: Vec<String>) {
                             .num_args(1)
                             .allow_hyphen_values(true)
                             .help(
-                                "Filter objects based on size. E.g. '+1G', \
-                                 '-1G', '5G', '1G-2G'",
+                                "Filter objects based on size. E.g. '-1K', \
+                                '+4M', '+1G', '-1G', '5G', '1G-2G'",
                             ),
                     )
                     .arg(
@@ -51,7 +51,7 @@ pub fn run_cli(args: Vec<String>) {
                             .allow_hyphen_values(true)
                             .help(
                                 "Filter objects based on the time offset. \
-                                 E.g. '+5m', '-1h', '+2D', '-3W', '+1M', '-1Y'",
+                                 E.g. '-60s', '+5m', '-1h', '+2D', '-3W', '+1M', '-1Y'",
                             ),
                     )
                     .arg(

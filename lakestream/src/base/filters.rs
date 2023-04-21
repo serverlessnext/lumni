@@ -21,7 +21,6 @@ impl FileObjectFilter {
         size: Option<&str>,
         mtime: Option<&str>,
     ) -> Result<Self, String> {
-        // Define name_regex
         let name_regex = name.map(|pattern| Regex::new(pattern).unwrap());
 
         let (min_size, max_size) = match size {
@@ -30,7 +29,7 @@ impl FileObjectFilter {
         };
 
         let (min_mtime, max_mtime) = match mtime {
-            Some(m) => parse_time_offset(m)?,
+            Some(m) => parse_time(m)?,
             None => (None, None),
         };
 
@@ -137,7 +136,7 @@ fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
     }
 }
 
-fn parse_time_offset(
+fn parse_time(
     time_offset_str: &str,
 ) -> Result<(Option<u64>, Option<u64>), String> {
     const TIME_UNITS: &[(&str, f64)] = &[

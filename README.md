@@ -44,15 +44,37 @@ export AWS_REGION=us-east-1
 ```
 
 ### CLI examples
-Under the hood Python forwards arguments 1:1 to the Rust library.
-CLI patterns for Python and Rust are the same.
-```
-# Python
-python -m lakestream ls s3://my-bucket
 
-# Rust
-lakestream ls s3://my-bucket
 ```
+# Find all files in the "reports" directory, with names containing "2023" and
+# modified within the last 30 days, in a given S3 bucket.
+lakestream ls s3://bucket-name/reports/ --name "*2023*" --mtime "-30D
+
+# Find all files in the current directory, larger than 100 MB and modified
+# within the last 2 days.
+lakestream ls . --size "+100M" --mtime "-2D"
+
+Find all files larger than 1 megabyte (MB) in a given S3 Bucket
+lakestream ls s3://bucket-name/ --size "+1M" --recursive
+
+# Find all files modified more than 1 hour ago, recursively
+lakestream ls . --mtime "+1h" --recursive
+```
+
+More **ls** examples [here](./examples/list.md).
+
+> Python CLI
+> Under the hood Python forwards arguments 1:1 to the Rust library.
+> CLI patterns for Python and Rust are the same.
+> ```
+> # Python
+> python -m lakestream ls s3://my-bucket
+>
+> # Rust
+> lakestream ls s3://my-bucket
+> ```
+
+
 
 
 ### Python module example

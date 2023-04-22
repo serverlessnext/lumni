@@ -1,4 +1,4 @@
-use super::timeparse::epoch_to_rfc3339;
+use super::time_parse_ext::epoch_to_rfc3339;
 
 pub fn time_human_readable(epoch_time: u64) -> String {
     epoch_to_rfc3339(epoch_time).unwrap()

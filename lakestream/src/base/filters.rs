@@ -1,9 +1,8 @@
-
-
 use regex::Regex;
-use crate::FileObject;
-use crate::utils::time_parse::calculate_time_offset_seconds;
+
 use crate::utils::time::system_time_in_seconds;
+use crate::utils::time_parse::calculate_time_offset_seconds;
+use crate::FileObject;
 
 #[derive(Debug, Clone)]
 pub struct FileObjectFilter {
@@ -146,7 +145,10 @@ fn parse_time(
     let is_negative = time_offset_str.starts_with('-');
     let is_positive = time_offset_str.starts_with('+');
 
-    if time_offset_str.chars().any(|c| !c.is_digit(10) && !"+-YMWDhms".contains(c)) {
+    if time_offset_str
+        .chars()
+        .any(|c| !c.is_digit(10) && !"+-YMWDhms".contains(c))
+    {
         return Err(format!("Invalid time offset string: {}", time_offset_str));
     }
 
@@ -156,7 +158,8 @@ fn parse_time(
         time_offset_str
     };
 
-    let total_offset_seconds = calculate_time_offset_seconds(time_offset_str)? as i64;
+    let total_offset_seconds =
+        calculate_time_offset_seconds(time_offset_str)? as i64;
 
     let total_offset_seconds = if is_negative {
         -total_offset_seconds
@@ -177,7 +180,6 @@ fn parse_time(
     Ok((min_time, max_time))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,11 +192,8 @@ mod tests {
             .iter()
             .map(|&input| {
                 let is_negative = input.starts_with('-');
-                let time_offset_str = if is_negative {
-                    &input[1..]
-                } else {
-                    input
-                };
+                let time_offset_str =
+                    if is_negative { &input[1..] } else { input };
                 let offset = calculate_time_offset_seconds(time_offset_str)?;
                 let min_time = if is_negative {
                     Some(current_time - offset)
@@ -211,38 +210,68 @@ mod tests {
             .collect()
     }
 
-
     #[test]
     fn test_parse_time() {
         let current_time = system_time_in_seconds();
 
         let valid_base_cases_inputs = &[
-            "2M", "-2M", "3W", "-3W", "5D", "-5D", "48h", "-48h", "20m", "-20m", "10s", "-10s", "1Y", "-1Y"];
-        let valid_base_cases = generate_valid_cases(current_time, valid_base_cases_inputs).unwrap();
+            "2M", "-2M", "3W", "-3W", "5D", "-5D", "48h", "-48h", "20m",
+            "-20m", "10s", "-10s", "1Y", "-1Y",
+        ];
+        let valid_base_cases =
+            generate_valid_cases(current_time, valid_base_cases_inputs)
+                .unwrap();
 
         for (input, min_time, max_time) in valid_base_cases {
-            let (min_time_result, max_time_result) = parse_time(input, current_time).unwrap();
+            let (min_time_result, max_time_result) =
+                parse_time(input, current_time).unwrap();
             assert_eq!(min_time_result, min_time);
             assert_eq!(max_time_result, max_time);
         }
 
         let valid_combined_cases_inputs = &[
-            "1Y2M", "-1Y2M", "1D8h20m", "-1D8h20m", "3W5D", "-3W5D", "2M10D2h", "-2M10D2h",
-            "1Y1M1W1D1h1m1s", "-1Y1M1W1D1h1m1s",
+            "1Y2M",
+            "-1Y2M",
+            "1D8h20m",
+            "-1D8h20m",
+            "3W5D",
+            "-3W5D",
+            "2M10D2h",
+            "-2M10D2h",
+            "1Y1M1W1D1h1m1s",
+            "-1Y1M1W1D1h1m1s",
         ];
-        let valid_combined_cases = generate_valid_cases(current_time, valid_combined_cases_inputs).unwrap();
+        let valid_combined_cases =
+            generate_valid_cases(current_time, valid_combined_cases_inputs)
+                .unwrap();
         for (input, min_time, max_time) in valid_combined_cases {
-            let (min_time_result, max_time_result) = parse_time(input, current_time).unwrap();
+            let (min_time_result, max_time_result) =
+                parse_time(input, current_time).unwrap();
             assert_eq!(min_time_result, min_time);
             assert_eq!(max_time_result, max_time);
         }
 
         // Test invalid inputs
         let invalid_cases = vec![
-            "1Y2M3", "2d5h6m7", "+3D4H", "2.5D", "1M-1D",
-            "10050Y", "-10050Y", "3660001D", "-3660001D", "316224000001s", "-316224000001s", // edge cases
-            " 2M", "2M ", " 2M ", "\t2M", "2M\t", // whitespace cases
-            "2H", "3w", "3y", // incorrect capitalization cases
+            "1Y2M3",
+            "2d5h6m7",
+            "+3D4H",
+            "2.5D",
+            "1M-1D",
+            "10050Y",
+            "-10050Y",
+            "3660001D",
+            "-3660001D",
+            "316224000001s",
+            "-316224000001s", // edge cases
+            " 2M",
+            "2M ",
+            " 2M ",
+            "\t2M",
+            "2M\t", // whitespace cases
+            "2H",
+            "3w",
+            "3y", // incorrect capitalization cases
         ];
         for input in invalid_cases {
             assert!(parse_time(input, current_time).is_err());
@@ -270,13 +299,11 @@ mod tests {
         }
 
         // Test invalid inputs
-        let invalid_cases = vec![
-            "1G2M3k", "2g5m6b7", "1M-1K", "+3G4M", "2.5G", "5P", "5G5M",
-        ];
+        let invalid_cases =
+            vec!["1G2M3k", "2g5m6b7", "1M-1K", "+3G4M", "2.5G", "5P", "5G5M"];
         for input in invalid_cases {
             assert!(parse_size(input).is_err());
             println!("input: {}", input);
         }
     }
 }
-

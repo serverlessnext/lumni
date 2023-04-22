@@ -3,10 +3,10 @@ use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    run_cli, ListObjectsResult, ObjectStoreHandler, AWS_DEFAULT_REGION,
+    run_cli, ListObjectsResult, ObjectStoreHandler, FileObjectFilter, AWS_DEFAULT_REGION,
 };
 use pyo3::prelude::*;
-use pyo3::types::PyList;
+use pyo3::types::{PyList,PyDict,PyAny};
 use pyo3::{exceptions, ToPyObject};
 
 #[pyclass]
@@ -64,6 +64,7 @@ impl Client {
         uri: String,
         recursive: Option<bool>,
         max_files: Option<u32>,
+        filter_dict: Option<&PyDict>,
     ) -> PyResult<PyObject> {
         // Get the namedtuple function from the collections module
         let collections = py.import("collections")?;
@@ -73,7 +74,9 @@ impl Client {
         let file_object_named_tuple =
             namedtuple.call1(("FileObject", ["name", "size", "modified"]))?;
 
-        let filter = None;
+        // Create the filter from the dictionary
+        let filter = create_filter(py, filter_dict)?;
+
         match ObjectStoreHandler::list_objects(
             uri,
             self.config.clone(),
@@ -111,3 +114,46 @@ fn lakestream(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Client>()?;
     Ok(())
 }
+
+
+fn create_filter(py: Python, filter_dict: Option<&PyDict>) -> PyResult<Option<FileObjectFilter>> {
+    // Create the filter from the dictionary
+    let filter = filter_dict.as_ref().map(|filter_dict| {
+        let filter_name = extract_first_value(py, filter_dict.get_item("name"));
+        let filter_size = extract_first_value(py, filter_dict.get_item("size"));
+        let filter_mtime = extract_first_value(py, filter_dict.get_item("mtime"));
+
+        FileObjectFilter::new(
+            filter_name.as_deref(),
+            filter_size.as_deref(),
+            filter_mtime.as_deref(),
+        )
+    });
+
+    let filter = match filter {
+        Some(Ok(filter)) => Some(filter),
+        Some(Err(err)) => {
+            return Err(PyErr::new::<
+                exceptions::PyValueError,
+                _,
+            >(format!("Error creating filter: {}", err)))
+        }
+        None => None,
+    };
+    PyResult::Ok(filter)
+}
+
+fn extract_first_value(_py: Python, value: Option<&PyAny>) -> Option<String> {
+    if let Some(value) = value {
+        if let Ok(s) = value.extract::<String>() {
+            Some(s)
+        } else if let Ok(list) = value.extract::<Vec<String>>() {
+            list.first().cloned()
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+

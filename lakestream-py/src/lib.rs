@@ -3,7 +3,7 @@ use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    cli, ListObjectsResult, ObjectStoreHandler, DEFAULT_AWS_REGION,
+    run_cli, ListObjectsResult, ObjectStoreHandler, AWS_DEFAULT_REGION,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -30,7 +30,7 @@ impl Client {
         })?;
         let region = region
             .or_else(|| env::var("AWS_REGION").ok())
-            .unwrap_or_else(|| DEFAULT_AWS_REGION.to_string());
+            .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
 
         let mut config = HashMap::new();
         config.insert("access_key".to_string(), access_key);
@@ -54,7 +54,7 @@ impl Client {
         let mut config = HashMap::new();
         config.insert("access_key".to_string(), access_key);
         config.insert("secret_key".to_string(), secret_key);
-        cli::run_cli(args);
+        run_cli(args);
         Ok(())
     }
 
@@ -62,6 +62,7 @@ impl Client {
         &self,
         py: Python,
         uri: String,
+        recursive: Option<bool>,
         max_files: Option<u32>,
     ) -> PyResult<PyObject> {
         // Get the namedtuple function from the collections module
@@ -72,10 +73,13 @@ impl Client {
         let file_object_named_tuple =
             namedtuple.call1(("FileObject", ["name", "size", "modified"]))?;
 
+        let filter = None;
         match ObjectStoreHandler::list_objects(
             uri,
             self.config.clone(),
+            recursive.unwrap_or(false),
             max_files,
+            &filter,
         ) {
             ListObjectsResult::FileObjects(file_objects) => {
                 let py_file_objects = file_objects

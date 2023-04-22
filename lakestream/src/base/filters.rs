@@ -216,7 +216,7 @@ mod tests {
                 };
                 Ok((input, min_time, max_time))
             })
-            .collect::<Result<Vec<_>, _>>()
+            .collect()
     }
 
 
@@ -246,11 +246,13 @@ mod tests {
         }
 
         // Test invalid inputs
-        // TODO:
-        // add invalid test-case of 1M-1D (does not work due to regex issue in calculate_time_offset_seconds())
-        let invalid_cases = vec!["1Y2M3", "2d5h6m7", "+3D4H", "2.5D"];
+        let invalid_cases = vec![
+            "1Y2M3", "2d5h6m7", "+3D4H", "2.5D", "1M-1D",
+            "10050Y", "-10050Y", "3660001D", "-3660001D", "316224000001s", "-316224000001s", // edge cases
+            " 2M", "2M ", " 2M ", "\t2M", "2M\t", // whitespace cases
+            "2H", "3w", "3y", // incorrect capitalization cases
+        ];
         for input in invalid_cases {
-            println!("Testing invalid input: {}", input);
             assert!(parse_time(input, current_time).is_err());
         }
     }

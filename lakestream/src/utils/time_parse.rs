@@ -2,8 +2,11 @@
 use regex::Regex;
 
 pub fn calculate_time_offset_seconds(time_offset_str: &str) -> Result<u64, String> {
-    // TODO: invalid case of 1M-1D is not caught due to regex issue
-    let re = Regex::new(r"(?P<value>\d+)(?P<unit>[YMWDhms])").unwrap();
+    // add reasonable boundary to prevent overflow in unknown edge cases
+    const MAX_OFFSET_SECONDS: i64 = 10000 * 366 * 86400;
+    const MIN_OFFSET_SECONDS: i64 = -MAX_OFFSET_SECONDS;
+
+    let re = Regex::new(r"^(?:(?P<value>\d+)(?P<unit>[YMWDhms]))+$").unwrap();
 
     let mut total_offset_seconds = 0i64;
     let mut remaining_str = time_offset_str;
@@ -14,6 +17,14 @@ pub fn calculate_time_offset_seconds(time_offset_str: &str) -> Result<u64, Strin
             TIME_UNITS.iter().find(|(u, _)| u == &unit).ok_or_else(|| format!("Invalid time unit: {}", unit))?.1;
         total_offset_seconds +=
             (value as f64 * seconds_multiplier).round() as i64;
+
+        if total_offset_seconds > MAX_OFFSET_SECONDS || total_offset_seconds < MIN_OFFSET_SECONDS {
+            return Err(format!(
+                "Invalid time offset string: {} (offset exceeds valid range)",
+                time_offset_str
+            ));
+        }
+
         remaining_str = &remaining_str[caps.get(0).unwrap().end()..];
     }
 

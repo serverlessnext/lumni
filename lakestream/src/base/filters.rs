@@ -1,10 +1,9 @@
-// TEMPORARILY - this likely needs to be replaced in Web builds
 
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 use crate::FileObject;
 use crate::utils::time_parse::calculate_time_offset_seconds;
+use crate::utils::time::system_time_in_seconds;
 
 #[derive(Debug, Clone)]
 pub struct FileObjectFilter {
@@ -13,13 +12,6 @@ pub struct FileObjectFilter {
     max_size: Option<u64>,
     min_mtime: Option<u64>,
     max_mtime: Option<u64>,
-}
-
-fn system_time_in_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs()
 }
 
 impl FileObjectFilter {

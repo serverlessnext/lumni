@@ -1,3 +1,4 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 pub use super::time_parse_ext::{datetime_utc, epoch_to_rfc3339, rfc3339_to_epoch};
 
 impl UtcTimeNow {
@@ -36,4 +37,11 @@ impl UtcTimeNow {
             self.second
         )
     }
+}
+
+pub fn system_time_in_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs()
 }

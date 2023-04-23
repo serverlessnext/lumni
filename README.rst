@@ -65,7 +65,7 @@ Quickstart
     # within the last 2 days.
     lakestream ls . --size "+100M" --mtime "-2D"
 
-    Find all files larger than 1 megabyte (MB) in a given S3 Bucket
+    # Find all files larger than 1 megabyte (MB) in a given S3 Bucket
     lakestream ls s3://bucket-name/ --size "+1M" --recursive
 
     # Find all files modified more than 1 hour ago, recursively

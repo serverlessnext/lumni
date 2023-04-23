@@ -1,9 +1,16 @@
 [package]
 name = "lakestream"
-version = "0.0.2-pre"
+version = "0.0.2"
+authors = ["Anthony Potappel <aprxi@lakestream.dev>"]
 edition = "2021"
+
 description = "Portable file-utility for object-stores"
+documentation = "https://docs.rs/lakestream"
+homepage = "https://lakestream.dev"
+repository = "https://github.com/serverlessnext/lakestream"
+readme = "../README.rst"
 license = "MIT"
+
 
 [lib]
 name = "lakestream"

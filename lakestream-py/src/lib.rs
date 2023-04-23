@@ -10,15 +10,6 @@ use pyo3::types::{PyList,PyDict,PyAny};
 use pyo3::{exceptions, ToPyObject};
 
 #[pyclass]
-/// Client class for interacting with the LakeStream object storage.
-///
-/// Example usage:
-///
-/// ```python
-/// client = lakestream.Client()
-/// filter_dict = {"name": "example.txt", "size": "5", "mtime": "1D"}
-/// result = client.list("s3://your-bucket", recursive=True, filter_dict=filter_dict)
-/// ```
 struct _Client {
     config: HashMap<String, String>,
 }
@@ -48,13 +39,6 @@ impl _Client {
 
         Ok(_Client { config })
     }
-
-//    #[args(
-//        uri,
-//        recursive = "None",
-//        max_files = "None",
-//        filter_dict = "None",
-//    )]
 
     fn cli(&self, args: &PyList) -> PyResult<()> {
         let mut args: Vec<String> = args

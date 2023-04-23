@@ -6,8 +6,13 @@ build-backend = "maturin"
 name = "lakestream"
 version = "0.0.0-0"
 description = "Python interface for Lakestream"
-readme = "README.md"
+readme = "../README.rst"
 requires-python = ">=3.7"
+url = "https://lakestream.dev"
+documentation = "https://lakestream.dev/python_api"
+repository = "https://github.com/serverlessnext/lakestream"
+keywords = ["serverless", "data", "api"]
+
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -27,7 +32,7 @@ text = "MIT"
 
 [[project.maintainers]]
 name = "Anthony Potappel"
-email = "anthony.potappel@gmail.com"
+email = "aprxi@lakestream.dev"
 
 [tool.maturin]
 module-name = "lakestream"

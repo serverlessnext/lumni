@@ -10,12 +10,21 @@ use pyo3::types::{PyList,PyDict,PyAny};
 use pyo3::{exceptions, ToPyObject};
 
 #[pyclass]
-struct Client {
+/// Client class for interacting with the LakeStream object storage.
+///
+/// Example usage:
+///
+/// ```python
+/// client = lakestream.Client()
+/// filter_dict = {"name": "example.txt", "size": "5", "mtime": "1D"}
+/// result = client.list("s3://your-bucket", recursive=True, filter_dict=filter_dict)
+/// ```
+struct _Client {
     config: HashMap<String, String>,
 }
 
 #[pymethods]
-impl Client {
+impl _Client {
     #[new]
     fn new(region: Option<String>) -> PyResult<Self> {
         let access_key = env::var("AWS_ACCESS_KEY_ID").map_err(|_| {
@@ -37,8 +46,15 @@ impl Client {
         config.insert("secret_key".to_string(), secret_key);
         config.insert("region".to_string(), region);
 
-        Ok(Client { config })
+        Ok(_Client { config })
     }
+
+//    #[args(
+//        uri,
+//        recursive = "None",
+//        max_files = "None",
+//        filter_dict = "None",
+//    )]
 
     fn cli(&self, args: &PyList) -> PyResult<()> {
         let mut args: Vec<String> = args
@@ -111,7 +127,7 @@ impl Client {
 
 #[pymodule]
 fn lakestream(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Client>()?;
+    m.add_class::<_Client>()?;
     Ok(())
 }
 

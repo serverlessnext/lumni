@@ -1,10 +1,10 @@
 import sys
-from lakestream import Client
+from lakestream import _Client
 
 
 def main():
     args = sys.argv[1:]
-    client = Client()
+    client = _Client()
     client.cli(args)
 
 

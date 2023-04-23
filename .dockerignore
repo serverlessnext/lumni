@@ -1,0 +1,16 @@
+# ignore everything
+*
+# exclude from ignore
+!bin/
+!src/
+!tests/
+!docs/
+!pyproject.toml
+!Makefile*
+!conftest.py
+!pytest.ini
+!mypy.ini
+!.coveragerc
+!.pre-commit-config.yaml
+!README.rst
+!lakestream-py/dist/

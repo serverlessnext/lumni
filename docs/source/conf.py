@@ -50,6 +50,7 @@ html_theme_options = {
     "navbar_align": "content",
 }
 html_static_path = ['_static']
+html_extra_path = ['_headers']
 
 myst_enable_extensions = [
     "deflist",  # Enable definition lists

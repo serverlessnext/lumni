@@ -1,0 +1,34 @@
+/_static
+  Content-Type: text/html
+/_static/*.css
+  Content-Type: text/css
+/_static/*.js
+  Content-Type: application/javascript
+/_static/*.json
+  Content-Type: application/json
+/_static/*.png
+  Content-Type: image/png
+/_static/*.jpg
+  Content-Type: image/jpeg
+/_static/*.jpeg
+  Content-Type: image/jpeg
+/_static/*.gif
+  Content-Type: image/gif
+/_static/*.ico
+  Content-Type: image/x-icon
+/_static/*.svg
+  Content-Type: image/svg+xml
+/_static/*.ttf
+  Content-Type: font/ttf
+/_static/*.xml
+  Content-Type: application/xml
+/_static/*.txt
+  Content-Type: text/plain
+/_static/*.csv
+  Content-Type: text/csv
+/_static/*.zip
+  Content-Type: application/zip
+/_static/*.gz
+  Content-Type: application/gzip
+/_static/*.bz2
+  Content-Type: application/x-bzip2

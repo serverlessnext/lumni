@@ -18,23 +18,11 @@ struct _Client {
 impl _Client {
     #[new]
     fn new(region: Option<String>) -> PyResult<Self> {
-        let access_key = env::var("AWS_ACCESS_KEY_ID").map_err(|_| {
-            PyErr::new::<exceptions::PyValueError, _>(
-                "Missing environment variable AWS_ACCESS_KEY_ID",
-            )
-        })?;
-        let secret_key = env::var("AWS_SECRET_ACCESS_KEY").map_err(|_| {
-            PyErr::new::<exceptions::PyValueError, _>(
-                "Missing environment variable AWS_SECRET_ACCESS_KEY",
-            )
-        })?;
         let region = region
             .or_else(|| env::var("AWS_REGION").ok())
             .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
 
         let mut config = HashMap::new();
-        config.insert("access_key".to_string(), access_key);
-        config.insert("secret_key".to_string(), secret_key);
         config.insert("region".to_string(), region);
 
         Ok(_Client { config })
@@ -46,14 +34,6 @@ impl _Client {
             .map(|arg| arg.extract::<String>().unwrap())
             .collect();
         args.insert(0, "lakestream".to_string());
-
-        let access_key = env::var("AWS_ACCESS_KEY_ID")
-            .expect("Missing environment variable AWS_ACCESS_KEY_ID");
-        let secret_key = env::var("AWS_SECRET_ACCESS_KEY")
-            .expect("Missing environment variable AWS_SECRET_ACCESS_KEY");
-        let mut config = HashMap::new();
-        config.insert("access_key".to_string(), access_key);
-        config.insert("secret_key".to_string(), secret_key);
         run_cli(args);
         Ok(())
     }

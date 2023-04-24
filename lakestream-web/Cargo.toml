@@ -5,18 +5,18 @@ edition = "2021"
 
 [dependencies]
 lakestream = { path = "../lakestream" }
-wasm-bindgen = "0.2.84"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
+leptos = { version = "0.2.5"}
+console_log = "1"
+log = "0.4.17"
+console_error_panic_hook = "0.1.7"
 
-[lib]
-crate-type = ["cdylib"]
+[dev-dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3.0"
+web-sys = "0.3"
 
-[features]
-default = ["console_error_panic_hook"]
-
-[dependencies.console_error_panic_hook]
-version = "0.1.6"
-optional = true
-
+[profile.wasm-release]
+inherit = "release"
+codegen-units = 1
+opt-level = "z"
+lto = true

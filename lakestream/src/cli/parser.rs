@@ -1,4 +1,5 @@
 use std::env;
+use env_logger;
 
 use clap::{Arg, ArgAction, Command};
 
@@ -7,6 +8,7 @@ use super::ls_command::handle_ls;
 const PROGRAM_NAME: &str = "lakestream";
 
 pub fn run_cli(args: Vec<String>) {
+    env_logger::init();
     let app = Command::new(PROGRAM_NAME)
         .version(env!("CARGO_PKG_VERSION"))
         .arg_required_else_help(true)

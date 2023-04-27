@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use hmac::{Hmac, Mac, NewMac};
-use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
 use url::{form_urlencoded, Url};
+use itertools::Itertools;
 
 use super::bucket::S3Credentials;
+use crate::LakestreamError;
 use crate::utils::time::UtcTimeNow;
 use crate::AWS_MAX_LIST_OBJECTS;
 
@@ -94,7 +95,7 @@ impl S3Client {
         headers: Option<HashMap<String, String>>,
         x_amz_date: &str,
         payload_hash: Option<&str>,
-    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    ) -> Result<HashMap<String, String>, LakestreamError> {
         let mut headers = headers.unwrap_or_default();
         headers.insert("x-amz-date".to_string(), x_amz_date.to_string());
         headers.insert(
@@ -124,9 +125,7 @@ impl S3Client {
         }
     }
 
-    fn get_canonical_query_string(
-        &self,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    fn get_canonical_query_string(&self) -> Result<String, LakestreamError> {
         if self.query_string.as_ref().map_or(true, |s| s.is_empty()) {
             Ok(String::new())
         } else {
@@ -161,7 +160,7 @@ impl S3Client {
 
     pub fn generate_list_buckets_headers(
         &mut self,
-    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    ) -> Result<HashMap<String, String>, LakestreamError> {
         let method = "GET";
 
         self.generate_headers(method, None, None)
@@ -172,7 +171,7 @@ impl S3Client {
         prefix: Option<&str>,
         max_keys: Option<u32>,
         continuation_token: Option<&str>,
-    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    ) -> Result<HashMap<String, String>, LakestreamError> {
         let method = "GET";
 
         // Ensure max_keys does not exceed AWS_MAX_LIST_OBJECTS
@@ -203,7 +202,7 @@ impl S3Client {
         method: &str,
         headers: Option<HashMap<String, String>>,
         payload_hash: Option<&str>,
-    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    ) -> Result<HashMap<String, String>, LakestreamError> {
         let date_stamp = self.utc_now.date_stamp();
         let x_amz_date = self.utc_now.x_amz_date();
 

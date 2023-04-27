@@ -5,7 +5,9 @@ pub(crate) mod http;
 pub(crate) mod localfs;
 pub(crate) mod s3;
 pub(crate) mod utils;
+pub(crate) mod error;
 
+pub use error::LakestreamError;
 pub use base::filters::FileObjectFilter;
 pub use base::interfaces::{
     FileObject, ListObjectsResult, ObjectStore, ObjectStoreHandler,

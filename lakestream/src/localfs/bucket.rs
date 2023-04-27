@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use async_trait::async_trait;
+
 use super::list::list_files;
 use crate::base::interfaces::ObjectStoreTrait;
+use crate::LakestreamError;
 use crate::{FileObject, FileObjectFilter};
 
 pub struct LocalFs {
@@ -23,6 +26,7 @@ impl LocalFs {
     }
 }
 
+#[async_trait(?Send)]
 impl ObjectStoreTrait for LocalFs {
     fn name(&self) -> &str {
         &self.name
@@ -32,17 +36,17 @@ impl ObjectStoreTrait for LocalFs {
         &self.config
     }
 
-    fn list_files(
+    async fn list_files(
         &self,
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Vec<FileObject> {
+    ) -> Result<Vec<FileObject>, LakestreamError> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
-        list_files(&path, max_keys, recursive, filter)
+        Ok(list_files(&path, max_keys, recursive, filter))
     }
 }

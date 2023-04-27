@@ -2,18 +2,21 @@ use std::collections::HashMap;
 
 use crate::{FileObjectFilter, ListObjectsResult, ObjectStoreHandler};
 
-pub fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
+pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches, region);
 
+    println!("Listing objects at {}", uri);
     match ObjectStoreHandler::list_objects(
         uri,
         config,
         recursive,
         Some(max_files),
         &filter,
-    ) {
-        ListObjectsResult::FileObjects(file_objects) => {
+    )
+    .await
+    {
+        Ok(ListObjectsResult::FileObjects(file_objects)) => {
             // Print file objects to stdout
             println!("Found {} file objects:", file_objects.len());
             for fo in file_objects {
@@ -21,12 +24,16 @@ pub fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
                 println!("{}", fo.printable(full_path));
             }
         }
-        ListObjectsResult::Buckets(buckets) => {
+        Ok(ListObjectsResult::Buckets(buckets)) => {
             // Print buckets to stdout
             println!("Found {} buckets:", buckets.len());
             for bucket in buckets {
                 println!("{}", bucket.name());
             }
+        }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            std::process::exit(1);
         }
     }
 }

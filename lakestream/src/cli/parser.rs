@@ -1,7 +1,8 @@
 use std::env;
-use env_logger;
 
 use clap::{Arg, ArgAction, Command};
+use env_logger;
+use tokio::runtime::Builder;
 
 use super::ls_command::handle_ls;
 
@@ -77,8 +78,8 @@ pub fn run_cli(args: Vec<String>) {
     });
 
     let region = matches.get_one::<String>("region").map(ToString::to_string);
-
     if let Some(ls_matches) = matches.subcommand_matches("ls") {
-        handle_ls(ls_matches, region);
+        let rt = Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(handle_ls(ls_matches, region));
     }
 }

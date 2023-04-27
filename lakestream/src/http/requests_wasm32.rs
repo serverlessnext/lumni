@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // stub function for wasm32
-pub fn http_get_request(
+pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> Result<(String, u16), Box<dyn Error>> {
@@ -10,7 +10,7 @@ pub fn http_get_request(
 }
 
 // stub function for wasm32
-pub fn http_get_request_with_headers(
+pub async fn http_get_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> Result<(String, u16, HashMap<String, String>), Box<dyn Error>> {

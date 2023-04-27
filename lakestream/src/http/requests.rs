@@ -10,11 +10,11 @@ type ResponseDataWithoutHeaders = (String, u16);
 type HttpResultWithoutHeaders =
     Result<ResponseDataWithoutHeaders, Box<dyn Error>>;
 
-pub fn http_get_request(
+pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResultWithoutHeaders {
-    let response = perform_request(url, headers)?;
+    let response = perform_request(&url, headers).await?;
     let status = response.status();
 
     if !(200..300).contains(&status) {
@@ -25,11 +25,11 @@ pub fn http_get_request(
     Ok((body, status))
 }
 
-pub fn http_get_request_with_headers(
+pub async fn http_get_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResult {
-    let response = perform_request(url, headers)?;
+    let response = perform_request(url, headers).await?;
     let status = response.status();
     let headers_map = parse_response_headers(&response);
 
@@ -42,7 +42,7 @@ pub fn http_get_request_with_headers(
     Ok((body, status, headers_map))
 }
 
-fn perform_request(
+async fn perform_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> Result<Response, Box<dyn Error>> {

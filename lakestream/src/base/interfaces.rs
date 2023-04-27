@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
+use async_trait::async_trait;
+use log::{error, info};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+use crate::LakestreamError;
 use crate::localfs::bucket::LocalFs;
 use crate::s3::bucket::{list_buckets, S3Bucket};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
@@ -23,17 +26,17 @@ impl ObjectStoreHandler {
         ObjectStoreHandler { configs }
     }
 
-    pub fn list_objects(
+    pub async fn list_objects(
         uri: String,
         config: HashMap<String, String>,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> ListObjectsResult {
+    ) -> Result<ListObjectsResult, LakestreamError> {
         let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
-
         if let Some(bucket) = bucket {
             // list files in a bucket
+            info!("Listing files in bucket {}", bucket);
             let bucket_uri = if let Some(scheme) = scheme {
                 format!("{}://{}", scheme, bucket)
             } else {
@@ -41,15 +44,13 @@ impl ObjectStoreHandler {
             };
             let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
 
-            let file_objects = object_store.list_files(
-                prefix.as_deref(),
-                recursive,
-                max_files,
-                filter,
-            );
-            ListObjectsResult::FileObjects(file_objects)
+            let file_objects = object_store
+                .list_files(prefix.as_deref(), recursive, max_files, filter)
+                .await?;
+            Ok(ListObjectsResult::FileObjects(file_objects))
         } else {
             // list buckets
+            info!("Listing buckets");
             let mut object_store_configuration = HashMap::new();
             let config_map: Map<String, Value> = config
                 .into_iter()
@@ -61,12 +62,11 @@ impl ObjectStoreHandler {
                 "uri".to_string(),
                 Value::String(format!("{}://", scheme.unwrap())),
             );
-
             let configs = vec![object_store_configuration];
             let handler = ObjectStoreHandler::new(configs);
 
-            let object_stores = handler.list_object_stores();
-            ListObjectsResult::Buckets(object_stores)
+            let object_stores = handler.list_object_stores().await;
+            Ok(ListObjectsResult::Buckets(object_stores))
         }
     }
 
@@ -99,7 +99,7 @@ impl ObjectStoreHandler {
         )
     }
 
-    pub fn list_object_stores(&self) -> Vec<ObjectStore> {
+    pub async fn list_object_stores(&self) -> Vec<ObjectStore> {
         let mut object_stores = Vec::new();
 
         for config in &self.configs {
@@ -119,28 +119,29 @@ impl ObjectStoreHandler {
                 .collect();
 
             if uri.starts_with("s3://") {
-                match list_buckets(&config_hashmap) {
+                match list_buckets(&config_hashmap).await {
                     Ok(mut buckets) => object_stores.append(&mut buckets),
-                    Err(err) => eprintln!("Error listing buckets: {}", err),
+                    Err(err) => error!("Error listing buckets: {}", err),
                 }
             } else {
-                eprintln!("Unsupported object store type: {}", uri);
+                error!("Unsupported object store type: {}", uri);
             }
         }
         object_stores
     }
 }
 
+#[async_trait(?Send)]
 pub trait ObjectStoreTrait {
     fn name(&self) -> &str;
     fn config(&self) -> &HashMap<String, String>;
-    fn list_files(
+    async fn list_files(
         &self,
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Vec<FileObject>;
+    ) -> Result<Vec<FileObject>, LakestreamError>;
 }
 
 pub enum ObjectStore {
@@ -182,19 +183,31 @@ impl ObjectStore {
         }
     }
 
-    pub fn list_files(
+    pub async fn list_files(
         &self,
         prefix: Option<&str>,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Vec<FileObject> {
+    ) -> Result<Vec<FileObject>, LakestreamError> {
         match self {
             ObjectStore::S3Bucket(bucket) => {
-                bucket.list_files(prefix, recursive, max_keys, filter)
+                match bucket
+                    .list_files(prefix, recursive, max_keys, filter)
+                    .await
+                {
+                    Ok(files) => return Ok(files),
+                    Err(e) => return Err(e.into()),
+                }
             }
             ObjectStore::LocalFs(local_fs) => {
-                local_fs.list_files(prefix, recursive, max_keys, filter)
+                match local_fs
+                    .list_files(prefix, recursive, max_keys, filter)
+                    .await
+                {
+                    Ok(files) => return Ok(files),
+                    Err(e) => return Err(e.into()),
+                }
             }
         }
     }

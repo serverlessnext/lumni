@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use log::error;
 use serde::Deserialize;
 
 use super::bucket::{S3Bucket, S3Credentials};
 use super::client::S3Client;
 use super::config::update_config;
 use crate::base::interfaces::ObjectStoreTrait;
+use crate::LakestreamError;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::utils::time::rfc3339_to_epoch;
 use crate::{
@@ -60,27 +62,29 @@ pub struct CommonPrefix {
     Prefix: String,
 }
 
-pub fn list_files(
+pub async fn list_files(
     s3_bucket: &S3Bucket,
     prefix: Option<&str>,
     recursive: bool,
     max_keys: Option<u32>,
     filter: &Option<FileObjectFilter>,
-) -> Vec<FileObject> {
+) -> Result<Vec<FileObject>, LakestreamError> {
     let access_key = s3_bucket
         .config()
-        .get("access_key")
+        .get("AWS_ACCESS_KEY_ID")
         .expect("Missing access_key in the configuration");
     let secret_key = s3_bucket
         .config()
-        .get("secret_key")
+        .get("AWS_SECRET_ACCESS_KEY")
         .expect("Missing secret_key in the configuration");
     let mut region = s3_bucket
         .config()
-        .get("region")
-        .expect("Missing region in the configuration")
-        .to_owned();
+        .get("AWS_REGION")
+        .or_else(|| s3_bucket.config().get("AWS_DEFAULT_REGION"))
+        .cloned()
+        .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
 
+    println!("Region used={}", region);
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
 
@@ -109,8 +113,8 @@ pub fn list_files(
             )
             .unwrap();
 
-        let result = http_get_request_with_headers(&s3_client.url(), &headers);
-
+        let result =
+            http_get_request_with_headers(&s3_client.url(), &headers).await;
         match result {
             Ok((response_body, status, response_headers)) => {
                 if status == 301 {
@@ -119,23 +123,23 @@ pub fn list_files(
                     {
                         region = new_region.to_owned();
                     } else {
-                        eprintln!(
+                        error!(
                             "Error: Redirect without x-amz-bucket-region \
                              header"
                         );
-                        return Vec::new();
+                        return Ok(Vec::new());
                     }
                 } else if response_body.is_empty() {
-                    eprintln!("Error: Received an empty response from S3");
-                    return Vec::new();
+                    error!("Error: Received an empty response from S3");
+                    return Ok(Vec::new());
                 } else {
                     body = response_body;
                     break;
                 }
             }
             Err(e) => {
-                eprintln!("Error in http_get_request: {}", e);
-                return Vec::new();
+                error!("Error in http_get_request: {}", e);
+                return Ok(Vec::new());
             }
         }
     }
@@ -170,15 +174,19 @@ pub fn list_files(
 
     if remaining_keys.map_or(true, |keys| keys > 0) {
         if continuation_token.is_some() {
-            all_file_objects.extend(list_files_next(
-                s3_bucket,
-                prefix,
-                remaining_keys,
-                &mut s3_client,
-                continuation_token,
-                recursive,
-                &(*filter).clone(),
-            ));
+            all_file_objects.extend(
+                list_files_next(
+                    s3_bucket,
+                    prefix.map(|p| p.to_owned()),
+                    remaining_keys,
+                    &mut s3_client,
+                    continuation_token,
+                    recursive,
+                    &(*filter).clone(),
+                )
+                .await
+                .map_err(LakestreamError::from)?,
+            );
         }
 
         // If the recursive flag is set, process each subdirectory from current base level
@@ -191,113 +199,121 @@ pub fn list_files(
             {
                 let subdir_prefix =
                     Some(format!("{}{}", prefix.unwrap_or(""), directory));
-                all_file_objects.extend(list_files_next(
-                    s3_bucket,
-                    subdir_prefix.as_deref(),
-                    max_keys.map(|max| max - all_file_objects.len() as u32),
-                    &mut s3_client,
-                    None,
-                    recursive,
-                    filter,
-                ));
+                all_file_objects.extend(
+                    list_files_next(
+                        s3_bucket,
+                        subdir_prefix,
+                        max_keys.map(|max| max - all_file_objects.len() as u32),
+                        &mut s3_client,
+                        None,
+                        recursive,
+                        filter,
+                    )
+                    .await
+                    .map_err(LakestreamError::from)?,
+                );
             }
         }
     }
-    all_file_objects
+    Ok(all_file_objects)
 }
 
-fn list_files_next(
+async fn list_files_next(
     _s3_bucket: &S3Bucket,
-    prefix: Option<&str>,
+    prefix: Option<String>,
     max_keys: Option<u32>,
     s3_client: &mut S3Client,
     continuation_token: Option<String>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
-) -> Vec<FileObject> {
+) -> Result<Vec<FileObject>, LakestreamError> {
     let mut all_file_objects = Vec::new();
     let mut virtual_directories = Vec::new();
-
     let mut current_continuation_token = continuation_token;
+    let mut directory_stack = std::collections::VecDeque::new();
+
+    directory_stack.push_back(prefix);
 
     let effective_max_keys = get_effective_max_keys(filter, max_keys);
-    // loop until we have all regular files or we have reached the max_keys
-    loop {
-        let headers = s3_client
-            .generate_list_objects_headers(
-                prefix,
-                Some(effective_max_keys),
-                current_continuation_token.as_deref(),
-            )
-            .unwrap();
 
-        let result = http_get_request_with_headers(&s3_client.url(), &headers);
+    while let Some(prefix) = directory_stack.pop_front() {
+        // loop until we have all regular files or we have reached the max_keys
+        loop {
+            let headers = s3_client
+                .generate_list_objects_headers(
+                    prefix.as_deref(),
+                    Some(effective_max_keys),
+                    current_continuation_token.as_deref(),
+                )
+                .unwrap();
 
-        if let Ok((response_body, _, _)) = result {
-            let file_objects =
-                parse_file_objects(&response_body).unwrap_or_default();
+            let result = http_get_request(&s3_client.url(), &headers).await;
 
-            for file_object in file_objects {
+            let (response_body, _) = match result {
+                Ok(res) => res,
+                Err(e) => return Err(LakestreamError::from(e)),
+            };
+
+            if !response_body.is_empty() {
+                let file_objects =
+                    parse_file_objects(&response_body).unwrap_or_default();
+
+                for file_object in file_objects {
+                    if all_file_objects.len()
+                        == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+                    {
+                        break;
+                    }
+
+                    if file_object.name().ends_with('/') {
+                        if recursive {
+                            virtual_directories
+                                .push(file_object.name().to_owned());
+                        }
+                        if filter.is_none() {
+                            all_file_objects.push(file_object.clone());
+                        }
+                    } else {
+                        // Check if the file_object satisfies the filter conditions
+                        if let Some(ref filter) = filter {
+                            if !filter.matches(&file_object) {
+                                continue;
+                            }
+                        }
+                        all_file_objects.push(file_object);
+                    }
+                }
+
+                current_continuation_token =
+                    extract_continuation_token(&response_body);
+            }
+
+            if current_continuation_token.is_none()
+                || all_file_objects.len()
+                    >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+            {
+                break;
+            }
+        }
+
+        if recursive {
+            // if recursive is True, and we have not reached the max_keys,
+            // continue with the virtual directories
+            for virtual_directory in virtual_directories.drain(..) {
                 if all_file_objects.len()
                     == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
                 {
                     break;
                 }
 
-                if file_object.name().ends_with('/') {
-                    if recursive {
-                        virtual_directories.push(file_object.name().to_owned());
-                    }
-                    if filter.is_none() {
-                        all_file_objects.push(file_object.clone());
-                    }
-                } else {
-                    // Check if the file_object satisfies the filter conditions
-                    if let Some(ref filter) = filter {
-                        if !filter.matches(&file_object) {
-                            continue;
-                        }
-                    }
-                    all_file_objects.push(file_object);
-                }
+                directory_stack.push_back(Some(virtual_directory));
             }
-
-            current_continuation_token =
-                extract_continuation_token(&response_body);
         }
 
-        if current_continuation_token.is_none()
-            || all_file_objects.len()
-                >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
-        {
-            break;
-        }
+        current_continuation_token = None;
     }
 
-    if recursive {
-        // if recursive is True, and we have not reached the max_keys,
-        // continue with the virtual directories
-        for virtual_directory in virtual_directories {
-            if all_file_objects.len()
-                == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
-            {
-                break;
-            }
-
-            let subdir_prefix = Some(virtual_directory);
-            let subdir_objects = list_files_next(
-                _s3_bucket,
-                subdir_prefix.as_deref(),
-                max_keys.map(|max| max - all_file_objects.len() as u32),
-                s3_client,
-                None,
-                recursive,
-                filter,
-            );
-            all_file_objects.extend(subdir_objects);
-        }
-    }
-    all_file_objects
+    Ok(all_file_objects)
 }
 
 fn extract_continuation_token(body: &str) -> Option<String> {
@@ -310,45 +326,47 @@ fn extract_continuation_token(body: &str) -> Option<String> {
     }
 }
 
-pub fn list_buckets(
+pub async fn list_buckets(
     config: &HashMap<String, String>,
-) -> Result<Vec<ObjectStore>, &'static str> {
+) -> Result<Vec<ObjectStore>, LakestreamError> {
     let updated_config = update_config(config)?;
-
     let region = updated_config
-        .get("region")
+        .get("AWS_REGION")
+        .or_else(|| updated_config.get("AWS_DEFAULT_REGION"))
         .cloned()
         .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
     let access_key = updated_config
-        .get("access_key")
+        .get("AWS_ACCESS_KEY_ID")
         .expect("Missing access_key in the configuration");
     let secret_key = updated_config
-        .get("secret_key")
+        .get("AWS_SECRET_ACCESS_KEY")
         .expect("Missing secret_key in the configuration");
 
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
     let endpoint_url = format!("https://s3.{}.amazonaws.com", region);
     let mut s3_client = S3Client::new(endpoint_url, region, credentials);
-    let headers = s3_client.generate_list_buckets_headers().unwrap();
 
-    let result = http_get_request(&s3_client.url(), &headers);
+    let headers: HashMap<String, String> =
+        s3_client.generate_list_buckets_headers().unwrap();
+    let result = http_get_request(&s3_client.url().clone(), &headers).await;
 
     let bucket_objects = match result {
         Ok((body, _)) => {
             match parse_bucket_objects(&body, Some(config.clone())) {
                 Ok(bucket_objects) => bucket_objects,
                 Err(e) => {
-                    eprintln!("Error listing buckets: {}", e);
+                    error!("Error listing bucket objects: {}", e);
                     Vec::new()
                 }
             }
         }
         Err(e) => {
-            eprintln!("Error in http_get_request: {}", e);
+            error!("Error in http_get_request: {}", e);
             Vec::new()
         }
     };
+
     Ok(bucket_objects)
 }
 

@@ -3,11 +3,15 @@ use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    run_cli, ListObjectsResult, ObjectStoreHandler, FileObjectFilter, AWS_DEFAULT_REGION,
+    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, AWS_DEFAULT_REGION,
 };
+use ::lakestream_cli::run_cli;
+
+use tokio::runtime::Runtime;
 use pyo3::prelude::*;
-use pyo3::types::{PyList,PyDict,PyAny};
+use pyo3::types::{PyList, PyDict,PyAny};
 use pyo3::{exceptions, ToPyObject};
+
 
 #[pyclass]
 struct _Client {
@@ -52,19 +56,26 @@ impl _Client {
 
         // Create the FileObject NamedTuple class in Rust
         let file_object_named_tuple =
-            namedtuple.call1(("FileObject", ["name", "size", "modified"]))?;
+        namedtuple.call1(("FileObject", ["name", "size", "modified"]))?;
 
         // Create the filter from the dictionary
         let filter = create_filter(py, filter_dict)?;
 
-        match ObjectStoreHandler::list_objects(
+        // Create a new Tokio runtime
+        let rt = Runtime::new().unwrap();
+
+        // Call the async function and block on it to get the result
+        let result = rt.block_on(ObjectStoreHandler::list_objects(
             uri,
             self.config.clone(),
             recursive.unwrap_or(false),
             max_files,
             &filter,
-        ) {
-            ListObjectsResult::FileObjects(file_objects) => {
+        ));
+
+        // Process the result
+        match result {
+            Ok(ListObjectsResult::FileObjects(file_objects)) => {
                 let py_file_objects = file_objects
                     .into_iter()
                     .map(|fo| {
@@ -78,13 +89,17 @@ impl _Client {
                     .collect::<Result<Vec<_>, _>>()?; // Collect the PyResult values into a single Result
                 Ok(PyList::new(py, &py_file_objects).to_object(py))
             }
-            ListObjectsResult::Buckets(buckets) => {
+            Ok(ListObjectsResult::Buckets(buckets)) => {
                 let py_buckets = buckets
                     .into_iter()
                     .map(|bucket| bucket.name().to_owned())
                     .collect::<Vec<_>>();
                 Ok(PyList::new(py, &py_buckets).to_object(py))
             }
+            Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
+                "Error listing objects: {}",
+                err
+            ))),
         }
     }
 }

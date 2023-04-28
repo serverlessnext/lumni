@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use super::config::update_config;
+
 use async_trait::async_trait;
 use futures::FutureExt;
 
+use super::config::update_config;
 pub use super::list::list_buckets;
 use super::list::list_files;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::{FileObject, FileObjectFilter};
-use crate::LakestreamError;
+use crate::{FileObject, FileObjectFilter, LakestreamError};
 
 #[derive(Clone)]
 pub struct S3Credentials {

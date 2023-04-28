@@ -11,14 +11,9 @@ repository = "https://github.com/serverlessnext/lakestream"
 readme = "../README.rst"
 license = "MIT"
 
-
 [lib]
 name = "lakestream"
 path = "src/lib.rs"
-
-[[bin]]
-name = "lakestream"
-path = "src/main.rs"
 
 [dependencies]
 percent-encoding = { version = "2.1", default-features = false, features = ["alloc"] }
@@ -28,13 +23,10 @@ hmac = { version = "0.11", default-features = false }
 sha2 = { version = "0.9.9", default-features = false }
 serde_json = {version = "1.0", default-features = false, features = ["alloc"]}
 regex = { version = "1.7", default-features = false, features = ["std", "unicode"] }
-clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
-tokio = { version = "1.10", features = ["rt", "macros"] }
 url = "2.3"
 log = "0.4"
 itertools = "0.10"
 serde-xml-rs = "0.6"
-env_logger = "0.10"
 async-trait = "0.1"
 futures = "0.3"
 

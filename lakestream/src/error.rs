@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::{fmt, io};
 
-use tokio::task::JoinError;
 use url::ParseError;
 
 #[derive(Debug)]
@@ -9,7 +8,6 @@ pub enum LakestreamError {
     Io(io::Error),
     Parse(ParseError),
     String(String),
-    JoinError(String),
     #[cfg(target_arch = "wasm32")]
     Js(wasm_bindgen::JsValue),
     Wrapped(Box<dyn Error + 'static>),
@@ -21,7 +19,6 @@ impl fmt::Display for LakestreamError {
             LakestreamError::Io(e) => write!(f, "{}", e),
             LakestreamError::Parse(e) => write!(f, "{}", e),
             LakestreamError::String(s) => write!(f, "{}", s),
-            LakestreamError::JoinError(s) => write!(f, "{}", s),
             LakestreamError::Wrapped(e) => write!(f, "{}", e),
             #[cfg(target_arch = "wasm32")]
             LakestreamError::Js(e) => write!(
@@ -63,11 +60,5 @@ impl From<&str> for LakestreamError {
 impl From<wasm_bindgen::JsValue> for LakestreamError {
     fn from(error: wasm_bindgen::JsValue) -> Self {
         LakestreamError::Js(error)
-    }
-}
-
-impl From<JoinError> for LakestreamError {
-    fn from(error: JoinError) -> Self {
-        LakestreamError::JoinError(format!("JoinError: {:?}", error))
     }
 }

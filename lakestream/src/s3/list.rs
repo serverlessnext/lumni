@@ -7,12 +7,11 @@ use super::bucket::{S3Bucket, S3Credentials};
 use super::client::S3Client;
 use super::config::update_config;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::LakestreamError;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::utils::time::rfc3339_to_epoch;
 use crate::{
-    FileObject, FileObjectFilter, ObjectStore, AWS_DEFAULT_REGION,
-    AWS_MAX_LIST_OBJECTS,
+    FileObject, FileObjectFilter, LakestreamError, ObjectStore,
+    AWS_DEFAULT_REGION, AWS_MAX_LIST_OBJECTS,
 };
 
 // allow non snake case for the XML response

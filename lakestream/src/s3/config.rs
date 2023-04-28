@@ -3,8 +3,7 @@ use std::env;
 
 use log::info;
 
-use crate::LakestreamError;
-use crate::AWS_DEFAULT_REGION;
+use crate::{LakestreamError, AWS_DEFAULT_REGION};
 
 pub fn update_config(
     config: &HashMap<String, String>,

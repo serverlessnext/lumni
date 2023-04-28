@@ -5,8 +5,7 @@ use async_trait::async_trait;
 
 use super::list::list_files;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::LakestreamError;
-use crate::{FileObject, FileObjectFilter};
+use crate::{FileObject, FileObjectFilter, LakestreamError};
 
 pub struct LocalFs {
     name: String,

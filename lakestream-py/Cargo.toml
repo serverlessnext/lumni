@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies]
 pyo3 = { version = "0.18", features = ["macros", "extension-module"] }
+tokio = { version = "1", default-features = false }
+
 lakestream = { path = "../lakestream" }
+lakestream-cli = { path = "../lakestream-cli" }
 
 [build-dependencies]
 maturin = "0.12"

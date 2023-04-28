@@ -1,0 +1,18 @@
+[package]
+name = "lakestream-cli"
+version = "0.0.3-alpha"
+edition = "2021"
+
+[lib]
+name = "lakestream_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lakestream"
+path = "src/main.rs"
+
+[dependencies]
+env_logger = "0.9"
+lakestream = { path = "../lakestream" }
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
+clap = { version = "4.2" , default-features = false, features = ["std", "help"]}

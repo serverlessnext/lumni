@@ -6,11 +6,10 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use crate::LakestreamError;
 use crate::localfs::bucket::LocalFs;
 use crate::s3::bucket::{list_buckets, S3Bucket};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-use crate::FileObjectFilter;
+use crate::{FileObjectFilter, LakestreamError};
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),

@@ -1,8 +1,10 @@
 [workspace]
+revolver = "2"
 
 # Rust package
 members = [
     "lakestream",
+    "lakestream-cli",
     "lakestream-web",
 ]
 

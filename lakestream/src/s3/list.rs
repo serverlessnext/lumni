@@ -129,7 +129,7 @@ pub async fn list_files(
                         return Ok(Vec::new());
                     }
                 } else if response_body.is_empty() {
-                    error!("Error: Received an empty response from S3");
+                    error!("Error: Received an empty response from S3 with status: {}", status);
                     return Ok(Vec::new());
                 } else {
                     body = response_body;

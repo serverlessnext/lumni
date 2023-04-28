@@ -1,70 +1,98 @@
-use leptos::*;
-
 use std::collections::HashMap;
 
-// start with :: to ensure local crate is used
-use ::lakestream::{
-    ListObjectsResult, ObjectStoreHandler,
-};
-
+use ::lakestream::{FileObjectFilter, ListObjectsResult, ObjectStoreHandler};
+use leptos::*;
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
+    let (count, set_count) = create_signal(cx, 0);
 
-    let files = list_files();
+    let async_data = create_resource(cx, count, |count| async move {
+        list_objects_demo(count).await
+    });
+
+    let stable = create_resource(
+        cx,
+        || (),
+        |_| async move { list_objects_demo(1).await },
+    );
+
+    let async_result = move || {
+        log!("async_result");
+        async_data
+            .read(cx)
+            .map(|files| format!("Files: {:?}", files))
+            .unwrap_or_else(|| "Loading...".into())
+    };
+
+    let loading = async_data.loading();
+    let is_loading = move || if loading() { "Loading..." } else { "Idle." };
+
     view! { cx,
-        <StaticList files={files} />
-    }
-}
-
-#[component]
-fn StaticList(
-    cx: Scope,
-    files: Vec<String>,
-) -> impl IntoView {
-    // iterate through the files vector and create a list of file names
-    let file_objects = files
-        .into_iter()
-        .enumerate()
-        .map(|(index, file)| {
-            view! { cx,
-                <li>
-                    {format!("{}: {}", index, file)}
-                </li>
+        <button
+            on:click=move |_| {
+                set_count.update(|n| *n += 1);
             }
-        })
-        .collect::<Vec<_>>();
-
-    view! { cx,
-        <ul>{file_objects}</ul>
+        >
+            "Refresh me"
+        </button>
+        <p>
+            <code>"stable"</code>": " {move || stable.read(cx).map(|files| format!("{:?}", files))}
+        </p>
+        <p>
+            <code>"count"</code>": " {count}
+        </p>
+        <p>
+            <code>"async_value"</code>": "
+            {async_result}
+            <br/>
+            {is_loading}
+        </p>
     }
 }
 
-fn list_files() -> Vec<String> {
-    let uri = ".".to_string();
-    let config = HashMap::new();
+async fn list_objects_demo(_count: i32) -> Vec<String> {
+    let mut config = HashMap::new();
     let recursive = false;
-    let max_files = 10;
-    let filter = None;
+    let max_files = Some(20);
+    let filter: Option<FileObjectFilter> = None;
 
-    let files: Vec<String> = match ObjectStoreHandler::list_objects(
-        uri,
-        config.clone(),
-        recursive,
-        Some(max_files),
-        &filter,
-    ) {
-        ListObjectsResult::FileObjects(file_objects) => {
-            log!("FileObjects: {:?}", file_objects);
-            // Generate a dummy list of Vec<String> of files
-            (0..5).map(|i| format!("file-{}", i)).collect()
+    // TODO: get from user input
+    let uri = "s3://".to_string();
+    config.insert(
+        "AWS_ACCESS_KEY_ID".to_string(),
+        "__INSERT_ACCESS_KEY__".to_string(),
+    );
+    config.insert(
+        "AWS_SECRET_ACCESS_KEY".to_string(),
+        "__INSERT_SECRET_ACCESS_KEY__".to_string(),
+    );
+
+    let result = ObjectStoreHandler::list_objects(
+        uri, config, recursive, max_files, &filter,
+    )
+    .await;
+
+    let files: Vec<String> = match result {
+        Ok(ListObjectsResult::FileObjects(file_objects)) => {
+            let file_names = file_objects
+                .into_iter()
+                .map(|fo| fo.name().to_owned())
+                .collect::<Vec<_>>();
+            file_names
         }
-        ListObjectsResult::Buckets(buckets) => {
-            log!("Buckets: {:?}", buckets.iter().map(|b| b.name()).collect::<Vec<_>>());
-            // Generate a dummy list of Vec<String> of files
-            (0..5).map(|i| format!("bucket-{}", i)).collect()
+        Ok(ListObjectsResult::Buckets(buckets)) => {
+            // note - CORS does not work on Bucket List
+            let bucket_names = buckets
+                .into_iter()
+                .map(|bucket| bucket.name().to_owned())
+                .collect::<Vec<_>>();
+            bucket_names
+        }
+        Err(err) => {
+            log!("Error: {:?}", err);
+            vec![]
         }
     };
     files
 }
-

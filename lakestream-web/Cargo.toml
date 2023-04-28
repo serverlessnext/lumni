@@ -1,6 +1,6 @@
 [package]
 name = "lakestream-web"
-version = "0.0.2"
+version = "0.0.3-alpha"
 edition = "2021"
 
 [dependencies]
@@ -14,6 +14,7 @@ console_error_panic_hook = "0.1.7"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3.0"
 web-sys = "0.3"
+
 
 [profile.wasm-release]
 inherit = "release"

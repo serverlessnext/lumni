@@ -62,3 +62,4 @@ impl From<wasm_bindgen::JsValue> for LakestreamError {
         LakestreamError::Js(error)
     }
 }
+

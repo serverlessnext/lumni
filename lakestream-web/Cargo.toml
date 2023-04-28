@@ -1,5 +1,6 @@
 [package]
 name = "lakestream-web"
+# version is auto-updated via lakestream/build.rs
 version = "0.0.3-alpha"
 edition = "2021"
 
@@ -14,10 +15,3 @@ console_error_panic_hook = "0.1.7"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3.0"
 web-sys = "0.3"
-
-
-[profile.wasm-release]
-inherit = "release"
-codegen-units = 1
-opt-level = "z"
-lto = true

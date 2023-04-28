@@ -1,6 +1,7 @@
 [package]
 name = "lakestream_py"
-version = "0.0.0-0"
+# version is auto-updated via lakestream/build.rs
+version = "0.0.3-alpha"
 edition = "2021"
 
 [dependencies]

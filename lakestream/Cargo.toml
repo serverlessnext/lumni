@@ -1,5 +1,6 @@
 [package]
 name = "lakestream"
+# version is auto-updated via lakestream/build.rs
 version = "0.0.3-alpha"
 authors = ["Anthony Potappel <aprxi@lakestream.dev>"]
 edition = "2021"
@@ -29,6 +30,9 @@ itertools = "0.10"
 serde-xml-rs = "0.6"
 async-trait = "0.1"
 futures = "0.3"
+
+[build-dependencies]
+toml_edit = "0.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 time = { version = "0.3", features = ["parsing"]}

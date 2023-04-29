@@ -54,7 +54,7 @@ impl S3Bucket {
     }
 
     pub fn bucket_path(&self) -> String {
-        get_endpoint_url(self.config(), Some(self.name()))
+        configure_bucket_url(self.config(), Some(self.name()))
     }
 }
 
@@ -84,7 +84,10 @@ impl ObjectStoreTrait for S3Bucket {
     }
 }
 
-pub fn get_endpoint_url(config: &Config, bucket_name: Option<&str>) -> String {
+pub fn configure_bucket_url(
+    config: &Config,
+    bucket_name: Option<&str>,
+) -> String {
     let region = config.settings.get("AWS_REGION").unwrap();
 
     match config.settings.get("S3_ENDPOINT_URL") {

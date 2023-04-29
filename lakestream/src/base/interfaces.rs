@@ -102,7 +102,9 @@ impl ObjectStoreHandler {
         )
     }
 
-    pub async fn list_object_stores(&self) -> Result<Vec<ObjectStore>, LakestreamError> {
+    pub async fn list_object_stores(
+        &self,
+    ) -> Result<Vec<ObjectStore>, LakestreamError> {
         let mut object_stores = Vec::new();
 
         for config in &self.configs {
@@ -129,7 +131,9 @@ impl ObjectStoreHandler {
             if let Err(e) = validate_config(&mut config_instance) {
                 // Handle the error, e.g., log the error and/or return early with an appropriate error value
                 error!("Error validating the config: {}", e);
-                return Err(LakestreamError::ConfigError("Invalid configuration".to_string()));
+                return Err(LakestreamError::ConfigError(
+                    "Invalid configuration".to_string(),
+                ));
             }
 
             if uri.starts_with("s3://") {

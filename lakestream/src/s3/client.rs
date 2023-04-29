@@ -29,8 +29,8 @@ pub struct S3Client {
 
 impl S3Client {
     pub fn new(
-        endpoint_url: String,
-        region: String,
+        endpoint_url: &str,
+        region: &str,
         credentials: S3Credentials,
     ) -> S3Client {
         let resource = "".to_string();
@@ -38,12 +38,20 @@ impl S3Client {
         log::info!("S3Client created with endpoint_url: {}", endpoint_url);
         S3Client {
             resource,
-            region,
+            region: region.to_string(),
             credentials,
-            endpoint_url,
+            endpoint_url: endpoint_url.to_string(),
             utc_now,
             query_string: None,
         }
+    }
+
+    pub fn credentials(&self) -> &S3Credentials {
+        &self.credentials
+    }
+
+    pub fn region(&self) -> &str {
+        &self.region
     }
 
     pub fn url(&self) -> String {

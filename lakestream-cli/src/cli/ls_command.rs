@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use lakestream::{FileObjectFilter, ListObjectsResult, ObjectStoreHandler};
+use lakestream::{
+    Config, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
+};
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches, region);
 
-    println!("Listing objects at {}", uri);
     match ObjectStoreHandler::list_objects(
         uri,
         config,
@@ -41,13 +42,7 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
 fn prepare_handle_ls_arguments(
     ls_matches: &clap::ArgMatches,
     region: Option<String>,
-) -> (
-    String,
-    HashMap<String, String>,
-    bool,
-    u32,
-    Option<FileObjectFilter>,
-) {
+) -> (String, Config, bool, u32, Option<FileObjectFilter>) {
     let recursive = *ls_matches.get_one::<bool>("recursive").unwrap_or(&false);
     let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
 
@@ -85,10 +80,15 @@ fn prepare_handle_ls_arguments(
         .parse::<u32>()
         .expect("Invalid value for max_files");
 
-    let mut config = HashMap::new();
+    let mut config_hashmap = HashMap::new();
     if let Some(region) = region {
-        config.insert("region".to_string(), region);
+        config_hashmap.insert("region".to_string(), region);
     }
+
+    // Create a Config instance
+    let config = Config {
+        settings: config_hashmap,
+    };
 
     (uri, config, recursive, max_files, filter)
 }

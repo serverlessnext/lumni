@@ -1,4 +1,3 @@
-
 use js_sys::{Date, JsString};
 use wasm_bindgen::prelude::*;
 
@@ -25,4 +24,3 @@ pub fn datetime_utc() -> (u32, u8, u8, u8, u8, u8) {
         date.get_utc_seconds() as u8,
     )
 }
-

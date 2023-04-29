@@ -14,7 +14,7 @@ pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResultWithoutHeaders {
-    let response = perform_request(&url, headers).await?;
+    let response = perform_request(url, headers).await?;
     let status = response.status();
 
     if !(200..300).contains(&status) {

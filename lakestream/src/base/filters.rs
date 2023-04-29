@@ -104,7 +104,7 @@ fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
         let max_size = max_value * multiplier2;
 
         if min_size > max_size {
-            Err(format!("Minimum size is greater than maximum size."))
+            Err("Minimum size is greater than maximum size.".to_string())
         } else {
             Ok((Some(min_size), Some(max_size)))
         }
@@ -147,7 +147,7 @@ fn parse_time(
 
     if time_offset_str
         .chars()
-        .any(|c| !c.is_digit(10) && !"+-YMWDhms".contains(c))
+        .any(|c| !c.is_ascii_digit() && !"+-YMWDhms".contains(c))
     {
         return Err(format!("Invalid time offset string: {}", time_offset_str));
     }

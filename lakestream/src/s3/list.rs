@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
-use log::error;
+use log::{error, info};
 use serde::Deserialize;
 
-use super::bucket::{S3Bucket, S3Credentials};
+use super::bucket::{get_endpoint_url, S3Bucket, S3Credentials};
 use super::client::S3Client;
-use super::config::update_config;
+use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::utils::time::rfc3339_to_epoch;
 use crate::{
     FileObject, FileObjectFilter, LakestreamError, ObjectStore,
-    AWS_DEFAULT_REGION, AWS_MAX_LIST_OBJECTS,
+    AWS_MAX_LIST_OBJECTS,
 };
 
 // allow non snake case for the XML response
@@ -79,11 +79,9 @@ pub async fn list_files(
     let mut region = s3_bucket
         .config()
         .get("AWS_REGION")
-        .or_else(|| s3_bucket.config().get("AWS_DEFAULT_REGION"))
-        .cloned()
-        .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
+        .expect("AWS_REGION not set")
+        .clone();
 
-    println!("Region used={}", region);
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
 
@@ -95,15 +93,15 @@ pub async fn list_files(
 
     let effective_max_keys = get_effective_max_keys(filter, max_keys);
 
+    // get mutable config as it will be updated if there is a redirect
+    let mut config = s3_bucket.config().clone();
+
     // Check for a 301 redirect and update the region if necessary
     loop {
-        endpoint_url = format!(
-            "https://{}.s3.{}.amazonaws.com:443",
-            s3_bucket.name(),
-            region
-        );
+        endpoint_url = get_endpoint_url(&config, Some(s3_bucket.name()));
         s3_client =
             S3Client::new(endpoint_url, region.clone(), credentials.clone());
+
         let headers = s3_client
             .generate_list_objects_headers(
                 prefix,
@@ -114,13 +112,19 @@ pub async fn list_files(
 
         let result =
             http_get_request_with_headers(&s3_client.url(), &headers).await;
+
         match result {
             Ok((response_body, status, response_headers)) => {
                 if status == 301 {
+                    info!(
+                        "Received a 301 redirect from S3 with status: {}",
+                        status
+                    );
                     if let Some(new_region) =
                         response_headers.get("x-amz-bucket-region")
                     {
                         region = new_region.to_owned();
+                        config.insert("AWS_REGION".to_string(), region.clone());
                     } else {
                         error!(
                             "Error: Redirect without x-amz-bucket-region \
@@ -129,7 +133,11 @@ pub async fn list_files(
                         return Ok(Vec::new());
                     }
                 } else if response_body.is_empty() {
-                    error!("Error: Received an empty response from S3 with status: {}", status);
+                    error!(
+                        "Error: Received an empty response from S3 with \
+                         status: {}",
+                        status
+                    );
                     return Ok(Vec::new());
                 } else {
                     body = response_body;
@@ -326,25 +334,24 @@ fn extract_continuation_token(body: &str) -> Option<String> {
 }
 
 pub async fn list_buckets(
-    config: &HashMap<String, String>,
+    config: &Config,
 ) -> Result<Vec<ObjectStore>, LakestreamError> {
-    let updated_config = update_config(config)?;
-    let region = updated_config
+    let region = config
         .get("AWS_REGION")
-        .or_else(|| updated_config.get("AWS_DEFAULT_REGION"))
-        .cloned()
-        .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
-    let access_key = updated_config
+        .expect("Missing region in the configuration");
+    let access_key = config
         .get("AWS_ACCESS_KEY_ID")
         .expect("Missing access_key in the configuration");
-    let secret_key = updated_config
+    let secret_key = config
         .get("AWS_SECRET_ACCESS_KEY")
         .expect("Missing secret_key in the configuration");
 
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
-    let endpoint_url = format!("https://s3.{}.amazonaws.com", region);
-    let mut s3_client = S3Client::new(endpoint_url, region, credentials);
+    let endpoint_url = get_endpoint_url(config, None);
+
+    let mut s3_client =
+        S3Client::new(endpoint_url, String::from(region), credentials);
 
     let headers: HashMap<String, String> =
         s3_client.generate_list_buckets_headers().unwrap();
@@ -371,7 +378,7 @@ pub async fn list_buckets(
 
 fn parse_bucket_objects(
     body: &str,
-    config: Option<HashMap<String, String>>,
+    config: Option<Config>,
 ) -> Result<Vec<ObjectStore>, Box<dyn std::error::Error>> {
     let list_all_my_buckets_result: ListAllMyBucketsResult =
         serde_xml_rs::from_str(body)?;

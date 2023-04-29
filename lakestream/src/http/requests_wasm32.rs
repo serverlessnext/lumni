@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::error::Error;
-use log::info;
 
+use js_sys::{ArrayBuffer, Uint8Array};
+use log::info;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Request, RequestInit, RequestMode, Headers, Window, Response};
-use js_sys::{ArrayBuffer, Uint8Array};
-use crate::LakestreamError;
+use web_sys::{Headers, Request, RequestInit, RequestMode, Response, Window};
 
+use crate::LakestreamError;
 
 pub async fn http_get_request_with_headers(
     url: &str,
@@ -16,7 +16,8 @@ pub async fn http_get_request_with_headers(
     info!("http_get_request_with_headers: {}", url);
     // TODO: implement response headers -- for now forward to http_get_request
     // Call the http_get_request function
-    let (response_body, response_status) = http_get_request(url, headers).await?;
+    let (response_body, response_status) =
+        http_get_request(url, headers).await?;
 
     // Add the headers to the returned result
     Ok((response_body, response_status, HashMap::new()))
@@ -39,17 +40,28 @@ pub async fn http_get_request(
     request_init.headers(&headers_map);
 
     let request = Request::new_with_str_and_init(url, &request_init).unwrap();
-    let response_js = JsFuture::from(window.fetch_with_request(&request)).await.unwrap();
+    let response_js = JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .unwrap();
     let response: web_sys::Response = response_js.dyn_into().unwrap();
 
     let status = response.status();
     if status >= 200 && status < 300 {
         let body_js = JsFuture::from(response.text().unwrap()).await.unwrap();
-        let body: String = body_js.as_string().ok_or("Failed to convert response body to String")?;
+        let body: String = body_js
+            .as_string()
+            .ok_or("Failed to convert response body to String")?;
         Ok((body, status))
     } else {
-        let body_js = JsFuture::from(response.array_buffer().map_err(|e| LakestreamError::Js(e))?).await.map_err(|e| LakestreamError::Js(e))?;
-        let body: js_sys::ArrayBuffer = body_js.dyn_into().map_err(|e| LakestreamError::Js(e))?;
+        let body_js = JsFuture::from(
+            response
+                .array_buffer()
+                .map_err(|e| LakestreamError::Js(e))?,
+        )
+        .await
+        .map_err(|e| LakestreamError::Js(e))?;
+        let body: js_sys::ArrayBuffer =
+            body_js.dyn_into().map_err(|e| LakestreamError::Js(e))?;
 
         let uint8_array = js_sys::Uint8Array::new(&body);
         let vec = uint8_array.to_vec();

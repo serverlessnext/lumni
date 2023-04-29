@@ -22,8 +22,8 @@ pub fn calculate_time_offset_seconds(
         total_offset_seconds +=
             (value as f64 * seconds_multiplier).round() as i64;
 
-        if total_offset_seconds > MAX_OFFSET_SECONDS
-            || total_offset_seconds < MIN_OFFSET_SECONDS
+        if !(MIN_OFFSET_SECONDS..=MAX_OFFSET_SECONDS)
+            .contains(&total_offset_seconds)
         {
             return Err(format!(
                 "Invalid time offset string: {} (offset exceeds valid range)",
@@ -34,12 +34,10 @@ pub fn calculate_time_offset_seconds(
         remaining_str = &remaining_str[caps.get(0).unwrap().end()..];
     }
 
-    if !remaining_str.is_empty() {
-        Err(format!("Invalid time offset string: {}", time_offset_str))
-    } else if total_offset_seconds == 0 {
+    if !remaining_str.is_empty() || total_offset_seconds == 0 {
         Err(format!("Invalid time offset string: {}", time_offset_str))
     } else {
-        Ok(total_offset_seconds.unsigned_abs() as u64)
+        Ok(total_offset_seconds.unsigned_abs())
     }
 }
 

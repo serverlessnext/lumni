@@ -35,7 +35,7 @@ impl S3Client {
     ) -> S3Client {
         let resource = "".to_string();
         let utc_now = UtcTimeNow::new();
-
+        log::info!("S3Client created with endpoint_url: {}", endpoint_url);
         S3Client {
             resource,
             region,

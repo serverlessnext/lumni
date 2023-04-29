@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use futures::FutureExt;
 
-use super::config::update_config;
 pub use super::list::list_buckets;
 use super::list::list_files;
+use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
+use crate::s3::config::validate_config;
 use crate::{FileObject, FileObjectFilter, LakestreamError};
 
 #[derive(Clone)]
@@ -34,20 +33,28 @@ impl S3Credentials {
 
 pub struct S3Bucket {
     name: String,
-    config: HashMap<String, String>,
+    config: Config,
 }
 
 impl S3Bucket {
     pub fn new(
         name: &str,
-        config: HashMap<String, String>,
+        mut config: Config,
     ) -> Result<S3Bucket, LakestreamError> {
-        let updated_config = update_config(&config)?;
+        validate_config(&mut config)?;
 
         Ok(S3Bucket {
             name: name.to_string(),
-            config: updated_config,
+            config,
         })
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
+    pub fn bucket_path(&self) -> String {
+        get_endpoint_url(self.config(), Some(self.name()))
     }
 }
 
@@ -57,7 +64,7 @@ impl ObjectStoreTrait for S3Bucket {
         &self.name
     }
 
-    fn config(&self) -> &HashMap<String, String> {
+    fn config(&self) -> &Config {
         &self.config
     }
 
@@ -71,12 +78,25 @@ impl ObjectStoreTrait for S3Bucket {
         let result: Result<Vec<FileObject>, LakestreamError> = async move {
             list_files(self, prefix, recursive, max_keys, filter).await
         }
-        .boxed_local() // Use boxed_local() here
+        .boxed_local()
         .await;
+        result
+    }
+}
 
-        match result {
-            Ok(files) => Ok(files),
-            Err(e) => Err(e.into()),
-        }
+pub fn get_endpoint_url(config: &Config, bucket_name: Option<&str>) -> String {
+    let region = config.settings.get("AWS_REGION").unwrap();
+
+    match config.settings.get("S3_ENDPOINT_URL") {
+        Some(url) => match bucket_name {
+            Some(name) => format!("{}/{}", url.trim_end_matches('/'), name),
+            None => url.to_owned(),
+        },
+        None => match bucket_name {
+            Some(name) => {
+                format!("https://{}.s3.{}.amazonaws.com", name, region)
+            }
+            None => format!("https://s3.{}.amazonaws.com", region),
+        },
     }
 }

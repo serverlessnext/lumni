@@ -1,23 +1,20 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use async_trait::async_trait;
 
 use super::list::list_files;
+use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::{FileObject, FileObjectFilter, LakestreamError};
 
 pub struct LocalFs {
     name: String,
     #[allow(dead_code)]
-    config: HashMap<String, String>,
+    config: Config,
 }
 
 impl LocalFs {
-    pub fn new(
-        name: &str,
-        config: HashMap<String, String>,
-    ) -> Result<LocalFs, &'static str> {
+    pub fn new(name: &str, config: Config) -> Result<LocalFs, &'static str> {
         Ok(LocalFs {
             name: name.to_string(),
             config,
@@ -31,7 +28,7 @@ impl ObjectStoreTrait for LocalFs {
         &self.name
     }
 
-    fn config(&self) -> &HashMap<String, String> {
+    fn config(&self) -> &Config {
         &self.config
     }
 

@@ -6,8 +6,10 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+use crate::base::config::Config;
 use crate::localfs::bucket::LocalFs;
 use crate::s3::bucket::{list_buckets, S3Bucket};
+use crate::s3::config::validate_config;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 use crate::{FileObjectFilter, LakestreamError};
 
@@ -27,7 +29,7 @@ impl ObjectStoreHandler {
 
     pub async fn list_objects(
         uri: String,
-        config: HashMap<String, String>,
+        config: Config,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -51,7 +53,9 @@ impl ObjectStoreHandler {
             // list buckets
             info!("Listing buckets");
             let mut object_store_configuration = HashMap::new();
+            // Convert the HashMap<String, String> back to serde_json::Map<String, Value>
             let config_map: Map<String, Value> = config
+                .settings
                 .into_iter()
                 .map(|(k, v)| (k, Value::String(v)))
                 .collect();
@@ -64,7 +68,7 @@ impl ObjectStoreHandler {
             let configs = vec![object_store_configuration];
             let handler = ObjectStoreHandler::new(configs);
 
-            let object_stores = handler.list_object_stores().await;
+            let object_stores = handler.list_object_stores().await?;
             Ok(ListObjectsResult::Buckets(object_stores))
         }
     }
@@ -98,7 +102,7 @@ impl ObjectStoreHandler {
         )
     }
 
-    pub async fn list_object_stores(&self) -> Vec<ObjectStore> {
+    pub async fn list_object_stores(&self) -> Result<Vec<ObjectStore>, LakestreamError> {
         let mut object_stores = Vec::new();
 
         for config in &self.configs {
@@ -111,14 +115,25 @@ impl ObjectStoreHandler {
             let config_value = config.get("config").unwrap();
             let config_config = config_value.as_object().unwrap();
 
-            // Convert the serde_json::Map<String, Value> back to HashMap<String, String>
+            // Convert the serde_json::Map<String, Value> to HashMap<String, String>
             let config_hashmap: HashMap<String, String> = config_config
                 .iter()
                 .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
                 .collect();
 
+            // Create a Config instance
+            let mut config_instance = Config {
+                settings: config_hashmap,
+            };
+
+            if let Err(e) = validate_config(&mut config_instance) {
+                // Handle the error, e.g., log the error and/or return early with an appropriate error value
+                error!("Error validating the config: {}", e);
+                return Err(LakestreamError::ConfigError("Invalid configuration".to_string()));
+            }
+
             if uri.starts_with("s3://") {
-                match list_buckets(&config_hashmap).await {
+                match list_buckets(&config_instance).await {
                     Ok(mut buckets) => object_stores.append(&mut buckets),
                     Err(err) => error!("Error listing buckets: {}", err),
                 }
@@ -126,14 +141,14 @@ impl ObjectStoreHandler {
                 error!("Unsupported object store type: {}", uri);
             }
         }
-        object_stores
+        Ok(object_stores)
     }
 }
 
 #[async_trait(?Send)]
 pub trait ObjectStoreTrait {
     fn name(&self) -> &str;
-    fn config(&self) -> &HashMap<String, String>;
+    fn config(&self) -> &Config;
     async fn list_files(
         &self,
         prefix: Option<&str>,
@@ -149,10 +164,7 @@ pub enum ObjectStore {
 }
 
 impl ObjectStore {
-    pub fn new(
-        name: &str,
-        config: HashMap<String, String>,
-    ) -> Result<ObjectStore, String> {
+    pub fn new(name: &str, config: Config) -> Result<ObjectStore, String> {
         if name.starts_with("s3://") {
             let name = name.trim_start_matches("s3://");
             let bucket =
@@ -175,7 +187,7 @@ impl ObjectStore {
         }
     }
 
-    pub fn config(&self) -> &HashMap<String, String> {
+    pub fn config(&self) -> &Config {
         match self {
             ObjectStore::S3Bucket(bucket) => bucket.config(),
             ObjectStore::LocalFs(local_fs) => local_fs.config(),
@@ -195,8 +207,8 @@ impl ObjectStore {
                     .list_files(prefix, recursive, max_keys, filter)
                     .await
                 {
-                    Ok(files) => return Ok(files),
-                    Err(e) => return Err(e.into()),
+                    Ok(files) => Ok(files),
+                    Err(e) => Err(e),
                 }
             }
             ObjectStore::LocalFs(local_fs) => {
@@ -204,8 +216,8 @@ impl ObjectStore {
                     .list_files(prefix, recursive, max_keys, filter)
                     .await
                 {
-                    Ok(files) => return Ok(files),
-                    Err(e) => return Err(e.into()),
+                    Ok(files) => Ok(files),
+                    Err(e) => Err(e),
                 }
             }
         }

@@ -31,7 +31,7 @@ minio_run: minio_build
 		docker run -d --name $(MINIO_CONTAINER) -p 8443:8443 -p 9001:9001 \
 		-e MINIO_ROOT_USER=AKIAIOSFODNN7EXAMPLE \
 		-e MINIO_ROOT_PASSWORD=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
-		-e MINIO_SERVER_URL=https://minio-dev:8443 \
+		-e MINIO_SERVER_URL=https://localhost:8443 \
 		$(MINIO_IMAGE) server /mnt/minio-dev --certs-dir /.minio/certs --address :8443 --console-address :9001; \
 	fi
 

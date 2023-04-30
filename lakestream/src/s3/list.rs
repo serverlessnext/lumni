@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use log::{error, info};
 
 use super::bucket::{configure_bucket_url, S3Bucket, S3Credentials};
-use super::client::S3Client;
+use super::client::{S3Client, S3ClientConfig};
 use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
 };
@@ -39,7 +39,9 @@ pub async fn list_files(
     loop {
         bucket_url = configure_bucket_url(&config, Some(s3_bucket.name()));
         let credentials = s3_client.credentials().clone();
-        s3_client = S3Client::new(&bucket_url, &region, credentials);
+        let s3_client_config =
+            S3ClientConfig::new(credentials, &bucket_url, &region);
+        s3_client = S3Client::new(s3_client_config);
 
         let headers = s3_client
             .generate_list_objects_headers(
@@ -307,7 +309,10 @@ fn create_s3_client(config: &Config, bucket_name: Option<&str>) -> S3Client {
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
     let bucket_url = configure_bucket_url(config, bucket_name);
-    S3Client::new(&bucket_url, region, credentials)
+
+    let s3_client_config =
+        S3ClientConfig::new(credentials, &bucket_url, region);
+    S3Client::new(s3_client_config)
 }
 
 fn get_effective_max_keys(

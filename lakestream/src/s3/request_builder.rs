@@ -34,8 +34,7 @@ impl RequestBuilder {
 
         let credential_scope =
             format!("{}/{}/s3/aws4_request", date_stamp, config.region());
-        let mut headers =
-            self.initiate_headers(&x_amz_date, payload_hash)?;
+        let mut headers = self.initiate_headers(&x_amz_date, payload_hash)?;
 
         let url = Url::parse(&self.url)?;
         let host = url.host_str().ok_or("Missing host")?.to_owned();

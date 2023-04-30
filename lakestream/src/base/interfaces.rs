@@ -4,7 +4,7 @@ use log::{error, info};
 use regex::Regex;
 use serde_json::{Map, Value};
 
-pub use super::file_objects::FileObject;
+pub use super::file_objects::{FileObject, FileObjectVec};
 pub use super::object_store::{ObjectStore, ObjectStoreTrait};
 use crate::s3::bucket::list_buckets;
 use crate::s3::config::validate_config;

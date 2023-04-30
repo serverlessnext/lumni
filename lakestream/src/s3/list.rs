@@ -11,7 +11,7 @@ use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::{
-    FileObject, FileObjectFilter, LakestreamError, ObjectStore,
+    FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
     AWS_MAX_LIST_OBJECTS,
 };
 
@@ -21,8 +21,8 @@ pub async fn list_files(
     recursive: bool,
     max_keys: Option<u32>,
     filter: &Option<FileObjectFilter>,
-) -> Result<Vec<FileObject>, LakestreamError> {
-    let mut all_file_objects = Vec::new();
+    file_objects: &mut FileObjectVec,
+) -> Result<(), LakestreamError> {
     let mut s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
@@ -74,7 +74,7 @@ pub async fn list_files(
                             "Error: Redirect without x-amz-bucket-region \
                              header"
                         );
-                        return Ok(Vec::new());
+                        return Ok(());
                     }
                 } else if response_body.is_empty() {
                     error!(
@@ -82,7 +82,7 @@ pub async fn list_files(
                          status: {}",
                         status
                     );
-                    return Ok(Vec::new());
+                    return Ok(());
                 } else {
                     body = response_body;
                     break;
@@ -90,7 +90,7 @@ pub async fn list_files(
             }
             Err(e) => {
                 error!("Error in http_get_request: {}", e);
-                return Ok(Vec::new());
+                return Ok(());
             }
         }
     }
@@ -113,7 +113,7 @@ pub async fn list_files(
 
     // Extend all_file_objects with the filtered list of non-directory file objects.
     // If a filter is provided, apply it; otherwise, include all non-directory file objects.
-    all_file_objects.extend(filtered_initial_file_objects.into_iter().filter(
+    file_objects.extend(filtered_initial_file_objects.into_iter().filter(
         |file_object| filter.as_ref().map_or(true, |f| f.matches(file_object)),
     ));
 
@@ -121,23 +121,21 @@ pub async fn list_files(
 
     // enter recursive lookup if max_keys not yet satisfied
     let remaining_keys =
-        max_keys.map(|max| max.saturating_sub(all_file_objects.len() as u32));
+        max_keys.map(|max| max.saturating_sub(file_objects.len() as u32));
 
     if remaining_keys.map_or(true, |keys| keys > 0) {
         if continuation_token.is_some() {
-            all_file_objects.extend(
-                list_files_next(
-                    s3_bucket,
-                    prefix.map(|p| p.to_owned()),
-                    remaining_keys,
-                    &mut s3_client,
-                    continuation_token,
-                    recursive,
-                    &(*filter).clone(),
-                )
-                .await
-                .map_err(LakestreamError::from)?,
-            );
+            list_files_next(
+                s3_bucket,
+                prefix.map(|p| p.to_owned()),
+                remaining_keys,
+                &mut s3_client,
+                continuation_token,
+                recursive,
+                &(*filter).clone(),
+                file_objects,
+            )
+            .await?;
         }
 
         // If the recursive flag is set, process each subdirectory from current base level
@@ -150,23 +148,22 @@ pub async fn list_files(
             {
                 let subdir_prefix =
                     Some(format!("{}{}", prefix.unwrap_or(""), directory));
-                all_file_objects.extend(
-                    list_files_next(
-                        s3_bucket,
-                        subdir_prefix,
-                        max_keys.map(|max| max - all_file_objects.len() as u32),
-                        &mut s3_client,
-                        None,
-                        recursive,
-                        filter,
-                    )
-                    .await
-                    .map_err(LakestreamError::from)?,
-                );
+
+                list_files_next(
+                    s3_bucket,
+                    subdir_prefix,
+                    remaining_keys,
+                    &mut s3_client,
+                    None,
+                    recursive,
+                    &(*filter).clone(),
+                    file_objects,
+                )
+                .await?;
             }
         }
     }
-    Ok(all_file_objects)
+    Ok(())
 }
 
 async fn list_files_next(
@@ -177,8 +174,8 @@ async fn list_files_next(
     continuation_token: Option<String>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
-) -> Result<Vec<FileObject>, LakestreamError> {
-    let mut all_file_objects = Vec::new();
+    file_objects: &mut FileObjectVec,
+) -> Result<(), LakestreamError> {
     let mut virtual_directories = Vec::new();
     let mut current_continuation_token = continuation_token;
     let mut directory_stack = std::collections::VecDeque::new();
@@ -188,7 +185,6 @@ async fn list_files_next(
     let effective_max_keys = get_effective_max_keys(filter, max_keys);
 
     while let Some(prefix) = directory_stack.pop_front() {
-        // loop until we have all regular files or we have reached the max_keys
         loop {
             let headers = s3_client
                 .generate_list_objects_headers(
@@ -206,11 +202,11 @@ async fn list_files_next(
             };
 
             if !response_body.is_empty() {
-                let file_objects =
+                let file_objects_list =
                     parse_file_objects(&response_body).unwrap_or_default();
 
-                for file_object in file_objects {
-                    if all_file_objects.len()
+                for file_object in file_objects_list {
+                    if file_objects.len()
                         == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
                     {
                         break;
@@ -222,16 +218,15 @@ async fn list_files_next(
                                 .push(file_object.name().to_owned());
                         }
                         if filter.is_none() {
-                            all_file_objects.push(file_object.clone());
+                            file_objects.push(file_object.clone());
                         }
                     } else {
-                        // Check if the file_object satisfies the filter conditions
                         if let Some(ref filter) = filter {
                             if !filter.matches(&file_object) {
                                 continue;
                             }
                         }
-                        all_file_objects.push(file_object);
+                        file_objects.push(file_object);
                     }
                 }
 
@@ -240,7 +235,7 @@ async fn list_files_next(
             }
 
             if current_continuation_token.is_none()
-                || all_file_objects.len()
+                || file_objects.len()
                     >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
             {
                 break;
@@ -248,10 +243,8 @@ async fn list_files_next(
         }
 
         if recursive {
-            // if recursive is True, and we have not reached the max_keys,
-            // continue with the virtual directories
             for virtual_directory in virtual_directories.drain(..) {
-                if all_file_objects.len()
+                if file_objects.len()
                     == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
                 {
                     break;
@@ -264,7 +257,7 @@ async fn list_files_next(
         current_continuation_token = None;
     }
 
-    Ok(all_file_objects)
+    Ok(())
 }
 
 pub async fn list_buckets(

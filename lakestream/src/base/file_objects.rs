@@ -1,8 +1,54 @@
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 
 use serde::Deserialize;
 
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
+
+pub struct FileObjectVec {
+    file_objects: Vec<FileObject>,
+    callback: Option<Box<dyn Fn(&[FileObject]) + Sync + Send>>,
+}
+
+impl FileObjectVec {
+    pub fn new(
+        callback: Option<Box<dyn Fn(&[FileObject]) + Sync + Send>>,
+    ) -> Self {
+        Self {
+            file_objects: Vec::new(),
+            callback,
+        }
+    }
+    pub fn into_inner(self) -> Vec<FileObject> {
+        self.file_objects
+    }
+}
+
+impl Extend<FileObject> for FileObjectVec {
+    fn extend<T: IntoIterator<Item = FileObject>>(&mut self, iter: T) {
+        let new_file_objects: Vec<FileObject> = iter.into_iter().collect();
+
+        if let Some(callback) = &self.callback {
+            (*callback)(&new_file_objects);
+        }
+
+        self.file_objects.extend(new_file_objects);
+    }
+}
+
+impl Deref for FileObjectVec {
+    type Target = Vec<FileObject>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.file_objects
+    }
+}
+
+impl DerefMut for FileObjectVec {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.file_objects
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileObject {

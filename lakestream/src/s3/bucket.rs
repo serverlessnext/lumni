@@ -1,12 +1,11 @@
 use async_trait::async_trait;
-use futures::FutureExt;
 
 pub use super::list::list_buckets;
 use super::list::list_files;
 use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::s3::config::validate_config;
-use crate::{FileObject, FileObjectFilter, LakestreamError};
+use crate::{FileObject, FileObjectFilter, FileObjectVec, LakestreamError};
 
 #[derive(Clone)]
 pub struct S3Credentials {
@@ -75,12 +74,26 @@ impl ObjectStoreTrait for S3Bucket {
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
     ) -> Result<Vec<FileObject>, LakestreamError> {
-        let result: Result<Vec<FileObject>, LakestreamError> = async move {
-            list_files(self, prefix, recursive, max_keys, filter).await
-        }
-        .boxed_local()
+        // initial implementation for callback
+        // to test, uncomment this line and use example below
+        // let callback = Some(Box::new(print_file_objects_callback) as Box<dyn Fn(&[FileObject]) + Sync + Send>);
+        let callback = None;
+        let mut file_objects = FileObjectVec::new(callback);
+        let result = list_files(
+            self,
+            prefix,
+            recursive,
+            max_keys,
+            filter,
+            &mut file_objects,
+        )
         .await;
-        result
+
+        if let Err(e) = result {
+            Err(e)
+        } else {
+            Ok(file_objects.into_inner())
+        }
     }
 }
 
@@ -103,3 +116,15 @@ pub fn configure_bucket_url(
         },
     }
 }
+
+// example callback
+// async fn print_file_objects_callback_async(file_objects: &[FileObject]) {
+//     for file_object in file_objects {
+//         println!("File object: {:?}", file_object);
+//     }
+// }
+// fn print_file_objects_callback(file_objects: &[FileObject]) {
+//     for file_object in file_objects {
+//         println!("File object: {:?}", file_object);
+//     }
+// }

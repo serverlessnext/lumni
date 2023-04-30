@@ -1,14 +1,24 @@
 use std::collections::HashMap;
 
+use std::pin::Pin;
+
 use log::{error, info};
 use regex::Regex;
 use serde_json::{Map, Value};
+use futures::Future;
 
 pub use super::file_objects::{FileObject, FileObjectVec};
 pub use super::object_store::{ObjectStore, ObjectStoreTrait};
 use crate::s3::bucket::list_buckets;
 use crate::s3::config::validate_config;
 use crate::{Config, FileObjectFilter, LakestreamError};
+
+
+pub enum CallbackWrapper {
+    Sync(Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>),
+    // TODO: the Async version is not working properly yet
+    Async(Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync + 'static>),
+}
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),
@@ -67,6 +77,36 @@ impl ObjectStoreHandler {
 
             let object_stores = handler.list_object_stores().await?;
             Ok(ListObjectsResult::Buckets(object_stores))
+        }
+    }
+
+    pub async fn list_objects_with_callback(
+        uri: String,
+        config: Config,
+        recursive: bool,
+        max_files: Option<u32>,
+        filter: &Option<FileObjectFilter>,
+        callback: CallbackWrapper,
+    ) -> Result<(), LakestreamError> {
+        let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
+        if let Some(bucket) = bucket {
+            // list files in a bucket
+            info!("Listing files in bucket {}", bucket);
+            let bucket_uri = if let Some(scheme) = scheme {
+                format!("{}://{}", scheme, bucket)
+            } else {
+                format!("localfs://{}", bucket)
+            };
+            let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
+
+            object_store
+                .list_files_with_callback(prefix.as_deref(), recursive, max_files, filter, callback)
+                .await?;
+
+            Ok(())
+        } else {
+            // list buckets
+            panic!("Listing buckets not yet supported with callback");
         }
     }
 

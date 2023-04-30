@@ -1,18 +1,21 @@
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
+use futures::Future;
+use std::pin::Pin;
+
 use serde::Deserialize;
 
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
 pub struct FileObjectVec {
     file_objects: Vec<FileObject>,
-    callback: Option<Box<dyn Fn(&[FileObject]) + Sync + Send>>,
+    callback: Option<Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync>>,
 }
 
 impl FileObjectVec {
     pub fn new(
-        callback: Option<Box<dyn Fn(&[FileObject]) + Sync + Send>>,
+        callback: Option<Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync>>,
     ) -> Self {
         Self {
             file_objects: Vec::new(),

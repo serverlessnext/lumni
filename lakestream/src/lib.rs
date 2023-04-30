@@ -10,7 +10,7 @@ pub use base::config::Config;
 pub use base::filters::FileObjectFilter;
 pub use base::interfaces::{
     FileObject, FileObjectVec, ListObjectsResult, ObjectStore,
-    ObjectStoreHandler,
+    ObjectStoreHandler, CallbackWrapper,
 };
 // re-export all defaults
 pub use default::*;

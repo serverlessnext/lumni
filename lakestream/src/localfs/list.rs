@@ -1,17 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use crate::{FileObject, FileObjectFilter};
+use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub fn list_files(
     path: &Path,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
-) -> Vec<FileObject> {
-    let mut file_objects = Vec::new();
-    list_files_next(path, max_keys, recursive, filter, &mut file_objects);
-    file_objects
+    file_objects: &mut FileObjectVec,
+) {
+    list_files_next(path, max_keys, recursive, filter, file_objects);
 }
 
 fn handle_file(
@@ -51,7 +50,7 @@ fn handle_directory(
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
-    file_objects: &mut Vec<FileObject>,
+    file_objects: &mut FileObjectVec,
 ) -> u32 {
     let dir_name = entry.path().to_string_lossy().to_string();
 
@@ -79,7 +78,7 @@ fn list_files_next(
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
-    file_objects: &mut Vec<FileObject>,
+    file_objects: &mut FileObjectVec,
 ) -> u32 {
     let mut count = 0;
 

@@ -1,37 +1,29 @@
 use std::collections::HashMap;
 
+
 use lakestream::{
-    Config, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
+    Config, FileObject, FileObjectFilter, ObjectStoreHandler, CallbackWrapper,
 };
+
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches, region);
 
-    match ObjectStoreHandler::list_objects(
+    // at this moment only sync callback works
+    let callback = CallbackWrapper::Sync(Box::new(print_file_objects_callback));
+
+    match ObjectStoreHandler::list_objects_with_callback(
         uri,
         config,
         recursive,
         Some(max_files),
         &filter,
+        callback,
     )
     .await
     {
-        Ok(ListObjectsResult::FileObjects(file_objects)) => {
-            // Print file objects to stdout
-            println!("Found {} file objects:", file_objects.len());
-            for fo in file_objects {
-                let full_path = true;
-                println!("{}", fo.printable(full_path));
-            }
-        }
-        Ok(ListObjectsResult::Buckets(buckets)) => {
-            // Print buckets to stdout
-            println!("Found {} buckets:", buckets.len());
-            for bucket in buckets {
-                println!("{}", bucket.name());
-            }
-        }
+        Ok(()) => println!("Done."), // Update this line with a comma instead of a semicolon
         Err(err) => {
             eprintln!("Error: {}", err);
             std::process::exit(1);
@@ -91,4 +83,23 @@ fn prepare_handle_ls_arguments(
     };
 
     (uri, config, recursive, max_files, filter)
+}
+
+
+// async example
+async fn print_file_objects_callback_async(file_objects: &[FileObject]) {
+    let full_path = true;
+    println!("Found {} file objects:", file_objects.len());
+    for fo in file_objects {
+        println!("{}", fo.printable(full_path));
+    }
+}
+
+
+fn print_file_objects_callback(file_objects: &[FileObject]) {
+    let full_path = true;
+    println!("Found {} file objects:", file_objects.len());
+    for fo in file_objects {
+        println!("{}", fo.printable(full_path));
+    }
 }

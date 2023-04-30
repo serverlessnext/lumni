@@ -17,6 +17,7 @@ env_logger = "0.9"
 lakestream = { path = "../lakestream" }
 tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
+futures = "0.3"
 
 # [build-dependencies]
 # toml_edit = "0.2"

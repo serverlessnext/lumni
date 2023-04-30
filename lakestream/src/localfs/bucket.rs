@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use super::list::list_files;
 use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::{FileObject, FileObjectFilter, LakestreamError};
+use crate::{FileObjectVec, FileObjectFilter, LakestreamError};
 
 pub struct LocalFs {
     name: String,
@@ -38,11 +38,14 @@ impl ObjectStoreTrait for LocalFs {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Result<Vec<FileObject>, LakestreamError> {
+        file_objects: &mut FileObjectVec,
+    ) -> Result<(), LakestreamError> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
-        Ok(list_files(&path, max_keys, recursive, filter))
+        list_files(&path, max_keys, recursive, filter, file_objects);
+        Ok(())
     }
 }
+

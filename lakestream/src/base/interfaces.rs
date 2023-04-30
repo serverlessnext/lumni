@@ -1,17 +1,14 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 use log::{error, info};
 use regex::Regex;
-use serde::Deserialize;
 use serde_json::{Map, Value};
 
-use crate::base::config::Config;
-use crate::localfs::bucket::LocalFs;
-use crate::s3::bucket::{list_buckets, S3Bucket};
+pub use super::file_objects::FileObject;
+pub use super::object_store::{ObjectStore, ObjectStoreTrait};
+use crate::s3::bucket::list_buckets;
 use crate::s3::config::validate_config;
-use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-use crate::{FileObjectFilter, LakestreamError};
+use crate::{Config, FileObjectFilter, LakestreamError};
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),
@@ -146,153 +143,6 @@ impl ObjectStoreHandler {
             }
         }
         Ok(object_stores)
-    }
-}
-
-#[async_trait(?Send)]
-pub trait ObjectStoreTrait {
-    fn name(&self) -> &str;
-    fn config(&self) -> &Config;
-    async fn list_files(
-        &self,
-        prefix: Option<&str>,
-        recursive: bool,
-        max_keys: Option<u32>,
-        filter: &Option<FileObjectFilter>,
-    ) -> Result<Vec<FileObject>, LakestreamError>;
-}
-
-pub enum ObjectStore {
-    S3Bucket(S3Bucket),
-    LocalFs(LocalFs),
-}
-
-impl ObjectStore {
-    pub fn new(name: &str, config: Config) -> Result<ObjectStore, String> {
-        if name.starts_with("s3://") {
-            let name = name.trim_start_matches("s3://");
-            let bucket =
-                S3Bucket::new(name, config).map_err(|err| err.to_string())?;
-            Ok(ObjectStore::S3Bucket(bucket))
-        } else if name.starts_with("localfs://") {
-            let name = name.trim_start_matches("localfs://");
-            let local_fs =
-                LocalFs::new(name, config).map_err(|err| err.to_string())?;
-            Ok(ObjectStore::LocalFs(local_fs))
-        } else {
-            Err("Unsupported object store.".to_string())
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        match self {
-            ObjectStore::S3Bucket(bucket) => bucket.name(),
-            ObjectStore::LocalFs(local_fs) => local_fs.name(),
-        }
-    }
-
-    pub fn config(&self) -> &Config {
-        match self {
-            ObjectStore::S3Bucket(bucket) => bucket.config(),
-            ObjectStore::LocalFs(local_fs) => local_fs.config(),
-        }
-    }
-
-    pub async fn list_files(
-        &self,
-        prefix: Option<&str>,
-        recursive: bool,
-        max_keys: Option<u32>,
-        filter: &Option<FileObjectFilter>,
-    ) -> Result<Vec<FileObject>, LakestreamError> {
-        match self {
-            ObjectStore::S3Bucket(bucket) => {
-                match bucket
-                    .list_files(prefix, recursive, max_keys, filter)
-                    .await
-                {
-                    Ok(files) => Ok(files),
-                    Err(e) => Err(e),
-                }
-            }
-            ObjectStore::LocalFs(local_fs) => {
-                match local_fs
-                    .list_files(prefix, recursive, max_keys, filter)
-                    .await
-                {
-                    Ok(files) => Ok(files),
-                    Err(e) => Err(e),
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct FileObject {
-    name: String,
-    size: u64,
-    modified: Option<u64>,
-    tags: Option<HashMap<String, String>>,
-}
-
-impl FileObject {
-    pub fn new(
-        name: String,
-        size: u64,
-        modified: Option<u64>,
-        tags: Option<HashMap<String, String>>,
-    ) -> Self {
-        FileObject {
-            name,
-            size,
-            modified,
-            tags,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn size(&self) -> u64 {
-        self.size
-    }
-
-    pub fn modified(&self) -> Option<u64> {
-        self.modified
-    }
-
-    pub fn tags(&self) -> &Option<HashMap<String, String>> {
-        &self.tags
-    }
-
-    pub fn printable(&self, full_path: bool) -> String {
-        let name_without_trailing_slash = self.name.trim_end_matches('/');
-        let mut name_to_print = if full_path {
-            name_without_trailing_slash.to_string()
-        } else {
-            name_without_trailing_slash
-                .split('/')
-                .last()
-                .unwrap_or(name_without_trailing_slash)
-                .to_string()
-        };
-
-        if self.name.ends_with('/') {
-            name_to_print.push('/');
-        }
-
-        format!(
-            "{:8} {} {}",
-            bytes_human_readable(self.size()),
-            if let Some(modified) = self.modified() {
-                time_human_readable(modified)
-            } else {
-                "PRE".to_string()
-            },
-            name_to_print
-        )
     }
 }
 

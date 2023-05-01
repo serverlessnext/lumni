@@ -1,41 +1,9 @@
 
 use std::collections::HashMap;
 
-use futures::Future;
-use std::pin::Pin;
-
 use lakestream::{
     Config, FileObject, FileObjectFilter, ListObjectsResult, ObjectStoreHandler, CallbackWrapper,
 };
-
-
-pub fn create_sync_callback<F>(func: F) -> CallbackWrapper
-where
-    F: Fn(&[FileObject]) + Send + Sync + 'static,
-{
-    CallbackWrapper::Sync(Box::new(func))
-}
-
-pub fn create_async_callback<F, Fut>(func: F) -> CallbackWrapper
-where
-    F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    let wrapped_func = wrap_async_fn(func);
-    CallbackWrapper::Async(Box::new(wrapped_func))
-}
-
-fn wrap_async_fn<F, Fut>(func: F) -> impl Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static
-where
-    F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    move |file_objects: &[FileObject]| {
-        let file_objects_cloned = file_objects.to_owned();
-        let future = func(file_objects_cloned);
-        Box::pin(future) as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-    }
-}
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
@@ -44,11 +12,11 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let handler = ObjectStoreHandler::new(vec![config.clone()]);
 
     // print via callback function (sync or async supported)
-    // let callback = Some(create_sync_callback(print_file_objects_callback));
-    // let callback = Some(create_async_callback(print_file_objects_callback_async));
+    // let callback = Some(CallbackWrapper::create_sync(print_file_objects_callback));
+    let callback = Some(CallbackWrapper::create_async(print_file_objects_callback_async));
 
     // get results as a return value instead of a callback
-    let callback = None;
+    // let callback = None;
 
     match handler.list_objects_with_callback(
         uri,

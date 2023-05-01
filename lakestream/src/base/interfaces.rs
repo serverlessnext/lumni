@@ -1,23 +1,17 @@
 use std::collections::HashMap;
 
-use std::pin::Pin;
-
 use log::{error, info};
 use regex::Regex;
 use serde_json::{Map, Value};
-use futures::Future;
 
 pub use super::file_objects::{FileObject, FileObjectVec};
 pub use super::object_store::{ObjectStore, ObjectStoreTrait};
+pub use super::callback_wrapper::CallbackWrapper;
+
 use crate::s3::bucket::list_buckets;
 use crate::s3::config::validate_config;
 use crate::{Config, FileObjectFilter, LakestreamError};
 
-
-pub enum CallbackWrapper {
-    Sync(Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>),
-    Async(Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static>),
-}
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),

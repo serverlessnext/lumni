@@ -19,11 +19,11 @@ pub enum ListObjectsResult {
 }
 
 pub struct ObjectStoreHandler {
-    configs: Vec<Config>,
+    configs: Option<Vec<Config>>,
 }
 
 impl ObjectStoreHandler {
-    pub fn new(configs: Vec<Config>) -> Self {
+    pub fn new(configs: Option<Vec<Config>>) -> Self {
         ObjectStoreHandler { configs }
     }
 
@@ -71,14 +71,14 @@ impl ObjectStoreHandler {
 
         // Create a new ObjectStoreHandler with a Vec<Config> containing the updated config
         let configs = vec![config];
-        let handler = ObjectStoreHandler::new(configs);
+        let handler = ObjectStoreHandler::new(Some(configs));
 
         let object_stores = handler.list_object_stores().await?;
         Ok(Some(ListObjectsResult::Buckets(object_stores)))
     }
 
 
-    pub async fn list_objects_with_callback(
+    pub async fn list_objects(
         &self,
         uri: String,
         config: Config,
@@ -146,47 +146,50 @@ impl ObjectStoreHandler {
     ) -> Result<Vec<ObjectStore>, LakestreamError> {
         let mut object_stores = Vec::new();
 
-        for config in &self.configs {
-            let default_uri = Value::String("".to_string());
-            let config_value = config
-                .settings
-                .get("uri")
-                .map(|v| Value::String(v.clone()))
-                .unwrap_or(default_uri);
-            let uri = config_value.as_str().unwrap_or("");
 
-            let config_config_value = config
-                .settings
-                .get("config")
-                .map(|v| Value::String(v.clone()))
-                .unwrap_or(Value::Object(Map::new()));
-            let config_config = config_config_value
-                .as_object()
-                .expect("config_value should be an object")
-                .iter()
-                .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
-                .collect::<HashMap<String, String>>();
+        if let Some(configs) = &self.configs {
+            for config in configs {
+                let default_uri = Value::String("".to_string());
+                let config_value = config
+                    .settings
+                    .get("uri")
+                    .map(|v| Value::String(v.clone()))
+                    .unwrap_or(default_uri);
+                let uri = config_value.as_str().unwrap_or("");
 
-            // Create a mutable Config instance
-            let mut config_instance = Config {
-                settings: config_config,
-            };
+                let config_config_value = config
+                    .settings
+                    .get("config")
+                    .map(|v| Value::String(v.clone()))
+                    .unwrap_or(Value::Object(Map::new()));
+                let config_config = config_config_value
+                    .as_object()
+                    .expect("config_value should be an object")
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+                    .collect::<HashMap<String, String>>();
 
-            if let Err(e) = validate_config(&mut config_instance) {
-                // Handle the error, e.g., log the error and/or return early with an appropriate error value
-                error!("Error validating the config: {}", e);
-                return Err(LakestreamError::ConfigError(
-                    "Invalid configuration".to_string(),
-                ));
-            }
+                // Create a mutable Config instance
+                let mut config_instance = Config {
+                    settings: config_config,
+                };
 
-            if uri.starts_with("s3://") {
-                match list_buckets(&config_instance).await {
-                    Ok(mut buckets) => object_stores.append(&mut buckets),
-                    Err(err) => error!("Error listing buckets: {}", err),
+                if let Err(e) = validate_config(&mut config_instance) {
+                    // Handle the error, e.g., log the error and/or return early with an appropriate error value
+                    error!("Error validating the config: {}", e);
+                    return Err(LakestreamError::ConfigError(
+                        "Invalid configuration".to_string(),
+                    ));
                 }
-            } else {
-                error!("Unsupported object store type: {}", uri);
+
+                if uri.starts_with("s3://") {
+                    match list_buckets(&config_instance).await {
+                        Ok(mut buckets) => object_stores.append(&mut buckets),
+                        Err(err) => error!("Error listing buckets: {}", err),
+                    }
+                } else {
+                    error!("Unsupported object store type: {}", uri);
+                }
             }
         }
         Ok(object_stores)

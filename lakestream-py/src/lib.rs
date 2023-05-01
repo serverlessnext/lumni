@@ -3,7 +3,7 @@ use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, AWS_DEFAULT_REGION,
+    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, CallbackWrapper, Config, AWS_DEFAULT_REGION,
 };
 use ::lakestream_cli::run_cli;
 
@@ -15,7 +15,7 @@ use pyo3::{exceptions, ToPyObject};
 
 #[pyclass]
 struct _Client {
-    config: HashMap<String, String>,
+    config: Config,
 }
 
 #[pymethods]
@@ -25,10 +25,7 @@ impl _Client {
         let region = region
             .or_else(|| env::var("AWS_REGION").ok())
             .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
-
-        let mut config = HashMap::new();
-        config.insert("region".to_string(), region);
-
+        let config = Config::with_setting("region".to_string(), region);
         Ok(_Client { config })
     }
 
@@ -65,37 +62,41 @@ impl _Client {
         let rt = Runtime::new().unwrap();
 
         // Call the async function and block on it to get the result
-        let result = rt.block_on(ObjectStoreHandler::list_objects(
+        let handler = ObjectStoreHandler::new(None);
+        let result = rt.block_on( handler.list_objects(
             uri,
             self.config.clone(),
             recursive.unwrap_or(false),
             max_files,
             &filter,
+            None,
         ));
 
-        // Process the result
         match result {
-            Ok(ListObjectsResult::FileObjects(file_objects)) => {
-                let py_file_objects = file_objects
-                    .into_iter()
-                    .map(|fo| {
-                        // Create instances of the FileObject NamedTuple
-                        file_object_named_tuple.call1((
-                            fo.name(),
-                            fo.size(),
-                            fo.modified().unwrap_or_default(),
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?; // Collect the PyResult values into a single Result
-                Ok(PyList::new(py, &py_file_objects).to_object(py))
-            }
-            Ok(ListObjectsResult::Buckets(buckets)) => {
-                let py_buckets = buckets
-                    .into_iter()
-                    .map(|bucket| bucket.name().to_owned())
-                    .collect::<Vec<_>>();
-                Ok(PyList::new(py, &py_buckets).to_object(py))
-            }
+            Ok(None) => Ok(PyList::empty(py).to_object(py)),
+            Ok(Some(list_objects_result)) => match list_objects_result {
+                ListObjectsResult::FileObjects(file_objects) => {
+                    let py_file_objects = file_objects
+                        .into_iter()
+                        .map(|fo| {
+                            // Create instances of the FileObject NamedTuple
+                            file_object_named_tuple.call1((
+                                fo.name(),
+                                fo.size(),
+                                fo.modified().unwrap_or_default(),
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?; // Collect the PyResult values into a single Result
+                    Ok(PyList::new(py, &py_file_objects).to_object(py))
+                }
+                ListObjectsResult::Buckets(buckets) => {
+                    let py_buckets = buckets
+                        .into_iter()
+                        .map(|bucket| bucket.name().to_owned())
+                        .collect::<Vec<_>>();
+                    Ok(PyList::new(py, &py_buckets).to_object(py))
+                }
+            },
             Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
                 "Error listing objects: {}",
                 err

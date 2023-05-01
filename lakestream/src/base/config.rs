@@ -10,6 +10,13 @@ impl Config {
         Config { settings }
     }
 
+    // shortcut method to create a Config with a single key-value pair
+    pub fn with_setting(key: String, value: String) -> Config {
+        let mut settings = HashMap::new();
+        settings.insert(key, value);
+        Config { settings }
+    }
+
     pub fn get(&self, key: &str) -> Option<&String> {
         self.settings.get(key)
     }

@@ -1,5 +1,6 @@
 
 use std::collections::HashMap;
+use log::info;
 
 use lakestream::{
     Config, FileObject, FileObjectFilter, ListObjectsResult, ObjectStoreHandler, CallbackWrapper,
@@ -9,7 +10,7 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches, region);
 
-    let handler = ObjectStoreHandler::new(vec![config.clone()]);
+    let handler = ObjectStoreHandler::new(None);
 
     // print via callback function (sync or async supported)
     // let callback = Some(CallbackWrapper::create_sync(print_file_objects_callback));
@@ -18,7 +19,7 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     // get results as a return value instead of a callback
     // let callback = None;
 
-    match handler.list_objects_with_callback(
+    match handler.list_objects(
         uri,
         config,
         recursive,
@@ -31,15 +32,15 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
         Ok(Some(list_objects_result)) => {
             match list_objects_result {
                 ListObjectsResult::Buckets(buckets) => {
-                   // Print buckets to stdout
-                    println!("Found {} buckets:", buckets.len());
+                    // Print buckets to stdout
+                    info!("Found {} buckets:", buckets.len());
                     for bucket in buckets {
                         println!("{}", bucket.name());
                     }
                 }
                 ListObjectsResult::FileObjects(file_objects) => {
-                   // Print file objects to stdout
-                    println!("Found {} file objects:", file_objects.len());
+                    // Print file objects to stdout
+                    info!("Found {} file objects:", file_objects.len());
                     for fo in file_objects {
                         let full_path = true;
                         println!("{}", fo.printable(full_path));
@@ -48,11 +49,9 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
             }
         }
         Ok(None) => {
-            // If you don't need to handle this case specifically, you can just use `println!("Done.");`
             println!("Done.");
         }
         Err(err) => {
-            // Handle the error case
             eprintln!("Error: {:?}", err);
         }
     }
@@ -113,17 +112,17 @@ fn prepare_handle_ls_arguments(
 }
 
 // keep this for reference -- async is default now
-fn print_file_objects_callback(file_objects: &[FileObject]) {
-    let full_path = true;
-    // println!("Found {} file objects:", file_objects.len());
-    for fo in file_objects {
-        println!("{}", fo.printable(full_path));
-    }
-}
+//fn print_file_objects_callback(file_objects: &[FileObject]) {
+//    let full_path = true;
+//    // info!("Found {} file objects:", file_objects.len());
+//    for fo in file_objects {
+//        println!("{}", fo.printable(full_path));
+//    }
+//}
 
 async fn print_file_objects_callback_async(file_objects: Vec<FileObject>) {
     let full_path = true;
-    // println!("Found {} file objects:", file_objects.len());
+    info!("Found {} file objects:", file_objects.len());
     for fo in &file_objects {
         println!("{}", fo.printable(full_path));
     }

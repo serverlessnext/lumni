@@ -22,7 +22,7 @@ MINIO_SERVER_URL := https://localhost:8443
 all: minio_run
 
 minio_build:
-	docker build -t $(MINIO_IMAGE) -f $(MINIO_DOCKERFILE) .
+	docker build -q -t $(MINIO_IMAGE) -f $(MINIO_DOCKERFILE) .
 
 minio_run: minio_build
 	@if [ -z "`docker ps -q -f name=$(MINIO_CONTAINER)`" ]; then \
@@ -31,12 +31,13 @@ minio_run: minio_build
 		fi; \
 		docker run -d --name $(MINIO_CONTAINER) -p 8443:8443 -p 9001:9001 \
 		-e MINIO_SERVER_URL=$(MINIO_SERVER_URL) \
-		$(MINIO_IMAGE) server /mnt/minio-dev --certs-dir /.minio/certs --address :8443 --console-address :9001; \
+		$(MINIO_IMAGE) server /mnt/localhost --certs-dir /.minio/certs --address :8443 --console-address :9001; \
 	fi
-	@echo "MinIO container is running:"
+	@echo "MinIO container is running!"
+	@echo "You can now access the MinIO web interface:"
 	@echo ""
-	@echo "Server URL: $(MINIO_SERVER_URL)"
-	@echo "You can now access the MinIO web interface."
+	@echo "Minio Server URL: $(MINIO_SERVER_URL)"
+	@docker logs $(MINIO_CONTAINER)
 
 
 minio_stop:

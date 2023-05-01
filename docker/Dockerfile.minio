@@ -2,22 +2,39 @@ FROM quay.io/minio/minio
 
 ARG MINIO_HOSTNAME=localhost
 ENV CERTS_DIR /.minio/certs
+ARG MINIO_USER=minio
 
 RUN microdnf install \
     openssl \
     && microdnf clean all
 
 RUN mkdir -p /mnt/"${MINIO_HOSTNAME}" \
-    && mkdir -p ${CERTS_DIR} \
+    && mkdir -p ${CERTS_DIR} /mnt/.minio.sys \
     && cd ${CERTS_DIR} \
-    && openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 -subj "/C=US/ST=NC/L=Local/O=Dev/CN=${MINIO_HOSTNAME}" -addext "subjectAltName = DNS:${MINIO_HOSTNAME}" -keyout ./private.key -out ./public.crt
+    && openssl req \
+        -new -newkey rsa:4096 -days 3650 -nodes -x509 \
+        -subj "/C=US/ST=NC/L=Local/O=Dev/CN=${MINIO_HOSTNAME}" \
+        -addext "subjectAltName = DNS:${MINIO_HOSTNAME}" \
+        -keyout ./private.key -out ./public.crt
 
-# # Generate MinIO root user and password
+# Generate MinIO root user and password
 ENV MINIO_ROOT_USER_FILE=/minio_root_user
 ENV MINIO_ROOT_PASSWORD_FILE=/minio_root_password
 RUN openssl rand -hex 12 > $MINIO_ROOT_USER_FILE \
     && openssl rand -base64 32 > $MINIO_ROOT_PASSWORD_FILE
 
+# Create a new user
+RUN useradd -r -U -s /bin/false ${MINIO_USER}
+
+# Set permissions for the new user
+RUN chown -R ${MINIO_USER}:${MINIO_USER} /mnt/$MINIO_HOSTNAME ${CERTS_DIR} /mnt/.minio.sys \
+    && chmod -R 770 /mnt/$MINIO_HOSTNAME ${CERTS_DIR} /mnt/.minio.sys \
+    && mkdir -p /mnt/.minio.sys
+
+# Set the created user as the current user
+USER ${MINIO_USER}
+
+# Set entrypoint to print MinIO credentials and start MinIO server
 ENTRYPOINT ["/bin/sh", "-c", "\
   MINIO_ROOT_USER=$(cat $MINIO_ROOT_USER_FILE);\
   MINIO_ROOT_PASSWORD=$(cat $MINIO_ROOT_PASSWORD_FILE);\

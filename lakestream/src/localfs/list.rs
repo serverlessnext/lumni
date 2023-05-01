@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::Path;
 
-use log::debug;
-
 use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub async fn list_files(

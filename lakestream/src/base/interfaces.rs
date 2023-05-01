@@ -20,46 +20,15 @@ pub struct ObjectStoreHandler {
     configs: Option<Vec<Config>>,
 }
 
+struct ParsedUri {
+    pub scheme: Option<String>,
+    pub bucket: Option<String>,
+    pub prefix: Option<String>,
+}
+
 impl ObjectStoreHandler {
     pub fn new(configs: Option<Vec<Config>>) -> Self {
         ObjectStoreHandler { configs }
-    }
-
-    pub async fn list_files_in_bucket(
-        &self,
-        bucket: String,
-        scheme: Option<String>,
-        prefix: Option<String>,
-        config: Config,
-        recursive: bool,
-        max_files: Option<u32>,
-        filter: &Option<FileObjectFilter>,
-        callback: Option<CallbackWrapper>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let bucket_uri = if let Some(scheme) = scheme {
-            format!("{}://{}", scheme, bucket)
-        } else {
-            format!("localfs://{}", bucket)
-        };
-        let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
-
-        if let Some(callback) = callback {
-            object_store
-                .list_files_with_callback(
-                    prefix.as_deref(),
-                    recursive,
-                    max_files,
-                    filter,
-                    callback,
-                )
-                .await?;
-            Ok(None)
-        } else {
-            let file_objects = object_store
-                .list_files(prefix.as_deref(), recursive, max_files, filter)
-                .await?;
-            Ok(Some(ListObjectsResult::FileObjects(file_objects)))
-        }
     }
 
     pub async fn list_buckets(
@@ -89,13 +58,12 @@ impl ObjectStoreHandler {
         filter: &Option<FileObjectFilter>,
         callback: Option<CallbackWrapper>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
-        if let Some(bucket) = bucket {
+        let parsed_uri = ObjectStoreHandler::parse_uri(uri);
+        if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
             info!("Listing files in bucket {}", bucket);
             self.list_files_in_bucket(
-                bucket, scheme, prefix, config, recursive, max_files, filter,
-                callback,
+                parsed_uri, config, recursive, max_files, filter, callback,
             )
             .await
         } else {
@@ -104,15 +72,57 @@ impl ObjectStoreHandler {
                 panic!("Listing buckets not yet supported with callback");
             }
             info!("Listing buckets");
-            self.list_buckets(scheme, config).await
+            self.list_buckets(parsed_uri.scheme, config).await
         }
     }
 
-    pub fn parse_uri(
-        uri: String,
-    ) -> (Option<String>, Option<String>, Option<String>) {
+    async fn list_files_in_bucket(
+        &self,
+        parsed_uri: ParsedUri,
+        config: Config,
+        recursive: bool,
+        max_files: Option<u32>,
+        filter: &Option<FileObjectFilter>,
+        callback: Option<CallbackWrapper>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
+            format!("{}://{}", scheme, parsed_uri.bucket.as_ref().unwrap())
+        } else {
+            format!("localfs://{}", parsed_uri.bucket.as_ref().unwrap())
+        };
+        let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
+
+        if let Some(callback) = callback {
+            object_store
+                .list_files_with_callback(
+                    parsed_uri.prefix.as_deref(),
+                    recursive,
+                    max_files,
+                    filter,
+                    callback,
+                )
+                .await?;
+            Ok(None)
+        } else {
+            let file_objects = object_store
+                .list_files(
+                    parsed_uri.prefix.as_deref(),
+                    recursive,
+                    max_files,
+                    filter,
+                )
+                .await?;
+            Ok(Some(ListObjectsResult::FileObjects(file_objects)))
+        }
+    }
+
+    fn parse_uri(uri: String) -> ParsedUri {
         if uri.is_empty() {
-            return (None, None, None);
+            return ParsedUri {
+                scheme: None,
+                bucket: None,
+                prefix: None,
+            };
         }
 
         let re = Regex::new(r"^(?P<scheme>[a-z0-9]+)://").unwrap();
@@ -122,16 +132,28 @@ impl ObjectStoreHandler {
             || {
                 // uri has no scheme, assume LocalFs
                 let (bucket, prefix) = parse_uri_path(&uri);
-                (None, bucket, prefix)
+                ParsedUri {
+                    scheme: None,
+                    bucket,
+                    prefix,
+                }
             },
             |scheme_captures| {
                 let scheme = scheme_captures.name("scheme").unwrap().as_str();
                 let uri_without_scheme = re.replace(&uri, "").to_string();
                 if uri_without_scheme.is_empty() {
-                    (Some(scheme.to_string()), None, None)
+                    ParsedUri {
+                        scheme: Some(scheme.to_string()),
+                        bucket: None,
+                        prefix: None,
+                    }
                 } else {
                     let (bucket, prefix) = parse_uri_path(&uri_without_scheme);
-                    (Some(scheme.to_string()), bucket, prefix)
+                    ParsedUri {
+                        scheme: Some(scheme.to_string()),
+                        bucket,
+                        prefix,
+                    }
                 }
             },
         )

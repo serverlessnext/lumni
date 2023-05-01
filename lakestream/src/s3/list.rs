@@ -255,7 +255,7 @@ fn process_file_object(
             virtual_directories.push(file_object.name().to_owned());
         }
         if filter.is_none() {
-            temp_file_objects.push(file_object.clone());
+            temp_file_objects.push(file_object);
         }
     } else {
         if let Some(ref filter) = filter {
@@ -276,7 +276,7 @@ fn process_response_body(
 ) -> Option<String> {
     if !response_body.is_empty() {
         let file_objects_list =
-            parse_file_objects(&response_body).unwrap_or_default();
+            parse_file_objects(response_body).unwrap_or_default();
 
         for file_object in file_objects_list {
             process_file_object(
@@ -288,7 +288,7 @@ fn process_response_body(
             );
         }
 
-        extract_continuation_token(&response_body)
+        extract_continuation_token(response_body)
     } else {
         None
     }

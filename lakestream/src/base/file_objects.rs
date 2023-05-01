@@ -7,33 +7,20 @@ use serde::Deserialize;
 
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
+type BoxedAsyncCallback = Box<
+    dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
 pub struct FileObjectVec {
     file_objects: Vec<FileObject>,
-    callback: Option<
-        Box<
-            dyn Fn(
-                    &[FileObject],
-                )
-                    -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                + Send
-                + Sync,
-        >,
-    >,
+    callback: Option<BoxedAsyncCallback>,
 }
 
 impl FileObjectVec {
-    pub fn new(
-        callback: Option<
-            Box<
-                dyn Fn(
-                        &[FileObject],
-                    )
-                        -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                    + Send
-                    + Sync,
-            >,
-        >,
-    ) -> Self {
+    pub fn new(callback: Option<BoxedAsyncCallback>) -> Self {
         Self {
             file_objects: Vec::new(),
             callback,

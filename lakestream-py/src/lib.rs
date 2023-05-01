@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, CallbackWrapper, Config, AWS_DEFAULT_REGION,
+    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, Config, AWS_DEFAULT_REGION,
 };
 use ::lakestream_cli::run_cli;
 

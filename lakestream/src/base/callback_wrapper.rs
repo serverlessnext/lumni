@@ -4,19 +4,17 @@ use futures::Future;
 
 use crate::FileObject;
 
+type BoxedCallback = Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>;
+type BoxedAsyncCallback = Box<
+    dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
 pub enum CallbackWrapper {
-    Sync(Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>),
-    Async(
-        Box<
-            dyn Fn(
-                    &[FileObject],
-                )
-                    -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                + Send
-                + Sync
-                + 'static,
-        >,
-    ),
+    Sync(BoxedCallback),
+    Async(BoxedAsyncCallback),
 }
 
 impl CallbackWrapper {

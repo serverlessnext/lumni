@@ -1,19 +1,56 @@
+
 use std::collections::HashMap;
 
+use futures::Future;
+use std::pin::Pin;
 
 use lakestream::{
-    Config, FileObject, FileObjectFilter, ObjectStoreHandler, CallbackWrapper,
+    Config, FileObject, FileObjectFilter, ListObjectsResult, ObjectStoreHandler, CallbackWrapper,
 };
 
+
+pub fn create_sync_callback<F>(func: F) -> CallbackWrapper
+where
+    F: Fn(&[FileObject]) + Send + Sync + 'static,
+{
+    CallbackWrapper::Sync(Box::new(func))
+}
+
+pub fn create_async_callback<F, Fut>(func: F) -> CallbackWrapper
+where
+    F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    let wrapped_func = wrap_async_fn(func);
+    CallbackWrapper::Async(Box::new(wrapped_func))
+}
+
+fn wrap_async_fn<F, Fut>(func: F) -> impl Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static
+where
+    F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    move |file_objects: &[FileObject]| {
+        let file_objects_cloned = file_objects.to_owned();
+        let future = func(file_objects_cloned);
+        Box::pin(future) as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+    }
+}
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches, region);
 
-    // at this moment only sync callback works
-    let callback = CallbackWrapper::Sync(Box::new(print_file_objects_callback));
+    let handler = ObjectStoreHandler::new(vec![config.clone()]);
 
-    match ObjectStoreHandler::list_objects_with_callback(
+    // print via callback function (sync or async supported)
+    // let callback = Some(create_sync_callback(print_file_objects_callback));
+    // let callback = Some(create_async_callback(print_file_objects_callback_async));
+
+    // get results as a return value instead of a callback
+    let callback = None;
+
+    match handler.list_objects_with_callback(
         uri,
         config,
         recursive,
@@ -23,10 +60,32 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     )
     .await
     {
-        Ok(()) => println!("Done."), // Update this line with a comma instead of a semicolon
+        Ok(Some(list_objects_result)) => {
+            match list_objects_result {
+                ListObjectsResult::Buckets(buckets) => {
+                   // Print buckets to stdout
+                    println!("Found {} buckets:", buckets.len());
+                    for bucket in buckets {
+                        println!("{}", bucket.name());
+                    }
+                }
+                ListObjectsResult::FileObjects(file_objects) => {
+                   // Print file objects to stdout
+                    println!("Found {} file objects:", file_objects.len());
+                    for fo in file_objects {
+                        let full_path = true;
+                        println!("{}", fo.printable(full_path));
+                    }
+                }
+            }
+        }
+        Ok(None) => {
+            // If you don't need to handle this case specifically, you can just use `println!("Done.");`
+            println!("Done.");
+        }
         Err(err) => {
-            eprintln!("Error: {}", err);
-            std::process::exit(1);
+            // Handle the error case
+            eprintln!("Error: {:?}", err);
         }
     }
 }
@@ -85,21 +144,20 @@ fn prepare_handle_ls_arguments(
     (uri, config, recursive, max_files, filter)
 }
 
-
-// async example
-async fn print_file_objects_callback_async(file_objects: &[FileObject]) {
-    let full_path = true;
-    println!("Found {} file objects:", file_objects.len());
-    for fo in file_objects {
-        println!("{}", fo.printable(full_path));
-    }
-}
-
-
+// keep this for reference -- async is default now
 fn print_file_objects_callback(file_objects: &[FileObject]) {
     let full_path = true;
-    println!("Found {} file objects:", file_objects.len());
+    // println!("Found {} file objects:", file_objects.len());
     for fo in file_objects {
         println!("{}", fo.printable(full_path));
     }
 }
+
+async fn print_file_objects_callback_async(file_objects: Vec<FileObject>) {
+    let full_path = true;
+    // println!("Found {} file objects:", file_objects.len());
+    for fo in &file_objects {
+        println!("{}", fo.printable(full_path));
+    }
+}
+

@@ -16,8 +16,7 @@ use crate::{Config, FileObjectFilter, LakestreamError};
 
 pub enum CallbackWrapper {
     Sync(Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>),
-    // TODO: the Async version is not working properly yet
-    Async(Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync + 'static>),
+    Async(Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync + 'static>),
 }
 
 pub enum ListObjectsResult {
@@ -26,87 +25,96 @@ pub enum ListObjectsResult {
 }
 
 pub struct ObjectStoreHandler {
-    configs: Vec<HashMap<String, Value>>,
+    configs: Vec<Config>,
 }
 
 impl ObjectStoreHandler {
-    pub fn new(configs: Vec<HashMap<String, Value>>) -> Self {
+    pub fn new(configs: Vec<Config>) -> Self {
         ObjectStoreHandler { configs }
     }
 
-    pub async fn list_objects(
-        uri: String,
+    pub async fn list_files_in_bucket(
+        &self,
+        bucket: String,
+        scheme: Option<String>,
+        prefix: Option<String>,
         config: Config,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Result<ListObjectsResult, LakestreamError> {
-        let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
-        if let Some(bucket) = bucket {
-            // list files in a bucket
-            info!("Listing files in bucket {}", bucket);
-            let bucket_uri = if let Some(scheme) = scheme {
-                format!("{}://{}", scheme, bucket)
-            } else {
-                format!("localfs://{}", bucket)
-            };
-            let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
-
-            let file_objects = object_store
-                .list_files(prefix.as_deref(), recursive, max_files, filter)
-                .await?;
-            Ok(ListObjectsResult::FileObjects(file_objects))
+        callback: Option<CallbackWrapper>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        let bucket_uri = if let Some(scheme) = scheme {
+            format!("{}://{}", scheme, bucket)
         } else {
-            // list buckets
-            info!("Listing buckets");
-            let mut object_store_configuration = HashMap::new();
-            // Convert the HashMap<String, String> back to serde_json::Map<String, Value>
-            let config_map: Map<String, Value> = config
-                .settings
-                .into_iter()
-                .map(|(k, v)| (k, Value::String(v)))
-                .collect();
-            object_store_configuration
-                .insert("config".to_string(), Value::Object(config_map));
-            object_store_configuration.insert(
-                "uri".to_string(),
-                Value::String(format!("{}://", scheme.unwrap())),
-            );
-            let configs = vec![object_store_configuration];
-            let handler = ObjectStoreHandler::new(configs);
+            format!("localfs://{}", bucket)
+        };
+        let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
 
-            let object_stores = handler.list_object_stores().await?;
-            Ok(ListObjectsResult::Buckets(object_stores))
-        }
-    }
-
-    pub async fn list_objects_with_callback(
-        uri: String,
-        config: Config,
-        recursive: bool,
-        max_files: Option<u32>,
-        filter: &Option<FileObjectFilter>,
-        callback: CallbackWrapper,
-    ) -> Result<(), LakestreamError> {
-        let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
-        if let Some(bucket) = bucket {
-            // list files in a bucket
-            info!("Listing files in bucket {}", bucket);
-            let bucket_uri = if let Some(scheme) = scheme {
-                format!("{}://{}", scheme, bucket)
-            } else {
-                format!("localfs://{}", bucket)
-            };
-            let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
-
+        if let Some(callback) = callback {
             object_store
                 .list_files_with_callback(prefix.as_deref(), recursive, max_files, filter, callback)
                 .await?;
+            Ok(None)
+        } else {
+            let file_objects = object_store
+                .list_files(prefix.as_deref(), recursive, max_files, filter)
+                .await?;
+            Ok(Some(ListObjectsResult::FileObjects(file_objects)))
+        }
+    }
 
-            Ok(())
+    pub async fn list_buckets(
+        &self,
+        scheme: Option<String>,
+        mut config: Config,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        // Update the config
+        config.settings.insert(
+            "uri".to_string(),
+            format!("{}://", scheme.unwrap()),
+        );
+
+        // Create a new ObjectStoreHandler with a Vec<Config> containing the updated config
+        let configs = vec![config];
+        let handler = ObjectStoreHandler::new(configs);
+
+        let object_stores = handler.list_object_stores().await?;
+        Ok(Some(ListObjectsResult::Buckets(object_stores)))
+    }
+
+
+    pub async fn list_objects_with_callback(
+        &self,
+        uri: String,
+        config: Config,
+        recursive: bool,
+        max_files: Option<u32>,
+        filter: &Option<FileObjectFilter>,
+        callback: Option<CallbackWrapper>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        let (scheme, bucket, prefix) = ObjectStoreHandler::parse_uri(uri);
+        if let Some(bucket) = bucket {
+            // list files in a bucket
+            info!("Listing files in bucket {}", bucket);
+            self.list_files_in_bucket(
+                bucket,
+                scheme,
+                prefix,
+                config,
+                recursive,
+                max_files,
+                filter,
+                callback,
+            )
+            .await
         } else {
             // list buckets
-            panic!("Listing buckets not yet supported with callback");
+            if callback.is_some() {
+                panic!("Listing buckets not yet supported with callback");
+            }
+            info!("Listing buckets");
+            self.list_buckets(scheme, config).await
         }
     }
 
@@ -146,23 +154,28 @@ impl ObjectStoreHandler {
 
         for config in &self.configs {
             let default_uri = Value::String("".to_string());
-            let uri = config
+            let config_value = config
+                .settings
                 .get("uri")
-                .unwrap_or(&default_uri)
-                .as_str()
-                .unwrap_or("");
-            let config_value = config.get("config").unwrap();
-            let config_config = config_value.as_object().unwrap();
+                .map(|v| Value::String(v.clone()))
+                .unwrap_or(default_uri);
+            let uri = config_value.as_str().unwrap_or("");
 
-            // Convert the serde_json::Map<String, Value> to HashMap<String, String>
-            let config_hashmap: HashMap<String, String> = config_config
+            let config_config_value = config
+                .settings
+                .get("config")
+                .map(|v| Value::String(v.clone()))
+                .unwrap_or(Value::Object(Map::new()));
+            let config_config = config_config_value
+                .as_object()
+                .expect("config_value should be an object")
                 .iter()
                 .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
-                .collect();
+                .collect::<HashMap<String, String>>();
 
-            // Create a Config instance
+            // Create a mutable Config instance
             let mut config_instance = Config {
-                settings: config_hashmap,
+                settings: config_config,
             };
 
             if let Err(e) = validate_config(&mut config_instance) {

@@ -25,14 +25,13 @@ impl FileObjectVec {
     pub fn into_inner(self) -> Vec<FileObject> {
         self.file_objects
     }
-}
 
-impl Extend<FileObject> for FileObjectVec {
-    fn extend<T: IntoIterator<Item = FileObject>>(&mut self, iter: T) {
+    pub async fn extend_async<T: IntoIterator<Item = FileObject>>(&mut self, iter: T) {
         let new_file_objects: Vec<FileObject> = iter.into_iter().collect();
 
         if let Some(callback) = &self.callback {
-            (*callback)(&new_file_objects);
+            let fut = (callback)(&new_file_objects);
+            fut.await;
         }
 
         self.file_objects.extend(new_file_objects);
@@ -52,6 +51,7 @@ impl DerefMut for FileObjectVec {
         &mut self.file_objects
     }
 }
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileObject {

@@ -11,7 +11,7 @@ use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::{
-    FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
+    FileObjectFilter, FileObject, FileObjectVec, LakestreamError, ObjectStore,
     AWS_MAX_LIST_OBJECTS,
 };
 
@@ -113,9 +113,9 @@ pub async fn list_files(
 
     // Extend all_file_objects with the filtered list of non-directory file objects.
     // If a filter is provided, apply it; otherwise, include all non-directory file objects.
-    file_objects.extend(filtered_initial_file_objects.into_iter().filter(
+    file_objects.extend_async(filtered_initial_file_objects.into_iter().filter(
         |file_object| filter.as_ref().map_or(true, |f| f.matches(file_object)),
-    ));
+    )).await;
 
     let continuation_token = extract_continuation_token(&body);
 
@@ -179,6 +179,7 @@ async fn list_files_next(
     let mut virtual_directories = Vec::new();
     let mut current_continuation_token = continuation_token;
     let mut directory_stack = std::collections::VecDeque::new();
+    let mut temp_file_objects = Vec::new();
 
     directory_stack.push_back(prefix);
 
@@ -201,38 +202,14 @@ async fn list_files_next(
                 Err(e) => return Err(LakestreamError::from(e)),
             };
 
-            if !response_body.is_empty() {
-                let file_objects_list =
-                    parse_file_objects(&response_body).unwrap_or_default();
+            current_continuation_token = process_response_body(
+                &response_body,
+                recursive,
+                filter,
+                &mut temp_file_objects,
+                &mut virtual_directories,
+            );
 
-                for file_object in file_objects_list {
-                    if file_objects.len()
-                        == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
-                    {
-                        break;
-                    }
-
-                    if file_object.name().ends_with('/') {
-                        if recursive {
-                            virtual_directories
-                                .push(file_object.name().to_owned());
-                        }
-                        if filter.is_none() {
-                            file_objects.push(file_object.clone());
-                        }
-                    } else {
-                        if let Some(ref filter) = filter {
-                            if !filter.matches(&file_object) {
-                                continue;
-                            }
-                        }
-                        file_objects.push(file_object);
-                    }
-                }
-
-                current_continuation_token =
-                    extract_continuation_token(&response_body);
-            }
 
             if current_continuation_token.is_none()
                 || file_objects.len()
@@ -241,6 +218,9 @@ async fn list_files_next(
                 break;
             }
         }
+
+        // Extend file_objects with temp_file_objects and clear temp_file_objects
+        file_objects.extend_async(temp_file_objects.drain(..)).await;
 
         if recursive {
             for virtual_directory in virtual_directories.drain(..) {
@@ -259,6 +239,58 @@ async fn list_files_next(
 
     Ok(())
 }
+
+fn process_file_object(
+    file_object: FileObject,
+    recursive: bool,
+    filter: &Option<FileObjectFilter>,
+    virtual_directories: &mut Vec<String>,
+    temp_file_objects: &mut Vec<FileObject>,
+) {
+    if file_object.name().ends_with('/') {
+        if recursive {
+            virtual_directories.push(file_object.name().to_owned());
+        }
+        if filter.is_none() {
+            temp_file_objects.push(file_object.clone());
+        }
+    } else {
+        if let Some(ref filter) = filter {
+            if !filter.matches(&file_object) {
+                return;
+            }
+        }
+        temp_file_objects.push(file_object);
+    }
+}
+
+fn process_response_body(
+    response_body: &str,
+    recursive: bool,
+    filter: &Option<FileObjectFilter>,
+    temp_file_objects: &mut Vec<FileObject>,
+    virtual_directories: &mut Vec<String>,
+) -> Option<String> {
+    if !response_body.is_empty() {
+        let file_objects_list = parse_file_objects(&response_body).unwrap_or_default();
+
+        for file_object in file_objects_list {
+            process_file_object(
+                file_object,
+                recursive,
+                filter,
+                virtual_directories,
+                temp_file_objects,
+            );
+        }
+
+        extract_continuation_token(&response_body)
+    } else {
+        None
+    }
+}
+
+
 
 pub async fn list_buckets(
     config: &Config,

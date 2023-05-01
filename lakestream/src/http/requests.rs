@@ -1,27 +1,20 @@
+use hyper::{Body, Client, Request, client::HttpConnector, header::{HeaderName, HeaderValue}};
+use hyper_tls::HttpsConnector;
+use native_tls::TlsConnector as NativeTlsConnector;
+use tokio_native_tls::TlsConnector;
+use url::Url;
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::Read;
+use std::str::FromStr;
 
-use ureq::{Agent, Response};
-
-type ResponseData = (String, u16, HashMap<String, String>);
-type HttpResult = Result<ResponseData, Box<dyn Error>>;
-type ResponseDataWithoutHeaders = (String, u16);
-type HttpResultWithoutHeaders =
-    Result<ResponseDataWithoutHeaders, Box<dyn Error>>;
+type HttpResult = Result<(String, u16, HashMap<String, String>), Box<dyn Error>>;
+type HttpResultWithoutHeaders = Result<(String, u16), Box<dyn Error>>;
 
 pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResultWithoutHeaders {
-    let response = perform_request(url, headers).await?;
-    let status = response.status();
-
-    if !(200..300).contains(&status) {
-        return Ok((String::new(), status));
-    }
-    let mut body = String::new();
-    response.into_reader().read_to_string(&mut body)?;
+    let (body, status, _) = http_get_request_with_headers(url, headers).await?;
     Ok((body, status))
 }
 
@@ -29,48 +22,58 @@ pub async fn http_get_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResult {
-    let response = perform_request(url, headers).await?;
-    let status = response.status();
+
+    let url_u = Url::parse(url)?;
+    let accept_invalid_certs = url_u.scheme() == "https"
+        && url_u.host_str() == Some("localhost")
+        && url_u.port().map_or(true, |port| port > 0);
+
+
+    let mut native_tls_connector_builder = NativeTlsConnector::builder();
+    native_tls_connector_builder.danger_accept_invalid_certs(accept_invalid_certs);
+    let native_tls_connector = native_tls_connector_builder.build().unwrap();
+
+    let tls_connector = TlsConnector::from(native_tls_connector);
+
+    let mut http_connector = HttpConnector::new();
+    http_connector.enforce_http(false);
+
+    let https = HttpsConnector::from((http_connector, tls_connector));
+    let client = Client::builder().build::<_, Body>(https);
+
+    let mut request = Request::get(url).body(Body::empty())?;
+    for (key, value) in headers.iter() {
+        if let (Ok(header_name), Ok(header_value)) =
+            (HeaderName::from_str(key), HeaderValue::from_str(value))
+        {
+            request.headers_mut().append(header_name, header_value);
+        }
+    }
+
+    let response = client.request(request).await?;
+
+    let status = response.status().as_u16();
     let headers_map = parse_response_headers(&response);
 
     if !(200..300).contains(&status) {
         return Ok((String::new(), status, headers_map));
     }
 
-    let mut body = String::new();
-    response.into_reader().read_to_string(&mut body)?;
+    let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
+    let body = String::from_utf8_lossy(&body_bytes).to_string();
+
     Ok((body, status, headers_map))
 }
 
-async fn perform_request(
-    url: &str,
-    headers: &HashMap<String, String>,
-) -> Result<Response, Box<dyn Error>> {
-    let agent = Agent::new();
-    let mut request_builder = agent.get(url);
+fn parse_response_headers(response: &hyper::Response<Body>) -> HashMap<String, String> {
+    let mut headers_map = HashMap::new();
 
-    // Add headers to the request
-    for (key, value) in headers {
-        request_builder = request_builder.set(key, value);
-    }
-
-    let response = request_builder.call()?;
-    Ok(response)
-}
-
-fn parse_response_headers(
-    response: &ureq::Response,
-) -> HashMap<String, String> {
-    let header_names = response.headers_names();
-
-    // Creating a HashMap to store the headers
-    let mut headers_map: HashMap<String, String> = HashMap::new();
-
-    // Iterating through the header names and getting their values
-    for key in header_names {
-        if let Some(value) = response.header(&key) {
-            headers_map.insert(key, value.to_owned());
-        }
+    for (key, value) in response.headers() {
+        headers_map.insert(
+            key.to_string(),
+            value.to_str().unwrap_or_default().to_string(),
+        );
     }
     headers_map
 }
+

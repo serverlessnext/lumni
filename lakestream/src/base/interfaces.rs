@@ -4,14 +4,12 @@ use log::{error, info};
 use regex::Regex;
 use serde_json::{Map, Value};
 
+pub use super::callback_wrapper::CallbackWrapper;
 pub use super::file_objects::{FileObject, FileObjectVec};
 pub use super::object_store::{ObjectStore, ObjectStoreTrait};
-pub use super::callback_wrapper::CallbackWrapper;
-
 use crate::s3::bucket::list_buckets;
 use crate::s3::config::validate_config;
 use crate::{Config, FileObjectFilter, LakestreamError};
-
 
 pub enum ListObjectsResult {
     Buckets(Vec<ObjectStore>),
@@ -47,7 +45,13 @@ impl ObjectStoreHandler {
 
         if let Some(callback) = callback {
             object_store
-                .list_files_with_callback(prefix.as_deref(), recursive, max_files, filter, callback)
+                .list_files_with_callback(
+                    prefix.as_deref(),
+                    recursive,
+                    max_files,
+                    filter,
+                    callback,
+                )
                 .await?;
             Ok(None)
         } else {
@@ -64,10 +68,9 @@ impl ObjectStoreHandler {
         mut config: Config,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         // Update the config
-        config.settings.insert(
-            "uri".to_string(),
-            format!("{}://", scheme.unwrap()),
-        );
+        config
+            .settings
+            .insert("uri".to_string(), format!("{}://", scheme.unwrap()));
 
         // Create a new ObjectStoreHandler with a Vec<Config> containing the updated config
         let configs = vec![config];
@@ -76,7 +79,6 @@ impl ObjectStoreHandler {
         let object_stores = handler.list_object_stores().await?;
         Ok(Some(ListObjectsResult::Buckets(object_stores)))
     }
-
 
     pub async fn list_objects(
         &self,
@@ -92,13 +94,7 @@ impl ObjectStoreHandler {
             // list files in a bucket
             info!("Listing files in bucket {}", bucket);
             self.list_files_in_bucket(
-                bucket,
-                scheme,
-                prefix,
-                config,
-                recursive,
-                max_files,
-                filter,
+                bucket, scheme, prefix, config, recursive, max_files, filter,
                 callback,
             )
             .await
@@ -145,7 +141,6 @@ impl ObjectStoreHandler {
         &self,
     ) -> Result<Vec<ObjectStore>, LakestreamError> {
         let mut object_stores = Vec::new();
-
 
         if let Some(configs) = &self.configs {
             for config in configs {

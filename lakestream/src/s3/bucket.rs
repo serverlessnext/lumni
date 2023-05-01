@@ -74,7 +74,8 @@ impl ObjectStoreTrait for S3Bucket {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec,
     ) -> Result<(), LakestreamError> {
-        list_files(self, prefix, recursive, max_keys, filter, file_objects).await
+        list_files(self, prefix, recursive, max_keys, filter, file_objects)
+            .await
     }
 }
 

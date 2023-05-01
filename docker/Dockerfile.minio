@@ -11,3 +11,18 @@ RUN mkdir -p /mnt/"${MINIO_HOSTNAME}" \
     && mkdir -p ${CERTS_DIR} \
     && cd ${CERTS_DIR} \
     && openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 -subj "/C=US/ST=NC/L=Local/O=Dev/CN=${MINIO_HOSTNAME}" -addext "subjectAltName = DNS:${MINIO_HOSTNAME}" -keyout ./private.key -out ./public.crt
+
+# # Generate MinIO root user and password
+ENV MINIO_ROOT_USER_FILE=/minio_root_user
+ENV MINIO_ROOT_PASSWORD_FILE=/minio_root_password
+RUN openssl rand -hex 12 > $MINIO_ROOT_USER_FILE \
+    && openssl rand -base64 32 > $MINIO_ROOT_PASSWORD_FILE
+
+ENTRYPOINT ["/bin/sh", "-c", "\
+  MINIO_ROOT_USER=$(cat $MINIO_ROOT_USER_FILE);\
+  MINIO_ROOT_PASSWORD=$(cat $MINIO_ROOT_PASSWORD_FILE);\
+  echo \"MinIO Root User: $MINIO_ROOT_USER\";\
+  echo \"MinIO Root Password: $MINIO_ROOT_PASSWORD\";\
+  exec minio  \"$@\";\
+  ", "--"]
+

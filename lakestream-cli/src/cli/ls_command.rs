@@ -1,10 +1,10 @@
-
 use std::collections::HashMap;
-use log::info;
 
 use lakestream::{
-    Config, FileObject, FileObjectFilter, ListObjectsResult, ObjectStoreHandler, CallbackWrapper,
+    CallbackWrapper, Config, FileObject, FileObjectFilter, ListObjectsResult,
+    ObjectStoreHandler,
 };
+use log::info;
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
@@ -14,20 +14,23 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
 
     // print via callback function (sync or async supported)
     // let callback = Some(CallbackWrapper::create_sync(print_file_objects_callback));
-    let callback = Some(CallbackWrapper::create_async(print_file_objects_callback_async));
+    let callback = Some(CallbackWrapper::create_async(
+        print_file_objects_callback_async,
+    ));
 
     // get results as a return value instead of a callback
     // let callback = None;
 
-    match handler.list_objects(
-        uri,
-        config,
-        recursive,
-        Some(max_files),
-        &filter,
-        callback,
-    )
-    .await
+    match handler
+        .list_objects(
+            uri,
+            config,
+            recursive,
+            Some(max_files),
+            &filter,
+            callback,
+        )
+        .await
     {
         Ok(Some(list_objects_result)) => {
             match list_objects_result {
@@ -127,4 +130,3 @@ async fn print_file_objects_callback_async(file_objects: Vec<FileObject>) {
         println!("{}", fo.printable(full_path));
     }
 }
-

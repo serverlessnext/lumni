@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use log::debug;
+
 use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub async fn list_files(
@@ -13,7 +14,6 @@ pub async fn list_files(
 ) {
     list_files_next(path, max_keys, recursive, filter, file_objects).await;
 }
-
 
 async fn list_files_next(
     path: &Path,
@@ -50,7 +50,8 @@ async fn list_files_next(
 
                     // Only add directory object when no filter is provided
                     if filter.is_none() {
-                        let dir_object = FileObject::new(dir_name, 0, None, None);
+                        let dir_object =
+                            FileObject::new(dir_name, 0, None, None);
                         temp_file_objects.push(dir_object);
                     }
 
@@ -63,7 +64,6 @@ async fn list_files_next(
         file_objects.extend_async(temp_file_objects).await;
     }
 }
-
 
 fn handle_file(
     entry: &fs::DirEntry,
@@ -94,4 +94,3 @@ fn handle_file(
 
     Some(file_object)
 }
-

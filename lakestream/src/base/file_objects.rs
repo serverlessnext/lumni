@@ -1,21 +1,38 @@
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
-
-use futures::Future;
 use std::pin::Pin;
 
+use futures::Future;
 use serde::Deserialize;
 
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
 pub struct FileObjectVec {
     file_objects: Vec<FileObject>,
-    callback: Option<Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync>>,
+    callback: Option<
+        Box<
+            dyn Fn(
+                    &[FileObject],
+                )
+                    -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+                + Send
+                + Sync,
+        >,
+    >,
 }
 
 impl FileObjectVec {
     pub fn new(
-        callback: Option<Box<dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + Sync>>,
+        callback: Option<
+            Box<
+                dyn Fn(
+                        &[FileObject],
+                    )
+                        -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+                    + Send
+                    + Sync,
+            >,
+        >,
     ) -> Self {
         Self {
             file_objects: Vec::new(),
@@ -26,7 +43,10 @@ impl FileObjectVec {
         self.file_objects
     }
 
-    pub async fn extend_async<T: IntoIterator<Item = FileObject>>(&mut self, iter: T) {
+    pub async fn extend_async<T: IntoIterator<Item = FileObject>>(
+        &mut self,
+        iter: T,
+    ) {
         let new_file_objects: Vec<FileObject> = iter.into_iter().collect();
 
         if let Some(callback) = &self.callback {
@@ -51,7 +71,6 @@ impl DerefMut for FileObjectVec {
         &mut self.file_objects
     }
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileObject {

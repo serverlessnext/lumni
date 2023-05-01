@@ -15,6 +15,7 @@ help:
 MINIO_IMAGE := minio-dev-image
 MINIO_CONTAINER := minio-dev-run
 MINIO_DOCKERFILE := Dockerfile.minio
+MINIO_SERVER_URL := https://localhost:8443
 
 .PHONY: all minio_build minio_run minio_stop minio_clean
 
@@ -29,11 +30,14 @@ minio_run: minio_build
 			docker rm $(MINIO_CONTAINER); \
 		fi; \
 		docker run -d --name $(MINIO_CONTAINER) -p 8443:8443 -p 9001:9001 \
-		-e MINIO_ROOT_USER=AKIAIOSFODNN7EXAMPLE \
-		-e MINIO_ROOT_PASSWORD=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
-		-e MINIO_SERVER_URL=https://localhost:8443 \
+		-e MINIO_SERVER_URL=$(MINIO_SERVER_URL) \
 		$(MINIO_IMAGE) server /mnt/minio-dev --certs-dir /.minio/certs --address :8443 --console-address :9001; \
 	fi
+	@echo "MinIO container is running:"
+	@echo ""
+	@echo "Server URL: $(MINIO_SERVER_URL)"
+	@echo "You can now access the MinIO web interface."
+
 
 minio_stop:
 	-docker stop $(MINIO_CONTAINER)

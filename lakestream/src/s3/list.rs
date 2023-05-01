@@ -11,7 +11,7 @@ use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::{http_get_request, http_get_request_with_headers};
 use crate::{
-    FileObjectFilter, FileObject, FileObjectVec, LakestreamError, ObjectStore,
+    FileObject, FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
     AWS_MAX_LIST_OBJECTS,
 };
 
@@ -113,9 +113,13 @@ pub async fn list_files(
 
     // Extend all_file_objects with the filtered list of non-directory file objects.
     // If a filter is provided, apply it; otherwise, include all non-directory file objects.
-    file_objects.extend_async(filtered_initial_file_objects.into_iter().filter(
-        |file_object| filter.as_ref().map_or(true, |f| f.matches(file_object)),
-    )).await;
+    file_objects
+        .extend_async(filtered_initial_file_objects.into_iter().filter(
+            |file_object| {
+                filter.as_ref().map_or(true, |f| f.matches(file_object))
+            },
+        ))
+        .await;
 
     let continuation_token = extract_continuation_token(&body);
 
@@ -210,7 +214,6 @@ async fn list_files_next(
                 &mut virtual_directories,
             );
 
-
             if current_continuation_token.is_none()
                 || file_objects.len()
                     >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
@@ -272,7 +275,8 @@ fn process_response_body(
     virtual_directories: &mut Vec<String>,
 ) -> Option<String> {
     if !response_body.is_empty() {
-        let file_objects_list = parse_file_objects(&response_body).unwrap_or_default();
+        let file_objects_list =
+            parse_file_objects(&response_body).unwrap_or_default();
 
         for file_object in file_objects_list {
             process_file_object(
@@ -289,8 +293,6 @@ fn process_response_body(
         None
     }
 }
-
-
 
 pub async fn list_buckets(
     config: &Config,

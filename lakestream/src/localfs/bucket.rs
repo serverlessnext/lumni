@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use super::list::list_files;
 use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::{FileObjectVec, FileObjectFilter, LakestreamError};
+use crate::{FileObjectFilter, FileObjectVec, LakestreamError};
 
 pub struct LocalFs {
     name: String,
@@ -48,4 +48,3 @@ impl ObjectStoreTrait for LocalFs {
         Ok(())
     }
 }
-

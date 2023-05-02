@@ -7,7 +7,9 @@ use serde_json::{Map, Value};
 pub use super::callback_wrapper::CallbackWrapper;
 pub use super::file_objects::{FileObject, FileObjectVec};
 pub use super::object_store::{ObjectStore, ObjectStoreTrait};
+pub use crate::localfs::bucket::LocalFsBucket;
 use crate::s3::bucket::list_buckets;
+pub use crate::s3::bucket::S3Bucket;
 use crate::s3::config::validate_config;
 use crate::{Config, FileObjectFilter, LakestreamError};
 
@@ -130,7 +132,7 @@ impl ObjectStoreHandler {
 
         scheme_match.map_or_else(
             || {
-                // uri has no scheme, assume LocalFs
+                // uri has no scheme, assume LocalFsBucket
                 let (bucket, prefix) = parse_uri_path(&uri);
                 ParsedUri {
                     scheme: None,

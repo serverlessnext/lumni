@@ -1,3 +1,5 @@
+use std::fs::{self, ReadDir};
+use std::io;
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -7,15 +9,30 @@ use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
 use crate::{FileObjectFilter, FileObjectVec, LakestreamError};
 
-pub struct LocalFs {
+pub struct LocalFileSystem;
+
+pub trait FileSystem {
+    fn read_dir(&self, path: &Path) -> io::Result<ReadDir>;
+}
+
+impl FileSystem for LocalFileSystem {
+    fn read_dir(&self, path: &Path) -> io::Result<ReadDir> {
+        fs::read_dir(path)
+    }
+}
+
+pub struct LocalFsBucket {
     name: String,
     #[allow(dead_code)]
     config: Config,
 }
 
-impl LocalFs {
-    pub fn new(name: &str, config: Config) -> Result<LocalFs, &'static str> {
-        Ok(LocalFs {
+impl LocalFsBucket {
+    pub fn new(
+        name: &str,
+        config: Config,
+    ) -> Result<LocalFsBucket, &'static str> {
+        Ok(LocalFsBucket {
             name: name.to_string(),
             config,
         })
@@ -23,7 +40,7 @@ impl LocalFs {
 }
 
 #[async_trait(?Send)]
-impl ObjectStoreTrait for LocalFs {
+impl ObjectStoreTrait for LocalFsBucket {
     fn name(&self) -> &str {
         &self.name
     }
@@ -44,7 +61,16 @@ impl ObjectStoreTrait for LocalFs {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
-        list_files(&path, max_keys, recursive, filter, file_objects).await;
+        let file_system = LocalFileSystem;
+        list_files(
+            &file_system,
+            &path,
+            max_keys,
+            recursive,
+            filter,
+            file_objects,
+        )
+        .await;
         Ok(())
     }
 }

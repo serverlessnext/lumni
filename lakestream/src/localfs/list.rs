@@ -1,19 +1,22 @@
 use std::fs;
 use std::path::Path;
 
+use super::bucket::FileSystem;
 use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub async fn list_files(
+    fs: &dyn FileSystem,
     path: &Path,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     file_objects: &mut FileObjectVec,
 ) {
-    list_files_next(path, max_keys, recursive, filter, file_objects).await;
+    list_files_next(fs, path, max_keys, recursive, filter, file_objects).await;
 }
 
 async fn list_files_next(
+    fs: &dyn FileSystem,
     path: &Path,
     max_keys: Option<u32>,
     recursive: bool,
@@ -25,7 +28,7 @@ async fn list_files_next(
     while let Some(current_path) = directory_stack.pop() {
         let mut temp_file_objects = Vec::new();
 
-        if let Ok(entries) = fs::read_dir(&current_path) {
+        if let Ok(entries) = fs.read_dir(&current_path) {
             for entry in entries.flatten() {
                 if let Some(max_keys) = max_keys {
                     if file_objects.len() >= max_keys as usize {

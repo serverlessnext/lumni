@@ -9,9 +9,10 @@ pub(crate) mod utils;
 pub use base::config::Config;
 pub use base::filters::FileObjectFilter;
 pub use base::interfaces::{
-    CallbackWrapper, FileObject, FileObjectVec, ListObjectsResult, ObjectStore,
-    ObjectStoreHandler,
+    CallbackWrapper, FileObject, FileObjectVec, ListObjectsResult,
+    LocalFsBucket, ObjectStore, ObjectStoreHandler, S3Bucket,
 };
 // re-export all defaults
 pub use default::*;
 pub use error::LakestreamError;
+pub use localfs::bucket::FileSystem;

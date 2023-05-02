@@ -3,7 +3,7 @@ use std::pin::Pin;
 use async_trait::async_trait;
 use futures::Future;
 
-use crate::localfs::bucket::LocalFs;
+use crate::localfs::bucket::LocalFsBucket;
 use crate::s3::bucket::S3Bucket;
 use crate::{
     CallbackWrapper, Config, FileObject, FileObjectFilter, FileObjectVec,
@@ -12,7 +12,7 @@ use crate::{
 
 pub enum ObjectStore {
     S3Bucket(S3Bucket),
-    LocalFs(LocalFs),
+    LocalFsBucket(LocalFsBucket),
 }
 
 impl ObjectStore {
@@ -24,9 +24,9 @@ impl ObjectStore {
             Ok(ObjectStore::S3Bucket(bucket))
         } else if name.starts_with("localfs://") {
             let name = name.trim_start_matches("localfs://");
-            let local_fs =
-                LocalFs::new(name, config).map_err(|err| err.to_string())?;
-            Ok(ObjectStore::LocalFs(local_fs))
+            let local_fs = LocalFsBucket::new(name, config)
+                .map_err(|err| err.to_string())?;
+            Ok(ObjectStore::LocalFsBucket(local_fs))
         } else {
             Err("Unsupported object store.".to_string())
         }
@@ -35,14 +35,14 @@ impl ObjectStore {
     pub fn name(&self) -> &str {
         match self {
             ObjectStore::S3Bucket(bucket) => bucket.name(),
-            ObjectStore::LocalFs(local_fs) => local_fs.name(),
+            ObjectStore::LocalFsBucket(local_fs) => local_fs.name(),
         }
     }
 
     pub fn config(&self) -> &Config {
         match self {
             ObjectStore::S3Bucket(bucket) => bucket.config(),
-            ObjectStore::LocalFs(local_fs) => local_fs.config(),
+            ObjectStore::LocalFsBucket(local_fs) => local_fs.config(),
         }
     }
 
@@ -66,7 +66,7 @@ impl ObjectStore {
                     )
                     .await
             }
-            ObjectStore::LocalFs(local_fs) => {
+            ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs
                     .list_files(
                         prefix,
@@ -134,7 +134,7 @@ impl ObjectStore {
                     )
                     .await
             }
-            ObjectStore::LocalFs(local_fs) => {
+            ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs
                     .list_files(
                         prefix,

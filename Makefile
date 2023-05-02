@@ -1,7 +1,6 @@
 
 NAME := lakestream
 BUILD_VERSION ?= 0.0.3-alpha
-DOCS_CONTAINER := $(NAME)-docs
 
 DEFAULT_CRATES := lakestream lakestream-cli
 EXTRA_CRATES := lakestream-web lakestream-py
@@ -24,3 +23,5 @@ lakestream-web:
 lakestream-py:
 	cd lakestream-py && maturin build --release --strip --out dist
 
+tests:
+	cargo test --package lakestream

@@ -6,10 +6,6 @@ members = [
     "lakestream-web",
 ]
 
-# default-members = [
-#     "lakestream",
-# ]
-
 # Python interface to lakestream
 # exclude to prevent publishing to crates.io
 exclude = [

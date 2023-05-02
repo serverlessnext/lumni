@@ -31,9 +31,6 @@ serde-xml-rs = "0.6"
 async-trait = "0.1"
 futures = "0.3"
 
-[build-dependencies]
-toml_edit = "0.2"
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 time = { version = "0.3", features = ["parsing"]}
 hyper = { version = "0.14", default-features = false, features = ["client", "http1", "http2"]}
@@ -41,9 +38,17 @@ hyper-tls = { version = "0.5" }
 native-tls = { version = "0.2" }
 tokio-native-tls = { version = "0.3" }
 
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
 wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2.84"
+
+[build-dependencies]
+toml_edit = "0.2"
+
+[dev-dependencies]
+# keep tokio version+features in sync with lakestream-cli
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
+tempfile = "3.5.0"
+

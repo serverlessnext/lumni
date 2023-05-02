@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
-use log::{error, info};
+use log::error;
 
 use super::bucket::{configure_bucket_url, S3Bucket, S3Credentials};
 use super::client::{S3Client, S3ClientConfig};
 use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
 };
+use super::request_handler::http_get_with_redirect_handling;
 use crate::base::config::Config;
 use crate::base::interfaces::ObjectStoreTrait;
-use crate::http::requests::{http_get_request, http_get_request_with_headers};
+use crate::http::requests::http_get_request;
 use crate::{
     FileObject, FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
     AWS_MAX_LIST_OBJECTS,
@@ -26,162 +27,30 @@ pub async fn list_files(
     let mut s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
-    let mut bucket_url;
-    let body: String;
-
-    let effective_max_keys = get_effective_max_keys(filter, max_keys);
-
-    // get mutable config as it will be updated if there is a redirect
-    let mut config = s3_bucket.config().clone();
-    let mut region: String = s3_client.region().to_string();
-
-    // Check for a 301 redirect and update the region if necessary
-    loop {
-        bucket_url = configure_bucket_url(&config, Some(s3_bucket.name()));
-        let credentials = s3_client.credentials().clone();
-        let s3_client_config =
-            S3ClientConfig::new(credentials, &bucket_url, &region);
-        s3_client = S3Client::new(s3_client_config);
-
-        let headers = s3_client
-            .generate_list_objects_headers(
-                prefix,
-                Some(effective_max_keys),
-                None,
-            )
-            .unwrap();
-
-        let result =
-            http_get_request_with_headers(&s3_client.url(), &headers).await;
-
-        match result {
-            Ok((response_body, status, response_headers)) => {
-                if status == 301 {
-                    info!(
-                        "Received a 301 redirect from S3 with status: {}",
-                        status
-                    );
-                    if let Some(new_region) =
-                        response_headers.get("x-amz-bucket-region")
-                    {
-                        region = new_region.clone();
-                        config.insert(
-                            "AWS_REGION".to_string(),
-                            region.to_string(),
-                        );
-                    } else {
-                        error!(
-                            "Error: Redirect without x-amz-bucket-region \
-                             header"
-                        );
-                        return Ok(());
-                    }
-                } else if response_body.is_empty() {
-                    error!(
-                        "Error: Received an empty response from S3 with \
-                         status: {}",
-                        status
-                    );
-                    return Ok(());
-                } else {
-                    body = response_body;
-                    break;
-                }
-            }
-            Err(e) => {
-                error!("Error in http_get_request: {}", e);
-                return Ok(());
-            }
-        }
-    }
-
-    let initial_file_objects = parse_file_objects(&body).unwrap_or_default();
-    // Parse the file objects from the body and create two separate lists:
-    // one for directories and one for non-directory file objects.
-    let (initial_directories, mut filtered_initial_file_objects): (
-        Vec<_>,
-        Vec<_>,
-    ) = initial_file_objects
-        .into_iter()
-        .partition(|file_object| file_object.name().ends_with('/'));
-
-    // If filter is None, move directories into filtered_initial_file_objects
-    if filter.is_none() {
-        filtered_initial_file_objects
-            .extend(initial_directories.iter().cloned());
-    }
-
-    // Extend all_file_objects with the filtered list of non-directory file objects.
-    // If a filter is provided, apply it; otherwise, include all non-directory file objects.
-    file_objects
-        .extend_async(filtered_initial_file_objects.into_iter().filter(
-            |file_object| {
-                filter.as_ref().map_or(true, |f| f.matches(file_object))
-            },
-        ))
-        .await;
-
-    let continuation_token = extract_continuation_token(&body);
-
-    // enter recursive lookup if max_keys not yet satisfied
-    let remaining_keys =
-        max_keys.map(|max| max.saturating_sub(file_objects.len() as u32));
-
-    if remaining_keys.map_or(true, |keys| keys > 0) {
-        if continuation_token.is_some() {
-            list_files_next(
-                s3_bucket,
-                prefix.map(|p| p.to_owned()),
-                remaining_keys,
-                &mut s3_client,
-                continuation_token,
-                recursive,
-                &(*filter).clone(),
-                file_objects,
-            )
-            .await?;
-        }
-
-        // If the recursive flag is set, process each subdirectory from current base level
-        if recursive {
-            // For each directory, create a new prefix by appending the directory name
-            // to the current prefix and call list_files_next() to process the subdirectory.
-            for directory in initial_directories
-                .into_iter()
-                .map(|file_object| file_object.name().to_owned())
-            {
-                let subdir_prefix =
-                    Some(format!("{}{}", prefix.unwrap_or(""), directory));
-
-                list_files_next(
-                    s3_bucket,
-                    subdir_prefix,
-                    remaining_keys,
-                    &mut s3_client,
-                    None,
-                    recursive,
-                    &(*filter).clone(),
-                    file_objects,
-                )
-                .await?;
-            }
-        }
-    }
+    list_files_next(
+        s3_bucket,
+        prefix.map(|p| p.to_owned()),
+        max_keys,
+        &mut s3_client,
+        None, // start with no continuation_token
+        recursive,
+        &(*filter).clone(),
+        file_objects,
+    )
+    .await?;
     Ok(())
 }
 
 async fn list_files_next(
-    _s3_bucket: &S3Bucket,
+    s3_bucket: &S3Bucket,
     prefix: Option<String>,
     max_keys: Option<u32>,
     s3_client: &mut S3Client,
-    continuation_token: Option<String>,
+    mut continuation_token: Option<String>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     file_objects: &mut FileObjectVec,
 ) -> Result<(), LakestreamError> {
-    let mut virtual_directories = Vec::new();
-    let mut current_continuation_token = continuation_token;
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();
 
@@ -190,23 +59,23 @@ async fn list_files_next(
     let effective_max_keys = get_effective_max_keys(filter, max_keys);
 
     while let Some(prefix) = directory_stack.pop_front() {
+        let mut virtual_directories = Vec::<String>::new();
         loop {
-            let headers = s3_client
-                .generate_list_objects_headers(
+            let (response_body, updated_s3_client) =
+                http_get_with_redirect_handling(
+                    s3_bucket.config(),
+                    s3_bucket.name(),
+                    s3_client,
                     prefix.as_deref(),
                     Some(effective_max_keys),
-                    current_continuation_token.as_deref(),
+                    continuation_token.as_deref(),
                 )
-                .unwrap();
+                .await?;
+            if let Some(new_s3_client) = updated_s3_client {
+                *s3_client = new_s3_client;
+            }
 
-            let result = http_get_request(&s3_client.url(), &headers).await;
-
-            let (response_body, _) = match result {
-                Ok(res) => res,
-                Err(e) => return Err(LakestreamError::from(e)),
-            };
-
-            current_continuation_token = process_response_body(
+            continuation_token = process_response_body(
                 &response_body,
                 recursive,
                 filter,
@@ -214,7 +83,7 @@ async fn list_files_next(
                 &mut virtual_directories,
             );
 
-            if current_continuation_token.is_none()
+            if continuation_token.is_none()
                 || file_objects.len()
                     >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
             {
@@ -237,7 +106,7 @@ async fn list_files_next(
             }
         }
 
-        current_continuation_token = None;
+        continuation_token = None;
     }
 
     Ok(())
@@ -335,7 +204,9 @@ fn create_s3_client(config: &Config, bucket_name: Option<&str>) -> S3Client {
 
     let credentials =
         S3Credentials::new(String::from(access_key), String::from(secret_key));
-    let bucket_url = configure_bucket_url(config, bucket_name);
+    let endpoint_url =
+        config.settings.get("S3_ENDPOINT_URL").map(String::as_str);
+    let bucket_url = configure_bucket_url(region, endpoint_url, bucket_name);
 
     let s3_client_config =
         S3ClientConfig::new(credentials, &bucket_url, region);

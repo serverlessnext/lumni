@@ -53,7 +53,15 @@ impl S3Bucket {
     }
 
     pub fn bucket_path(&self) -> String {
-        configure_bucket_url(self.config(), Some(self.name()))
+        let region = self.config.settings.get("AWS_REGION").unwrap();
+        let endpoint_url = self
+            .config
+            .settings
+            .get("S3_ENDPOINT_URL")
+            .map(String::as_str);
+        let name = Some(self.name().to_string());
+
+        configure_bucket_url(region, endpoint_url.as_deref(), name.as_deref())
     }
 }
 
@@ -80,12 +88,11 @@ impl ObjectStoreTrait for S3Bucket {
 }
 
 pub fn configure_bucket_url(
-    config: &Config,
+    region: &str,
+    endpoint_url: Option<&str>,
     bucket_name: Option<&str>,
 ) -> String {
-    let region = config.settings.get("AWS_REGION").unwrap();
-
-    match config.settings.get("S3_ENDPOINT_URL") {
+    match endpoint_url {
         Some(url) => match bucket_name {
             Some(name) => format!("{}/{}", url.trim_end_matches('/'), name),
             None => url.to_owned(),

@@ -6,6 +6,7 @@ use super::bucket::S3Credentials;
 use super::request_builder::RequestBuilder;
 use crate::{LakestreamError, AWS_MAX_LIST_OBJECTS};
 
+#[derive(Clone)]
 pub struct S3ClientConfig {
     credentials: S3Credentials,
     endpoint_url: String,
@@ -15,12 +16,12 @@ pub struct S3ClientConfig {
 impl S3ClientConfig {
     pub fn new(
         credentials: S3Credentials,
-        endpoint_url: &str,
+        bucket_url: &str,
         region: &str,
     ) -> S3ClientConfig {
         S3ClientConfig {
             credentials,
-            endpoint_url: endpoint_url.to_string(),
+            endpoint_url: bucket_url.to_string(),
             region: region.to_string(),
         }
     }
@@ -55,9 +56,14 @@ impl S3Client {
             resource: None,
             config,
             query_string: None,
-            request_builder, // Add this line
+            request_builder,
         }
     }
+
+    pub fn config(&self) -> &S3ClientConfig {
+        &self.config
+    }
+
     pub fn credentials(&self) -> &S3Credentials {
         &self.config.credentials
     }
@@ -75,10 +81,15 @@ impl S3Client {
         )
     }
 
-    pub fn generate_headers(
+    fn generate_headers(
         &mut self,
         method: &str,
+        query_string: Option<String>,
     ) -> Result<HashMap<String, String>, LakestreamError> {
+        // update self.query_string - its still used for the pub url() method
+        // when pub url() can generate its own query_string, this can be removed
+        // so we can remove &mut self from this method
+        self.query_string = query_string;
         self.request_builder.generate_headers(
             &self.config,
             method,
@@ -92,7 +103,7 @@ impl S3Client {
         &mut self,
     ) -> Result<HashMap<String, String>, LakestreamError> {
         let method = "GET";
-        self.generate_headers(method)
+        self.generate_headers(method, None)
     }
 
     pub fn generate_list_objects_headers(
@@ -102,6 +113,20 @@ impl S3Client {
         continuation_token: Option<&str>,
     ) -> Result<HashMap<String, String>, LakestreamError> {
         let method = "GET";
+        let query_string = Some(self.create_list_objects_query_string(
+            prefix,
+            max_keys,
+            continuation_token,
+        ));
+        self.generate_headers(method, query_string)
+    }
+
+    fn create_list_objects_query_string(
+        &self,
+        prefix: Option<&str>,
+        max_keys: Option<u32>,
+        continuation_token: Option<&str>,
+    ) -> String {
         // Ensure max_keys does not exceed AWS_MAX_LIST_OBJECTS
         let max_keys = max_keys
             .map(|keys| std::cmp::min(keys, AWS_MAX_LIST_OBJECTS))
@@ -120,7 +145,12 @@ impl S3Client {
             query_parts.append_pair("continuation-token", token);
         }
 
-        self.query_string = Some(query_parts.finish());
-        self.generate_headers(method)
+        query_parts.finish()
+    }
+}
+
+impl Clone for S3Client {
+    fn clone(&self) -> Self {
+        S3Client::new(self.config.clone())
     }
 }

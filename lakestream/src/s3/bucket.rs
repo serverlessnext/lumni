@@ -61,7 +61,7 @@ impl S3Bucket {
             .map(String::as_str);
         let name = Some(self.name().to_string());
 
-        configure_bucket_url(region, endpoint_url.as_deref(), name.as_deref())
+        configure_bucket_url(region, endpoint_url, name.as_deref())
     }
 }
 

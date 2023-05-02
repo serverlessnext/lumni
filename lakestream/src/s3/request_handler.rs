@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::base::config::Config;
 use crate::http::requests::http_get_request_with_headers;
 use crate::s3::bucket::configure_bucket_url;
@@ -40,7 +38,7 @@ pub async fn http_get_with_redirect_handling(
             .unwrap();
 
         let result =
-            http_get_request_with_headers(&current_s3_client.url(), &headers)
+            http_get_request_with_headers(&current_s3_client.url(), headers)
                 .await;
 
         match result {

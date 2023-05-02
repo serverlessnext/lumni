@@ -60,10 +60,6 @@ impl S3Client {
         }
     }
 
-    pub fn config(&self) -> &S3ClientConfig {
-        &self.config
-    }
-
     pub fn credentials(&self) -> &S3Credentials {
         &self.config.credentials
     }

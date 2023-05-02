@@ -28,20 +28,21 @@ impl RequestBuilder {
         query_string: Option<&str>,
         payload_hash: Option<&str>,
     ) -> Result<HashMap<String, String>, LakestreamError> {
-        let utc_now = self.utc_now();
+        let utc_now = UtcTimeNow::new();
         let date_stamp = utc_now.date_stamp();
         let x_amz_date = utc_now.x_amz_date();
 
         let credential_scope =
             format!("{}/{}/s3/aws4_request", date_stamp, config.region());
-        let mut headers = self.initiate_headers(&x_amz_date, payload_hash)?;
+        let mut headers = self.initiate_headers(&x_amz_date, payload_hash);
 
         let url = Url::parse(&self.url)?;
         let host = url.host_str().ok_or("Missing host")?.to_owned();
         let host = match url.port() {
-            Some(port) => host.replace(&format!(":{}", port), ""),
+            Some(port) => format!("{}:{}", host, port),
             None => host,
         };
+
         headers.insert("host".to_string(), host);
 
         let canonical_uri = self.get_canonical_uri(&url, resource);
@@ -93,10 +94,6 @@ impl RequestBuilder {
         Ok(headers)
     }
 
-    fn utc_now(&self) -> UtcTimeNow {
-        UtcTimeNow::new()
-    }
-
     fn get_canonical_headers(
         &self,
         headers: &HashMap<String, String>,
@@ -140,14 +137,14 @@ impl RequestBuilder {
         &self,
         x_amz_date: &str,
         payload_hash: Option<&str>,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> HashMap<String, String> {
         let mut headers = HashMap::new();
         headers.insert("x-amz-date".to_string(), x_amz_date.to_string());
         headers.insert(
             "x-amz-content-sha256".to_string(),
             payload_hash.unwrap_or("UNSIGNED-PAYLOAD").to_string(),
         );
-        Ok(headers)
+        headers
     }
 
     fn get_canonical_uri(&self, url: &Url, resource: Option<&str>) -> String {

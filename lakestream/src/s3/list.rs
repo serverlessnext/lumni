@@ -16,6 +16,16 @@ use crate::{
     AWS_MAX_LIST_OBJECTS,
 };
 
+pub struct ListFilesParams<'a> {
+    s3_bucket: &'a S3Bucket,
+    prefix: Option<String>,
+    max_keys: Option<u32>,
+    s3_client: &'a mut S3Client,
+    continuation_token: Option<String>,
+    recursive: bool,
+    filter: &'a Option<FileObjectFilter>,
+}
+
 pub async fn list_files(
     s3_bucket: &S3Bucket,
     prefix: Option<&str>,
@@ -28,13 +38,15 @@ pub async fn list_files(
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
     list_files_next(
-        s3_bucket,
-        prefix.map(|p| p.to_owned()),
-        max_keys,
-        &mut s3_client,
-        None, // start with no continuation_token
-        recursive,
-        &(*filter).clone(),
+        &mut ListFilesParams {
+            s3_bucket,
+            prefix: prefix.map(|p| p.to_owned()),
+            max_keys,
+            s3_client: &mut s3_client,
+            continuation_token: None, // start with no continuation_token
+            recursive,
+            filter: &(*filter).clone(),
+        },
         file_objects,
     )
     .await?;
@@ -42,50 +54,45 @@ pub async fn list_files(
 }
 
 async fn list_files_next(
-    s3_bucket: &S3Bucket,
-    prefix: Option<String>,
-    max_keys: Option<u32>,
-    s3_client: &mut S3Client,
-    mut continuation_token: Option<String>,
-    recursive: bool,
-    filter: &Option<FileObjectFilter>,
+    params: &mut ListFilesParams<'_>,
     file_objects: &mut FileObjectVec,
 ) -> Result<(), LakestreamError> {
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();
 
-    directory_stack.push_back(prefix);
+    directory_stack.push_back(params.prefix.clone());
 
-    let effective_max_keys = get_effective_max_keys(filter, max_keys);
+    let effective_max_keys =
+        get_effective_max_keys(params.filter, params.max_keys);
 
     while let Some(prefix) = directory_stack.pop_front() {
         let mut virtual_directories = Vec::<String>::new();
         loop {
             let (response_body, updated_s3_client) =
                 http_get_with_redirect_handling(
-                    s3_bucket.config(),
-                    s3_bucket.name(),
-                    s3_client,
+                    params.s3_bucket.config(),
+                    params.s3_bucket.name(),
+                    params.s3_client,
                     prefix.as_deref(),
                     Some(effective_max_keys),
-                    continuation_token.as_deref(),
+                    params.continuation_token.as_deref(),
                 )
                 .await?;
             if let Some(new_s3_client) = updated_s3_client {
-                *s3_client = new_s3_client;
+                *params.s3_client = new_s3_client;
             }
 
-            continuation_token = process_response_body(
+            params.continuation_token = process_response_body(
                 &response_body,
-                recursive,
-                filter,
+                params.recursive,
+                params.filter,
                 &mut temp_file_objects,
                 &mut virtual_directories,
             );
 
-            if continuation_token.is_none()
+            if params.continuation_token.is_none()
                 || file_objects.len()
-                    >= max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+                    >= params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
             {
                 break;
             }
@@ -94,10 +101,10 @@ async fn list_files_next(
         // Extend file_objects with temp_file_objects and clear temp_file_objects
         file_objects.extend_async(temp_file_objects.drain(..)).await;
 
-        if recursive {
+        if params.recursive {
             for virtual_directory in virtual_directories.drain(..) {
                 if file_objects.len()
-                    == max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
+                    == params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
                 {
                     break;
                 }
@@ -106,7 +113,7 @@ async fn list_files_next(
             }
         }
 
-        continuation_token = None;
+        params.continuation_token = None;
     }
 
     Ok(())

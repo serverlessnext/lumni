@@ -1,6 +1,8 @@
+pub mod backend_parse;
 pub mod formatters;
 pub mod time;
 pub mod time_parse;
+pub mod uri_parse;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod time_parse_ext;

@@ -6,8 +6,9 @@ use async_trait::async_trait;
 
 use super::list::list_files;
 use crate::base::config::Config;
-use crate::base::interfaces::ObjectStoreTrait;
-use crate::{FileObjectFilter, FileObjectVec, LakestreamError};
+use crate::{
+    FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
+};
 
 pub struct LocalFileSystem;
 

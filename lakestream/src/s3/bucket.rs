@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 
-pub use super::list::list_buckets;
 use super::list::list_files;
 use crate::base::config::Config;
-use crate::base::interfaces::ObjectStoreTrait;
 use crate::s3::config::validate_config;
-use crate::{FileObjectFilter, FileObjectVec, LakestreamError};
+use crate::{
+    FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
+};
 
 #[derive(Clone)]
 pub struct S3Credentials {

@@ -3,8 +3,8 @@ use std::pin::Pin;
 use async_trait::async_trait;
 use futures::Future;
 
-use crate::localfs::bucket::LocalFsBucket;
-use crate::s3::bucket::S3Bucket;
+use crate::localfs::backend::LocalFsBucket;
+use crate::s3::backend::S3Bucket;
 use crate::{
     CallbackWrapper, Config, FileObject, FileObjectFilter, FileObjectVec,
     LakestreamError,

@@ -9,11 +9,10 @@ use super::parse_http_response::{
 };
 use super::request_handler::http_get_with_redirect_handling;
 use crate::base::config::Config;
-use crate::base::interfaces::ObjectStoreTrait;
 use crate::http::requests::http_get_request;
 use crate::{
     FileObject, FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
-    AWS_MAX_LIST_OBJECTS,
+    ObjectStoreTrait, AWS_MAX_LIST_OBJECTS,
 };
 
 pub struct ListFilesParams<'a> {

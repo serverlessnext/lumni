@@ -1,6 +1,7 @@
-pub mod bucket;
+pub mod backend;
+mod bucket;
 mod client;
-pub mod config;
+mod config;
 mod list;
 mod parse_http_response;
 mod request_builder;

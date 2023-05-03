@@ -1,6 +1,6 @@
-mod callback_wrapper;
+pub mod callback_wrapper;
 pub mod config;
-mod file_objects;
+pub mod file_objects;
 pub mod filters;
-pub mod interfaces;
-mod object_store;
+pub mod list_objects_result;
+pub mod object_store;

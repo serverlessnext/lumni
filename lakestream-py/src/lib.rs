@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, Config, AWS_DEFAULT_REGION,
+    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, CallbackWrapper, Config, AWS_DEFAULT_REGION,
 };
 use ::lakestream_cli::run_cli;
 
@@ -24,7 +25,12 @@ impl _Client {
         let region = region
             .or_else(|| env::var("AWS_REGION").ok())
             .unwrap_or_else(|| AWS_DEFAULT_REGION.to_string());
-        let config = Config::with_setting("region".to_string(), region);
+
+        let mut config = HashMap::new();
+        config.insert("region".to_string(), region);
+        let config = Config {
+            settings: config,
+        };
         Ok(_Client { config })
     }
 
@@ -62,9 +68,9 @@ impl _Client {
 
         // Call the async function and block on it to get the result
         let handler = ObjectStoreHandler::new(None);
-        let result = rt.block_on( handler.list_objects(
-            uri,
-            self.config.clone(),
+        let result = rt.block_on(handler.list_objects(
+            &uri,
+            &self.config,
             recursive.unwrap_or(false),
             max_files,
             &filter,
@@ -72,7 +78,6 @@ impl _Client {
         ));
 
         match result {
-            Ok(None) => Ok(PyList::empty(py).to_object(py)),
             Ok(Some(list_objects_result)) => match list_objects_result {
                 ListObjectsResult::FileObjects(file_objects) => {
                     let py_file_objects = file_objects
@@ -96,12 +101,53 @@ impl _Client {
                     Ok(PyList::new(py, &py_buckets).to_object(py))
                 }
             },
+            Ok(None) => Ok(PyList::empty(py).to_object(py)),
             Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
                 "Error listing objects: {}",
                 err
             ))),
         }
     }
+
+    fn list_buckets(
+        &self,
+        py: Python,
+        uri: String,
+    ) -> PyResult<PyObject> {
+        // Create a new Tokio runtime
+        let rt = Runtime::new().unwrap();
+
+        // Call the async function and block on it to get the result
+        let handler = ObjectStoreHandler::new(None);
+        // let uri = format!("{}://", self.config.scheme());
+        let result = rt.block_on(handler.list_buckets(
+            &uri,
+            &self.config,
+            None,
+        ));
+
+        match result {
+            Ok(Some(list_objects_result)) => match list_objects_result {
+                ListObjectsResult::Buckets(buckets) => {
+                    let py_buckets = buckets
+                        .into_iter()
+                        .map(|bucket| bucket.name().to_owned())
+                        .collect::<Vec<_>>();
+                    Ok(PyList::new(py, &py_buckets).to_object(py))
+                }
+                _ => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
+                    "Error listing buckets: unexpected result type"
+                ))),
+            },
+            Ok(None) => Ok(PyList::empty(py).to_object(py)),
+            Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
+                "Error listing buckets: {}",
+                err
+            ))),
+        }
+    }
+
+
 }
 
 #[pymodule]

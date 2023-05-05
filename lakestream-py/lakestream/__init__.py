@@ -48,5 +48,24 @@ class Client:
         """
         return self._client.list(uri, recursive, max_files, filter_dict)
 
-    # Add other methods for Client, which wrap the corresponding methods in _Client
+    def list_buckets(self, uri):
+        """
+        List buckets.
 
+        :return: A list of buckets.
+        :rtype: list
+
+        Example usage:
+
+        .. code-block:: python
+
+            import lakestream
+
+            client = lakestream.Client()
+
+            # List buckets
+            result = client.list_buckets()
+
+            print(result)
+        """
+        return self._client.list_buckets(uri)

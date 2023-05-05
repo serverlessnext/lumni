@@ -1,56 +1,86 @@
+use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
-use futures::Future;
-
-use crate::FileObject;
-
-type BoxedCallback = Box<dyn Fn(&[FileObject]) + Send + Sync + 'static>;
-type BoxedAsyncCallback = Box<
-    dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-        + Send
-        + Sync
-        + 'static,
->;
-
-pub enum CallbackWrapper {
-    Sync(BoxedCallback),
-    Async(BoxedAsyncCallback),
+pub trait CallbackItem: Send + Sync + 'static {
+    fn println_path(&self) -> String;
 }
 
-impl CallbackWrapper {
+pub enum CallbackWrapper<T>
+where
+    T: CallbackItem,
+{
+    Sync(Arc<dyn Fn(&[T]) + Send + Sync + 'static>),
+    Async(
+        Arc<
+            dyn Fn(Vec<T>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+                + Send
+                + Sync
+                + 'static,
+        >,
+    ),
+}
+
+impl<T> CallbackWrapper<T>
+where
+    T: CallbackItem,
+{
     pub fn create_sync<F>(func: F) -> Self
     where
-        F: Fn(&[FileObject]) + Send + Sync + 'static,
+        F: Fn(&[T]) + Send + Sync + 'static,
     {
-        CallbackWrapper::Sync(Box::new(func))
+        CallbackWrapper::Sync(Arc::new(func))
     }
 
     pub fn create_async<F, Fut>(func: F) -> Self
     where
-        F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
+        F: Fn(Vec<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let wrapped_func = Self::wrap_async_fn(func);
-        CallbackWrapper::Async(Box::new(wrapped_func))
+        CallbackWrapper::Async(Arc::new(wrapped_func))
     }
 
     fn wrap_async_fn<F, Fut>(
         func: F,
-    ) -> impl Fn(
-        &[FileObject],
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+    ) -> impl Fn(Vec<T>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
            + Send
            + Sync
            + 'static
     where
-        F: Fn(Vec<FileObject>) -> Fut + Send + Sync + 'static,
+        F: Fn(Vec<T>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        move |file_objects: &[FileObject]| {
-            let file_objects_cloned = file_objects.to_owned();
-            let future = func(file_objects_cloned);
+        move |objects: Vec<T>| {
+            let future = func(objects);
             Box::pin(future)
                 as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        }
+    }
+
+    pub fn map_to<U, F>(self, mapper: F) -> CallbackWrapper<U>
+    where
+        U: CallbackItem,
+        T: From<U> + 'static,
+        F: Fn(&U) -> T + Send + Sync + 'static,
+    {
+        match self {
+            CallbackWrapper::Sync(func) => {
+                let mapped_func = move |items: &[U]| {
+                    let original_items: Vec<T> =
+                        items.iter().map(|item| mapper(item)).collect();
+                    func(&original_items)
+                };
+                CallbackWrapper::Sync(Arc::new(mapped_func))
+            }
+            CallbackWrapper::Async(func) => {
+                let mapped_func = move |items: Vec<U>| {
+                    let original_items: Vec<T> =
+                        items.into_iter().map(|item| mapper(&item)).collect();
+                    func(original_items)
+                };
+                CallbackWrapper::Async(Arc::new(mapped_func))
+            }
         }
     }
 }

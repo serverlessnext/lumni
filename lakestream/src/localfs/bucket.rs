@@ -22,6 +22,7 @@ impl FileSystem for LocalFileSystem {
     }
 }
 
+#[derive(Clone)]
 pub struct LocalFsBucket {
     name: String,
     #[allow(dead_code)]

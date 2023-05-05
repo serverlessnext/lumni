@@ -58,7 +58,7 @@ pub async fn http_get_request_with_headers(
     let status = response.status().as_u16();
     let headers_map = parse_response_headers(&response);
 
-    if !(200..300).contains(&status) {
+    if !(200..300).contains(&(status as isize)) {
         return Ok((String::new(), status, headers_map));
     }
 

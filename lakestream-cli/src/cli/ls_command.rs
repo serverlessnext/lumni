@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use lakestream::{
-    CallbackWrapper, Config, FileObject, FileObjectFilter, ListObjectsResult,
-    ObjectStoreHandler,
+    CallbackWrapper, CallbackItem, Config, FileObjectFilter,
+    ListObjectsResult, ObjectStoreHandler, LakestreamError,
 };
 use log::info;
+
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
@@ -12,19 +13,12 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
 
     let handler = ObjectStoreHandler::new(None);
 
-    // print via callback function (sync or async supported)
-    // let callback = Some(CallbackWrapper::create_sync(print_file_objects_callback));
-    let callback = Some(CallbackWrapper::create_async(
-        print_file_objects_callback_async,
-    ));
-
-    // get results as a return value instead of a callback
-    // let callback = None;
+    let callback = Some(CallbackWrapper::create_async(print_callback_items_async));
 
     match handler
         .list_objects(
-            uri,
-            config,
+            &uri,
+            &config,
             recursive,
             Some(max_files),
             &filter,
@@ -33,32 +27,57 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
         .await
     {
         Ok(Some(list_objects_result)) => {
-            match list_objects_result {
-                ListObjectsResult::Buckets(buckets) => {
-                    // Print buckets to stdout
-                    info!("Found {} buckets:", buckets.len());
-                    for bucket in buckets {
-                        println!("{}", bucket.name());
-                    }
-                }
-                ListObjectsResult::FileObjects(file_objects) => {
-                    // Print file objects to stdout
-                    info!("Found {} file objects:", file_objects.len());
-                    for fo in file_objects {
-                        let full_path = true;
-                        println!("{}", fo.printable(full_path));
-                    }
-                }
-            }
+            handle_list_objects_result(list_objects_result).await;
         }
         Ok(None) => {
-            println!("Done.");
+            println!("Done");
+        }
+        Err(LakestreamError::NoBucketInUri(_)) => {
+            handle_list_buckets(&uri, &config).await;
         }
         Err(err) => {
             eprintln!("Error: {:?}", err);
         }
     }
 }
+
+async fn handle_list_objects_result(list_objects_result: ListObjectsResult) {
+    match list_objects_result {
+        ListObjectsResult::Buckets(buckets) => {
+            // Print buckets to stdout
+            info!("Found {} buckets:", buckets.len());
+            for bucket in buckets {
+                println!("{}", bucket.name());
+            }
+        }
+        ListObjectsResult::FileObjects(file_objects) => {
+            // Print file objects to stdout
+            info!("Found {} file objects:", file_objects.len());
+            for fo in file_objects {
+                println!("{}", fo.println_path());
+            }
+        }
+    }
+}
+
+async fn handle_list_buckets(uri: &str, config: &Config) {
+    log::info!("Calling list_buckets");
+    let handler = ObjectStoreHandler::new(None);
+    let callback = Some(CallbackWrapper::create_async(print_callback_items_async));
+    match handler.list_buckets(uri, config, callback).await {
+        Ok(Some(list_objects_result)) => {
+            handle_list_objects_result(list_objects_result).await;
+        }
+        Ok(None) => {
+            log::info!("Done");
+        }
+        Err(err) => {
+            eprintln!("Error: {:?}", err);
+        }
+    }
+}
+
+
 
 fn prepare_handle_ls_arguments(
     ls_matches: &clap::ArgMatches,
@@ -114,19 +133,9 @@ fn prepare_handle_ls_arguments(
     (uri, config, recursive, max_files, filter)
 }
 
-// keep this for reference -- async is default now
-//fn print_file_objects_callback(file_objects: &[FileObject]) {
-//    let full_path = true;
-//    // info!("Found {} file objects:", file_objects.len());
-//    for fo in file_objects {
-//        println!("{}", fo.printable(full_path));
-//    }
-//}
-
-async fn print_file_objects_callback_async(file_objects: Vec<FileObject>) {
-    let full_path = true;
-    info!("Found {} file objects:", file_objects.len());
-    for fo in &file_objects {
-        println!("{}", fo.printable(full_path));
+async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {
+    info!("Found {} items:", items.len());
+    for item in &items {
+        println!("{}", item.println_path());
     }
 }

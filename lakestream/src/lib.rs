@@ -8,12 +8,12 @@ pub(crate) mod s3;
 pub(crate) mod utils;
 
 pub use api::object_store_handler::{ObjectStoreBackend, ObjectStoreHandler};
-pub use base::callback_wrapper::CallbackWrapper;
+pub use base::callback_wrapper::{CallbackItem, CallbackWrapper};
 pub use base::config::Config;
-pub use base::file_objects::{FileObject, FileObjectVec};
+pub use base::file_object::{FileObject, FileObjectVec};
 pub use base::filters::FileObjectFilter;
 pub use base::list_objects_result::ListObjectsResult;
-pub use base::object_store::{ObjectStore, ObjectStoreTrait};
+pub use base::object_store::{ObjectStore, ObjectStoreTrait, ObjectStoreVec};
 // re-export all defaults
 pub use default::*;
 pub use error::LakestreamError;

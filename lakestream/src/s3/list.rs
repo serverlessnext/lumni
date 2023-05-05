@@ -11,8 +11,8 @@ use super::request_handler::http_get_with_redirect_handling;
 use crate::base::config::Config;
 use crate::http::requests::http_get_request;
 use crate::{
-    FileObject, FileObjectFilter, FileObjectVec, LakestreamError, ObjectStore,
-    ObjectStoreTrait, AWS_MAX_LIST_OBJECTS,
+    FileObject, FileObjectFilter, FileObjectVec, LakestreamError,
+    ObjectStoreTrait, ObjectStoreVec, AWS_MAX_LIST_OBJECTS,
 };
 
 pub struct ListFilesParams<'a> {
@@ -171,7 +171,8 @@ fn process_response_body(
 
 pub async fn list_buckets(
     config: &Config,
-) -> Result<Vec<ObjectStore>, LakestreamError> {
+    object_stores: &mut ObjectStoreVec,
+) -> Result<(), LakestreamError> {
     let mut s3_client = create_s3_client(config, None);
 
     let headers: HashMap<String, String> =
@@ -194,7 +195,8 @@ pub async fn list_buckets(
         }
     };
 
-    Ok(bucket_objects)
+    object_stores.extend_async(bucket_objects).await;
+    Ok(())
 }
 
 fn create_s3_client(config: &Config, bucket_name: Option<&str>) -> S3Client {

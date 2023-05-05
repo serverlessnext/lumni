@@ -5,6 +5,7 @@ use std::pin::Pin;
 use futures::Future;
 use serde::Deserialize;
 
+use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
 type BoxedAsyncCallback = Box<
@@ -35,7 +36,6 @@ impl FileObjectVec {
         iter: T,
     ) {
         let new_file_objects: Vec<FileObject> = iter.into_iter().collect();
-
         if let Some(callback) = &self.callback {
             let fut = (callback)(&new_file_objects);
             fut.await;
@@ -98,8 +98,13 @@ impl FileObject {
         &self.tags
     }
 
-    pub fn printable(&self, full_path: bool) -> String {
+    pub fn println_path(&self) -> String {
+        self.printable(true)
+    }
+
+    fn printable(&self, full_path: bool) -> String {
         let name_without_trailing_slash = self.name.trim_end_matches('/');
+
         let mut name_to_print = if full_path {
             name_without_trailing_slash.to_string()
         } else {
@@ -124,5 +129,11 @@ impl FileObject {
             },
             name_to_print
         )
+    }
+}
+
+impl CallbackItem for FileObject {
+    fn println_path(&self) -> String {
+        self.println_path()
     }
 }

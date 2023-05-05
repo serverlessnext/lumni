@@ -30,6 +30,7 @@ impl S3Credentials {
     }
 }
 
+#[derive(Clone)]
 pub struct S3Bucket {
     name: String,
     config: Config,

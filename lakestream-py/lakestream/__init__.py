@@ -63,8 +63,8 @@ class Client:
 
             client = lakestream.Client()
 
-            # List buckets
-            result = client.list_buckets()
+            # List S3 buckets
+            result = client.list_buckets("s3://")
 
             print(result)
         """

@@ -3,14 +3,17 @@ use std::env;
 
 // start with :: to ensure local crate is used
 use ::lakestream::{
-    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, CallbackWrapper, Config, AWS_DEFAULT_REGION,
+    ListObjectsResult, ObjectStoreHandler, FileObjectFilter, Config, AWS_DEFAULT_REGION,
 };
 use ::lakestream_cli::run_cli;
 
 use tokio::runtime::Runtime;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyDict,PyAny};
-use pyo3::{exceptions, ToPyObject};
+use pyo3::types::{PyList, PyDict, PyAny};
+use pyo3::{exceptions, create_exception, ToPyObject};
+use pyo3::exceptions::PyException;
+
+create_exception!(lakestream, LakestreamError, PyException, "An error occurred in the Lakestream library.");
 
 
 #[pyclass]
@@ -93,19 +96,16 @@ impl _Client {
                         .collect::<Result<Vec<_>, _>>()?; // Collect the PyResult values into a single Result
                     Ok(PyList::new(py, &py_file_objects).to_object(py))
                 }
-                ListObjectsResult::Buckets(buckets) => {
-                    let py_buckets = buckets
-                        .into_iter()
-                        .map(|bucket| bucket.name().to_owned())
-                        .collect::<Vec<_>>();
-                    Ok(PyList::new(py, &py_buckets).to_object(py))
-                }
+                _ => {
+                    let lakestream_error = LakestreamError::new_err(format!("Error listing objects: {}", "Unknown error"));
+                    Err(lakestream_error)
+                },
             },
             Ok(None) => Ok(PyList::empty(py).to_object(py)),
-            Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
-                "Error listing objects: {}",
-                err
-            ))),
+            Err(err) => {
+                let lakestream_error = LakestreamError::new_err(format!("Error listing objects: {}", err));
+                Err(lakestream_error)
+            },
         }
     }
 
@@ -135,19 +135,18 @@ impl _Client {
                         .collect::<Vec<_>>();
                     Ok(PyList::new(py, &py_buckets).to_object(py))
                 }
-                _ => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
-                    "Error listing buckets: unexpected result type"
-                ))),
+                _ => {
+                    let lakestream_error = LakestreamError::new_err(format!("Error listing buckets"));
+                    Err(lakestream_error)
+                },
             },
             Ok(None) => Ok(PyList::empty(py).to_object(py)),
-            Err(err) => Err(PyErr::new::<exceptions::PyValueError, _>(format!(
-                "Error listing buckets: {}",
-                err
-            ))),
+            Err(err) => {
+                let lakestream_error = LakestreamError::new_err(format!("Error listing buckets: {}", err));
+                Err(lakestream_error)
+            },
         }
     }
-
-
 }
 
 #[pymodule]

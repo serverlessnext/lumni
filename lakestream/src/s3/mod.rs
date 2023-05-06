@@ -1,7 +1,10 @@
 pub mod backend;
 mod bucket;
 mod client;
+mod client_config;
+mod client_headers;
 mod config;
+mod get;
 mod list;
 mod parse_http_response;
 mod request_builder;

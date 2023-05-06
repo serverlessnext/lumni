@@ -2,6 +2,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+type SyncCallback<T> = Arc<dyn Fn(&[T]) + Send + Sync + 'static>;
+type AsyncCallback<T> = Arc<
+    dyn Fn(Vec<T>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
 pub trait CallbackItem: Send + Sync + 'static {
     fn println_path(&self) -> String;
 }
@@ -10,15 +18,8 @@ pub enum CallbackWrapper<T>
 where
     T: CallbackItem,
 {
-    Sync(Arc<dyn Fn(&[T]) + Send + Sync + 'static>),
-    Async(
-        Arc<
-            dyn Fn(Vec<T>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                + Send
-                + Sync
-                + 'static,
-        >,
-    ),
+    Sync(SyncCallback<T>),
+    Async(AsyncCallback<T>),
 }
 
 impl<T> CallbackWrapper<T>
@@ -67,6 +68,7 @@ where
         match self {
             CallbackWrapper::Sync(func) => {
                 let mapped_func = move |items: &[U]| {
+                    #[allow(clippy::redundant_closure)]
                     let original_items: Vec<T> =
                         items.iter().map(|item| mapper(item)).collect();
                     func(&original_items)

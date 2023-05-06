@@ -3,7 +3,7 @@ use regex::Regex;
 pub struct ParsedUri {
     pub scheme: Option<String>,
     pub bucket: Option<String>,
-    pub prefix: Option<String>,
+    pub path: Option<String>,
 }
 
 impl ParsedUri {
@@ -12,7 +12,7 @@ impl ParsedUri {
             return ParsedUri {
                 scheme: None,
                 bucket: None,
-                prefix: None,
+                path: None,
             };
         }
 
@@ -22,11 +22,11 @@ impl ParsedUri {
         scheme_match.map_or_else(
             || {
                 // uri has no scheme, assume LocalFsBucket
-                let (bucket, prefix) = parse_uri_path(uri);
+                let (bucket, path) = parse_uri_path(uri);
                 ParsedUri {
                     scheme: None,
                     bucket,
-                    prefix,
+                    path,
                 }
             },
             |scheme_captures| {
@@ -36,14 +36,14 @@ impl ParsedUri {
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket: None,
-                        prefix: None,
+                        path: None,
                     }
                 } else {
-                    let (bucket, prefix) = parse_uri_path(&uri_without_scheme);
+                    let (bucket, path) = parse_uri_path(&uri_without_scheme);
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket,
-                        prefix,
+                        path,
                     }
                 }
             },
@@ -61,12 +61,12 @@ fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
     let is_absolute = cleaned_uri.starts_with('/');
     let mut parts = cleaned_uri.splitn(2, '/');
     let bucket = parts.next().map(|s| s.to_string());
-    let prefix = parts.next().filter(|s| !s.is_empty()).map(|s| {
-        let cleaned_prefix = s.replace("./", "");
-        if cleaned_prefix.ends_with('/') {
-            cleaned_prefix
+    let path = parts.next().filter(|s| !s.is_empty()).map(|s| {
+        let cleaned_path = s.replace("./", "");
+        if cleaned_path.ends_with('/') {
+            cleaned_path
         } else {
-            format!("{}/", cleaned_prefix)
+            format!("{}/", cleaned_path)
         }
     });
 
@@ -76,8 +76,9 @@ fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
         } else {
             bucket
         };
-        return (Some(formatted_bucket), prefix);
+        return (Some(formatted_bucket), path);
     }
 
     (Some(".".to_string()), None)
 }
+

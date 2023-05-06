@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use log::error;
 
-use super::bucket::{configure_bucket_url, S3Bucket, S3Credentials};
+use super::bucket::{S3Bucket, S3Credentials};
 use super::client::{S3Client, S3ClientConfig};
+use super::client_headers::Headers;
 use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
 };
@@ -16,7 +17,6 @@ use crate::{
 };
 
 pub struct ListFilesParams<'a> {
-    s3_bucket: &'a S3Bucket,
     prefix: Option<String>,
     max_keys: Option<u32>,
     s3_client: &'a mut S3Client,
@@ -38,7 +38,6 @@ pub async fn list_files(
 
     list_files_next(
         &mut ListFilesParams {
-            s3_bucket,
             prefix: prefix.map(|p| p.to_owned()),
             max_keys,
             s3_client: &mut s3_client,
@@ -69,14 +68,17 @@ async fn list_files_next(
         loop {
             let (response_body, updated_s3_client) =
                 http_get_with_redirect_handling(
-                    params.s3_bucket.config(),
-                    params.s3_bucket.name(),
                     params.s3_client,
-                    prefix.as_deref(),
-                    Some(effective_max_keys),
-                    params.continuation_token.as_deref(),
+                    |s3_client: &mut S3Client| {
+                        s3_client.generate_list_objects_headers(
+                            prefix.as_deref(),
+                            Some(effective_max_keys),
+                            params.continuation_token.as_deref(),
+                        )
+                    },
                 )
                 .await?;
+
             if let Some(new_s3_client) = updated_s3_client {
                 *params.s3_client = new_s3_client;
             }
@@ -107,11 +109,9 @@ async fn list_files_next(
                 {
                     break;
                 }
-
                 directory_stack.push_back(Some(virtual_directory));
             }
         }
-
         params.continuation_token = None;
     }
 
@@ -173,7 +173,7 @@ pub async fn list_buckets(
     config: &Config,
     object_stores: &mut ObjectStoreVec,
 ) -> Result<(), LakestreamError> {
-    let mut s3_client = create_s3_client(config, None);
+    let s3_client = create_s3_client(config, None);
 
     let headers: HashMap<String, String> =
         s3_client.generate_list_buckets_headers().unwrap();
@@ -199,7 +199,10 @@ pub async fn list_buckets(
     Ok(())
 }
 
-fn create_s3_client(config: &Config, bucket_name: Option<&str>) -> S3Client {
+pub fn create_s3_client(
+    config: &Config,
+    bucket_name: Option<&str>,
+) -> S3Client {
     let region = config
         .get("AWS_REGION")
         .expect("Missing region in the configuration");
@@ -214,10 +217,9 @@ fn create_s3_client(config: &Config, bucket_name: Option<&str>) -> S3Client {
         S3Credentials::new(String::from(access_key), String::from(secret_key));
     let endpoint_url =
         config.settings.get("S3_ENDPOINT_URL").map(String::as_str);
-    let bucket_url = configure_bucket_url(region, endpoint_url, bucket_name);
 
     let s3_client_config =
-        S3ClientConfig::new(credentials, &bucket_url, region);
+        S3ClientConfig::new(credentials, bucket_name, endpoint_url, region);
     S3Client::new(s3_client_config)
 }
 

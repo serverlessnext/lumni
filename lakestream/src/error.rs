@@ -23,7 +23,9 @@ impl fmt::Display for LakestreamError {
             LakestreamError::String(s) => write!(f, "{}", s),
             LakestreamError::ConfigError(s) => write!(f, "Config error: {}", s),
             LakestreamError::Wrapped(e) => write!(f, "{}", e),
-            LakestreamError::NoBucketInUri(s) => write!(f, "No bucket specified in URI: {}", s),
+            LakestreamError::NoBucketInUri(s) => {
+                write!(f, "No bucket specified in URI: {}", s)
+            }
             #[cfg(target_arch = "wasm32")]
             LakestreamError::Js(e) => write!(
                 f,

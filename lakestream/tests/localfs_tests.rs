@@ -26,7 +26,7 @@ async fn test_list_objects() {
     let callback = None;
 
     let result = handler
-        .list_objects(uri, config, recursive, max_files, &filter, callback)
+        .list_objects(&uri, &config, recursive, max_files, &filter, callback)
         .await
         .unwrap();
 

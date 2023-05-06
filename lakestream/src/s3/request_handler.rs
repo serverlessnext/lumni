@@ -1,44 +1,34 @@
-use crate::base::config::Config;
+use std::collections::HashMap;
+
 use crate::http::requests::http_get_request_with_headers;
-use crate::s3::bucket::configure_bucket_url;
 use crate::s3::client::{S3Client, S3ClientConfig};
 use crate::LakestreamError;
+use log::info;
 
-async fn handle_redirect(
-    s3_bucket_config: &Config,
-    s3_bucket_name: &str,
-    s3_client: &S3Client,
-    new_region: &str,
-) -> S3Client {
-    let endpoint_url = s3_bucket_config
-        .settings
-        .get("S3_ENDPOINT_URL")
-        .map(String::as_str);
-    let bucket_url =
-        configure_bucket_url(new_region, endpoint_url, Some(s3_bucket_name));
-    let credentials = s3_client.credentials().clone();
+async fn handle_redirect(s3_client: &S3Client, new_region: &str) -> S3Client {
+    let config = s3_client.config();
+    let bucket_name = config.bucket_name();
+    let credentials = config.credentials().clone();
+    let endpoint_url = config.endpoint_url();
+
     let s3_client_config =
-        S3ClientConfig::new(credentials, &bucket_url, new_region);
+        S3ClientConfig::new(credentials, bucket_name, endpoint_url, new_region);
     S3Client::new(s3_client_config)
 }
 
-pub async fn http_get_with_redirect_handling(
-    s3_bucket_config: &Config,
-    s3_bucket_name: &str,
+pub async fn http_get_with_redirect_handling<F>(
     s3_client: &S3Client,
-    prefix: Option<&str>,
-    max_keys: Option<u32>,
-    continuation_token: Option<&str>,
-) -> Result<(String, Option<S3Client>), LakestreamError> {
+    generate_headers: F,
+) -> Result<(String, Option<S3Client>), LakestreamError>
+where
+    F: Fn(&mut S3Client) -> Result<HashMap<String, String>, LakestreamError>,
+{
     let mut current_s3_client = s3_client.clone();
 
     loop {
-        let headers = &current_s3_client
-            .generate_list_objects_headers(prefix, max_keys, continuation_token)
-            .unwrap();
-
+        let headers = generate_headers(&mut current_s3_client)?;
         let result =
-            http_get_request_with_headers(&current_s3_client.url(), headers)
+            http_get_request_with_headers(&current_s3_client.url(), &headers)
                 .await;
 
         match result {
@@ -47,13 +37,9 @@ pub async fn http_get_with_redirect_handling(
                     if let Some(new_region) =
                         response_headers.get("x-amz-bucket-region")
                     {
-                        current_s3_client = handle_redirect(
-                            s3_bucket_config,
-                            s3_bucket_name,
-                            &current_s3_client,
-                            new_region,
-                        )
-                        .await;
+                        current_s3_client =
+                            handle_redirect(&current_s3_client, new_region)
+                                .await;
                     } else {
                         let error = "Error: Redirect without \
                                      x-amz-bucket-region header";

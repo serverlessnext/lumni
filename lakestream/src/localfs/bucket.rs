@@ -75,4 +75,11 @@ impl ObjectStoreTrait for LocalFsBucket {
         .await;
         Ok(())
     }
+
+    async fn get_object(&self, key: &str) -> Result<String, LakestreamError> {
+        // Implement the logic to fetch the object from local filesystem.
+        // Replace the following lines with actual API calls later.
+        let dummy_data = format!("LocalFS object data for key: {}", key);
+        Ok(dummy_data)
+    }
 }

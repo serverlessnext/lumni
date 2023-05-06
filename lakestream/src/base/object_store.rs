@@ -217,6 +217,18 @@ impl ObjectStore {
             }
         }
     }
+
+    pub async fn get_object(
+        &self,
+        key: &str,
+    ) -> Result<String, LakestreamError> {
+        match self {
+            ObjectStore::S3Bucket(bucket) => bucket.get_object(key).await,
+            ObjectStore::LocalFsBucket(local_fs) => {
+                local_fs.get_object(key).await
+            }
+        }
+    }
 }
 
 impl CallbackItem for ObjectStore {
@@ -237,6 +249,7 @@ pub trait ObjectStoreTrait {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec, // Change this parameter
     ) -> Result<(), LakestreamError>;
+    async fn get_object(&self, key: &str) -> Result<String, LakestreamError>;
 }
 
 pub async fn object_stores_from_config(

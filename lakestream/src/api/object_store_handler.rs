@@ -25,13 +25,18 @@ impl ObjectStoreHandler {
         filter: &Option<FileObjectFilter>,
         callback: Option<CallbackWrapper<FileObject>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(&uri);
+        let parsed_uri = ParsedUri::from_uri(uri);
 
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
             info!("Listing files in bucket {}", bucket);
             self.list_files_in_bucket(
-                parsed_uri, config.clone(), recursive, max_files, filter, callback,
+                parsed_uri,
+                config.clone(),
+                recursive,
+                max_files,
+                filter,
+                callback,
             )
             .await
         } else {
@@ -45,32 +50,58 @@ impl ObjectStoreHandler {
         config: &Config,
         callback: Option<CallbackWrapper<ObjectStore>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(&uri);
+        let parsed_uri = ParsedUri::from_uri(uri);
 
         if let Some(bucket) = &parsed_uri.bucket {
             panic!("list_buckets called with bucket {}", bucket);
-        }else {
+        } else {
             // list buckets
             // Clone the original config and update the settings
             // will change the input config to reference at future update
-             let mut updated_config = config.clone();
-             updated_config.settings.insert(
-                 "uri".to_string(),
-                 format!("{}://", parsed_uri.scheme.unwrap()),
-             );
+            let mut updated_config = config.clone();
+            updated_config.settings.insert(
+                "uri".to_string(),
+                format!("{}://", parsed_uri.scheme.unwrap()),
+            );
 
             let object_stores =
                 object_stores_from_config(updated_config, &callback).await?;
 
-            if let Some(_) = callback {
+            if callback.is_some() {
                 // callback used, so can just return None
-                info!("Callback used, so returning None");
                 Ok(None)
-                // Ok(Some(ListObjectsResult::Buckets(object_stores.into_inner())))
             } else {
                 // no callback used, so convert the ObjectStoreVec to a Vec<ObjectStore>
                 Ok(Some(ListObjectsResult::Buckets(object_stores.into_inner())))
             }
+        }
+    }
+
+    pub async fn get_object(
+        &self,
+        uri: &str,
+        config: &Config,
+    ) -> Result<String, LakestreamError> {
+        let parsed_uri = ParsedUri::from_uri(uri);
+
+        if let Some(bucket) = &parsed_uri.bucket {
+            // Get the object from the bucket
+            info!("Getting object from bucket {}", bucket);
+            let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
+                format!("{}://{}", scheme, bucket)
+            } else {
+                format!("localfs://{}", bucket)
+            };
+
+            let object_store =
+                ObjectStore::new(&bucket_uri, config.clone()).unwrap();
+
+            let key = parsed_uri.path.as_deref().unwrap();
+            let data = object_store.get_object(key).await?;
+
+            Ok(data)
+        } else {
+            Err(LakestreamError::NoBucketInUri(uri.to_string()))
         }
     }
 
@@ -93,7 +124,7 @@ impl ObjectStoreHandler {
         if let Some(callback) = callback {
             object_store
                 .list_files_with_callback(
-                    parsed_uri.prefix.as_deref(),
+                    parsed_uri.path.as_deref(),
                     recursive,
                     max_files,
                     filter,
@@ -104,7 +135,7 @@ impl ObjectStoreHandler {
         } else {
             let file_objects = object_store
                 .list_files(
-                    parsed_uri.prefix.as_deref(),
+                    parsed_uri.path.as_deref(),
                     recursive,
                     max_files,
                     filter,

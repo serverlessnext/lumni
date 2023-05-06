@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use super::get::get_object;
 use super::list::list_files;
 use crate::base::config::Config;
 use crate::s3::config::validate_config;
@@ -85,6 +86,11 @@ impl ObjectStoreTrait for S3Bucket {
     ) -> Result<(), LakestreamError> {
         list_files(self, prefix, recursive, max_keys, filter, file_objects)
             .await
+    }
+
+    async fn get_object(&self, key: &str) -> Result<String, LakestreamError> {
+        // Call the new get_object() function in the separate file
+        get_object(self, key).await
     }
 }
 

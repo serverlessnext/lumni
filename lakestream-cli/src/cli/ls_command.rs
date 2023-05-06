@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use lakestream::{
-    CallbackWrapper, CallbackItem, Config, FileObjectFilter,
-    ListObjectsResult, ObjectStoreHandler, LakestreamError,
+    CallbackItem, CallbackWrapper, Config, FileObjectFilter, LakestreamError,
+    ListObjectsResult, ObjectStoreHandler,
 };
 use log::info;
-
 
 pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     let (uri, config, recursive, max_files, filter) =
@@ -13,7 +12,8 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
 
     let handler = ObjectStoreHandler::new(None);
 
-    let callback = Some(CallbackWrapper::create_async(print_callback_items_async));
+    let callback =
+        Some(CallbackWrapper::create_async(print_callback_items_async));
 
     match handler
         .list_objects(
@@ -63,7 +63,8 @@ async fn handle_list_objects_result(list_objects_result: ListObjectsResult) {
 async fn handle_list_buckets(uri: &str, config: &Config) {
     log::info!("Calling list_buckets");
     let handler = ObjectStoreHandler::new(None);
-    let callback = Some(CallbackWrapper::create_async(print_callback_items_async));
+    let callback =
+        Some(CallbackWrapper::create_async(print_callback_items_async));
     match handler.list_buckets(uri, config, callback).await {
         Ok(Some(list_objects_result)) => {
             handle_list_objects_result(list_objects_result).await;
@@ -76,8 +77,6 @@ async fn handle_list_buckets(uri: &str, config: &Config) {
         }
     }
 }
-
-
 
 fn prepare_handle_ls_arguments(
     ls_matches: &clap::ArgMatches,

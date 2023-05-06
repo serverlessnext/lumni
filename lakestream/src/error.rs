@@ -10,6 +10,8 @@ pub enum LakestreamError {
     String(String),
     ConfigError(String),
     NoBucketInUri(String),
+    InternalError(String),
+    NotFound(String),
     #[cfg(target_arch = "wasm32")]
     Js(wasm_bindgen::JsValue),
     Wrapped(Box<dyn Error + 'static>),
@@ -26,6 +28,8 @@ impl fmt::Display for LakestreamError {
             LakestreamError::NoBucketInUri(s) => {
                 write!(f, "No bucket specified in URI: {}", s)
             }
+            LakestreamError::InternalError(s) => write!(f, "Internal error: {}", s),
+            LakestreamError::NotFound(s) => write!(f, "Not found: {}", s),
             #[cfg(target_arch = "wasm32")]
             LakestreamError::Js(e) => write!(
                 f,

@@ -4,3 +4,4 @@ pub mod file_object;
 pub mod filters;
 pub mod list_objects_result;
 pub mod object_store;
+pub mod object_store_helpers;

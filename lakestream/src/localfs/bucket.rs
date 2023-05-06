@@ -5,6 +5,7 @@ use std::path::Path;
 use async_trait::async_trait;
 
 use super::list::list_files;
+use super::get::get_object;
 use crate::base::config::Config;
 use crate::{
     FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
@@ -77,9 +78,7 @@ impl ObjectStoreTrait for LocalFsBucket {
     }
 
     async fn get_object(&self, key: &str) -> Result<String, LakestreamError> {
-        // Implement the logic to fetch the object from local filesystem.
-        // Replace the following lines with actual API calls later.
-        let dummy_data = format!("LocalFS object data for key: {}", key);
-        Ok(dummy_data)
+        let path = Path::new(&self.name);
+        get_object(&path, key)
     }
 }

@@ -143,4 +143,22 @@ impl _Client {
             },
         }
     }
+
+    fn get_object(&self, _py: Python, uri: String) -> PyResult<String> {
+        // Create a new Tokio runtime
+        let rt = Runtime::new().unwrap();
+
+        // Call the async function and block on it to get the result
+        let handler = ObjectStoreHandler::new(None);
+        let result = rt.block_on(handler.get_object(&uri, &self.config));
+
+        match result {
+            Ok(data) => Ok(data),
+            Err(err) => {
+                let lakestream_error = LakestreamError::new_err(format!("Error getting object: {}", err));
+                Err(lakestream_error)
+            },
+        }
+    }
+
 }

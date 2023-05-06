@@ -25,7 +25,7 @@ impl ObjectStoreHandler {
         filter: &Option<FileObjectFilter>,
         callback: Option<CallbackWrapper<FileObject>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri);
+        let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
@@ -50,7 +50,7 @@ impl ObjectStoreHandler {
         config: &Config,
         callback: Option<CallbackWrapper<ObjectStore>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri);
+        let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(bucket) = &parsed_uri.bucket {
             panic!("list_buckets called with bucket {}", bucket);
@@ -82,7 +82,7 @@ impl ObjectStoreHandler {
         uri: &str,
         config: &Config,
     ) -> Result<String, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri);
+        let parsed_uri = ParsedUri::from_uri(uri, false);
 
         if let Some(bucket) = &parsed_uri.bucket {
             // Get the object from the bucket

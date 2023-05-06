@@ -7,7 +7,7 @@ pub struct ParsedUri {
 }
 
 impl ParsedUri {
-    pub fn from_uri(uri: &str) -> ParsedUri {
+    pub fn from_uri(uri: &str, append_slash: bool) -> ParsedUri {
         if uri.is_empty() {
             return ParsedUri {
                 scheme: None,
@@ -22,7 +22,7 @@ impl ParsedUri {
         scheme_match.map_or_else(
             || {
                 // uri has no scheme, assume LocalFsBucket
-                let (bucket, path) = parse_uri_path(uri);
+                let (bucket, path) = parse_uri_path(uri, append_slash);
                 ParsedUri {
                     scheme: None,
                     bucket,
@@ -39,7 +39,7 @@ impl ParsedUri {
                         path: None,
                     }
                 } else {
-                    let (bucket, path) = parse_uri_path(&uri_without_scheme);
+                    let (bucket, path) = parse_uri_path(&uri_without_scheme, append_slash);
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket,
@@ -51,7 +51,7 @@ impl ParsedUri {
     }
 }
 
-fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
+fn parse_uri_path(uri_path: &str, append_slash: bool) -> (Option<String>, Option<String>) {
     let cleaned_uri = uri_path.trim_end_matches('.');
 
     if cleaned_uri.is_empty() {
@@ -61,12 +61,21 @@ fn parse_uri_path(uri_path: &str) -> (Option<String>, Option<String>) {
     let is_absolute = cleaned_uri.starts_with('/');
     let mut parts = cleaned_uri.splitn(2, '/');
     let bucket = parts.next().map(|s| s.to_string());
+
     let path = parts.next().filter(|s| !s.is_empty()).map(|s| {
         let cleaned_path = s.replace("./", "");
         if cleaned_path.ends_with('/') {
-            cleaned_path
+            if append_slash {
+                cleaned_path
+            } else {
+                cleaned_path.trim_end_matches('/').to_string()
+            }
         } else {
-            format!("{}/", cleaned_path)
+            if append_slash {
+                format!("{}/", cleaned_path)
+            } else {
+                cleaned_path
+            }
         }
     });
 

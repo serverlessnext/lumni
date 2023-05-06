@@ -1,6 +1,5 @@
 from .lakestream import _Client
 
-
 class Client:
     def __init__(self):
         """
@@ -69,3 +68,28 @@ class Client:
             print(result)
         """
         return self._client.list_buckets(uri)
+
+
+    def get_object(self, uri):
+        """
+        Get the content of the specified object.
+
+        :param uri: The URI of the object in the storage.
+        :type uri: str
+        :return: The content of the object as a string.
+        :rtype: str
+
+        Example usage:
+
+        .. code-block:: python
+
+            import lakestream
+
+            client = lakestream.Client()
+
+            # Get the content of a specific object
+            result = client.get_object("s3://your-bucket/object-key")
+
+            print(result)
+        """
+        return self._client.get_object(uri)

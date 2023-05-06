@@ -35,4 +35,3 @@ pub fn get_object(path: &Path, key: &str) -> Result<String, LakestreamError> {
         )))
     }
 }
-

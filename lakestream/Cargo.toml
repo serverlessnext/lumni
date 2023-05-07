@@ -34,6 +34,7 @@ time = { version = "0.3", features = ["parsing"]}
 hyper = { version = "0.14", default-features = false, features = ["client", "http1", "http2"]}
 hyper-tls = { version = "0.5" }
 native-tls = { version = "0.2" }
+openssl-sys = { version = "0.9", features = ["vendored"] }
 tokio-native-tls = { version = "0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -28,7 +28,9 @@ impl fmt::Display for LakestreamError {
             LakestreamError::NoBucketInUri(s) => {
                 write!(f, "No bucket specified in URI: {}", s)
             }
-            LakestreamError::InternalError(s) => write!(f, "Internal error: {}", s),
+            LakestreamError::InternalError(s) => {
+                write!(f, "Internal error: {}", s)
+            }
             LakestreamError::NotFound(s) => write!(f, "Not found: {}", s),
             #[cfg(target_arch = "wasm32")]
             LakestreamError::Js(e) => write!(

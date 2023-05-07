@@ -1,14 +1,14 @@
-
 use std::pin::Pin;
-use futures::Future;
 
+use futures::Future;
 use log::error;
 
-use crate::{ObjectStore, ObjectStoreVec, CallbackWrapper, Config, LakestreamError};
 use crate::api::object_store_handler::ObjectStoreBackend;
 use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
-
+use crate::{
+    CallbackWrapper, Config, LakestreamError, ObjectStore, ObjectStoreVec,
+};
 
 pub type BoxedAsyncCallbackForObjectStore = Box<
     dyn Fn(&[ObjectStore]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>

@@ -4,8 +4,9 @@ use log::info;
 use crate::base::object_store::object_stores_from_config;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
-    CallbackWrapper, Config, FileObject, FileObjectFilter, LakestreamError,
-    ListObjectsResult, ObjectStore, ObjectStoreVec,
+    BinaryCallbackWrapper, CallbackWrapper, Config, FileObject,
+    FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore,
+    ObjectStoreVec,
 };
 
 pub struct ObjectStoreHandler {}
@@ -81,25 +82,36 @@ impl ObjectStoreHandler {
         &self,
         uri: &str,
         config: &Config,
-    ) -> Result<String, LakestreamError> {
+        callback: Option<BinaryCallbackWrapper>,
+    ) -> Result<Option<Vec<u8>>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, false);
 
         if let Some(bucket) = &parsed_uri.bucket {
             // Get the object from the bucket
-            info!("Getting object from bucket {}", bucket);
             let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
                 format!("{}://{}", scheme, bucket)
             } else {
                 format!("localfs://{}", bucket)
             };
 
+            let key = parsed_uri.path.as_deref().unwrap();
             let object_store =
                 ObjectStore::new(&bucket_uri, config.clone()).unwrap();
 
-            let key = parsed_uri.path.as_deref().unwrap();
-            let data = object_store.get_object(key).await?;
-
-            Ok(data)
+            // NOTE: initial callback implementation for get_object. In future updates the callback
+            // mechanism will be pushed to the underlying object store methods, so we can add
+            // chunking as well for increased performance and ability to handle big files that not
+            // fit in memory
+            if let Some(callback) = callback {
+                let mut data = Vec::new();
+                object_store.get_object(key, &mut data).await?;
+                callback.call(data);
+                Ok(None)
+            } else {
+                let mut data = Vec::new();
+                object_store.get_object(key, &mut data).await?;
+                Ok(Some(data))
+            }
         } else {
             Err(LakestreamError::NoBucketInUri(uri.to_string()))
         }

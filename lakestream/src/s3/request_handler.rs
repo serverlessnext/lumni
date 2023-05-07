@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::http::requests::http_get_request_with_headers;
 use crate::s3::client::{S3Client, S3ClientConfig};
 use crate::LakestreamError;
-use log::info;
 
 async fn handle_redirect(s3_client: &S3Client, new_region: &str) -> S3Client {
     let config = s3_client.config();

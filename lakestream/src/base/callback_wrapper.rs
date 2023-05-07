@@ -86,3 +86,50 @@ where
         }
     }
 }
+
+type BinaryAsyncCallback = Arc<
+    dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
+pub enum BinaryCallbackWrapper {
+    Async(BinaryAsyncCallback),
+}
+
+impl BinaryCallbackWrapper {
+    pub fn create_async<F, Fut>(func: F) -> Self
+    where
+        F: Fn(Vec<u8>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        let wrapped_func = Self::wrap_async_fn(func);
+        BinaryCallbackWrapper::Async(Arc::new(wrapped_func))
+    }
+
+    fn wrap_async_fn<F, Fut>(
+        func: F,
+    ) -> impl Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+           + Send
+           + Sync
+           + 'static
+    where
+        F: Fn(Vec<u8>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        move |objects: Vec<u8>| {
+            let future = func(objects);
+            Box::pin(future)
+                as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+        }
+    }
+
+    pub fn call(&self, data: Vec<u8>) {
+        match self {
+            BinaryCallbackWrapper::Async(callback) => {
+                callback(data);
+            }
+        }
+    }
+}

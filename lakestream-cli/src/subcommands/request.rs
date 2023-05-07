@@ -1,11 +1,10 @@
-
-pub use super::x_handler::handle_x;
-
 use clap::{Arg, Command};
 
+pub use super::request_handler::handle_request;
 
-pub fn x_subcommand() -> Command {
+pub fn request_subcommand() -> Command {
     Command::new("-X")
+        .long_flag("request")
         .about("Performs an HTTP request (eg. GET or PUT)")
         .arg(
             Arg::new("method")
@@ -17,7 +16,7 @@ pub fn x_subcommand() -> Command {
         .arg(
             Arg::new("uri")
                 .index(2)
-                .required(false)
+                .required(true)
                 .help("File for the HTTP request"),
         )
 }

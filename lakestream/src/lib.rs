@@ -8,7 +8,9 @@ pub(crate) mod s3;
 pub(crate) mod utils;
 
 pub use api::object_store_handler::{ObjectStoreBackend, ObjectStoreHandler};
-pub use base::callback_wrapper::{CallbackItem, CallbackWrapper};
+pub use base::callback_wrapper::{
+    BinaryCallbackWrapper, CallbackItem, CallbackWrapper,
+};
 pub use base::config::Config;
 pub use base::file_object::{FileObject, FileObjectVec};
 pub use base::filters::FileObjectFilter;

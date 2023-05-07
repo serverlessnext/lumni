@@ -4,16 +4,15 @@ use std::pin::Pin;
 use async_trait::async_trait;
 use futures::Future;
 
+pub use super::object_store_helpers::object_stores_from_config;
+use super::object_store_helpers::BoxedAsyncCallbackForObjectStore;
 use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, Config, FileObject, FileObjectFilter, FileObjectVec,
-    LakestreamError,
+    CallbackWrapper, Config, FileObject,
+    FileObjectFilter, FileObjectVec, LakestreamError,
 };
-
-use super::object_store_helpers::BoxedAsyncCallbackForObjectStore;
-pub use super::object_store_helpers::object_stores_from_config;
 
 pub struct ObjectStoreVec {
     object_stores: Vec<ObjectStore>,
@@ -215,11 +214,12 @@ impl ObjectStore {
     pub async fn get_object(
         &self,
         key: &str,
-    ) -> Result<String, LakestreamError> {
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError> {
         match self {
-            ObjectStore::S3Bucket(bucket) => bucket.get_object(key).await,
+            ObjectStore::S3Bucket(bucket) => bucket.get_object(key, data).await,
             ObjectStore::LocalFsBucket(local_fs) => {
-                local_fs.get_object(key).await
+                local_fs.get_object(key, data).await
             }
         }
     }
@@ -243,5 +243,9 @@ pub trait ObjectStoreTrait {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec, // Change this parameter
     ) -> Result<(), LakestreamError>;
-    async fn get_object(&self, key: &str) -> Result<String, LakestreamError>;
+    async fn get_object(
+        &self,
+        key: &str,
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError>;
 }

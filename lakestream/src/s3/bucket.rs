@@ -88,9 +88,12 @@ impl ObjectStoreTrait for S3Bucket {
             .await
     }
 
-    async fn get_object(&self, key: &str) -> Result<String, LakestreamError> {
-        // Call the new get_object() function in the separate file
-        get_object(self, key).await
+    async fn get_object(
+        &self,
+        key: &str,
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError> {
+        get_object(self, key, data).await
     }
 }
 

@@ -39,7 +39,8 @@ impl ParsedUri {
                         path: None,
                     }
                 } else {
-                    let (bucket, path) = parse_uri_path(&uri_without_scheme, append_slash);
+                    let (bucket, path) =
+                        parse_uri_path(&uri_without_scheme, append_slash);
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket,
@@ -51,7 +52,10 @@ impl ParsedUri {
     }
 }
 
-fn parse_uri_path(uri_path: &str, append_slash: bool) -> (Option<String>, Option<String>) {
+fn parse_uri_path(
+    uri_path: &str,
+    append_slash: bool,
+) -> (Option<String>, Option<String>) {
     let cleaned_uri = uri_path.trim_end_matches('.');
 
     if cleaned_uri.is_empty() {
@@ -70,14 +74,18 @@ fn parse_uri_path(uri_path: &str, append_slash: bool) -> (Option<String>, Option
             } else {
                 cleaned_path.trim_end_matches('/').to_string()
             }
+        } else if append_slash {
+            format!("{}/", cleaned_path)
         } else {
-            if append_slash {
-                format!("{}/", cleaned_path)
-            } else {
-                cleaned_path
-            }
+            cleaned_path
         }
     });
+
+    // If there is no path, treat the input as a path instead of a bucket
+    // bucket is currenth path on LocalFs
+    if path.is_none() && bucket.is_some() {
+        return (Some(".".to_string()), bucket);
+    }
 
     if let Some(bucket) = bucket {
         let formatted_bucket = if is_absolute {
@@ -90,4 +98,3 @@ fn parse_uri_path(uri_path: &str, append_slash: bool) -> (Option<String>, Option
 
     (Some(".".to_string()), None)
 }
-

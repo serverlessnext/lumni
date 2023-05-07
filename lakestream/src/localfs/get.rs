@@ -6,7 +6,11 @@ use std::path::Path;
 
 use crate::LakestreamError;
 
-pub fn get_object(path: &Path, key: &str) -> Result<String, LakestreamError> {
+pub async fn get_object(
+    path: &Path,
+    key: &str,
+    data: &mut Vec<u8>,
+) -> Result<(), LakestreamError> {
     let object_path = path.join(key);
 
     if object_path.is_file() {
@@ -18,8 +22,7 @@ pub fn get_object(path: &Path, key: &str) -> Result<String, LakestreamError> {
             ))
         })?;
 
-        let mut content = String::new();
-        file.read_to_string(&mut content).map_err(|err| {
+        file.read_to_end(data).map_err(|err| {
             LakestreamError::InternalError(format!(
                 "Failed to read file {}: {}",
                 object_path.display(),
@@ -27,7 +30,7 @@ pub fn get_object(path: &Path, key: &str) -> Result<String, LakestreamError> {
             ))
         })?;
 
-        Ok(content)
+        Ok(())
     } else {
         Err(LakestreamError::NotFound(format!(
             "Object not found for key: {}",

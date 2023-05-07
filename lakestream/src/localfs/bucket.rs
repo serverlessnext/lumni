@@ -4,8 +4,8 @@ use std::path::Path;
 
 use async_trait::async_trait;
 
-use super::list::list_files;
 use super::get::get_object;
+use super::list::list_files;
 use crate::base::config::Config;
 use crate::{
     FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
@@ -77,8 +77,12 @@ impl ObjectStoreTrait for LocalFsBucket {
         Ok(())
     }
 
-    async fn get_object(&self, key: &str) -> Result<String, LakestreamError> {
+    async fn get_object(
+        &self,
+        key: &str,
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError> {
         let path = Path::new(&self.name);
-        get_object(&path, key)
+        get_object(path, key, data).await
     }
 }

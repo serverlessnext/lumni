@@ -1,19 +1,21 @@
+use clap::{Arg, ArgAction, Command};
 
 pub use super::ls_handler::handle_ls;
-
-use clap::{Arg, ArgAction, Command};
 
 pub fn ls_subcommand() -> Command {
     Command::new("ls")
         .about("List objects on Local Filesystem or an S3 bucket")
         .arg(
-            Arg::new("uri").index(1).required(true).help(
-                "URI to list objects from. E.g. s3://bucket-name/",
+            Arg::new("uri")
+                .index(1)
+                .required(true)
+                .help("URI to list objects from. E.g. s3://bucket-name/"),
+        )
+        .arg(
+            Arg::new("name").long("name").short('n').help(
+                "Filter objects based on name. E.g. 'foo', 'foo.*', '.*bar'",
             ),
         )
-        .arg(Arg::new("name").long("name").short('n').help(
-            "Filter objects based on name. E.g. 'foo', 'foo.*', '.*bar'",
-        ))
         .arg(
             Arg::new("size")
                 .long("size")
@@ -21,7 +23,8 @@ pub fn ls_subcommand() -> Command {
                 .num_args(1)
                 .allow_hyphen_values(true)
                 .help(
-                    "Filter objects based on size. E.g. '-1K', '+4M', '+1G', '-1G', '5G', '1G-2G'",
+                    "Filter objects based on size. E.g. '-1K', '+4M', '+1G', \
+                     '-1G', '5G', '1G-2G'",
                 ),
         )
         .arg(
@@ -31,7 +34,8 @@ pub fn ls_subcommand() -> Command {
                 .num_args(1)
                 .allow_hyphen_values(true)
                 .help(
-                    "Filter objects based on the time offset. E.g. '-60s', '+5m', '-1h', '+2D', '-3W', '+1M', '-1Y'",
+                    "Filter objects based on the time offset. E.g. '-60s', \
+                     '+5m', '-1h', '+2D', '-3W', '+1M', '-1Y'",
                 ),
         )
         .arg(

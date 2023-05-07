@@ -1,15 +1,12 @@
-
-use std::collections::HashMap;
-
 use lakestream::{
     CallbackItem, CallbackWrapper, Config, FileObjectFilter, LakestreamError,
     ListObjectsResult, ObjectStoreHandler,
 };
 use log::info;
 
-pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
-    let (uri, config, recursive, max_files, filter) =
-        prepare_handle_ls_arguments(ls_matches, region);
+pub async fn handle_ls(ls_matches: &clap::ArgMatches, config: &mut Config) {
+    let (uri, recursive, max_files, filter) =
+        prepare_handle_ls_arguments(ls_matches);
 
     let handler = ObjectStoreHandler::new(None);
 
@@ -19,7 +16,7 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
     match handler
         .list_objects(
             &uri,
-            &config,
+            config,
             recursive,
             Some(max_files),
             &filter,
@@ -34,7 +31,7 @@ pub async fn handle_ls(ls_matches: &clap::ArgMatches, region: Option<String>) {
             println!("Done");
         }
         Err(LakestreamError::NoBucketInUri(_)) => {
-            handle_list_buckets(&uri, &config).await;
+            handle_list_buckets(&uri, config).await;
         }
         Err(err) => {
             eprintln!("Error: {:?}", err);
@@ -81,8 +78,7 @@ async fn handle_list_buckets(uri: &str, config: &Config) {
 
 fn prepare_handle_ls_arguments(
     ls_matches: &clap::ArgMatches,
-    region: Option<String>,
-) -> (String, Config, bool, u32, Option<FileObjectFilter>) {
+) -> (String, bool, u32, Option<FileObjectFilter>) {
     let recursive = *ls_matches.get_one::<bool>("recursive").unwrap_or(&false);
     let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
 
@@ -120,17 +116,7 @@ fn prepare_handle_ls_arguments(
         .parse::<u32>()
         .expect("Invalid value for max_files");
 
-    let mut config_hashmap = HashMap::new();
-    if let Some(region) = region {
-        config_hashmap.insert("region".to_string(), region);
-    }
-
-    // Create a Config instance
-    let config = Config {
-        settings: config_hashmap,
-    };
-
-    (uri, config, recursive, max_files, filter)
+    (uri, recursive, max_files, filter)
 }
 
 async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {

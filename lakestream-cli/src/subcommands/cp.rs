@@ -1,6 +1,6 @@
-pub use super::cp_handler::handle_cp;
-
 use clap::{Arg, Command};
+
+pub use super::cp_handler::handle_cp;
 
 pub fn cp_subcommand() -> Command {
     Command::new("cp")
@@ -18,4 +18,3 @@ pub fn cp_subcommand() -> Command {
                 .help("Target URI to copy objects to"),
         )
 }
-

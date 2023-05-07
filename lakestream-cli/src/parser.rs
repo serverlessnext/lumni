@@ -1,13 +1,13 @@
+use std::collections::HashMap;
 use std::env;
 
-use crate::subcommands::ls::*;
-use crate::subcommands::x::*;
-use crate::subcommands::cp::*;
-
 use clap::{Arg, Command};
-use env_logger;
+use lakestream::Config;
 use tokio::runtime::Builder;
 
+use crate::subcommands::cp::*;
+use crate::subcommands::ls::*;
+use crate::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "lakestream";
 
@@ -27,29 +27,41 @@ pub fn run_cli(args: Vec<String>) {
                 .short('r')
                 .help("Region to use"),
         )
-        .subcommand(x_subcommand())    // "-X [GET,PUT]"
-        .subcommand(ls_subcommand())    // "ls [URI]"
-        .subcommand(cp_subcommand());   // "cp" [SOURCE] [TARGET]
+        .subcommand(request_subcommand()) // "-X/--request [GET,PUT]"
+        .subcommand(ls_subcommand()) // "ls [URI]"
+        .subcommand(cp_subcommand()); // "cp" [SOURCE] [TARGET]
 
     let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
         e.exit();
     });
 
-    let region = matches.get_one::<String>("region").map(ToString::to_string);
+    let mut config = create_initial_config(&matches);
+    let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
+    match matches.subcommand() {
+        Some(("-X", matches)) => {
+            rt.block_on(handle_request(matches, &mut config));
+        }
+        Some(("ls", matches)) => {
+            rt.block_on(handle_ls(matches, &mut config));
+        }
+        Some(("cp", matches)) => {
+            rt.block_on(handle_cp(matches, &mut config));
+        }
+        _ => {
+            eprintln!("No valid subcommand provided");
+        }
+    }
+}
 
-    if let Some(x_matches) = matches.subcommand_matches("-X") {
-        let method = x_matches.get_one::<String>("method").unwrap();
-        let uri = x_matches.get_one::<String>("uri").unwrap();
-        let rt = Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(handle_x(&method, &uri));
-    } else if let Some(ls_matches) = matches.subcommand_matches("ls") {
-        let rt = Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(handle_ls(ls_matches, region));
-    } else if let Some(cp_matches) = matches.subcommand_matches("cp") {
-        let source = cp_matches.get_one::<String>("source").unwrap();
-        let target = cp_matches.get_one::<String>("target").unwrap();
-        let rt = Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(handle_cp(&source, &target));
+fn create_initial_config(matches: &clap::ArgMatches) -> Config {
+    let mut config_hashmap = HashMap::new();
+    if let Some(region) = matches.get_one::<String>("region") {
+        config_hashmap.insert("region".to_string(), region.to_string());
+    }
+
+    // Create a Config instance
+    Config {
+        settings: config_hashmap,
     }
 }

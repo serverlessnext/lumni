@@ -7,9 +7,9 @@ class Client:
         """
         self._client = _Client()
 
-    def list(self, uri, recursive=False, max_files=None, filter_dict=None):
+    def list_objects(self, uri, recursive=False, max_files=None, filter_dict=None):
         """
-        List objects or buckets from the given URI.
+        List objects from the given URI.
 
         :param uri: The URI of the object storage.
         :type uri: str
@@ -45,7 +45,7 @@ class Client:
 
             print(result)
         """
-        return self._client.list(uri, recursive, max_files, filter_dict)
+        return self._client.list_objects(uri, recursive, max_files, filter_dict)
 
     def list_buckets(self, uri):
         """

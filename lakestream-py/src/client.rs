@@ -43,7 +43,7 @@ impl _Client {
         Ok(())
     }
 
-    fn list(
+    fn list_objects(
         &self,
         py: Python,
         uri: String,

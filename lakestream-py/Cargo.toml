@@ -19,3 +19,5 @@ project-name = "lakestream"
 
 [profile.release]
 lto = true
+opt-level = "s"
+panic = "abort"

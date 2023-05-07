@@ -1,2 +1,4 @@
-pub(crate) mod cli;
-pub use cli::parser::run_cli;
+pub(crate) mod parser;
+pub(crate) mod subcommands;
+
+pub use parser::run_cli;

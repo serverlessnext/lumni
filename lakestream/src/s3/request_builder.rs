@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use hmac::{Hmac, Mac, NewMac};
-use itertools::Itertools;
 use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
 use url::{form_urlencoded, Url};
@@ -48,12 +47,15 @@ impl RequestBuilder {
         let canonical_uri = self.get_canonical_uri(&url, resource);
 
         let canonical_headers = self.get_canonical_headers(&headers);
-        let signed_headers = headers
+
+        let mut signed_headers: Vec<String> = headers
             .keys()
             .map(|key| key.to_lowercase())
-            .sorted()
-            .collect::<Vec<String>>()
-            .join(";");
+            .collect();
+
+        signed_headers.sort();
+
+        let signed_headers_str = signed_headers.join(";");
 
         let canonical_query_string =
             self.get_canonical_query_string(query_string)?;
@@ -64,7 +66,7 @@ impl RequestBuilder {
             canonical_uri,
             canonical_query_string,
             canonical_headers,
-            signed_headers,
+            signed_headers_str,
             payload_hash.unwrap_or("UNSIGNED-PAYLOAD")
         );
 
@@ -74,7 +76,6 @@ impl RequestBuilder {
             credential_scope,
             Sha256::digest(canonical_request.as_bytes())
         );
-
         let signing_key = self.generate_signing_key(
             &date_stamp,
             config.credentials().secret_key(),
@@ -86,7 +87,7 @@ impl RequestBuilder {
             "AWS4-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
             config.credentials().access_key(),
             credential_scope,
-            signed_headers,
+            signed_headers_str,
             hex::encode(signature)
         );
 

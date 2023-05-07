@@ -3,7 +3,6 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 
 use futures::Future;
-use serde::Deserialize;
 
 use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
@@ -59,7 +58,7 @@ impl DerefMut for FileObjectVec {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct FileObject {
     name: String,
     size: u64,

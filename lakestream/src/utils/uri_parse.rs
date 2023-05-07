@@ -22,7 +22,7 @@ impl ParsedUri {
         scheme_match.map_or_else(
             || {
                 // uri has no scheme, assume LocalFsBucket
-                let (bucket, path) = parse_uri_path(uri, append_slash);
+                let (bucket, path) = parse_uri_path(None, uri, append_slash);
                 ParsedUri {
                     scheme: None,
                     bucket,
@@ -40,7 +40,7 @@ impl ParsedUri {
                     }
                 } else {
                     let (bucket, path) =
-                        parse_uri_path(&uri_without_scheme, append_slash);
+                        parse_uri_path(Some(scheme), &uri_without_scheme, append_slash);
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket,
@@ -53,9 +53,11 @@ impl ParsedUri {
 }
 
 fn parse_uri_path(
+    scheme: Option<&str>,
     uri_path: &str,
     append_slash: bool,
 ) -> (Option<String>, Option<String>) {
+    println!("uri_path: {:?}", uri_path);
     let cleaned_uri = uri_path.trim_end_matches('.');
 
     if cleaned_uri.is_empty() {
@@ -83,7 +85,7 @@ fn parse_uri_path(
 
     // If there is no path, treat the input as a path instead of a bucket
     // bucket is currenth path on LocalFs
-    if path.is_none() && bucket.is_some() {
+    if scheme.is_none() && path.is_none() && bucket.is_some() {
         return (Some(".".to_string()), bucket);
     }
 

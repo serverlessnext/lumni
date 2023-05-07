@@ -41,7 +41,7 @@ class Client:
             }
 
             # List the contents of a storage location with the filter
-            result = client.list("s3://your-bucket", recursive=True, filter_dict=filter_dict)
+            result = client.list_objects("s3://your-bucket", recursive=True, filter_dict=filter_dict)
 
             print(result)
         """

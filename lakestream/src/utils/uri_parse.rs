@@ -39,8 +39,11 @@ impl ParsedUri {
                         path: None,
                     }
                 } else {
-                    let (bucket, path) =
-                        parse_uri_path(Some(scheme), &uri_without_scheme, append_slash);
+                    let (bucket, path) = parse_uri_path(
+                        Some(scheme),
+                        &uri_without_scheme,
+                        append_slash,
+                    );
                     ParsedUri {
                         scheme: Some(scheme.to_string()),
                         bucket,
@@ -57,7 +60,6 @@ fn parse_uri_path(
     uri_path: &str,
     append_slash: bool,
 ) -> (Option<String>, Option<String>) {
-    println!("uri_path: {:?}", uri_path);
     let cleaned_uri = uri_path.trim_end_matches('.');
 
     if cleaned_uri.is_empty() {

@@ -48,10 +48,8 @@ impl RequestBuilder {
 
         let canonical_headers = self.get_canonical_headers(&headers);
 
-        let mut signed_headers: Vec<String> = headers
-            .keys()
-            .map(|key| key.to_lowercase())
-            .collect();
+        let mut signed_headers: Vec<String> =
+            headers.keys().map(|key| key.to_lowercase()).collect();
 
         signed_headers.sort();
 

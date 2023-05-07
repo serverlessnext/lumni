@@ -10,8 +10,8 @@ use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, Config, FileObject,
-    FileObjectFilter, FileObjectVec, LakestreamError,
+    CallbackWrapper, Config, FileObject, FileObjectFilter, FileObjectVec,
+    LakestreamError,
 };
 
 pub struct ObjectStoreVec {

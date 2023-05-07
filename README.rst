@@ -6,7 +6,13 @@ Lakestream is a tool for interacting with object stores such as S3. It is built 
 
 The idea behind Lakestream is to create a high-performance and future-proof data tool that can scale with new (AI-driven) networking and usage patterns. This includes the ability to work in both client and service mode, and a modular design to allow compute functions on the network.
 
-In the short term, the focus is on implementing basic features such as List, Copy, and Delete. The current version (0.0.2) enables listing and searching items on an S3 bucket or Local Filesystem.
+In the short term, the focus is on implementing basic features such as List, Copy, and Delete.
+
+The current version (0.0.3) enables:
+
+- listing and searching items on an S3 bucket or Local Filesystem.
+- filtering by name, size, and modification time
+- GET contents of an item from Local Filesystem or S3 bucket
 
 Prerequisites
 -------------
@@ -48,6 +54,8 @@ Usage
 Quickstart
 ~~~~~~~~~~~~~~
 
+List
+^^^^
 .. code-block:: console
 
     # for s3://buckets: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set
@@ -62,8 +70,8 @@ Quickstart
     lakestream ls s3://bucket-name/reports/ --name "*2023*" --mtime "-30D
 
     # Find all files in the current directory, larger than 100 MB and modified
-    # within the last 2 days.
-    lakestream ls . --size "+100M" --mtime "-2D"
+    # within the last 5 days.
+    lakestream ls . --size "+100M" --mtime "-5D"
 
     # Find all files larger than 1 megabyte (MB) in a given S3 Bucket
     lakestream ls s3://bucket-name/ --size "+1M" --recursive
@@ -71,7 +79,20 @@ Quickstart
     # Find all files modified more than 1 hour ago, recursively
     lakestream ls . --mtime "+1h" --recursive
 
-More **CLI** examples `here <https://lakestream.dev/cli_list.html>`__.
+More **List** examples `here <https://lakestream.dev/cli_list.html>`__.
+
+Request
+^^^^^^^
+.. code-block:: console
+
+    # print file contents from local file to stdout
+    lakestream -X GET README.rst
+
+    # write file contents from S3 to local file
+    lakestream -X GET s3://bucket-name/100MB.bin > 100MB.bin
+
+More **Request** examples `here <https://lakestream.dev/cli_request.html>`__.
+
 
 Python can also be used as a CLI. Arguments are mapped 1:1 to the Rust library.
 

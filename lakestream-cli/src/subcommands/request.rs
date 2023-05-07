@@ -5,13 +5,13 @@ pub use super::request_handler::handle_request;
 pub fn request_subcommand() -> Command {
     Command::new("-X")
         .long_flag("request")
-        .about("Performs an HTTP request (eg. GET or PUT)")
+        .about("Performs an HTTP request")
         .arg(
             Arg::new("method")
                 .index(1)
-                .value_parser(["GET", "PUT"])
+                .value_parser(["GET"])
                 .required(true)
-                .help("HTTP verb for the request (GET or PUT)"),
+                .help("HTTP verb for the request (GET)"),
         )
         .arg(
             Arg::new("uri")

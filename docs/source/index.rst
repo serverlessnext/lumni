@@ -6,6 +6,7 @@
 
    python_api
    cli_list
+   cli_request
 
 .. include:: README.rst
 

@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::env;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyDict};
+use pyo3::types::{PyList, PyDict, PyBytes};
 
 use crate::LakestreamError;
 use crate::utils::create_filter;
@@ -144,21 +144,21 @@ impl _Client {
         }
     }
 
-    fn get_object(&self, _py: Python, uri: String) -> PyResult<String> {
+    fn get_object(&self, py: Python, uri: String) -> PyResult<PyObject> {
         // Create a new Tokio runtime
         let rt = Runtime::new().unwrap();
 
         // Call the async function and block on it to get the result
         let handler = ObjectStoreHandler::new(None);
-        let result = rt.block_on(handler.get_object(&uri, &self.config));
+        let result = rt.block_on(handler.get_object(&uri, &self.config, None));
 
         match result {
-            Ok(data) => Ok(data),
+            Ok(Some(data)) => Ok(PyBytes::new(py, &data).to_object(py)),
+            Ok(None) => Err(LakestreamError::new_err("No data received")),
             Err(err) => {
                 let lakestream_error = LakestreamError::new_err(format!("Error getting object: {}", err));
                 Err(lakestream_error)
             },
         }
     }
-
 }

@@ -37,6 +37,18 @@ jobs:
             sed -i "s/^version = .*/version = \"${MATURIN_PROJECT_VERSION}\"/" lakestream-py/Cargo.toml
           fi
 
+      - name: Install OpenSSL
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            brew install openssl
+            echo "LDFLAGS=-L/usr/local/opt/openssl/lib" >> $GITHUB_ENV
+            echo "CPPFLAGS=-I/usr/local/opt/openssl/include" >> $GITHUB_ENV
+            echo "PKG_CONFIG_PATH=/usr/local/opt/openssl/lib/pkgconfig" >> $GITHUB_ENV
+          else
+            sudo apt-get update
+            sudo apt-get install -y libssl-dev pkg-config
+          fi
+
       - name: set up python
         uses: actions/setup-python@v3
         with:

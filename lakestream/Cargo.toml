@@ -1,7 +1,7 @@
 [package]
 name = "lakestream"
 # version is auto-updated via lakestream/build.rs
-version = "0.0.3-alpha"
+version = "0.0.3"
 authors = ["Anthony Potappel <aprxi@lakestream.dev>"]
 edition = "2021"
 

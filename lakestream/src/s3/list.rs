@@ -182,7 +182,7 @@ pub async fn list_buckets(
 
     let bucket_objects = match result {
         Ok((body_bytes, _)) => {
-            let body = String::from_utf8_lossy(&body_bytes).to_string();
+            let body = String::from_utf8_lossy(body_bytes.as_ref()).to_string();
             match parse_bucket_objects(&body, Some(config.clone())) {
                 Ok(bucket_objects) => bucket_objects,
                 Err(e) => {

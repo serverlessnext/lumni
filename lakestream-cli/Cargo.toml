@@ -1,7 +1,7 @@
 [package]
 name = "lakestream-cli"
 # version is auto-updated via lakestream/build.rs
-version = "0.0.3"
+version = "0.0.4-alpha"
 edition = "2021"
 
 [lib]

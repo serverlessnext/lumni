@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 
+use bytes::Bytes;
 use js_sys::{ArrayBuffer, Uint8Array};
 use log::info;
 use wasm_bindgen::JsCast;
@@ -12,7 +13,7 @@ use crate::LakestreamError;
 pub async fn http_get_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
-) -> Result<(String, u16, HashMap<String, String>), LakestreamError> {
+) -> Result<(Bytes, u16, HashMap<String, String>), LakestreamError> {
     info!("http_get_request_with_headers: {}", url);
     // TODO: implement response headers -- for now forward to http_get_request
     // Call the http_get_request function
@@ -26,7 +27,7 @@ pub async fn http_get_request_with_headers(
 pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
-) -> Result<(String, u16), LakestreamError> {
+) -> Result<(Bytes, u16), LakestreamError> {
     info!("http_get_request: {}", url);
     let window = web_sys::window().ok_or("No window available")?;
     let mut request_init = RequestInit::new();
@@ -47,11 +48,11 @@ pub async fn http_get_request(
 
     let status = response.status();
     if status >= 200 && status < 300 {
-        let body_js = JsFuture::from(response.text().unwrap()).await.unwrap();
-        let body: String = body_js
-            .as_string()
-            .ok_or("Failed to convert response body to String")?;
-        Ok((body, status))
+        let body_js = JsFuture::from(response.array_buffer().unwrap()).await.unwrap();
+        let body: ArrayBuffer = body_js.dyn_into().unwrap();
+        let uint8_array = Uint8Array::new(&body);
+        let body_bytes = uint8_array.to_vec();
+        Ok((body_bytes.into(), status))
     } else {
         let body_js = JsFuture::from(
             response

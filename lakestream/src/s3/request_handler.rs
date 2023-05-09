@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use bytes::Bytes;
 use crate::http::requests::http_get_request_with_headers;
 use crate::s3::client::{S3Client, S3ClientConfig};
 use crate::LakestreamError;
@@ -18,7 +18,7 @@ async fn handle_redirect(s3_client: &S3Client, new_region: &str) -> S3Client {
 pub async fn http_get_with_redirect_handling<F>(
     s3_client: &S3Client,
     generate_headers: F,
-) -> Result<(String, Option<S3Client>), LakestreamError>
+) -> Result<(Bytes, Option<S3Client>), LakestreamError>
 where
     F: Fn(&mut S3Client) -> Result<HashMap<String, String>, LakestreamError>,
 {
@@ -31,7 +31,7 @@ where
                 .await;
 
         match result {
-            Ok((response_body, status, response_headers)) => {
+            Ok((body_bytes, status, response_headers)) => {
                 if status == 301 {
                     if let Some(new_region) =
                         response_headers.get("x-amz-bucket-region")
@@ -47,7 +47,7 @@ where
                 } else {
                     // TODO: Handle non-200 status codes
                     return Ok((
-                        response_body,
+                        body_bytes,
                         if current_s3_client.region() != s3_client.region() {
                             Some(current_s3_client)
                         } else {

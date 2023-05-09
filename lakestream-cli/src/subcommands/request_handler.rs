@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Write;
+use std::io::{self,Write};
 use std::sync::{Arc, Mutex};
 
 use lakestream::{BinaryCallbackWrapper, Config, ObjectStoreHandler};
@@ -53,7 +53,10 @@ async fn handle_get_request(
         }))
     } else {
         Some(BinaryCallbackWrapper::create_async(move |data: Vec<u8>| {
-            print!("{}", String::from_utf8_lossy(&data));
+            let mut stdout = io::stdout();
+            if let Err(e) = stdout.write_all(&data) {
+                eprintln!("Error writing to stdout: {:?}", e);
+            }
             async {}
         }))
     };

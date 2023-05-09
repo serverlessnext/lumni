@@ -15,15 +15,15 @@ pub async fn get_object(
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
     info!("Getting object: {}", object_key);
-    let (response_body, _updated_s3_client) =
+    let (body_bytes, _updated_s3_client) =
         http_get_with_redirect_handling(&s3_client, |s3_client| {
             s3_client.generate_get_object_headers(object_key)
         })
         .await?;
-
+    info!("Got object: {} of size {} bytes", object_key, body_bytes.len());
     // Write response body directly into the provided Vec<u8>
     data.clear();
-    data.extend_from_slice(response_body.as_bytes());
+    data.extend_from_slice(&body_bytes);
 
     Ok(())
 }

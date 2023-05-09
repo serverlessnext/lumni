@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
-
+use bytes::Bytes;
 use hyper::client::HttpConnector;
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::{Body, Client, Request};
@@ -11,8 +11,8 @@ use tokio_native_tls::TlsConnector;
 use url::Url;
 
 type HttpResult =
-    Result<(String, u16, HashMap<String, String>), Box<dyn Error>>;
-type HttpResultWithoutHeaders = Result<(String, u16), Box<dyn Error>>;
+    Result<(Bytes, u16, HashMap<String, String>), Box<dyn Error>>;
+type HttpResultWithoutHeaders = Result<(Bytes, u16), Box<dyn Error>>;
 
 pub async fn http_get_request(
     url: &str,
@@ -59,13 +59,11 @@ pub async fn http_get_request_with_headers(
     let headers_map = parse_response_headers(&response);
 
     if !(200..300).contains(&(status as isize)) {
-        return Ok((String::new(), status, headers_map));
+        return Ok((Bytes::new(), status, headers_map));
     }
-
     let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
-    let body = String::from_utf8_lossy(&body_bytes).to_string();
 
-    Ok((body, status, headers_map))
+    Ok((body_bytes, status, headers_map))
 }
 
 fn parse_response_headers(

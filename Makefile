@@ -1,6 +1,6 @@
 
 NAME := lakestream
-BUILD_VERSION ?= 0.0.3
+BUILD_VERSION ?= 0.0.4-alpha
 
 DEFAULT_CRATES := lakestream lakestream-cli
 EXTRA_CRATES := lakestream-web lakestream-py

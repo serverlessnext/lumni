@@ -66,7 +66,7 @@ async fn list_files_next(
     while let Some(prefix) = directory_stack.pop_front() {
         let mut virtual_directories = Vec::<String>::new();
         loop {
-            let (response_body, updated_s3_client) =
+            let (body_bytes, updated_s3_client) =
                 http_get_with_redirect_handling(
                     params.s3_client,
                     |s3_client: &mut S3Client| {
@@ -83,8 +83,9 @@ async fn list_files_next(
                 *params.s3_client = new_s3_client;
             }
 
+            let body = String::from_utf8_lossy(&body_bytes).to_string();
             params.continuation_token = process_response_body(
-                &response_body,
+                &body,
                 params.recursive,
                 params.filter,
                 &mut temp_file_objects,
@@ -180,7 +181,8 @@ pub async fn list_buckets(
     let result = http_get_request(&s3_client.url().clone(), &headers).await;
 
     let bucket_objects = match result {
-        Ok((body, _)) => {
+        Ok((body_bytes, _)) => {
+            let body = String::from_utf8_lossy(&body_bytes).to_string();
             match parse_bucket_objects(&body, Some(config.clone())) {
                 Ok(bucket_objects) => bucket_objects,
                 Err(e) => {

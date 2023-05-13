@@ -9,6 +9,7 @@ use crate::{
     ObjectStoreVec,
 };
 
+#[derive(Clone)]
 pub struct ObjectStoreHandler {}
 
 impl ObjectStoreHandler {

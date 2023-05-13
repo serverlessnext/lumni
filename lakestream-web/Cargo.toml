@@ -1,7 +1,7 @@
 [package]
 name = "lakestream-web"
 # version is auto-updated via lakestream/build.rs
-version = "0.0.3-alpha"
+version = "0.0.4-alpha"
 edition = "2021"
 
 [dependencies]
@@ -13,7 +13,9 @@ console_error_panic_hook = "0.1.7"
 leptos_meta = { version = "0.2", features = ["csr"] }
 leptos_router = { version = "0.2", features = ["csr"]  }
 web-sys = { version = "0.3", features = ["Window", "Storage", "console"] }
-
+base64 = "0.21"
+data-encoding = "2.3"
+md5 = "0.7"
 
 [dev-dependencies]
 wasm-bindgen = "0.2"

@@ -1,13 +1,11 @@
-use leptos::*;
-
 use std::sync::Arc;
 
-use crate::base::connector::{LakestreamHandler, get_config};
+use leptos::*;
 
+use crate::base::connector::{get_config, LakestreamHandler};
 
 #[component]
 pub fn Home(cx: Scope) -> impl IntoView {
-
     let config = get_config();
     let handler = Arc::new(LakestreamHandler::new(config));
 
@@ -29,10 +27,8 @@ pub fn Home(cx: Scope) -> impl IntoView {
             .unwrap_or_else(|| "Loading...".into())
     };
 
-
     let loading = async_data.loading();
     let is_loading = move || if loading() { "Loading..." } else { "Idle." };
-
 
     view! { cx,
         <button

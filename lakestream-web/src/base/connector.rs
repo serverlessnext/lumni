@@ -33,14 +33,23 @@ impl LakestreamHandler {
 
         let result = self
             .handler
-            .list_objects(&uri, &self.config, recursive, max_files, &filter, callback)
+            .list_objects(
+                &uri,
+                &self.config,
+                recursive,
+                max_files,
+                &filter,
+                callback,
+            )
             .await;
 
         match result {
-            Ok(Some(ListObjectsResult::FileObjects(file_objects))) => file_objects
-                .into_iter()
-                .map(|fo| fo.name().to_owned())
-                .collect::<Vec<_>>(),
+            Ok(Some(ListObjectsResult::FileObjects(file_objects))) => {
+                file_objects
+                    .into_iter()
+                    .map(|fo| fo.name().to_owned())
+                    .collect::<Vec<_>>()
+            }
             Ok(Some(ListObjectsResult::Buckets(buckets))) => {
                 // note - CORS does not work on Bucket List
                 buckets
@@ -57,7 +66,6 @@ impl LakestreamHandler {
     }
 }
 
-
 pub fn get_config() -> Config {
     let mut config_hashmap = HashMap::new();
 
@@ -70,8 +78,9 @@ pub fn get_config() -> Config {
 
     for (key, default_value) in default_values.into_iter() {
         let key = key.to_string();
-        let value = load_data(&key).unwrap_or(default_value.to_string());
-        config_hashmap.insert(key, value);
+        // let value = load_data(&key).unwrap_or(default_value.to_string());
+        // config_hashmap.insert(key, value);
+        config_hashmap.insert(key, default_value.to_string());
     }
 
     // Create a Config instance
@@ -79,4 +88,3 @@ pub fn get_config() -> Config {
         settings: config_hashmap,
     }
 }
-

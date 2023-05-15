@@ -2,11 +2,15 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::home::{Home, HomeProps};
+use crate::base::state::GlobalState;
 use crate::routes::config::{Config, ConfigProps};
+use crate::routes::home::{Home, HomeProps};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
+    let state = create_rw_signal(cx, GlobalState::default());
+    provide_context(cx, state);
+
     view! {
         cx,
         <Stylesheet id="leptos" href="/pkg/tailwind.css"/>

@@ -1,12 +1,16 @@
 use leptos::*;
 
-use crate::components::configuration_form::{ConfigurationForm, ConfigurationFormProps};
+use crate::components::configuration_form::{
+    ConfigurationFormLoader, ConfigurationFormLoaderProps,
+};
+use crate::components::login_form::{LoginForm, LoginFormProps};
 
 #[component]
 pub fn Config(cx: Scope) -> impl IntoView {
     view! { cx,
+        <LoginForm />
         <h2>"Configuration S3 Bucket"</h2>
-        <ConfigurationForm
+        <ConfigurationFormLoader
             initial_config=vec![
                 ("AWS_ACCESS_KEY_ID".to_string(), "".to_string()),
                 ("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string()),
@@ -16,4 +20,3 @@ pub fn Config(cx: Scope) -> impl IntoView {
         />
     }
 }
-

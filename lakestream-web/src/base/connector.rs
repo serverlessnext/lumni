@@ -5,8 +5,6 @@ use ::lakestream::{
 };
 use leptos::log;
 
-use crate::utils::local_storage::load_data;
-
 #[derive(Clone)]
 pub struct LakestreamHandler {
     handler: ObjectStoreHandler,

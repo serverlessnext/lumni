@@ -1,6 +1,6 @@
 use std::panic::{self, PanicInfo};
 
-use lakestream_web::app::{App, AppProps};
+use lakestream_web::app::App;
 use leptos::{mount_to_body, view};
 
 fn custom_panic_hook(info: &PanicInfo) {

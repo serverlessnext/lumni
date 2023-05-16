@@ -3,8 +3,8 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::base::state::GlobalState;
-use crate::routes::config::{Config, ConfigProps};
-use crate::routes::home::{Home, HomeProps};
+use crate::routes::config::Config;
+use crate::routes::home::Home;
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {

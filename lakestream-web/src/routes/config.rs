@@ -1,13 +1,13 @@
 use leptos::*;
 
-use crate::components::configuration_form::{
-    ConfigurationFormLoader, ConfigurationFormLoaderProps,
-};
-use crate::components::login_form::{LoginForm, LoginFormProps};
+use crate::components::configuration_form::ConfigurationFormLoader;
+use crate::components::login_form::LoginForm;
+use crate::components::object_stores::ObjectStoreConfigurator;
 
 #[component]
 pub fn Config(cx: Scope) -> impl IntoView {
     view! { cx,
+        <ObjectStoreConfigurator />
         <LoginForm />
         <h2>"Configuration S3 Bucket"</h2>
         <ConfigurationFormLoader

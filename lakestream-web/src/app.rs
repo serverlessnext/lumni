@@ -3,8 +3,7 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::base::state::GlobalState;
-use crate::routes::config::Config;
-use crate::routes::home::Home;
+use crate::routes::{Home, ObjectStores, ObjectStoresId};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -18,14 +17,18 @@ pub fn App(cx: Scope) -> impl IntoView {
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
 
             <Router>
-                <nav>
-                    <a href="/home">"Home"</a>
-                    <a href="/config">"Config"</a>
+                <nav class="bg-teal-500 p-3">
+                    <div class="mb-2 text-white text-2xl font-bold">"Lakestream"</div>
+                    <div class="flex">
+                        <a href="/home" class="text-teal-200 hover:text-white mr-4">"Home"</a>
+                        <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
+                    </div>
                 </nav>
                 <main>
                     <Routes>
                         <Route path="/home" view=|cx| view! { cx, <Home/> }/>
-                        <Route path="/config" view=|cx| view! { cx, <Config/> }/>
+                        <Route path="/object-stores" view=|cx| view! { cx, <ObjectStores/> }/>
+                        <Route path="/object-stores/:id" view=|cx| view! { cx, <ObjectStoresId/> }/>
                     </Routes>
                 </main>
             </Router>

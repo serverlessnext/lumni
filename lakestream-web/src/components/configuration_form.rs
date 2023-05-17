@@ -26,7 +26,6 @@ pub fn ConfigurationFormLoader(
         |state, key| state.crypto_key = key,
     );
 
-    // Make updated_config a signal
     let (updated_config, set_updated_config) =
         create_signal(cx, initial_config.clone());
     let updated_config_clone = updated_config.clone();

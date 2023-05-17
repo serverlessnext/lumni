@@ -48,7 +48,9 @@ pub async fn http_get_request(
 
     let status = response.status();
     if status >= 200 && status < 300 {
-        let body_js = JsFuture::from(response.array_buffer().unwrap()).await.unwrap();
+        let body_js = JsFuture::from(response.array_buffer().unwrap())
+            .await
+            .unwrap();
         let body: ArrayBuffer = body_js.dyn_into().unwrap();
         let uint8_array = Uint8Array::new(&body);
         let body_bytes = uint8_array.to_vec();

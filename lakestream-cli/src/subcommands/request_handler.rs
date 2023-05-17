@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self,Write};
+use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
 use lakestream::{BinaryCallbackWrapper, Config, ObjectStoreHandler};

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
+
 use bytes::Bytes;
 use hyper::client::HttpConnector;
 use hyper::header::{HeaderName, HeaderValue};
@@ -10,8 +11,7 @@ use native_tls::TlsConnector as NativeTlsConnector;
 use tokio_native_tls::TlsConnector;
 use url::Url;
 
-type HttpResult =
-    Result<(Bytes, u16, HashMap<String, String>), Box<dyn Error>>;
+type HttpResult = Result<(Bytes, u16, HashMap<String, String>), Box<dyn Error>>;
 type HttpResultWithoutHeaders = Result<(Bytes, u16), Box<dyn Error>>;
 
 pub async fn http_get_request(

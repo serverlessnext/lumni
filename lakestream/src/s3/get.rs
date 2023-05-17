@@ -20,7 +20,11 @@ pub async fn get_object(
             s3_client.generate_get_object_headers(object_key)
         })
         .await?;
-    info!("Got object: {} of size {} bytes", object_key, body_bytes.len());
+    info!(
+        "Got object: {} of size {} bytes",
+        object_key,
+        body_bytes.len()
+    );
     // Write response body directly into the provided Vec<u8>
     data.clear();
     data.extend_from_slice(&body_bytes);

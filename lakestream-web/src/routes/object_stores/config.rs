@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
@@ -38,16 +40,19 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div>
-                    <div>"You've requested object with ID: "{id}</div>
-                     <h2>"Configuration S3 Bucket"</h2>
-                     <ObjectStoreConfig
-                         initial_config=vec![
-                             ("AWS_ACCESS_KEY_ID".to_string(), "".to_string()),
-                             ("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string()),
-                             ("AWS_REGION".to_string(), "auto".to_string()),
-                             ("S3_ENDPOINT_URL".to_string(), "".to_string()),
-                         ]
-                     />
+                    <div>"You've requested object with ID: "{&id}</div>
+                    <h2>"Configuration S3 Bucket"</h2>
+                    <ObjectStoreConfig
+                        uuid=id.clone()
+                        initial_config={
+                            let mut map = HashMap::new();
+                            map.insert("AWS_ACCESS_KEY_ID".to_string(), "".to_string());
+                            map.insert("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string());
+                            map.insert("AWS_REGION".to_string(), "auto".to_string());
+                            map.insert("S3_ENDPOINT_URL".to_string(), "".to_string());
+                            map
+                        }
+                    />
                 </div>
             }
         }

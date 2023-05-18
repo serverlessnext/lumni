@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use js_sys::{ArrayBuffer, Uint8Array};
@@ -7,6 +9,7 @@ use web_sys::{AesGcmParams, CryptoKey};
 
 use super::convert_types::{string_to_uint8array, uint8array_to_string};
 use super::local_storage::{load_data, save_data};
+use crate::LakestreamError;
 
 #[derive(Debug)]
 pub enum SecureStringError {
@@ -126,4 +129,44 @@ pub async fn load_secure_string(
     let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv).await?;
     log!("decrypted_data: {:?}", decrypted_data);
     Ok(decrypted_data)
+}
+
+pub async fn save_secure_configuration(
+    uuid: &str,
+    config: HashMap<String, String>,
+    crypto_key: &CryptoKey,
+) -> Result<(), LakestreamError> {
+    // Serialize the HashMap to a JSON string
+    let config_json = serde_json::to_string(&config).map_err(|_| {
+        LakestreamError::String("Serialization Error".to_owned())
+    })?;
+
+    // Use a predetermined prefix for the key (e.g., "CONFIG_") and append the UUID
+    let key = format!("CONFIG_{}", uuid);
+
+    // Encrypt and save the JSON string to local storage
+    save_secure_string(&key, &config_json, crypto_key)
+        .await
+        .map_err(|_| {
+            LakestreamError::InternalError("SecureStringError".to_owned())
+        })
+}
+
+pub async fn load_secure_configuration(
+    uuid: &str,
+    crypto_key: &CryptoKey,
+) -> Result<HashMap<String, String>, LakestreamError> {
+    // Use the same key as before
+    let key = format!("CONFIG_{}", uuid);
+
+    // Load and decrypt the JSON string from local storage
+    let config_json =
+        load_secure_string(&key, crypto_key).await.map_err(|_| {
+            LakestreamError::InternalError("SecureStringError".to_owned())
+        })?;
+
+    // Deserialize the JSON string back into a HashMap
+    serde_json::from_str(&config_json).map_err(|_| {
+        LakestreamError::String("Deserialization Error".to_owned())
+    })
 }

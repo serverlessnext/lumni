@@ -1,3 +1,4 @@
+pub use lakestream::LakestreamError;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;

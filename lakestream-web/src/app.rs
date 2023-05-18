@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::base::state::GlobalState;
+use crate::base::GlobalState;
 use crate::routes::{Home, ObjectStores, ObjectStoresId};
 
 #[component]

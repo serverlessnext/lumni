@@ -5,7 +5,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
-use crate::base::state::GlobalState;
+use crate::base::GlobalState;
 use crate::utils::convert_types::string_to_uint8array;
 
 #[component]

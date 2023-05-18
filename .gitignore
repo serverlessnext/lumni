@@ -12,6 +12,11 @@ __pycache__/
 .mypy_cache/
 .pyc
 *.lock
+package-lock.json
+
+
+# auto-generated
+*/style/output.css
 
 target/
 

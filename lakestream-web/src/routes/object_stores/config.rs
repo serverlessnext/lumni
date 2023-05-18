@@ -2,8 +2,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use crate::base::ObjectStoreList;
-use crate::components::configuration_form::ConfigurationFormLoader;
-use crate::components::login_form::LoginForm;
+use crate::components::configuration_form::ObjectStoreConfig;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
@@ -36,24 +35,23 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
 
     match id {
         Some(id) if valid_ids.contains(&id) => {
-            // Render the page for the valid ID
             view! {
                 cx,
                 <div>
                     <div>"You've requested object with ID: "{id}</div>
-                    <LoginForm />
-                    <h2>"Configuration S3 Bucket"</h2>
-                    <ConfigurationFormLoader
-                        initial_config=vec![
-                            ("AWS_ACCESS_KEY_ID".to_string(), "".to_string()),
-                            ("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string()),
-                            ("AWS_REGION".to_string(), "auto".to_string()),
-                            ("S3_ENDPOINT_URL".to_string(), "".to_string()),
-                        ]
-                    />
+                     <h2>"Configuration S3 Bucket"</h2>
+                     <ObjectStoreConfig
+                         initial_config=vec![
+                             ("AWS_ACCESS_KEY_ID".to_string(), "".to_string()),
+                             ("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string()),
+                             ("AWS_REGION".to_string(), "auto".to_string()),
+                             ("S3_ENDPOINT_URL".to_string(), "".to_string()),
+                         ]
+                     />
                 </div>
             }
         }
+
         _ => {
             // Render 404 page
             view! {

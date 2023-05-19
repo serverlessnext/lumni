@@ -8,16 +8,18 @@ use web_sys::{AesKeyGenParams, CryptoKey, Pbkdf2Params};
 use crate::base::GlobalState;
 use crate::utils::convert_types::string_to_uint8array;
 
+use crate::StringVault;
+
+
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
-    let (_key, set_crypto_key) = create_slice(
+    let set_vault = create_write_slice(
         cx,
         state,
-        |state| state.crypto_key.clone(),
-        |state, crypto_key| state.crypto_key = crypto_key,
+        |state, vault| state.vault = vault,
     );
 
     let password_ref: NodeRef<Input> = create_node_ref(cx);
@@ -39,7 +41,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             match derive_key_websys(&password, &salt).await {
                 Ok(crypto_key) => {
                     log!("Key stored as: {:?}", crypto_key);
-                    set_crypto_key(Some(crypto_key));
+                    set_vault(Some(StringVault::new(crypto_key)));
                 }
                 Err(err) => {
                     web_sys::console::log_1(&JsValue::from_str(&format!(

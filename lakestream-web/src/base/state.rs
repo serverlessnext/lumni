@@ -1,8 +1,8 @@
-use web_sys::CryptoKey;
 
-#[derive(Default, Clone, Debug)]
+use crate::StringVault;
+
+#[derive(Default,Clone)]
 pub struct GlobalState {
-    pub crypto_key: Option<CryptoKey>,
-    pub old_key: Option<String>,
+    pub vault: Option<StringVault>,
     pub counter: u32,
 }

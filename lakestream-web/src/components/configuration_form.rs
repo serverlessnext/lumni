@@ -6,14 +6,10 @@ use leptos::ev::SubmitEvent;
 use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::CryptoKey;
 
 use crate::base::GlobalState;
 use crate::components::login_form::LoginForm;
-use crate::utils::secure_strings::{
-    load_secure_configuration, save_secure_configuration,
-};
-use crate::LakestreamError;
+use crate::StringVault;
 
 #[component]
 pub fn ObjectStoreConfig(
@@ -24,11 +20,11 @@ pub fn ObjectStoreConfig(
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
-    let (crypto_key, set_crypto_key) = create_slice(
+    let (vault, set_lakevault) = create_slice(
         cx,
         state,
-        |state| state.crypto_key.clone(),
-        |state, key| state.crypto_key = key,
+        |state| state.vault.clone(),
+        |state, new_lakevault| state.vault = new_lakevault,
     );
 
     let (loaded_config, set_loaded_config) = create_signal(cx, None);
@@ -45,11 +41,12 @@ pub fn ObjectStoreConfig(
 
     let uuid_clone = uuid.clone();
     let is_override = is_override_active.get();
+
     create_effect(cx, move |_| {
-        if let Some(crypto) = crypto_key.get() {
+        if let Some(vault) = vault.get() {
             let uuid_clone = uuid_clone.clone();
             spawn_local(async move {
-                match load_config(&crypto, &uuid_clone).await {
+                match vault.load_secure_configuration(&uuid_clone).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                         set_load_config_error(None); // Clear the error if loading was successful
@@ -58,8 +55,8 @@ pub fn ObjectStoreConfig(
                         set_load_config_error(Some(e.to_string()));
                         // Skip the reset of crypto_key when override is active
                         if !is_override {
-                            // Reset the crypto_key to prompt the user again via LoginForm
-                            set_crypto_key(None);
+                            // Reset vault to prompt the user again via LoginForm
+                            set_lakevault(None);
                         }
                     }
                 };
@@ -69,11 +66,11 @@ pub fn ObjectStoreConfig(
 
     view! { cx,
         {move ||
-            if let Some(crypto_key) = crypto_key.get() {
+            if let Some(vault) = vault.get() {
                 if let Some(loaded_config) = loaded_config.get() {
-                    form_view(cx, crypto_key, uuid.clone(), &loaded_config)
+                    form_view(cx, vault, uuid.clone(), &loaded_config)
                 } else if is_override_active.get() {
-                    form_view(cx, crypto_key, uuid.clone(), &initial_config_reset)
+                    form_view(cx, vault, uuid.clone(), &initial_config_reset)
                 } else {
                     view! {
                         cx,
@@ -103,6 +100,7 @@ pub fn ObjectStoreConfig(
     }
 }
 
+
 pub trait OnSubmit {
     fn call(
         &mut self,
@@ -123,7 +121,7 @@ impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
 
 fn form_view(
     cx: Scope,
-    crypto_key: CryptoKey,
+    vault: StringVault,
     uuid: String,
     loaded_config: &HashMap<String, String>,
 ) -> HtmlElement<Div> {
@@ -134,8 +132,8 @@ fn form_view(
     let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
         move |ev: SubmitEvent,
               input_elements: HashMap<String, NodeRef<Input>>| {
-            let crypto_key = crypto_key.clone();
-            handle_form_submission(ev, crypto_key, &uuid_clone, input_elements);
+            let vault = vault.clone();
+            handle_form_submission(ev, vault, &uuid_clone, input_elements);
         },
     ));
 
@@ -170,21 +168,9 @@ fn create_input_elements(
     input_elements
 }
 
-async fn load_config(
-    crypto_key: &CryptoKey,
-    uuid: &str,
-) -> Result<HashMap<String, String>, LakestreamError> {
-    log!("Loading config for uuid: {}", uuid);
-
-    // Here we directly use load_secure_configuration() to get the entire config
-    let config = load_secure_configuration(uuid, crypto_key).await?;
-
-    Ok(config)
-}
-
 fn handle_form_submission(
     ev: SubmitEvent,
-    crypto_key: CryptoKey,
+    vault: StringVault,
     uuid: &str,
     input_elements: HashMap<String, NodeRef<Input>>,
 ) {
@@ -198,10 +184,10 @@ fn handle_form_submission(
         config.insert(key.clone(), value);
     }
 
-    let crypto_key = crypto_key.clone();
+    let mut vault = vault.clone();
     let uuid = uuid.to_string();
     spawn_local(async move {
-        match save_secure_configuration(&uuid, config, &crypto_key).await {
+        match vault.save_secure_configuration(&uuid, config).await {
             Ok(_) => {
                 log!(
                     "Successfully saved secure configuration for uuid: {}",
@@ -220,6 +206,7 @@ fn handle_form_submission(
     });
     log!("Saved items");
 }
+
 
 fn create_input_field_view(
     cx: Scope,

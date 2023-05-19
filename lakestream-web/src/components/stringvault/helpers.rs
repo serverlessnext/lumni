@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use base64::engine::general_purpose;
 use base64::Engine as _;
@@ -7,34 +6,13 @@ use leptos::log;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AesGcmParams, CryptoKey};
 
-use super::convert_types::{string_to_uint8array, uint8array_to_string};
-use super::local_storage::{load_data, save_data};
-use crate::LakestreamError;
+use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
+use crate::utils::local_storage::{load_data, save_data};
 
-#[derive(Debug)]
-pub enum SecureStringError {
-    JsError(JsValue),
-    Base64Error(base64::DecodeError),
-    NoWindow,
-    NoCrypto,
-    NoLocalStorageData,
-}
-
-impl From<JsValue> for SecureStringError {
-    fn from(e: JsValue) -> Self {
-        SecureStringError::JsError(e)
-    }
-}
-
-impl From<base64::DecodeError> for SecureStringError {
-    fn from(e: base64::DecodeError) -> Self {
-        SecureStringError::Base64Error(e)
-    }
-}
+use super::error::SecureStringError;
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
 
-// Helper function
 fn get_crypto_subtle(
 ) -> SecureStringResult<(web_sys::Window, web_sys::Crypto, web_sys::SubtleCrypto)>
 {
@@ -44,7 +22,6 @@ fn get_crypto_subtle(
     Ok((window, crypto, subtle))
 }
 
-// Modified functions
 async fn encrypt(
     key: &CryptoKey,
     data: &str,
@@ -129,44 +106,4 @@ pub async fn load_secure_string(
     let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv).await?;
     log!("decrypted_data: {:?}", decrypted_data);
     Ok(decrypted_data)
-}
-
-pub async fn save_secure_configuration(
-    uuid: &str,
-    config: HashMap<String, String>,
-    crypto_key: &CryptoKey,
-) -> Result<(), LakestreamError> {
-    // Serialize the HashMap to a JSON string
-    let config_json = serde_json::to_string(&config).map_err(|_| {
-        LakestreamError::String("Serialization Error".to_owned())
-    })?;
-
-    // Use a predetermined prefix for the key (e.g., "CONFIG_") and append the UUID
-    let key = format!("CONFIG_{}", uuid);
-
-    // Encrypt and save the JSON string to local storage
-    save_secure_string(&key, &config_json, crypto_key)
-        .await
-        .map_err(|_| {
-            LakestreamError::InternalError("SecureStringError".to_owned())
-        })
-}
-
-pub async fn load_secure_configuration(
-    uuid: &str,
-    crypto_key: &CryptoKey,
-) -> Result<HashMap<String, String>, LakestreamError> {
-    // Use the same key as before
-    let key = format!("CONFIG_{}", uuid);
-
-    // Load and decrypt the JSON string from local storage
-    let config_json =
-        load_secure_string(&key, crypto_key).await.map_err(|_| {
-            LakestreamError::InternalError("SecureStringError".to_owned())
-        })?;
-
-    // Deserialize the JSON string back into a HashMap
-    serde_json::from_str(&config_json).map_err(|_| {
-        LakestreamError::String("Deserialization Error".to_owned())
-    })
 }

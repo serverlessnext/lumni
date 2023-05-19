@@ -1,8 +1,7 @@
-
 use std::fmt;
-use wasm_bindgen::JsValue;
-use base64::DecodeError;
 
+use base64::DecodeError;
+use wasm_bindgen::JsValue;
 
 #[derive(Debug)]
 pub enum SecureStringError {
@@ -35,13 +34,20 @@ impl From<serde_json::Error> for SecureStringError {
 impl fmt::Display for SecureStringError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SecureStringError::JsError(e) => write!(f, "JavaScript error: {:?}", e),
-            SecureStringError::Base64Error(e) => write!(f, "Base64 decoding error: {}", e),
+            SecureStringError::JsError(e) => {
+                write!(f, "JavaScript error: {:?}", e)
+            }
+            SecureStringError::Base64Error(e) => {
+                write!(f, "Base64 decoding error: {}", e)
+            }
             SecureStringError::NoWindow => write!(f, "No window found"),
             SecureStringError::NoCrypto => write!(f, "No crypto key found"),
-            SecureStringError::NoLocalStorageData => write!(f, "No data in local storage"),
-            SecureStringError::SerdeError(e) => write!(f, "Serde JSON error: {}", e),
+            SecureStringError::NoLocalStorageData => {
+                write!(f, "No data in local storage")
+            }
+            SecureStringError::SerdeError(e) => {
+                write!(f, "Serde JSON error: {}", e)
+            }
         }
     }
 }
-

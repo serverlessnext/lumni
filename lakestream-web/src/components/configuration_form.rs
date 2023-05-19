@@ -100,7 +100,6 @@ pub fn ObjectStoreConfig(
     }
 }
 
-
 pub trait OnSubmit {
     fn call(
         &mut self,
@@ -206,7 +205,6 @@ fn handle_form_submission(
     });
     log!("Saved items");
 }
-
 
 fn create_input_field_view(
     cx: Scope,

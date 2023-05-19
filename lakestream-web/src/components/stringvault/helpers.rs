@@ -1,15 +1,12 @@
-
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use js_sys::{ArrayBuffer, Uint8Array};
 use leptos::log;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{AesGcmParams, CryptoKey};
-
-use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
-use crate::utils::local_storage::{load_data, save_data};
+use web_sys::{window, AesGcmParams, AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
 use super::error::SecureStringError;
+use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
 
@@ -79,11 +76,10 @@ pub async fn save_secure_string(
     let encrypted_data = js_sys::Uint8Array::new(&encrypted_data);
     let encrypted_data: Vec<u8> = encrypted_data.to_vec();
     let encrypted_data_with_iv = [iv_vec, encrypted_data].concat();
-    //let encrypted_data_with_iv_base64 = base64::encode(&encrypted_data_with_iv);
     let encrypted_data_with_iv_base64 =
         general_purpose::STANDARD.encode(&encrypted_data_with_iv);
 
-    save_data(key, &encrypted_data_with_iv_base64).await?;
+    save_string(key, &encrypted_data_with_iv_base64).await?;
     Ok(())
 }
 
@@ -91,11 +87,10 @@ pub async fn load_secure_string(
     key: &str,
     crypto_key: &CryptoKey,
 ) -> SecureStringResult<String> {
-    let encrypted_data_base64 = load_data(key)
+    let encrypted_data_base64 = load_string(key)
         .await
         .ok_or(SecureStringError::NoLocalStorageData)?;
 
-    //let encrypted_data_with_iv = base64::decode(&encrypted_data_base64)?;
     let encrypted_data_with_iv =
         general_purpose::STANDARD.decode(&encrypted_data_base64)?;
 
@@ -104,6 +99,120 @@ pub async fn load_secure_string(
     let iv = Uint8Array::from(&iv[..]);
 
     let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv).await?;
-    log!("decrypted_data: {:?}", decrypted_data);
     Ok(decrypted_data)
+}
+
+pub async fn derive_crypto_key(
+    password: &str,
+    salt: &str,
+) -> Result<CryptoKey, JsValue> {
+    let iterations = 100000;
+    let key_length = 256;
+    let window = web_sys::window().expect("no global `window` exists");
+    let crypto = window.crypto().expect("no `crypto` on `window`");
+    let subtle = crypto.subtle();
+
+    let password_data = string_to_uint8array(password);
+    let salt_data = string_to_uint8array(salt);
+
+    let key_usages_js = js_sys::Array::new();
+    key_usages_js.push(&JsValue::from_str("deriveKey"));
+
+    let password_key_promise = subtle.import_key_with_str(
+        "raw",
+        &password_data,
+        "PBKDF2",
+        false,
+        &key_usages_js.into(),
+    )?;
+
+    let password_key: CryptoKey =
+        wasm_bindgen_futures::JsFuture::from(password_key_promise)
+            .await?
+            .dyn_into()?;
+
+    let key_usages_js = js_sys::Array::new();
+    key_usages_js.push(&JsValue::from_str("encrypt"));
+    key_usages_js.push(&JsValue::from_str("decrypt"));
+
+    let derived_key_promise = subtle.derive_key_with_object_and_object(
+        &Pbkdf2Params::new(
+            "PBKDF2",
+            &JsValue::from_str("SHA-256"),
+            iterations,
+            &salt_data.into(),
+        ),
+        &password_key,
+        &AesKeyGenParams::new("AES-GCM", key_length),
+        true,
+        &key_usages_js.into(),
+    )?;
+
+    let derived_key: CryptoKey =
+        wasm_bindgen_futures::JsFuture::from(derived_key_promise)
+            .await?
+            .dyn_into()?;
+
+    Ok(derived_key)
+}
+
+pub fn generate_salt() -> Result<String, JsValue> {
+    let salt_length = 16; // Your desired salt length
+    let mut salt = vec![0u8; salt_length];
+
+    web_sys::window()
+        .expect("no global `window` exists")
+        .crypto()
+        .expect("should have a `Crypto` on the `Window`")
+        .get_random_values_with_u8_array(&mut salt)
+        .expect("get_random_values_with_u8_array failed");
+
+    // Convert the salt array to a base64 string
+    Ok(general_purpose::STANDARD.encode(&salt))
+}
+
+pub async fn get_or_generate_salt(user: &str) -> Result<String, JsValue> {
+    let key = format!("USERS_{}", general_purpose::STANDARD.encode(user));
+    match load_string(&key).await {
+        Some(salt) => Ok(salt),
+        None => {
+            let new_salt = generate_salt()?;
+            save_string(&key, &new_salt).await?;
+            Ok(new_salt)
+        }
+    }
+}
+
+async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            storage.set_item(key, value).map_err(|_| {
+                JsValue::from_str("Error: Unable to save data to localStorage.")
+            })?;
+            return Ok(());
+        } else {
+            return Err(JsValue::from_str(
+                "Error: localStorage is not available.",
+            ));
+        }
+    } else {
+        return Err(JsValue::from_str(
+            "Error: Unable to access window object.",
+        ));
+    }
+}
+
+async fn load_string(key: &str) -> Option<String> {
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            if let Ok(Some(data)) = storage.get_item(key) {
+                return Some(data);
+            }
+        } else {
+            log!("Error: localStorage is not available.");
+        }
+    } else {
+        log!("Error: Unable to access window object.");
+    }
+    None
 }

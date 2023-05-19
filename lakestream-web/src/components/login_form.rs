@@ -1,26 +1,18 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
-use crate::base::GlobalState;
-use crate::utils::convert_types::string_to_uint8array;
-
-use crate::StringVault;
-
+use crate::{GlobalState, StringVault};
 
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
-    let set_vault = create_write_slice(
-        cx,
-        state,
-        |state, vault| state.vault = vault,
-    );
+    let set_vault =
+        create_write_slice(cx, state, |state, vault| state.vault = vault);
 
     let password_ref: NodeRef<Input> = create_node_ref(cx);
 
@@ -28,20 +20,15 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         // Remove this line to allow default form submission behavior
         ev.prevent_default();
 
+        let user = "admin".to_string();
         let password = password_ref().expect("password to exist").value();
-
-        // TODO: ideally replace this with a random (/derived) salt
-        // may not be necessary if we're using a random IV for each encryption
-        // need to be investigated further
-        // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto
-        let salt = "your_salt_value_here";
 
         // Spawn a new task to wait for the future from derive_key to complete
         spawn_local(async move {
-            match derive_key_websys(&password, &salt).await {
-                Ok(crypto_key) => {
-                    log!("Key stored as: {:?}", crypto_key);
-                    set_vault(Some(StringVault::new(crypto_key)));
+            match StringVault::new(&user, &password).await {
+                Ok(string_vault) => {
+                    log!("Key derived and stored in vault");
+                    set_vault(Some(string_vault));
                 }
                 Err(err) => {
                     web_sys::console::log_1(&JsValue::from_str(&format!(
@@ -71,67 +58,4 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             </button>
         </form>
     }
-}
-
-async fn derive_key_websys(
-    password: &str,
-    salt: &str,
-) -> Result<CryptoKey, JsValue> {
-    let iterations = 100000;
-    let key_length = 256;
-    let window = web_sys::window().expect("no global `window` exists");
-    let crypto = window.crypto().expect("no `crypto` on `window`");
-    let subtle = crypto.subtle();
-
-    let password_data = string_to_uint8array(password);
-    let salt_data = string_to_uint8array(salt);
-
-    let key_usages_js = js_sys::Array::new();
-    key_usages_js.push(&JsValue::from_str("deriveKey"));
-
-    let password_key_promise = subtle.import_key_with_str(
-        "raw",
-        &password_data,
-        "PBKDF2",
-        false,
-        &key_usages_js.into(),
-    )?;
-
-    let password_key: CryptoKey =
-        wasm_bindgen_futures::JsFuture::from(password_key_promise)
-            .await?
-            .dyn_into()?;
-
-    let key_usages_js = js_sys::Array::new();
-    key_usages_js.push(&JsValue::from_str("encrypt"));
-    key_usages_js.push(&JsValue::from_str("decrypt"));
-
-    let derived_key_promise = subtle.derive_key_with_object_and_object(
-        &Pbkdf2Params::new(
-            "PBKDF2",
-            &JsValue::from_str("SHA-256"),
-            iterations,
-            &salt_data.into(),
-        ),
-        &password_key,
-        &AesKeyGenParams::new("AES-GCM", key_length),
-        true,
-        &key_usages_js.into(),
-    )?;
-
-    let derived_key: CryptoKey =
-        wasm_bindgen_futures::JsFuture::from(derived_key_promise)
-            .await?
-            .dyn_into()?;
-
-    // used for temporary logging
-    let raw_key_promise = subtle.export_key("raw", &derived_key)?;
-    let raw_key: js_sys::ArrayBuffer =
-        wasm_bindgen_futures::JsFuture::from(raw_key_promise)
-            .await?
-            .dyn_into()?;
-    let raw_key_vec: Vec<u8> = js_sys::Uint8Array::new(&raw_key).to_vec();
-    log::info!("raw_key_vec: {:?}", raw_key_vec);
-
-    Ok(derived_key)
 }

@@ -1,18 +1,19 @@
-
 use std::collections::HashMap;
-use web_sys::CryptoKey;
-use serde_json;
 
-mod helpers;
+use leptos::log;
+use serde_json;
+use wasm_bindgen::JsValue;
+use web_sys::CryptoKey;
 mod error;
+mod helpers;
 
 pub use error::SecureStringError;
-use helpers::{load_secure_string, save_secure_string};
-
+use helpers::{
+    derive_crypto_key, get_or_generate_salt, load_secure_string,
+    save_secure_string,
+};
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
-
-
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
@@ -20,9 +21,12 @@ pub struct StringVault {
 }
 
 impl StringVault {
-    pub fn new(key: CryptoKey) -> Self {
-        Self {
-            key,
+    pub async fn new(user: &str, password: &str) -> Result<Self, JsValue> {
+        let salt = get_or_generate_salt(user).await?;
+
+        match derive_crypto_key(password, &salt).await {
+            Ok(crypto_key) => Ok(Self { key: crypto_key }),
+            Err(err) => Err(err),
         }
     }
 
@@ -37,8 +41,7 @@ impl StringVault {
     ) -> SecureStringResult<()> {
         let config_json = serde_json::to_string(&config)?;
         let key = format!("SECRETS_{}", uuid);
-        save_secure_string(&key, &config_json, &self.key)
-            .await
+        save_secure_string(&key, &config_json, &self.key).await
     }
 
     pub async fn load_secure_configuration(
@@ -47,9 +50,9 @@ impl StringVault {
     ) -> SecureStringResult<HashMap<String, String>> {
         let key = format!("SECRETS_{}", uuid);
         let config_json = load_secure_string(&key, &self.key).await?;
-        let config: HashMap<String, String> = serde_json::from_str(&config_json)
-            .map_err(SecureStringError::from)?;
+        let config: HashMap<String, String> =
+            serde_json::from_str(&config_json)
+                .map_err(SecureStringError::from)?;
         Ok(config)
     }
 }
-

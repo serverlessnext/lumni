@@ -1,15 +1,22 @@
-pub use lakestream::LakestreamError;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
 use crate::base::GlobalState;
-use crate::routes::{Home, ObjectStores, ObjectStoresId};
+use crate::routes::{Home, Login, ObjectStores, ObjectStoresId};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());
     provide_context(cx, state);
+
+    let vault =
+        create_read_slice(cx, state, |state| state.vault.clone());
+
+    let set_previous_url =
+        create_write_slice(cx, state, |state, previous_url| {
+            state.previous_url = previous_url;
+        });
 
     view! {
         cx,
@@ -28,8 +35,28 @@ pub fn App(cx: Scope) -> impl IntoView {
                 <main>
                     <Routes>
                         <Route path="/home" view=|cx| view! { cx, <Home/> }/>
-                        <Route path="/object-stores" view=|cx| view! { cx, <ObjectStores/> }/>
-                        <Route path="/object-stores/:id" view=|cx| view! { cx, <ObjectStoresId/> }/>
+                        <Route path="/login" view=|cx| view! { cx, <Login/> }/>
+                        <ProtectedRoute
+                            path="/object-stores"
+                            redirect_path="/login"
+                            condition=move |_| {
+                                if vault.get().is_none() {
+                                    set_previous_url("/object-stores".to_string());
+                                }
+                                vault.get().is_some()
+                            }
+                            view=|cx| view! { cx, <ObjectStores/> }
+                        />
+                        <ProtectedRoute
+                            path="/object-stores/:id"
+                            redirect_path="/login"
+                            condition=move |_| {
+                                if vault.get().is_none() {
+                                    set_previous_url("/object-stores".to_string());
+                                }
+                                vault.get().is_some()
+                            }
+                            view=|cx| view! { cx, <ObjectStoresId/> }/>
                     </Routes>
                 </main>
             </Router>
@@ -37,3 +64,4 @@ pub fn App(cx: Scope) -> impl IntoView {
         </div>
     }
 }
+

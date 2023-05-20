@@ -8,7 +8,6 @@ use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::base::GlobalState;
-use crate::components::login_form::LoginForm;
 use crate::StringVault;
 
 #[component]
@@ -20,11 +19,11 @@ pub fn ObjectStoreConfig(
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
-    let (vault, set_lakevault) = create_slice(
+    let (vault, set_vault) = create_slice(
         cx,
         state,
         |state| state.vault.clone(),
-        |state, new_lakevault| state.vault = new_lakevault,
+        |state, new_vault| state.vault = new_vault,
     );
 
     let (loaded_config, set_loaded_config) = create_signal(cx, None);
@@ -56,7 +55,7 @@ pub fn ObjectStoreConfig(
                         // Skip the reset of crypto_key when override is active
                         if !is_override {
                             // Reset vault to prompt the user again via LoginForm
-                            set_lakevault(None);
+                            set_vault(None);
                         }
                     }
                 };
@@ -66,38 +65,29 @@ pub fn ObjectStoreConfig(
 
     view! { cx,
         {move ||
-            if let Some(vault) = vault.get() {
-                if let Some(loaded_config) = loaded_config.get() {
-                    form_view(cx, vault, uuid.clone(), &loaded_config)
-                } else if is_override_active.get() {
-                    form_view(cx, vault, uuid.clone(), &initial_config_reset)
-                } else {
-                    view! {
-                        cx,
-                        <div>
-                            "Loading..."
-                        </div>
-                    }
-                }
+            if let Some(loaded_config) = loaded_config.get() {
+                form_view(cx, vault.get().unwrap(), uuid.clone(), &loaded_config)
+            } else if is_override_active.get() {
+                form_view(cx, vault.get().unwrap(), uuid.clone(), &initial_config_reset)
             } else if let Some(error) = load_config_error.get() {
                 view! {
                     cx,
                     <div>
                         {"Error loading configuration: "}
                         {error}
-                        <LoginForm/>
                     </div>
                 }
             } else {
                 view! {
                     cx,
                     <div>
-                    <LoginForm/>
+                        "Loading..."
                     </div>
                 }
             }
         }
     }
+
 }
 
 pub trait OnSubmit {

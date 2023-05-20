@@ -1,11 +1,11 @@
-use base64::engine::general_purpose;
-use base64::Engine as _;
+use blake3::hash;
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AesGcmParams, AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
 use super::error::SecureStringError;
-use super::storage::get_or_generate_salt;
+use super::storage::{load_string, save_string};
+use super::string_ops::generate_salt;
 use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
 
 const KEY_USAGE_DERIVE_KEY: &str = "deriveKey";
@@ -145,11 +145,24 @@ fn key_usages_to_js(key_usages: &[&str]) -> js_sys::Array {
 }
 
 pub async fn derive_key_from_password(
-    user: &str,
+    hashed_username: &str,
     password: &str,
 ) -> SecureStringResult<CryptoKey> {
-    let user_salt_key =
-        format!("USERS_{}", general_purpose::STANDARD.encode(user));
-    let salt = get_or_generate_salt(&user_salt_key).await?;
+    let user_salt_key = format!("USERS_{}", hashed_username);
+
+    let salt = match load_string(&user_salt_key).await {
+        Some(salt) => salt,
+        None => {
+            let new_salt = generate_salt()?;
+            save_string(&user_salt_key, &new_salt).await?;
+            new_salt
+        }
+    };
+
     derive_crypto_key(password, &salt).await
+}
+
+pub fn hash_username(user: &str) -> String {
+    let hash = hash(user.as_bytes());
+    hash.to_hex().to_string()
 }

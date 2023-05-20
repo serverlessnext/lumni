@@ -7,7 +7,6 @@ use web_sys::{window, CryptoKey};
 
 use super::crypto::{decrypt, encrypt, get_crypto_subtle};
 use super::error::SecureStringError;
-use super::string_ops::generate_salt;
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
 
@@ -52,19 +51,7 @@ pub async fn load_secure_string(
     Ok(decrypted_data)
 }
 
-pub async fn get_or_generate_salt(user: &str) -> Result<String, JsValue> {
-    let key = format!("USERS_{}", general_purpose::STANDARD.encode(user));
-    match load_string(&key).await {
-        Some(salt) => Ok(salt),
-        None => {
-            let new_salt = generate_salt()?;
-            save_string(&key, &new_salt).await?;
-            Ok(new_salt)
-        }
-    }
-}
-
-async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
+pub async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
     if let Some(window) = window() {
         if let Ok(Some(storage)) = window.local_storage() {
             storage.set_item(key, value).map_err(|_| {
@@ -83,7 +70,7 @@ async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
     }
 }
 
-async fn load_string(key: &str) -> Option<String> {
+pub async fn load_string(key: &str) -> Option<String> {
     if let Some(window) = window() {
         if let Ok(Some(storage)) = window.local_storage() {
             if let Ok(Some(data)) = storage.get_item(key) {

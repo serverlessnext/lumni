@@ -6,6 +6,8 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::{GlobalState, StringVault};
 
+const ROOT_USERNAME: &str = "root";
+
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
@@ -20,12 +22,11 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         // Remove this line to allow default form submission behavior
         ev.prevent_default();
 
-        let user = "admin".to_string();
         let password = password_ref().expect("password to exist").value();
 
         // Spawn a new task to wait for the future from derive_key to complete
         spawn_local(async move {
-            match StringVault::new(&user, &password).await {
+            match StringVault::new(ROOT_USERNAME, &password).await {
                 Ok(string_vault) => {
                     log!("Key derived and stored in vault");
                     set_vault(Some(string_vault));

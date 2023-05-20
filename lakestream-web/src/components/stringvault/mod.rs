@@ -1,32 +1,35 @@
+pub mod crypto;
+pub mod error;
+pub mod storage;
+pub mod string_ops;
 use std::collections::HashMap;
 
-use leptos::log;
+use crypto::{derive_crypto_key, derive_key_from_password};
+pub use error::SecureStringError;
 use serde_json;
+use storage::{load_secure_string, save_secure_string};
+use string_ops::generate_password;
 use wasm_bindgen::JsValue;
 use web_sys::CryptoKey;
-mod error;
-mod helpers;
-
-pub use error::SecureStringError;
-use helpers::{
-    derive_crypto_key, get_or_generate_salt, load_secure_string,
-    save_secure_string,
-};
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
     key: CryptoKey,
+    user: String,
 }
+
+const EMPTY_SALT: &str = "";
 
 impl StringVault {
     pub async fn new(user: &str, password: &str) -> Result<Self, JsValue> {
-        let salt = get_or_generate_salt(user).await?;
-
-        match derive_crypto_key(password, &salt).await {
-            Ok(crypto_key) => Ok(Self { key: crypto_key }),
-            Err(err) => Err(err),
+        match derive_key_from_password(user, password).await {
+            Ok(crypto_key) => Ok(Self {
+                user: user.to_string(),
+                key: crypto_key,
+            }),
+            Err(err) => Err(JsValue::from_str(&err.to_string())),
         }
     }
 
@@ -39,20 +42,70 @@ impl StringVault {
         uuid: &str,
         config: HashMap<String, String>,
     ) -> SecureStringResult<()> {
+        // Generate a new password for the configuration
+        let password = generate_password()?; // you need to implement this function
+
+        // Derive a new key from the password
+        let derived_key = derive_crypto_key(&password, EMPTY_SALT).await?;
+
+        // Encrypt and store the configuration with the derived key
         let config_json = serde_json::to_string(&config)?;
-        let key = format!("SECRETS_{}", uuid);
-        save_secure_string(&key, &config_json, &self.key).await
+        save_secure_string(uuid, &config_json, &derived_key).await?;
+
+        // Load the encrypted passwords map
+        let mut passwords = match self.load_passwords().await {
+            Ok(passwords) => passwords,
+            Err(_) => HashMap::new(),
+        };
+
+        // Update the passwords map and save it
+        passwords.insert(uuid.to_string(), password);
+        self.save_passwords(passwords).await
     }
 
     pub async fn load_secure_configuration(
         &self,
         uuid: &str,
     ) -> SecureStringResult<HashMap<String, String>> {
-        let key = format!("SECRETS_{}", uuid);
-        let config_json = load_secure_string(&key, &self.key).await?;
+        // Load the encrypted passwords map
+        let passwords = self.load_passwords().await?;
+
+        // Get the password for the configuration
+        let password =
+            passwords
+                .get(uuid)
+                .ok_or(SecureStringError::PasswordNotFound(format!(
+                    "Password for {} not found",
+                    uuid
+                )))?;
+
+        // Derive the key from the loaded password
+        let derived_key = derive_crypto_key(&password, "").await?;
+
+        // Load the configuration with the derived key
+        let config_json = load_secure_string(&uuid, &derived_key).await?;
         let config: HashMap<String, String> =
             serde_json::from_str(&config_json)
                 .map_err(SecureStringError::from)?;
+
         Ok(config)
+    }
+
+    async fn save_passwords(
+        &mut self,
+        passwords: HashMap<String, String>,
+    ) -> SecureStringResult<()> {
+        let passwords_json = serde_json::to_string(&passwords)?;
+        save_secure_string(&self.user, &passwords_json, &self.key).await
+    }
+
+    async fn load_passwords(
+        &self,
+    ) -> SecureStringResult<HashMap<String, String>> {
+        let passwords_json = load_secure_string(&self.user, &self.key).await?;
+        let passwords: HashMap<String, String> =
+            serde_json::from_str(&passwords_json)
+                .map_err(SecureStringError::from)?;
+        Ok(passwords)
     }
 }

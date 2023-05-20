@@ -1,6 +1,5 @@
-use web_sys::window;
 use serde::{Deserialize, Serialize};
-
+use web_sys::window;
 
 pub fn load_from_storage<T: for<'de> Deserialize<'de>>(key: &str) -> Option<T> {
     if let Ok(Some(storage)) = window()?.local_storage() {

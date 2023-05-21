@@ -1,11 +1,11 @@
-
-use uuid::Uuid;
+use leptos::html::Div;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
+use uuid::Uuid;
 
-use crate::GlobalState;
 use crate::base::{ObjectStore, ObjectStoreList};
-use crate::components::configuration_form::ObjectStoreConfig;
+use crate::components::configuration_form::form_data_handler;
+use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
@@ -23,7 +23,6 @@ impl Params for RouteParams {
 
 #[component]
 pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
-
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -31,10 +30,11 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
 
     let params = use_params::<RouteParams>(cx);
 
-    let valid_ids: Vec<String> = ObjectStoreList::load_from_local_storage(vault.clone())
-        .into_iter()
-        .map(|item| item.id.to_string())
-        .collect();
+    let valid_ids: Vec<String> =
+        ObjectStoreList::load_from_local_storage(vault.clone())
+            .into_iter()
+            .map(|item| item.id.to_string())
+            .collect();
 
     let id: Option<String> = match params.try_get() {
         Some(Ok(route_params)) => Some(route_params.id.clone()),
@@ -42,23 +42,15 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         None => None,
     };
 
-    match id {
+    let form_data_handler: HtmlElement<Div> = match id {
         Some(id) if valid_ids.contains(&id) => {
-            let store = ObjectStore::new(
+            let config_manager = ObjectStore::new(
                 Uuid::parse_str(&id).unwrap(),
                 "s3://my-bucket".to_string(),
                 vault,
             );
-            view! {
-                cx,
-                <div>
-                    <div>"You've requested object with ID: "{&id}</div>
-                    <h2>"Configuration S3 Bucket"</h2>
-                    <ObjectStoreConfig store=store/>
-                </div>
-            }
+            form_data_handler(cx, config_manager.clone())
         }
-
         _ => {
             // Render 404 page
             view! {
@@ -68,6 +60,14 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                     <p>"The page you requested could not be found."</p>
                 </div>
             }
+            .into()
         }
+    };
+
+    view! {
+        cx,
+        <div>
+            {form_data_handler}
+        </div>
     }
 }

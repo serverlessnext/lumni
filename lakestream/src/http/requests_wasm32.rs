@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::error::Error;
 
 use bytes::Bytes;
 use js_sys::{ArrayBuffer, Uint8Array};
 use log::info;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Headers, Request, RequestInit, RequestMode, Response, Window};
+use web_sys::{Headers, Request, RequestInit, RequestMode};
 
 use crate::LakestreamError;
 

@@ -1,4 +1,4 @@
-use js_sys::{Date, JsString};
+use js_sys::Date;
 use wasm_bindgen::prelude::*;
 
 pub fn rfc3339_to_epoch(timestamp: &str) -> Result<u64, JsValue> {

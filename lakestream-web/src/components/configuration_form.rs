@@ -1,20 +1,31 @@
-use core::cell::RefCell;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use async_trait::async_trait;
 use leptos::ev::SubmitEvent;
 use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::base::ObjectStore;
+use crate::components::stringvault::{SecureStringError, SecureStringResult};
 
-#[component]
-pub fn ObjectStoreConfig(
+#[async_trait(?Send)]
+pub trait ConfigManager: Clone {
+    fn get_default_config(&self) -> HashMap<String, String>;
+    async fn load_secure_configuration(
+        &self,
+    ) -> SecureStringResult<HashMap<String, String>>;
+    async fn save_secure_configuration(
+        &mut self,
+        config: HashMap<String, String>,
+    ) -> Result<(), SecureStringError>;
+}
+
+pub fn form_data_handler<T: ConfigManager + Clone + 'static>(
     cx: Scope,
-    store: ObjectStore,
-) -> impl IntoView {
-
+    config_manager: T,
+) -> HtmlElement<Div> {
     let (loaded_config, set_loaded_config) = create_signal(cx, None);
     let (load_config_error, set_load_config_error) =
         create_signal(cx, None::<String>);
@@ -25,31 +36,31 @@ pub fn ObjectStoreConfig(
     // this will show the form with empty values, so the user has an option to fill in new
     // next TODO is to add a reset button to the form to clear existing values/ set new password
     set_is_override_active(true);
-    let initial_config_reset = store.get_default_config().clone();
+    let initial_config_reset = config_manager.get_default_config().clone();
 
-    let store_clone = store.clone();
+    let config_manager_clone = config_manager.clone();
     create_effect(cx, move |_| {
-            //let vault = store_clone.vault.lock().unwrap();
-            let store_clone = store_clone.clone();
-            spawn_local(async move {
-                match store_clone.load_secure_configuration().await {
-                    Ok(new_config) => {
-                        set_loaded_config(Some(new_config));
-                        set_load_config_error(None); // Clear the error if loading was successful
-                    }
-                    Err(e) => {
-                        set_load_config_error(Some(e.to_string()));
-                    }
-                };
-            });
+        let config_manager_clone = config_manager_clone.clone();
+        spawn_local(async move {
+            match config_manager_clone.load_secure_configuration().await {
+                Ok(new_config) => {
+                    set_loaded_config(Some(new_config));
+                    set_load_config_error(None); // Clear the error if loading was successful
+                }
+                Err(e) => {
+                    set_load_config_error(Some(e.to_string()));
+                }
+            };
+        });
     });
 
     view! { cx,
+        <div>
         {move ||
             if let Some(loaded_config) = loaded_config.get() {
-                form_view(cx, store.clone(), &loaded_config)
+                form_view(cx, config_manager.clone(), &loaded_config)
             } else if is_override_active.get() {
-                form_view(cx, store.clone(), &initial_config_reset)
+                form_view(cx, config_manager.clone(), &initial_config_reset)
             } else if let Some(error) = load_config_error.get() {
                 view! {
                     cx,
@@ -67,6 +78,7 @@ pub fn ObjectStoreConfig(
                 }
             }
         }
+        </div>
     }
 }
 
@@ -88,9 +100,9 @@ impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
     }
 }
 
-fn form_view(
+fn form_view<T: ConfigManager + Clone + 'static>(
     cx: Scope,
-    store: ObjectStore,
+    config_manager: T,
     loaded_config: &HashMap<String, String>,
 ) -> HtmlElement<Div> {
     let input_elements = create_input_elements(cx, loaded_config);
@@ -99,8 +111,8 @@ fn form_view(
     let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
         move |ev: SubmitEvent,
               input_elements: HashMap<String, NodeRef<Input>>| {
-            let store = store.clone();
-            handle_form_submission(ev, store, input_elements);
+            let config_manager = config_manager.clone();
+            handle_form_submission(ev, config_manager, input_elements);
         },
     ));
 
@@ -135,9 +147,9 @@ fn create_input_elements(
     input_elements
 }
 
-fn handle_form_submission(
+fn handle_form_submission<T: ConfigManager + 'static>(
     ev: SubmitEvent,
-    store: ObjectStore,
+    config_manager: T,
     input_elements: HashMap<String, NodeRef<Input>>,
 ) {
     ev.prevent_default();
@@ -148,22 +160,17 @@ fn handle_form_submission(
         config.insert(key.clone(), value);
     }
 
-    let mut store = store.clone();
-    let uuid = store.id.clone();
+    let mut config_manager = config_manager.clone();
     spawn_local(async move {
-        match store.save_secure_configuration(config.clone()).await {
+        match config_manager
+            .save_secure_configuration(config.clone())
+            .await
+        {
             Ok(_) => {
-                log!("Successfully saved secure configuration for uuid: {}",
-                    uuid
-                );
+                log!("Successfully saved secure configuration");
             }
             Err(e) => {
-                log!(
-                    "Failed to save secure configuration for uuid: {}. Error: \
-                     {:?}",
-                    uuid,
-                    e
-                );
+                log!("Failed to save secure configuration. Error: {:?}", e);
             }
         };
     });

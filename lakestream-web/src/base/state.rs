@@ -1,11 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::StringVault;
 
 const DEFAULT_HOME_URL: &str = "/home";
 
 #[derive(Clone, Default)]
 pub struct GlobalState {
-    pub vault: Option<Arc<Mutex<StringVault>>>,
+    pub vault: Option<Rc<RefCell<StringVault>>>,
     pub runtime: Option<RunTime>,
 }
 

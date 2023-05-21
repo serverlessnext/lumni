@@ -1,20 +1,17 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::components::configuration_form::ConfigManager;
 use crate::components::stringvault::{SecureStringError, SecureStringResult};
-use crate::StringVault;
 use crate::utils::local_storage::{load_from_storage, save_to_storage};
+use crate::StringVault;
 
 const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";
-
-#[derive(Debug, Clone)]
-pub struct ObjectStore {
-    pub id: Uuid,
-    pub uri: String,
-    pub vault: Arc<Mutex<StringVault>>,
-}
 
 #[derive(Debug, Clone)]
 pub struct ObjectStoreList {
@@ -22,14 +19,16 @@ pub struct ObjectStoreList {
 }
 
 impl ObjectStoreList {
-    pub fn new(vault: Arc<Mutex<StringVault>>) -> Self {
+    pub fn new(vault: Rc<RefCell<StringVault>>) -> Self {
         let initial_items = Self::load_from_local_storage(vault);
         Self {
             items: initial_items,
         }
     }
 
-    pub fn load_from_local_storage(vault: Arc<Mutex<StringVault>>) -> Vec<ObjectStore> {
+    pub fn load_from_local_storage(
+        vault: Rc<RefCell<StringVault>>,
+    ) -> Vec<ObjectStore> {
         load_from_storage::<Vec<ItemSerialized>>(LOCAL_STORAGE_KEY)
             .map(|values| {
                 values
@@ -61,8 +60,15 @@ impl ObjectStoreList {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ObjectStore {
+    pub id: Uuid,
+    pub uri: String,
+    pub vault: Rc<RefCell<StringVault>>,
+}
+
 impl ObjectStore {
-    pub fn new(id: Uuid, uri: String, vault: Arc<Mutex<StringVault>>) -> Self {
+    pub fn new(id: Uuid, uri: String, vault: Rc<RefCell<StringVault>>) -> Self {
         Self { id, uri, vault }
     }
 
@@ -71,26 +77,49 @@ impl ObjectStore {
         s3_default_config()
     }
 
-    pub async fn load_secure_configuration(&self) -> SecureStringResult<HashMap<String, String>> {
-        let vault = self.vault.lock().unwrap();
-        vault.load_secure_configuration(&self.id.urn().to_string()).await
+    pub async fn load_secure_configuration(
+        &self,
+    ) -> SecureStringResult<HashMap<String, String>> {
+        let vault = self.vault.borrow(); //.unwrap();
+        vault
+            .load_secure_configuration(&self.id.urn().to_string())
+            .await
     }
 
     pub async fn save_secure_configuration(
+        &self,
+        config: HashMap<String, String>,
+    ) -> Result<(), SecureStringError> {
+        let mut vault = self.vault.borrow_mut();
+        let uuid = self.id.urn().to_string();
+        let result =
+            vault.save_secure_configuration(&uuid, config.clone()).await;
+        result
+    }
+}
+
+#[async_trait(?Send)]
+impl ConfigManager for ObjectStore {
+    fn get_default_config(&self) -> HashMap<String, String> {
+        ObjectStore::get_default_config(self)
+    }
+
+    async fn load_secure_configuration(
+        &self,
+    ) -> SecureStringResult<HashMap<String, String>> {
+        ObjectStore::load_secure_configuration(self).await
+    }
+
+    async fn save_secure_configuration(
         &mut self,
         config: HashMap<String, String>,
     ) -> Result<(), SecureStringError> {
-        let mut vault = self.vault.lock().unwrap();
-        let uuid = self.id.urn().to_string();
-        let result = vault.save_secure_configuration(&uuid, config.clone()).await;
-        result
+        ObjectStore::save_secure_configuration(self, config).await
     }
-
 }
 
-
 impl ItemSerialized {
-    pub fn into_item(self, vault: Arc<Mutex<StringVault>>) -> ObjectStore {
+    pub fn into_item(self, vault: Rc<RefCell<StringVault>>) -> ObjectStore {
         ObjectStore {
             id: self.id,
             uri: self.uri,

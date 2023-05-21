@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::components::configuration_form::ConfigManager;
+use crate::components::stringvault::config_handler::ConfigManager;
 use crate::components::stringvault::{SecureStringError, SecureStringResult};
 use crate::utils::local_storage::{load_from_storage, save_to_storage};
 use crate::StringVault;

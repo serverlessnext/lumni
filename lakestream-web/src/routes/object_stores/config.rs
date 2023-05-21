@@ -4,7 +4,7 @@ use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 use uuid::Uuid;
 
 use crate::base::{ObjectStore, ObjectStoreList};
-use crate::components::configuration_form::form_data_handler;
+use crate::components::stringvault::config_handler::ConfigFormView;
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -49,7 +49,8 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                 "s3://my-bucket".to_string(),
                 vault,
             );
-            form_data_handler(cx, config_manager.clone())
+            let config_handler = ConfigFormView::new(config_manager);
+            config_handler.form_data_handler(cx)
         }
         _ => {
             // Render 404 page

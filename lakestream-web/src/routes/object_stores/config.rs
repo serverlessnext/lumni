@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 
+use uuid::Uuid;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use crate::base::ObjectStoreList;
+use crate::GlobalState;
+use crate::base::{ObjectStore, ObjectStoreList};
 use crate::components::configuration_form::ObjectStoreConfig;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -22,9 +23,15 @@ impl Params for RouteParams {
 
 #[component]
 pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
+
+    let vault = use_context::<RwSignal<GlobalState>>(cx)
+        .expect("state to have been provided")
+        .with(|state| state.vault.clone())
+        .expect("vault to have been initialized");
+
     let params = use_params::<RouteParams>(cx);
 
-    let valid_ids: Vec<String> = ObjectStoreList::load_from_local_storage()
+    let valid_ids: Vec<String> = ObjectStoreList::load_from_local_storage(vault.clone())
         .into_iter()
         .map(|item| item.id.to_string())
         .collect();
@@ -37,22 +44,17 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
 
     match id {
         Some(id) if valid_ids.contains(&id) => {
+            let store = ObjectStore::new(
+                Uuid::parse_str(&id).unwrap(),
+                "s3://my-bucket".to_string(),
+                vault,
+            );
             view! {
                 cx,
                 <div>
                     <div>"You've requested object with ID: "{&id}</div>
                     <h2>"Configuration S3 Bucket"</h2>
-                    <ObjectStoreConfig
-                        uuid=id.clone()
-                        initial_config={
-                            let mut map = HashMap::new();
-                            map.insert("AWS_ACCESS_KEY_ID".to_string(), "".to_string());
-                            map.insert("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string());
-                            map.insert("AWS_REGION".to_string(), "auto".to_string());
-                            map.insert("S3_ENDPOINT_URL".to_string(), "".to_string());
-                            map
-                        }
-                    />
+                    <ObjectStoreConfig store=store/>
                 </div>
             }
         }

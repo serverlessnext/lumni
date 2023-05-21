@@ -12,7 +12,7 @@ use string_ops::generate_password;
 use wasm_bindgen::JsValue;
 use web_sys::CryptoKey;
 
-type SecureStringResult<T> = Result<T, SecureStringError>;
+pub type SecureStringResult<T> = Result<T, SecureStringError>;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {

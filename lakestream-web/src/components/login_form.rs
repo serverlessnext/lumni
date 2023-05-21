@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
@@ -14,8 +15,12 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
-    let set_vault =
-        create_write_slice(cx, state, |state, vault| state.vault = vault);
+    let set_vault = create_write_slice(cx, state, |state, vault| state.vault = Some(Arc::new(Mutex::new(vault))));
+    let set_vault_initialized = create_write_slice(cx, state, |state, initialized| {
+        if let Some(runtime) = &mut state.runtime {
+            runtime.set_vault_initialized(initialized);
+        }
+    });
 
     let previous_url = create_read_slice(cx, state, |state| {
         state.runtime.as_ref().map(|r| r.previous_url().clone())
@@ -32,7 +37,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         spawn_local(async move {
             match StringVault::new(ROOT_USERNAME, &password).await {
                 Ok(string_vault) => {
-                    set_vault(Some(string_vault));
+                    set_vault(string_vault);
+                    set_vault_initialized(true);
                     let navigate = use_navigate(cx);
                     if let Err(e) = navigate(&redirect_url, Default::default())
                     {

@@ -10,8 +10,6 @@ pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());
     provide_context(cx, state);
 
-    let vault = create_read_slice(cx, state, |state| state.vault.clone());
-
     let set_previous_url =
         create_write_slice(cx, state, |state, previous_url| {
             state
@@ -19,6 +17,14 @@ pub fn App(cx: Scope) -> impl IntoView {
                 .get_or_insert_with(RunTime::new)
                 .set_previous_url(previous_url);
         });
+
+    let vault_initialized = create_read_slice(cx, state, |state| {
+        state
+            .runtime
+            .as_ref()
+            .map(|r| r.vault_initialized())
+            .unwrap_or_default()
+    });
 
     view! {
         cx,
@@ -42,10 +48,11 @@ pub fn App(cx: Scope) -> impl IntoView {
                             path="/object-stores"
                             redirect_path="/login"
                             condition=move |_| {
-                                if vault.get().is_none() {
+                                log!("Checking move: {}", vault_initialized.get());
+                                if !vault_initialized.get() {
                                     set_previous_url("/object-stores".to_string());
                                 }
-                                vault.get().is_some()
+                                vault_initialized.get()
                             }
                             view=|cx| view! { cx, <ObjectStores/> }
                         />
@@ -53,10 +60,10 @@ pub fn App(cx: Scope) -> impl IntoView {
                             path="/object-stores/:id"
                             redirect_path="/login"
                             condition=move |_| {
-                                if vault.get().is_none() {
+                                if !vault_initialized.get() {
                                     set_previous_url("/object-stores".to_string());
                                 }
-                                vault.get().is_some()
+                                vault_initialized.get()
                             }
                             view=|cx| view! { cx, <ObjectStoresId/> }/>
                     </Routes>

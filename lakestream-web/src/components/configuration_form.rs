@@ -7,23 +7,13 @@ use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{GlobalState, StringVault};
+use crate::base::ObjectStore;
 
 #[component]
 pub fn ObjectStoreConfig(
     cx: Scope,
-    uuid: String,
-    initial_config: HashMap<String, String>,
+    store: ObjectStore,
 ) -> impl IntoView {
-    let state = use_context::<RwSignal<GlobalState>>(cx)
-        .expect("state to have been provided");
-
-    let (vault, set_vault) = create_slice(
-        cx,
-        state,
-        |state| state.vault.clone(),
-        |state, new_vault| state.vault = new_vault,
-    );
 
     let (loaded_config, set_loaded_config) = create_signal(cx, None);
     let (load_config_error, set_load_config_error) =
@@ -35,39 +25,31 @@ pub fn ObjectStoreConfig(
     // this will show the form with empty values, so the user has an option to fill in new
     // next TODO is to add a reset button to the form to clear existing values/ set new password
     set_is_override_active(true);
-    let initial_config_reset = initial_config.clone();
+    let initial_config_reset = store.get_default_config().clone();
 
-    let uuid_clone = uuid.clone();
-    let is_override = is_override_active.get();
-
+    let store_clone = store.clone();
     create_effect(cx, move |_| {
-        if let Some(vault) = vault.get() {
-            let uuid_clone = uuid_clone.clone();
+            //let vault = store_clone.vault.lock().unwrap();
+            let store_clone = store_clone.clone();
             spawn_local(async move {
-                match vault.load_secure_configuration(&uuid_clone).await {
+                match store_clone.load_secure_configuration().await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                         set_load_config_error(None); // Clear the error if loading was successful
                     }
                     Err(e) => {
                         set_load_config_error(Some(e.to_string()));
-                        // Skip the reset of crypto_key when override is active
-                        if !is_override {
-                            // Reset vault to prompt the user again via LoginForm
-                            set_vault(None);
-                        }
                     }
                 };
             });
-        }
     });
 
     view! { cx,
         {move ||
             if let Some(loaded_config) = loaded_config.get() {
-                form_view(cx, vault.get().unwrap(), uuid.clone(), &loaded_config)
+                form_view(cx, store.clone(), &loaded_config)
             } else if is_override_active.get() {
-                form_view(cx, vault.get().unwrap(), uuid.clone(), &initial_config_reset)
+                form_view(cx, store.clone(), &initial_config_reset)
             } else if let Some(error) = load_config_error.get() {
                 view! {
                     cx,
@@ -108,19 +90,17 @@ impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
 
 fn form_view(
     cx: Scope,
-    vault: StringVault,
-    uuid: String,
+    store: ObjectStore,
     loaded_config: &HashMap<String, String>,
 ) -> HtmlElement<Div> {
     let input_elements = create_input_elements(cx, loaded_config);
     let input_elements_clone_submit = input_elements.clone();
-    let uuid_clone = uuid.clone();
 
     let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
         move |ev: SubmitEvent,
               input_elements: HashMap<String, NodeRef<Input>>| {
-            let vault = vault.clone();
-            handle_form_submission(ev, vault, &uuid_clone, input_elements);
+            let store = store.clone();
+            handle_form_submission(ev, store, input_elements);
         },
     ));
 
@@ -157,13 +137,10 @@ fn create_input_elements(
 
 fn handle_form_submission(
     ev: SubmitEvent,
-    vault: StringVault,
-    uuid: &str,
+    store: ObjectStore,
     input_elements: HashMap<String, NodeRef<Input>>,
 ) {
     ev.prevent_default();
-
-    log!("Saving items for uuid: {}", uuid);
 
     let mut config: HashMap<String, String> = HashMap::new();
     for (key, input_ref) in &input_elements {
@@ -171,13 +148,12 @@ fn handle_form_submission(
         config.insert(key.clone(), value);
     }
 
-    let mut vault = vault.clone();
-    let uuid = uuid.to_string();
+    let mut store = store.clone();
+    let uuid = store.id.clone();
     spawn_local(async move {
-        match vault.save_secure_configuration(&uuid, config).await {
+        match store.save_secure_configuration(config.clone()).await {
             Ok(_) => {
-                log!(
-                    "Successfully saved secure configuration for uuid: {}",
+                log!("Successfully saved secure configuration for uuid: {}",
                     uuid
                 );
             }

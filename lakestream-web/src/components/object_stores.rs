@@ -1,23 +1,34 @@
+use std::sync::{Arc, Mutex};
 use leptos::html::Input;
 use leptos::*;
 use uuid::Uuid;
 
+use crate::{GlobalState, StringVault};
 use crate::base::{ObjectStore, ObjectStoreList};
 
 #[component]
 pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
-    let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new());
 
+    let vault = use_context::<RwSignal<GlobalState>>(cx)
+        .expect("state to have been provided")
+        .with(|state| state.vault.clone())
+        .expect("vault to have been initialized");
+
+    let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new(vault.clone()));
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
 
-    fn parse_input_item(input_ref: NodeRef<Input>) -> Option<ObjectStore> {
+    fn parse_input_item(input_ref: NodeRef<Input>, vault: Arc<Mutex<StringVault>>) -> Option<ObjectStore> {
         let input = input_ref.get().unwrap();
         let uri = input.value();
         let uri = uri.trim();
         if !uri.is_empty() {
-            let new = ObjectStore::new(Uuid::new_v4(), uri.to_string());
+            let new = ObjectStore::new(
+                Uuid::new_v4(),
+                uri.to_string(),
+                vault,
+            );
             input.set_value("");
             Some(new)
         } else {
@@ -37,6 +48,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
         }
     });
 
+    let vault_clone = vault.clone();
     let input_ref_clone = input_ref.clone();
     view! { cx,
         <div>
@@ -44,7 +56,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
                 placeholder="Bucket URI"
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Enter" {
-                        if let Some(new_item) = parse_input_item(input_ref_clone.clone()) {
+                        if let Some(new_item) = parse_input_item(input_ref_clone.clone(), vault.clone()) {
                             set_item_list.update(|item_list| item_list.add(new_item));
                         }
                     }
@@ -52,7 +64,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
                 node_ref=input_ref
             />
             <button class="px-4 py-2" on:click=move |_| {
-                if let Some(new_item) = parse_input_item(input_ref_clone.clone()) {
+                if let Some(new_item) = parse_input_item(input_ref_clone.clone(), vault_clone.clone()) {
                     set_item_list.update(|item_list| item_list.add(new_item));
                 }
             }> "Add Item" </button>

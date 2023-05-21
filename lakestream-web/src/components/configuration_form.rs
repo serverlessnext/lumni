@@ -7,8 +7,7 @@ use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::base::GlobalState;
-use crate::StringVault;
+use crate::{GlobalState, StringVault};
 
 #[component]
 pub fn ObjectStoreConfig(
@@ -87,7 +86,6 @@ pub fn ObjectStoreConfig(
             }
         }
     }
-
 }
 
 pub trait OnSubmit {

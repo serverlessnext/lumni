@@ -2,20 +2,22 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::base::GlobalState;
 use crate::routes::{Home, Login, ObjectStores, ObjectStoresId};
+use crate::{GlobalState, RunTime};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());
     provide_context(cx, state);
 
-    let vault =
-        create_read_slice(cx, state, |state| state.vault.clone());
+    let vault = create_read_slice(cx, state, |state| state.vault.clone());
 
     let set_previous_url =
         create_write_slice(cx, state, |state, previous_url| {
-            state.previous_url = previous_url;
+            state
+                .runtime
+                .get_or_insert_with(RunTime::new)
+                .set_previous_url(previous_url);
         });
 
     view! {
@@ -64,4 +66,3 @@ pub fn App(cx: Scope) -> impl IntoView {
         </div>
     }
 }
-

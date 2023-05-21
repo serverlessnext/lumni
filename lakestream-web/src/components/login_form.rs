@@ -17,26 +17,27 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let set_vault =
         create_write_slice(cx, state, |state, vault| state.vault = vault);
 
-    let previous_url =
-        create_read_slice(cx, state, |state| state.previous_url.clone());
+    let previous_url = create_read_slice(cx, state, |state| {
+        state.runtime.as_ref().map(|r| r.previous_url().clone())
+    });
 
+    let redirect_url = previous_url().unwrap_or_default();
     let password_ref: NodeRef<Input> = create_node_ref(cx);
 
     let on_submit = move |ev: SubmitEvent| {
         ev.prevent_default();
-
+        let redirect_url = redirect_url.clone();
         let password = password_ref().expect("password to exist").value();
 
-        let redirect_url = previous_url();
         spawn_local(async move {
             match StringVault::new(ROOT_USERNAME, &password).await {
                 Ok(string_vault) => {
                     set_vault(Some(string_vault));
                     let navigate = use_navigate(cx);
-                    if let Err(e) = navigate(&redirect_url, Default::default()) {
+                    if let Err(e) = navigate(&redirect_url, Default::default())
+                    {
                         log!("Error navigating to {}: {}", redirect_url, e);
                     }
-
                 }
                 Err(err) => {
                     web_sys::console::log_1(&JsValue::from_str(&format!(

@@ -33,7 +33,7 @@ impl ObjectStoreList {
             .map(|values| {
                 values
                     .into_iter()
-                    .map(|stored| stored.into_item(vault.clone()))
+                    .map(|stored| stored.into_item())
                     .collect()
             })
             .unwrap_or_default()
@@ -64,12 +64,11 @@ impl ObjectStoreList {
 pub struct ObjectStore {
     pub id: Uuid,
     pub uri: String,
-    pub vault: Rc<RefCell<StringVault>>,
 }
 
 impl ObjectStore {
-    pub fn new(id: Uuid, uri: String, vault: Rc<RefCell<StringVault>>) -> Self {
-        Self { id, uri, vault }
+    pub fn new(id: Uuid, uri: String) -> Self {
+        Self { id, uri }
     }
 
     pub fn get_default_config(&self) -> HashMap<String, String> {
@@ -79,8 +78,9 @@ impl ObjectStore {
 
     pub async fn load_secure_configuration(
         &self,
+        vault: Rc<RefCell<StringVault>>,
     ) -> SecureStringResult<HashMap<String, String>> {
-        let vault = self.vault.borrow(); //.unwrap();
+        let vault = vault.borrow();
         vault
             .load_secure_configuration(&self.id.urn().to_string())
             .await
@@ -88,14 +88,14 @@ impl ObjectStore {
 
     pub async fn save_secure_configuration(
         &self,
+        vault: Rc<RefCell<StringVault>>,
         config: HashMap<String, String>,
     ) -> Result<(), SecureStringError> {
-        let mut vault = self.vault.borrow_mut();
+        let mut vault = vault.borrow_mut();
         let uuid = self.id.urn().to_string();
-        let result =
-            vault.save_secure_configuration(&uuid, config.clone()).await;
-        result
+        vault.save_secure_configuration(&uuid, config.clone()).await
     }
+
 }
 
 #[async_trait(?Send)]
@@ -106,24 +106,25 @@ impl ConfigManager for ObjectStore {
 
     async fn load_secure_configuration(
         &self,
+        vault: Rc<RefCell<StringVault>>,
     ) -> SecureStringResult<HashMap<String, String>> {
-        ObjectStore::load_secure_configuration(self).await
+        ObjectStore::load_secure_configuration(self, vault).await
     }
 
     async fn save_secure_configuration(
         &mut self,
+        vault: Rc<RefCell<StringVault>>,
         config: HashMap<String, String>,
     ) -> Result<(), SecureStringError> {
-        ObjectStore::save_secure_configuration(self, config).await
+        ObjectStore::save_secure_configuration(self, vault, config).await
     }
 }
 
 impl ItemSerialized {
-    pub fn into_item(self, vault: Rc<RefCell<StringVault>>) -> ObjectStore {
+    pub fn into_item(self) -> ObjectStore {
         ObjectStore {
             id: self.id,
             uri: self.uri,
-            vault,
         }
     }
 }

@@ -36,7 +36,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
         uri: String,
         vault: Rc<RefCell<StringVault>>,
     ) -> ObjectStore {
-        ObjectStore::new(Uuid::new_v4(), uri, vault)
+        ObjectStore::new(Uuid::new_v4(), uri)
     }
 
     create_effect(cx, move |_| {

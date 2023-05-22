@@ -47,9 +47,8 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
             let config_manager = ObjectStore::new(
                 Uuid::parse_str(&id).unwrap(),
                 "s3://my-bucket".to_string(),
-                vault,
             );
-            let config_handler = ConfigFormView::new(config_manager);
+            let config_handler = ConfigFormView::new(config_manager, vault);
             config_handler.form_data_handler(cx)
         }
         _ => {

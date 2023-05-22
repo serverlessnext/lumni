@@ -8,6 +8,7 @@ use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
+use super::StringVault;
 use crate::components::stringvault::{SecureStringError, SecureStringResult};
 
 #[async_trait(?Send)]
@@ -15,20 +16,23 @@ pub trait ConfigManager: Clone {
     fn get_default_config(&self) -> HashMap<String, String>;
     async fn load_secure_configuration(
         &self,
+        vault: Rc<RefCell<StringVault>>,
     ) -> SecureStringResult<HashMap<String, String>>;
     async fn save_secure_configuration(
         &mut self,
+        vault: Rc<RefCell<StringVault>>,
         config: HashMap<String, String>,
     ) -> Result<(), SecureStringError>;
 }
 
 pub struct ConfigFormView<T: ConfigManager + Clone + 'static> {
     config_manager: T,
+    vault: Rc<RefCell<StringVault>>,
 }
 
 impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
-    pub fn new(config_manager: T) -> Self {
-        Self { config_manager }
+    pub fn new(config_manager: T, vault: Rc<RefCell<StringVault>>) -> Self {
+        Self { config_manager, vault }
     }
 
     pub fn form_data_handler(
@@ -47,11 +51,13 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
         set_is_override_active(true);
         let initial_config_reset = self.config_manager.get_default_config().clone();
 
+        let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         create_effect(cx, move |_| {
+            let vault_clone = vault_clone.clone();
             let config_manager_clone = config_manager_clone.clone();
             spawn_local(async move {
-                match config_manager_clone.load_secure_configuration().await {
+                match config_manager_clone.load_secure_configuration(vault_clone).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                         set_load_config_error(None); // Clear the error if loading was successful
@@ -63,14 +69,15 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             });
         });
 
+        let vault_clone = self.vault.clone();
         let config_manager_for_view = self.config_manager.clone();
         view! { cx,
             <div>
             {move ||
                 if let Some(loaded_config) = loaded_config.get() {
-                    ConfigFormView::form_view(cx, config_manager_for_view.clone(), &loaded_config)
+                    ConfigFormView::form_view(cx, vault_clone.clone(), config_manager_for_view.clone(), &loaded_config)
                 } else if is_override_active.get() {
-                    ConfigFormView::form_view(cx, config_manager_for_view.clone(), &initial_config_reset)
+                    ConfigFormView::form_view(cx, vault_clone.clone(), config_manager_for_view.clone(), &initial_config_reset)
                 } else if let Some(error) = load_config_error.get() {
                     view! {
                         cx,
@@ -95,6 +102,7 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
 
     fn form_view(
         cx: Scope,
+        vault: Rc<RefCell<StringVault>>,
         config_manager: T,
         loaded_config: &HashMap<String, String>,
     ) -> HtmlElement<Div> {
@@ -105,7 +113,7 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             move |ev: SubmitEvent,
                   input_elements: HashMap<String, NodeRef<Input>>| {
                 let config_manager = config_manager.clone();
-                handle_form_submission(ev, config_manager, input_elements);
+                handle_form_submission(ev, vault.clone(), config_manager, input_elements);
             },
         ));
 
@@ -163,6 +171,7 @@ fn create_input_elements(
 
 fn handle_form_submission<T: ConfigManager + 'static>(
     ev: SubmitEvent,
+    vault: Rc<RefCell<StringVault>>,
     config_manager: T,
     input_elements: HashMap<String, NodeRef<Input>>,
 ) {
@@ -177,7 +186,7 @@ fn handle_form_submission<T: ConfigManager + 'static>(
     let mut config_manager = config_manager.clone();
     spawn_local(async move {
         match config_manager
-            .save_secure_configuration(config.clone())
+            .save_secure_configuration(vault, config.clone())
             .await
         {
             Ok(_) => {

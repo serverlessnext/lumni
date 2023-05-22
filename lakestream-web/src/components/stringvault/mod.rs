@@ -1,8 +1,8 @@
+pub mod config_handler;
 pub mod crypto;
 pub mod error;
 pub mod storage;
 pub mod string_ops;
-pub mod config_handler;
 use std::collections::HashMap;
 
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};

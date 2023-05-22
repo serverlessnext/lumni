@@ -1,22 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use leptos::html::Input;
 use leptos::*;
 use uuid::Uuid;
 
 use crate::base::{ObjectStore, ObjectStoreList};
-use crate::{GlobalState, StringVault};
 
 #[component]
 pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
-    let vault = use_context::<RwSignal<GlobalState>>(cx)
-        .expect("state to have been provided")
-        .with(|state| state.vault.clone())
-        .expect("vault to have been initialized");
-
-    let (item_list, set_item_list) =
-        create_signal(cx, ObjectStoreList::new(vault.clone()));
+    let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new());
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
@@ -32,10 +22,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
         }
     }
 
-    fn create_object_store(
-        uri: String,
-        vault: Rc<RefCell<StringVault>>,
-    ) -> ObjectStore {
+    fn create_object_store(uri: String) -> ObjectStore {
         ObjectStore::new(Uuid::new_v4(), uri)
     }
 
@@ -51,7 +38,6 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
         }
     });
 
-    let vault_clone = vault.clone();
     let input_ref_clone = input_ref.clone();
     view! { cx,
         <div>
@@ -60,7 +46,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Enter" {
                         if let Some(uri) = get_input_value(input_ref_clone.clone()) {
-                            let new_item = create_object_store(uri, vault.clone());
+                            let new_item = create_object_store(uri);
                             set_item_list.update(|item_list| item_list.add(new_item));
                         }
                     }
@@ -69,7 +55,7 @@ pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
             />
             <button class="px-4 py-2" on:click=move |_| {
                 if let Some(uri) = get_input_value(input_ref_clone.clone()) {
-                    let new_item = create_object_store(uri, vault_clone.clone());
+                    let new_item = create_object_store(uri);
                     set_item_list.update(|item_list| item_list.add(new_item));
                 }
             }> "Add Item" </button>

@@ -30,11 +30,10 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
 
     let params = use_params::<RouteParams>(cx);
 
-    let valid_ids: Vec<String> =
-        ObjectStoreList::load_from_local_storage(vault.clone())
-            .into_iter()
-            .map(|item| item.id.to_string())
-            .collect();
+    let valid_ids: Vec<String> = ObjectStoreList::load_from_local_storage()
+        .into_iter()
+        .map(|item| item.id.to_string())
+        .collect();
 
     let id: Option<String> = match params.try_get() {
         Some(Ok(route_params)) => Some(route_params.id.clone()),

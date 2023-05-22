@@ -9,20 +9,11 @@ use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
 use super::StringVault;
-use crate::components::stringvault::{SecureStringError, SecureStringResult};
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {
     fn get_default_config(&self) -> HashMap<String, String>;
-    async fn load_secure_configuration(
-        &self,
-        vault: Rc<RefCell<StringVault>>,
-    ) -> SecureStringResult<HashMap<String, String>>;
-    async fn save_secure_configuration(
-        &mut self,
-        vault: Rc<RefCell<StringVault>>,
-        config: HashMap<String, String>,
-    ) -> Result<(), SecureStringError>;
+    fn id(&self) -> String;
 }
 
 pub struct ConfigFormView<T: ConfigManager + Clone + 'static> {
@@ -32,35 +23,38 @@ pub struct ConfigFormView<T: ConfigManager + Clone + 'static> {
 
 impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
     pub fn new(config_manager: T, vault: Rc<RefCell<StringVault>>) -> Self {
-        Self { config_manager, vault }
+        Self {
+            config_manager,
+            vault,
+        }
     }
 
-    pub fn form_data_handler(
-        &self,
-        cx: Scope,
-    ) -> HtmlElement<Div> {
+    pub fn form_data_handler(&self, cx: Scope) -> HtmlElement<Div> {
         let (loaded_config, set_loaded_config) = create_signal(cx, None);
         let (load_config_error, set_load_config_error) =
             create_signal(cx, None::<String>);
 
-        let (is_override_active, set_is_override_active) = create_signal(cx, false);
+        let (is_override_active, set_is_override_active) =
+            create_signal(cx, false);
 
         // OVERRIDE INTERNAL DECRYPT ERROR - REMOVE WHEN RESET IS ADDED TO FORM
         // this will show the form with empty values, so the user has an option to fill in new
         // next TODO is to add a reset button to the form to clear existing values/ set new password
         set_is_override_active(true);
-        let initial_config_reset = self.config_manager.get_default_config().clone();
+        let initial_config_reset =
+            self.config_manager.get_default_config().clone();
 
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         create_effect(cx, move |_| {
             let vault_clone = vault_clone.clone();
-            let config_manager_clone = config_manager_clone.clone();
+            let id_string = config_manager_clone.id();
             spawn_local(async move {
-                match config_manager_clone.load_secure_configuration(vault_clone).await {
+                let vault = vault_clone.borrow();
+                match vault.load_secure_configuration(&id_string).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
-                        set_load_config_error(None); // Clear the error if loading was successful
+                        set_load_config_error(None);
                     }
                     Err(e) => {
                         set_load_config_error(Some(e.to_string()));
@@ -70,14 +64,14 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
         });
 
         let vault_clone = self.vault.clone();
-        let config_manager_for_view = self.config_manager.clone();
+        let uuid = self.config_manager.id();
         view! { cx,
             <div>
             {move ||
                 if let Some(loaded_config) = loaded_config.get() {
-                    ConfigFormView::form_view(cx, vault_clone.clone(), config_manager_for_view.clone(), &loaded_config)
+                    form_view(cx, vault_clone.clone(), uuid.clone(), &loaded_config)
                 } else if is_override_active.get() {
-                    ConfigFormView::form_view(cx, vault_clone.clone(), config_manager_for_view.clone(), &initial_config_reset)
+                    form_view(cx, vault_clone.clone(), uuid.clone(), &initial_config_reset)
                 } else if let Some(error) = load_config_error.get() {
                     view! {
                         cx,
@@ -97,44 +91,47 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             }
             </div>
         }
-
     }
+}
 
-    fn form_view(
-        cx: Scope,
-        vault: Rc<RefCell<StringVault>>,
-        config_manager: T,
-        loaded_config: &HashMap<String, String>,
-    ) -> HtmlElement<Div> {
-        let input_elements = create_input_elements(cx, loaded_config);
-        let input_elements_clone_submit = input_elements.clone();
+fn form_view(
+    cx: Scope,
+    vault: Rc<RefCell<StringVault>>,
+    uuid: String,
+    loaded_config: &HashMap<String, String>,
+) -> HtmlElement<Div> {
+    let input_elements = create_input_elements(cx, loaded_config);
+    let input_elements_clone_submit = input_elements.clone();
 
-        let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
-            move |ev: SubmitEvent,
-                  input_elements: HashMap<String, NodeRef<Input>>| {
-                let config_manager = config_manager.clone();
-                handle_form_submission(ev, vault.clone(), config_manager, input_elements);
-            },
-        ));
+    let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
+        move |ev: SubmitEvent,
+              input_elements: HashMap<String, NodeRef<Input>>| {
+            handle_form_submission(
+                ev,
+                vault.clone(),
+                uuid.clone(),
+                input_elements,
+            );
+        },
+    ));
 
-        view! {
-            cx,
-            <div>
-            <form class="flex flex-wrap w-96" on:submit=move |ev| {on_submit.borrow_mut().call(ev, input_elements_clone_submit.clone())}>
-                {loaded_config.iter().map(move |(key, initial_value)| {
-                    let input_elements_clone_map = input_elements.clone();
-                    let input_ref = input_elements_clone_map.get(key).expect("input ref to exist").clone();
-                    create_input_field_view(cx, key, initial_value, input_ref)
-                }).collect::<Vec<_>>()}
-                <button
-                    type="submit"
-                    class="bg-amber-600 hover:bg-sky-700 px-5 py-3 text-white rounded-lg"
-                >
-                    "Save"
-                </button>
-            </form>
-            </div>
-        }
+    view! {
+        cx,
+        <div>
+        <form class="flex flex-wrap w-96" on:submit=move |ev| {on_submit.borrow_mut().call(ev, input_elements_clone_submit.clone())}>
+            {loaded_config.iter().map(move |(key, initial_value)| {
+                let input_elements_clone_map = input_elements.clone();
+                let input_ref = input_elements_clone_map.get(key).expect("input ref to exist").clone();
+                create_input_field_view(cx, key, initial_value, input_ref)
+            }).collect::<Vec<_>>()}
+            <button
+                type="submit"
+                class="bg-amber-600 hover:bg-sky-700 px-5 py-3 text-white rounded-lg"
+            >
+                "Save"
+            </button>
+        </form>
+        </div>
     }
 }
 
@@ -156,8 +153,6 @@ impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
     }
 }
 
-
-
 fn create_input_elements(
     cx: Scope,
     updated_config: &HashMap<String, String>,
@@ -169,10 +164,10 @@ fn create_input_elements(
     input_elements
 }
 
-fn handle_form_submission<T: ConfigManager + 'static>(
+fn handle_form_submission(
     ev: SubmitEvent,
     vault: Rc<RefCell<StringVault>>,
-    config_manager: T,
+    uuid: String,
     input_elements: HashMap<String, NodeRef<Input>>,
 ) {
     ev.prevent_default();
@@ -183,12 +178,9 @@ fn handle_form_submission<T: ConfigManager + 'static>(
         config.insert(key.clone(), value);
     }
 
-    let mut config_manager = config_manager.clone();
     spawn_local(async move {
-        match config_manager
-            .save_secure_configuration(vault, config.clone())
-            .await
-        {
+        let mut vault = vault.borrow_mut();
+        match vault.save_secure_configuration(&uuid, config.clone()).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration");
             }

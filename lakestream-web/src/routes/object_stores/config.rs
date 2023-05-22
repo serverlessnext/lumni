@@ -3,7 +3,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 use uuid::Uuid;
 
-use crate::base::{ObjectStore, ObjectStoreList};
+use crate::components::object_stores::{ObjectStore, ObjectStoreList};
 use crate::components::stringvault::config_handler::ConfigFormView;
 use crate::GlobalState;
 

@@ -1,11 +1,15 @@
 use leptos::html::Input;
 use leptos::*;
 use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 
-use crate::base::{ObjectStore, ObjectStoreList};
+use crate::utils::local_storage::{load_from_storage, save_to_storage};
+use super::ObjectStore;
+
+const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";
 
 #[component]
-pub fn ObjectStoreConfigurator(cx: Scope) -> impl IntoView {
+pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
     let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new());
     provide_context(cx, set_item_list);
 
@@ -89,4 +93,74 @@ fn ListItem(cx: Scope, item: ObjectStore) -> impl IntoView {
             </div>
         </li>
     }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct ObjectStoreList {
+    pub items: Vec<ObjectStore>,
+}
+
+impl ObjectStoreList {
+    pub fn new() -> Self {
+        let initial_items = Self::load_from_local_storage();
+        Self {
+            items: initial_items,
+        }
+    }
+
+    pub fn load_from_local_storage() -> Vec<ObjectStore> {
+        load_from_storage::<Vec<ItemSerialized>>(LOCAL_STORAGE_KEY)
+            .map(|values| {
+                values
+                    .into_iter()
+                    .map(|stored| stored.into_item())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn save_to_local_storage(&self) {
+        save_to_storage(
+            LOCAL_STORAGE_KEY,
+            &self
+                .items
+                .iter()
+                .map(ItemSerialized::from)
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    // Add and remove now operate on non-reactive types
+    pub fn add(&mut self, item: ObjectStore) {
+        self.items.push(item);
+    }
+
+    pub fn remove(&mut self, id: Uuid) {
+        self.items.retain(|item| item.id != id);
+    }
+}
+
+impl ItemSerialized {
+    pub fn into_item(self) -> ObjectStore {
+        ObjectStore {
+            id: self.id,
+            uri: self.uri,
+        }
+    }
+}
+
+impl From<&ObjectStore> for ItemSerialized {
+    fn from(item: &ObjectStore) -> Self {
+        Self {
+            id: item.id,
+            uri: item.uri.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ItemSerialized {
+    pub id: Uuid,
+    pub uri: String,
 }

@@ -1,14 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-
 use async_trait::async_trait;
 use leptos::ev::SubmitEvent;
 use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use super::StringVault;
+use super::{StringVault, SecureStringError};
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {
@@ -34,30 +33,29 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
         let (load_config_error, set_load_config_error) =
             create_signal(cx, None::<String>);
 
-        let (is_override_active, set_is_override_active) =
-            create_signal(cx, false);
-
-        // OVERRIDE INTERNAL DECRYPT ERROR - REMOVE WHEN RESET IS ADDED TO FORM
-        // this will show the form with empty values, so the user has an option to fill in new
-        // next TODO is to add a reset button to the form to clear existing values/ set new password
-        set_is_override_active(true);
-        let initial_config_reset =
-            self.config_manager.get_default_config().clone();
-
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
+
         create_effect(cx, move |_| {
             let vault_clone = vault_clone.clone();
             let id_string = config_manager_clone.id();
+            let default_config = config_manager_clone.get_default_config();
             spawn_local(async move {
                 let vault = vault_clone.borrow();
                 match vault.load_secure_configuration(&id_string).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
-                        set_load_config_error(None);
                     }
-                    Err(e) => {
-                        set_load_config_error(Some(e.to_string()));
+                    Err(e) => match e {
+                        SecureStringError::PasswordNotFound(_) | SecureStringError::NoLocalStorageData => {
+                            // use default if cant load existing
+                            log!("Cant load existing configuration: {:?}", e);
+                            set_loaded_config(Some(default_config));
+                        },
+                        _ => {
+                            log!("error loading config: {:?}", e);
+                            set_load_config_error(Some(e.to_string()));
+                        }
                     }
                 };
             });
@@ -70,9 +68,8 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             {move ||
                 if let Some(loaded_config) = loaded_config.get() {
                     form_view(cx, vault_clone.clone(), uuid.clone(), &loaded_config)
-                } else if is_override_active.get() {
-                    form_view(cx, vault_clone.clone(), uuid.clone(), &initial_config_reset)
-                } else if let Some(error) = load_config_error.get() {
+                }
+                else if let Some(error) = load_config_error.get() {
                     view! {
                         cx,
                         <div>
@@ -80,7 +77,8 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
                             {error}
                         </div>
                     }
-                } else {
+                }
+                else {
                     view! {
                         cx,
                         <div>

@@ -32,7 +32,6 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let previous_url = create_read_slice(cx, state, |state| {
         state.runtime.as_ref().map(|r| r.previous_url().clone())
     });
-
     // Default to the home page if no previous URL is set.
     let redirect_url = previous_url().unwrap_or_default();
     let password_ref: NodeRef<Input> = create_node_ref(cx);

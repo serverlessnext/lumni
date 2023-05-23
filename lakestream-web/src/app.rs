@@ -2,12 +2,13 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::{Home, Login, ObjectStores, ObjectStoresId};
+use crate::routes::{Home, About, Login, ObjectStores, ObjectStoresId};
 use crate::{GlobalState, RunTime};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());
+    provide_meta_context(cx);
     provide_context(cx, state);
 
     let set_previous_url =
@@ -38,33 +39,34 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="flex">
                         <a href="/home" class="text-teal-200 hover:text-white mr-4">"Home"</a>
                         <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
+                        <a href="/about" class="text-teal-200 hover:text-white mr-4">"About"</a>
                     </div>
                 </nav>
                 <main>
                     <Routes>
+                        <Route path="/" view=|cx| view! { cx, <Home/> }/>
                         <Route path="/home" view=|cx| view! { cx, <Home/> }/>
-                        <Route path="/login" view=|cx| view! { cx, <Login/> }/>
+                        <Route path="/about" view=|cx| view! { cx, <About/> }/>
+                        <Route
+                            path="/_login/:url"
+                            view=move |cx| {
+                                let location = use_location(cx);
+                                let pathname = location.pathname.get();
+                                let previous_path = pathname.strip_prefix("/_login").unwrap_or(&pathname).to_string();
+                                set_previous_url(previous_path);
+                                view! { cx, <Login/>}
+                            }
+                        />
                         <ProtectedRoute
                             path="/object-stores"
-                            redirect_path="/login"
-                            condition=move |_| {
-                                log!("Checking move: {}", vault_initialized.get());
-                                if !vault_initialized.get() {
-                                    set_previous_url("/object-stores".to_string());
-                                }
-                                vault_initialized.get()
-                            }
+                            redirect_path="/_login/object-stores"
+                            condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <ObjectStores/> }
                         />
                         <ProtectedRoute
                             path="/object-stores/:id"
-                            redirect_path="/login"
-                            condition=move |_| {
-                                if !vault_initialized.get() {
-                                    set_previous_url("/object-stores".to_string());
-                                }
-                                vault_initialized.get()
-                            }
+                            redirect_path="/_login/object-stores"
+                            condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <ObjectStoresId/> }/>
                     </Routes>
                 </main>

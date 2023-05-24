@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::StringVault;
+use crate::stringvault::StringVault;
 
 const DEFAULT_HOME_URL: &str = "/home";
 

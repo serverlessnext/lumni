@@ -1,48 +1,113 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use uuid::Uuid;
+use blake3::hash;
+use regex::Regex;
 
 use crate::components::stringvault::config_handler::ConfigManager;
+use crate::stringvault::{FormInputField, InputData};
 
 mod list;
 pub use list::{ObjectStoreList, ObjectStoreListView};
 
-
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
-    pub id: Uuid,
-    pub uri: String,
+    pub name: String,
 }
 
 impl ObjectStore {
-    pub fn new(id: Uuid, uri: String) -> Self {
-        Self { id, uri }
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
-    pub fn get_default_config(&self) -> HashMap<String, String> {
-        // TODO: This should be a match on the URI scheme
-        s3_default_config()
+    pub fn id(&self) -> String {
+        let hash = hash(self.name.as_bytes());
+        hash.to_hex().to_string()
+    }
+
+    fn default_fields() -> HashMap<String, InputData> {
+        let uri_pattern = Regex::new(r"^s3://").unwrap();
+        let aws_key_pattern = Regex::new(r"^.+$").unwrap();
+        let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
+        let region_pattern = Regex::new(r"^[a-zA-Z0-9\-]*$").unwrap();
+        let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
+
+        vec![
+            FormInputField::new(
+                "BUCKET_URI",
+                "s3://".to_string(),
+                Arc::new(validate_with_pattern(
+                    uri_pattern,
+                    "Invalid URI scheme. Must start with 's3://'.".to_string(),
+                )),
+            ),
+            FormInputField::new(
+                "AWS_ACCESS_KEY_ID",
+                "".to_string(),
+                Arc::new(validate_with_pattern(
+                    aws_key_pattern,
+                    "Invalid AWS access key id.".to_string(),
+                )),
+            ),
+            FormInputField::new(
+                "AWS_SECRET_ACCESS_KEY",
+                "".to_string(),
+                Arc::new(validate_with_pattern(
+                    aws_secret_pattern,
+                    "Invalid AWS secret access key.".to_string(),
+                )),
+            ),
+            FormInputField::new(
+                "AWS_REGION",
+                "auto".to_string(),
+                Arc::new(validate_with_pattern(
+                    region_pattern,
+                    "Invalid AWS region.".to_string(),
+                )),
+            ),
+            FormInputField::new(
+                "S3_ENDPOINT_URL",
+                "".to_string(),
+                Arc::new(validate_with_pattern(
+                    endpoint_url_pattern,
+                    "Invalid S3 endpoint URL.".to_string(),
+                )),
+            ),
+        ]
+        .into_iter()
+        .map(|field| field.to_input_data())
+        .collect()
     }
 }
 
 #[async_trait(?Send)]
 impl ConfigManager for ObjectStore {
     fn get_default_config(&self) -> HashMap<String, String> {
-        ObjectStore::get_default_config(self)
+        Self::default_fields()
+            .into_iter()
+            .map(|(key, input_data)| (key, input_data.value))
+            .collect()
     }
+
+    fn default_fields(&self) -> HashMap<String, InputData> {
+        ObjectStore::default_fields()
+    }
+
     fn id(&self) -> String {
-        self.id.to_string()
+        Self::id(self)
     }
 }
 
-
-
-fn s3_default_config() -> HashMap<String, String> {
-    let mut config = HashMap::new();
-    config.insert("BUCKET_URI".to_string(), "s3://".to_string());
-    config.insert("AWS_ACCESS_KEY_ID".to_string(), "".to_string());
-    config.insert("AWS_SECRET_ACCESS_KEY".to_string(), "".to_string());
-    config.insert("AWS_REGION".to_string(), "auto".to_string());
-    config.insert("S3_ENDPOINT_URL".to_string(), "".to_string());
-    config
+fn validate_with_pattern(
+    pattern: Regex,
+    error_msg: String,
+) -> Box<dyn Fn(&str) -> Result<(), String>> {
+    Box::new(move |input: &str| {
+        if pattern.is_match(input) {
+            Ok(())
+        } else {
+            Err(error_msg.clone())
+        }
+    })
 }

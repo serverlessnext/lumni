@@ -5,5 +5,5 @@ pub(crate) mod routes;
 pub(crate) mod utils;
 
 pub use base::state::{GlobalState, RunTime};
-pub use components::stringvault::StringVault;
+pub use components::stringvault;
 pub use lakestream::LakestreamError;

@@ -1,10 +1,9 @@
 use leptos::html::Input;
 use leptos::*;
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::local_storage::{load_from_storage, save_to_storage};
 use super::ObjectStore;
+use crate::utils::local_storage::{load_from_storage, save_to_storage};
 
 const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";
 
@@ -26,8 +25,8 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         }
     }
 
-    fn create_object_store(uri: String) -> ObjectStore {
-        ObjectStore::new(Uuid::new_v4(), uri)
+    fn create_object_store(name: String) -> ObjectStore {
+        ObjectStore::new(name)
     }
 
     create_effect(cx, move |_| {
@@ -49,8 +48,8 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                 placeholder="Bucket URI"
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Enter" {
-                        if let Some(uri) = get_input_value(input_ref_clone.clone()) {
-                            let new_item = create_object_store(uri);
+                        if let Some(name) = get_input_value(input_ref_clone.clone()) {
+                            let new_item = create_object_store(name);
                             set_item_list.update(|item_list| item_list.add(new_item));
                         }
                     }
@@ -58,8 +57,8 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                 node_ref=input_ref
             />
             <button class="px-4 py-2" on:click=move |_| {
-                if let Some(uri) = get_input_value(input_ref_clone.clone()) {
-                    let new_item = create_object_store(uri);
+                if let Some(name) = get_input_value(input_ref_clone.clone()) {
+                    let new_item = create_object_store(name);
                     set_item_list.update(|item_list| item_list.add(new_item));
                 }
             }> "Add Item" </button>
@@ -68,7 +67,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
             <ul>
                 <For
                     each={move || item_list.get().items.clone()}
-                    key=|item| item.id
+                    key=|item| item.name.clone()
                     view=move |cx, item: ObjectStore| view! { cx, <ListItem item /> }
                 />
             </ul>
@@ -79,22 +78,21 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 #[component]
 fn ListItem(cx: Scope, item: ObjectStore) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ObjectStoreList>>(cx).unwrap();
-    let item_id = item.id;
-    let item_uri = item.uri;
+    let item_id = item.id();
+    let item_name = item.name;
 
     view! { cx,
         <li>
             <div class="px-4 py-2">
                 <a href={format!("/object-stores/{}", item_id)}>
-                    {item_uri.clone()}
+                    {item_name.clone()}
                 </a>
                 " | "
-                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id))> "delete" </button>
+                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_name.clone()))> "delete" </button>
             </div>
         </li>
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct ObjectStoreList {
@@ -136,31 +134,26 @@ impl ObjectStoreList {
         self.items.push(item);
     }
 
-    pub fn remove(&mut self, id: Uuid) {
-        self.items.retain(|item| item.id != id);
+    pub fn remove(&mut self, name: String) {
+        self.items.retain(|item| item.name != name);
     }
 }
 
 impl ItemSerialized {
     pub fn into_item(self) -> ObjectStore {
-        ObjectStore {
-            id: self.id,
-            uri: self.uri,
-        }
+        ObjectStore { name: self.name }
     }
 }
 
 impl From<&ObjectStore> for ItemSerialized {
     fn from(item: &ObjectStore) -> Self {
         Self {
-            id: item.id,
-            uri: item.uri.clone(),
+            name: item.name.clone(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ItemSerialized {
-    pub id: Uuid,
-    pub uri: String,
+    pub name: String,
 }

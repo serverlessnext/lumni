@@ -24,6 +24,7 @@ js-sys = "0.3"
 blake3 = "1.3"
 base64 = "0.21"
 async-trait = "0.1"
+regex = { version = "1.8", default-features = false, features = ["std", "unicode"] }
 
 uuid = { version = "1", features = ["v4", "js", "serde"] }
 serde = { version = "1", features = ["derive"] }

@@ -1,17 +1,19 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
 use async_trait::async_trait;
 use leptos::ev::SubmitEvent;
 use leptos::html::{Div, Input};
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use super::{StringVault, SecureStringError};
+use super::{InputData, SecureStringError, StringVault};
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {
     fn get_default_config(&self) -> HashMap<String, String>;
+    fn default_fields(&self) -> HashMap<String, InputData>;
     fn id(&self) -> String;
 }
 
@@ -27,7 +29,6 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             vault,
         }
     }
-
     pub fn form_data_handler(&self, cx: Scope) -> HtmlElement<Div> {
         let (loaded_config, set_loaded_config) = create_signal(cx, None);
         let (load_config_error, set_load_config_error) =
@@ -47,27 +48,29 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
                         set_loaded_config(Some(new_config));
                     }
                     Err(e) => match e {
-                        SecureStringError::PasswordNotFound(_) | SecureStringError::NoLocalStorageData => {
+                        SecureStringError::PasswordNotFound(_)
+                        | SecureStringError::NoLocalStorageData => {
                             // use default if cant load existing
                             log!("Cant load existing configuration: {:?}", e);
                             set_loaded_config(Some(default_config));
-                        },
+                        }
                         _ => {
                             log!("error loading config: {:?}", e);
                             set_load_config_error(Some(e.to_string()));
                         }
-                    }
+                    },
                 };
             });
         });
 
         let vault_clone = self.vault.clone();
         let uuid = self.config_manager.id();
+        let config_manager_clone = self.config_manager.clone();
         view! { cx,
             <div>
             {move ||
                 if let Some(loaded_config) = loaded_config.get() {
-                    form_view(cx, vault_clone.clone(), uuid.clone(), &loaded_config)
+                    form_view(cx, vault_clone.clone(), uuid.clone(), &loaded_config, config_manager_clone.clone())
                 }
                 else if let Some(error) = load_config_error.get() {
                     view! {
@@ -92,18 +95,40 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
     }
 }
 
-fn form_view(
+fn form_view<T: ConfigManager + Clone + 'static>(
     cx: Scope,
     vault: Rc<RefCell<StringVault>>,
     uuid: String,
     loaded_config: &HashMap<String, String>,
+    config_manager: T,
 ) -> HtmlElement<Div> {
     let input_elements = create_input_elements(cx, loaded_config);
     let input_elements_clone_submit = input_elements.clone();
 
+    let default_config = config_manager.default_fields();
     let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
         move |ev: SubmitEvent,
               input_elements: HashMap<String, NodeRef<Input>>| {
+            // Validate input elements
+            for (key, input_ref) in &input_elements {
+                let value = input_ref().expect("input to exist").value();
+                let validator = default_config
+                    .get(key)
+                    .expect("Validator to exist")
+                    .validator
+                    .clone();
+
+                match validator(&value) {
+                    Ok(_) => continue, // validation successful
+                    Err(e) => {
+                        log::error!("Validation failed: {}", e);
+                        ev.prevent_default(); // prevent form submission
+                        return; // validation failed, do not submit form
+                    }
+                }
+            }
+
+            // If all fields pass validation, handle form submission
             handle_form_submission(
                 ev,
                 vault.clone(),
@@ -180,7 +205,7 @@ fn handle_form_submission(
         let mut vault = vault.borrow_mut();
         match vault.save_secure_configuration(&uuid, config.clone()).await {
             Ok(_) => {
-                log!("Successfully saved secure configuration");
+                log!("Successfully saved secure configuration: {:?}", uuid);
             }
             Err(e) => {
                 log!("Failed to save secure configuration. Error: {:?}", e);

@@ -5,8 +5,10 @@ pub mod storage;
 pub mod string_ops;
 use std::collections::HashMap;
 
+mod form_input;
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
+pub use form_input::{FormInputField, InputData};
 use serde_json;
 use storage::{load_secure_string, save_secure_string};
 use string_ops::generate_password;

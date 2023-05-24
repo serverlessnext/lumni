@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use leptos::html::Div;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
-use uuid::Uuid;
 
 use crate::components::object_store::{ObjectStore, ObjectStoreList};
 use crate::components::stringvault::config_handler::ConfigFormView;
@@ -29,24 +30,26 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         .expect("vault to have been initialized");
 
     let params = use_params::<RouteParams>(cx);
-
-    let valid_ids: Vec<String> = ObjectStoreList::load_from_local_storage()
-        .into_iter()
-        .map(|item| item.id.to_string())
-        .collect();
-
     let id: Option<String> = match params.try_get() {
         Some(Ok(route_params)) => Some(route_params.id.clone()),
         Some(Err(_)) => None,
         None => None,
     };
 
-    let form_data_handler: HtmlElement<Div> = match id {
-        Some(id) if valid_ids.contains(&id) => {
-            let config_manager = ObjectStore::new(
-                Uuid::parse_str(&id).unwrap(),
-                "s3://my-bucket".to_string(),
-            );
+    let name = if let Some(id) = &id {
+        let valid_map: HashMap<String, String> =
+            ObjectStoreList::load_from_local_storage()
+                .into_iter()
+                .map(|item| (item.id(), item.name))
+                .collect();
+        valid_map.get(id).cloned()
+    } else {
+        None
+    };
+
+    let form_data_handler: HtmlElement<Div> = match name {
+        Some(name) => {
+            let config_manager = ObjectStore::new(name);
             let config_handler = ConfigFormView::new(config_manager, vault);
             config_handler.form_data_handler(cx)
         }

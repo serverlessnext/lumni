@@ -8,7 +8,8 @@ use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::{GlobalState, StringVault};
+use crate::stringvault::StringVault;
+use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "root";
 

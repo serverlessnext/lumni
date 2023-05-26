@@ -11,7 +11,7 @@ use super::{FormView, FormOwner, InputData, SecureStringError, StringVault};
 pub trait ConfigManager: Clone {
     fn get_default_config(&self) -> HashMap<String, String>;
     fn default_fields(&self) -> HashMap<String, InputData>;
-    fn group(&self) -> String;
+    fn tag(&self) -> String;
     fn id(&self) -> String;
 }
 
@@ -30,7 +30,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
     fn form_owner(&self) -> FormOwner {
         FormOwner {
-            tag: self.config_manager.group().to_uppercase(),
+            tag: self.config_manager.tag().to_uppercase(),
             id: self.config_manager.id(),
         }
     }

@@ -97,7 +97,7 @@ impl ConfigManager for ObjectStore {
         Self::id(self)
     }
 
-    fn group(&self) -> String {
+    fn tag(&self) -> String {
         "object_store".to_string()
     }
 }

@@ -3,8 +3,9 @@ use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AesGcmParams, AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
+use super::FormOwner;
 use super::error::SecureStringError;
-use super::storage::{load_string, save_string};
+use super::storage::{load_string, save_string, create_storage_key};
 use super::string_ops::generate_salt;
 use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
 
@@ -148,17 +149,20 @@ pub async fn derive_key_from_password(
     hashed_username: &str,
     password: &str,
 ) -> SecureStringResult<CryptoKey> {
-    let user_salt_key = format!("USERS_{}", hashed_username);
+    let form_owner = FormOwner {
+        tag: "USER".to_string(),
+        id: hashed_username.to_string(),
+    };
+    let storage_key = create_storage_key(&form_owner);
 
-    let salt = match load_string(&user_salt_key).await {
+    let salt = match load_string(&storage_key).await {
         Some(salt) => salt,
         None => {
             let new_salt = generate_salt()?;
-            save_string(&user_salt_key, &new_salt).await?;
+            save_string(&storage_key, &new_salt).await?;
             new_salt
         }
     };
-
     derive_crypto_key(password, &salt).await
 }
 

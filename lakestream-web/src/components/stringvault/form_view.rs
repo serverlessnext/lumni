@@ -6,14 +6,14 @@ use wasm_bindgen_futures::spawn_local;
 
 use super::{
     create_input_elements, InputData, InputElements, InputFieldView,
-    StringVault,
+    StringVault, FormOwner,
 };
 
 #[component]
 pub fn FormView(
     cx: Scope,
     vault: StringVault,
-    uuid: String,
+    form_owner: FormOwner,
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
 ) -> impl IntoView {
@@ -59,7 +59,7 @@ pub fn FormView(
                 log!("Validation successful");
                 handle_form_submission(
                     vault.clone(),
-                    uuid.clone(),
+                    form_owner.clone(),
                     input_elements,
                     set_is_submitting,
                     set_submit_error,
@@ -146,16 +146,17 @@ impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
 
 fn handle_form_submission(
     mut vault: StringVault,
-    uuid: String,
+    form_owner: FormOwner,
     input_elements: InputElements,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
     let config = extract_config(&input_elements);
+    let form_id = form_owner.id.clone();
     spawn_local(async move {
-        match vault.save_secure_configuration(&uuid, config.clone()).await {
+        match vault.save_secure_configuration(form_owner, config.clone()).await {
             Ok(_) => {
-                log!("Successfully saved secure configuration: {:?}", uuid);
+                log!("Successfully saved secure configuration: {:?}", form_id);
                 for (key, value) in &config {
                     if let Some((_, _, value_signal)) = input_elements.get(key)
                     {

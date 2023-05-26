@@ -7,11 +7,18 @@ use web_sys::{window, CryptoKey};
 
 use super::crypto::{decrypt, encrypt, get_crypto_subtle};
 use super::error::SecureStringError;
+use super::FormOwner;
+
+const KEY_PREFIX: &str = "STRINGVAULT";
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
 
+pub fn create_storage_key(form_owner: &FormOwner) -> String {
+    vec![KEY_PREFIX, &form_owner.tag, &form_owner.id].join(":")
+}
+
 pub async fn save_secure_string(
-    user: &str,
+    form_owner: FormOwner,
     value: &str,
     crypto_key: &CryptoKey,
 ) -> SecureStringResult<()> {
@@ -26,17 +33,17 @@ pub async fn save_secure_string(
     let encrypted_data_with_iv_base64 =
         general_purpose::STANDARD.encode(&encrypted_data_with_iv);
 
-    let key = format!("SECRETS_{}", user);
-    save_string(&key, &encrypted_data_with_iv_base64).await?;
+    let storage_key = create_storage_key(&form_owner);
+    save_string(&storage_key, &encrypted_data_with_iv_base64).await?;
     Ok(())
 }
 
 pub async fn load_secure_string(
-    user: &str,
+    form_owner: FormOwner,
     crypto_key: &CryptoKey,
 ) -> SecureStringResult<String> {
-    let key = format!("SECRETS_{}", user);
-    let encrypted_data_base64 = load_string(&key)
+    let storage_key = create_storage_key(&form_owner);
+    let encrypted_data_base64 = load_string(&storage_key)
         .await
         .ok_or(SecureStringError::NoLocalStorageData)?;
 

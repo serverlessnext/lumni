@@ -96,6 +96,10 @@ impl ConfigManager for ObjectStore {
     fn id(&self) -> String {
         Self::id(self)
     }
+
+    fn group(&self) -> String {
+        "object_store".to_string()
+    }
 }
 
 fn validate_with_pattern(

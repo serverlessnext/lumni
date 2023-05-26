@@ -5,12 +5,13 @@ use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use super::{FormView, InputData, SecureStringError, StringVault};
+use super::{FormView, FormOwner, InputData, SecureStringError, StringVault};
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {
     fn get_default_config(&self) -> HashMap<String, String>;
     fn default_fields(&self) -> HashMap<String, InputData>;
+    fn group(&self) -> String;
     fn id(&self) -> String;
 }
 
@@ -26,6 +27,14 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             vault,
         }
     }
+
+    fn form_owner(&self) -> FormOwner {
+        FormOwner {
+            tag: self.config_manager.group().to_uppercase(),
+            id: self.config_manager.id(),
+        }
+    }
+
     pub fn form_data_handler(&self, cx: Scope) -> HtmlElement<Div> {
         let (loaded_config, set_loaded_config) = create_signal(cx, None);
         let (load_config_error, set_load_config_error) =
@@ -33,13 +42,14 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
+        let form_owner_clone = self.form_owner();
 
         create_effect(cx, move |_| {
             let vault_clone = vault_clone.clone();
-            let id_string = config_manager_clone.id();
             let default_config = config_manager_clone.get_default_config();
+            let form_owner = form_owner_clone.clone();
             spawn_local(async move {
-                match vault_clone.load_secure_configuration(&id_string).await {
+                match vault_clone.load_secure_configuration(form_owner).await {
                     Ok(new_config) => {
                         log!("loading config: {:?}", new_config);
                         set_loaded_config(Some(new_config));
@@ -61,9 +71,9 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         });
 
         let vault_clone = self.vault.clone();
-        let uuid = self.config_manager.id();
         let config_manager_clone = self.config_manager.clone();
         let default_config = config_manager_clone.default_fields();
+        let form_owner_clone = self.form_owner();
         view! { cx,
             <div>
             {move ||
@@ -74,7 +84,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         <div>
                         <FormView
                             vault={vault_clone.clone()}
-                            uuid={uuid.clone()}
+                            form_owner={form_owner_clone.clone()}
                             initial_config={loaded_config}
                             default_config={default_config.clone()}
                         />

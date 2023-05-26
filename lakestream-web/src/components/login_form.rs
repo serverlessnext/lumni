@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
@@ -19,9 +16,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         .expect("state to have been provided");
 
     // Create writable state slices for the vault and initialization status.
-    let set_vault = create_write_slice(cx, state, |state, vault| {
-        state.vault = Some(Rc::new(RefCell::new(vault)))
-    });
+    let set_vault =
+        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
     let set_vault_initialized =
         create_write_slice(cx, state, |state, initialized| {
             if let Some(runtime) = &mut state.runtime {

@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use async_trait::async_trait;
 use leptos::ev::SubmitEvent;
@@ -9,6 +7,10 @@ use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
 use super::{InputData, SecureStringError, StringVault};
+
+type InputElement =
+    (NodeRef<Input>, RwSignal<Option<String>>, RwSignal<String>);
+type InputElements = HashMap<String, InputElement>;
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {
@@ -19,11 +21,11 @@ pub trait ConfigManager: Clone {
 
 pub struct ConfigFormView<T: ConfigManager + Clone + 'static> {
     config_manager: T,
-    vault: Rc<RefCell<StringVault>>,
+    vault: StringVault,
 }
 
 impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
-    pub fn new(config_manager: T, vault: Rc<RefCell<StringVault>>) -> Self {
+    pub fn new(config_manager: T, vault: StringVault) -> Self {
         Self {
             config_manager,
             vault,
@@ -42,9 +44,9 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
             let id_string = config_manager_clone.id();
             let default_config = config_manager_clone.get_default_config();
             spawn_local(async move {
-                let vault = vault_clone.borrow();
-                match vault.load_secure_configuration(&id_string).await {
+                match vault_clone.load_secure_configuration(&id_string).await {
                     Ok(new_config) => {
+                        log!("loading config: {:?}", new_config);
                         set_loaded_config(Some(new_config));
                     }
                     Err(e) => match e {
@@ -66,11 +68,23 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
         let vault_clone = self.vault.clone();
         let uuid = self.config_manager.id();
         let config_manager_clone = self.config_manager.clone();
+        let default_config = config_manager_clone.default_fields();
         view! { cx,
             <div>
             {move ||
                 if let Some(loaded_config) = loaded_config.get() {
-                    form_view(cx, vault_clone.clone(), uuid.clone(), &loaded_config, config_manager_clone.clone())
+
+                    view! {
+                        cx,
+                        <div>
+                        <FormView
+                            vault={vault_clone.clone()}
+                            uuid={uuid.clone()}
+                            initial_config={loaded_config}
+                            default_config={default_config.clone()}
+                        />
+                        </div>
+                    }
                 }
                 else if let Some(error) = load_config_error.get() {
                     view! {
@@ -95,22 +109,28 @@ impl<T: ConfigManager + Clone + 'static> ConfigFormView<T> {
     }
 }
 
-fn form_view<T: ConfigManager + Clone + 'static>(
+#[component]
+fn FormView(
     cx: Scope,
-    vault: Rc<RefCell<StringVault>>,
+    vault: StringVault,
     uuid: String,
-    loaded_config: &HashMap<String, String>,
-    config_manager: T,
-) -> HtmlElement<Div> {
-    let input_elements = create_input_elements(cx, loaded_config);
+    initial_config: HashMap<String, String>,
+    default_config: HashMap<String, InputData>,
+) -> impl IntoView {
+    let (is_submitting, set_is_submitting) = create_signal(cx, false);
+    let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
+
+    let input_elements = create_input_elements(cx, &initial_config);
     let input_elements_clone_submit = input_elements.clone();
 
-    let default_config = config_manager.default_fields();
-    let on_submit: Rc<RefCell<dyn OnSubmit>> = Rc::new(RefCell::new(
-        move |ev: SubmitEvent,
-              input_elements: HashMap<String, NodeRef<Input>>| {
+    let on_submit = {
+        move |ev: SubmitEvent, input_elements: InputElements| {
+            ev.prevent_default(); // prevent form submission
+
             // Validate input elements
-            for (key, input_ref) in &input_elements {
+            let mut validation_errors = HashMap::new();
+
+            for (key, (input_ref, _, _)) in &input_elements {
                 let value = input_ref().expect("input to exist").value();
                 let validator = default_config
                     .get(key)
@@ -118,60 +138,135 @@ fn form_view<T: ConfigManager + Clone + 'static>(
                     .validator
                     .clone();
 
-                match validator(&value) {
-                    Ok(_) => continue, // validation successful
-                    Err(e) => {
-                        log::error!("Validation failed: {}", e);
-                        ev.prevent_default(); // prevent form submission
-                        return; // validation failed, do not submit form
-                    }
+                if let Err(e) = validator(&value) {
+                    log::error!("Validation failed: {}", e);
+                    validation_errors.insert(key.clone(), e.to_string());
+                    ev.prevent_default(); // prevent form submission
                 }
             }
 
-            // If all fields pass validation, handle form submission
-            handle_form_submission(
-                ev,
-                vault.clone(),
-                uuid.clone(),
-                input_elements,
-            );
-        },
-    ));
+            // Write validation errors to corresponding WriteSignals
+            for (key, (_, error_signal, _)) in &input_elements {
+                if let Some(error) = validation_errors.get(key) {
+                    error_signal.set(Some(error.clone()));
+                } else {
+                    error_signal.set(None);
+                }
+            }
+
+            // If there are no validation errors, handle form submission
+            if validation_errors.is_empty() {
+                log!("Validation successful");
+                handle_form_submission(
+                    vault.clone(),
+                    uuid.clone(),
+                    input_elements,
+                    set_is_submitting,
+                    set_submit_error,
+                );
+            }
+        }
+    };
 
     view! {
         cx,
         <div>
-        <form class="flex flex-wrap w-96" on:submit=move |ev| {on_submit.borrow_mut().call(ev, input_elements_clone_submit.clone())}>
-            {loaded_config.iter().map(move |(key, initial_value)| {
-                let input_elements_clone_map = input_elements.clone();
-                let input_ref = input_elements_clone_map.get(key).expect("input ref to exist").clone();
-                create_input_field_view(cx, key, initial_value, input_ref)
-            }).collect::<Vec<_>>()}
+            <form class="flex flex-wrap w-96"
+                  on:submit=move |ev| {
+                    set_is_submitting(true);
+                    on_submit(ev, input_elements_clone_submit.clone())
+                  }
+            >
+            <For
+                each= move || {input_elements.clone().into_iter().enumerate()}
+                    key=|(index, _input)| *index
+                    view= move |cx, (_, (key, (input_ref, error_signal, value_signal)))| {
+                        view! {
+                            cx,
+                            <CreateInputFieldView
+                                key={key}
+                                input_ref={input_ref}
+                                error_signal={error_signal}
+                                value_signal={value_signal}
+                            />
+                        }
+                }
+            />
             <button
                 type="submit"
                 class="bg-amber-600 hover:bg-sky-700 px-5 py-3 text-white rounded-lg"
             >
                 "Save"
             </button>
-        </form>
+            </form>
+
+        // Show a loading message while the form is submitting
+        { move || if is_submitting.get() {
+            view! {
+                cx,
+                <div>
+                    "Submitting..."
+                </div>
+            }
+        } else {
+            view! {
+                cx,
+                <div></div>
+            }
+        }}
+
+        // Show an error message if there was an error during submission
+        { move || if let Some(error) = submit_error.get() {
+            view! {
+                cx,
+                <div class="text-red-500">
+                    {"Error during submission: "}
+                    {error}
+                </div>
+            }
+        } else {
+            view! {
+                cx,
+                <div></div>
+            }
+        }}
+        </div>
+    }
+}
+
+#[component]
+fn CreateInputFieldView(
+    cx: Scope,
+    key: String,
+    input_ref: NodeRef<Input>,
+    error_signal: RwSignal<Option<String>>,
+    value_signal: RwSignal<String>,
+) -> impl IntoView {
+    view! { cx,
+        <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
+            <label class="text-left px-2 w-full">{format!("{} ", key)}</label>
+            <input
+                type="text"
+                value=value_signal.get()
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                node_ref=input_ref
+            />
+            <div class="text-red-500">
+                { move || match error_signal.get() {
+                    Some(error) => error.clone(),
+                    None => "".to_string(),
+                }}
+            </div>
         </div>
     }
 }
 
 pub trait OnSubmit {
-    fn call(
-        &mut self,
-        ev: SubmitEvent,
-        input_elements: HashMap<String, NodeRef<Input>>,
-    );
+    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements);
 }
 
-impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
-    fn call(
-        &mut self,
-        ev: SubmitEvent,
-        input_elements: HashMap<String, NodeRef<Input>>,
-    ) {
+impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
+    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements) {
         self(ev, input_elements)
     }
 }
@@ -179,33 +274,76 @@ impl<F: FnMut(SubmitEvent, HashMap<String, NodeRef<Input>>)> OnSubmit for F {
 fn create_input_elements(
     cx: Scope,
     updated_config: &HashMap<String, String>,
-) -> HashMap<String, NodeRef<Input>> {
-    let mut input_elements: HashMap<String, NodeRef<Input>> = HashMap::new();
-    for (key, _value) in updated_config {
-        input_elements.insert(key.clone(), create_node_ref(cx));
+) -> InputElements {
+    let mut input_elements: InputElements = HashMap::new();
+    for (key, value) in updated_config {
+        let error_signal = create_rw_signal(cx, None);
+        let value_signal = create_rw_signal(cx, value.clone());
+        input_elements.insert(
+            key.clone(),
+            (create_node_ref(cx), error_signal, value_signal),
+        );
     }
     input_elements
 }
 
 fn handle_form_submission(
-    ev: SubmitEvent,
-    vault: Rc<RefCell<StringVault>>,
+    mut vault: StringVault,
     uuid: String,
-    input_elements: HashMap<String, NodeRef<Input>>,
+    input_elements: InputElements,
+    set_is_submitting: WriteSignal<bool>,
+    set_submit_error: WriteSignal<Option<String>>,
 ) {
-    ev.prevent_default();
-
-    let mut config: HashMap<String, String> = HashMap::new();
-    for (key, input_ref) in &input_elements {
-        let value = input_ref().expect("input to exist").value();
-        config.insert(key.clone(), value);
-    }
-
+    let config = extract_config(&input_elements);
     spawn_local(async move {
-        let mut vault = vault.borrow_mut();
         match vault.save_secure_configuration(&uuid, config.clone()).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration: {:?}", uuid);
+                for (key, value) in &config {
+                    if let Some((_, _, value_signal)) = input_elements.get(key)
+                    {
+                        value_signal.set(value.clone());
+                    }
+                }
+                set_is_submitting.set(false);
+            }
+            Err(e) => {
+                log!("Failed to save secure configuration. Error: {:?}", e);
+                set_submit_error.set(Some(e.to_string()));
+                set_is_submitting.set(false);
+            }
+        };
+    });
+    log!("Saved items");
+}
+
+fn extract_config(input_elements: &InputElements) -> HashMap<String, String> {
+    let mut config: HashMap<String, String> = HashMap::new();
+    for (key, (input_ref, _, value_writer)) in input_elements {
+        let value = input_ref().expect("input to exist").value();
+        config.insert(key.clone(), value.clone());
+        value_writer.set(value);
+    }
+    config
+}
+
+fn save_config(
+    config: HashMap<String, String>,
+    mut vault: StringVault,
+    uuid: String,
+    input_elements: InputElements,
+) {
+    spawn_local(async move {
+        //let mut vault = vault.borrow_mut();
+        match vault.save_secure_configuration(&uuid, config.clone()).await {
+            Ok(_) => {
+                log!("Successfully saved secure configuration: {:?}", uuid);
+                for (key, value) in &config {
+                    if let Some((_, _, value_writer)) = input_elements.get(key)
+                    {
+                        value_writer.set(value.clone());
+                    }
+                }
             }
             Err(e) => {
                 log!("Failed to save secure configuration. Error: {:?}", e);
@@ -213,23 +351,4 @@ fn handle_form_submission(
         };
     });
     log!("Saved items");
-}
-
-fn create_input_field_view(
-    cx: Scope,
-    key: &String,
-    initial_value: &String,
-    input_ref: NodeRef<Input>,
-) -> HtmlElement<Div> {
-    view! { cx,
-        <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
-            <label class="text-left px-2 w-full">{format!("{} ", key)}</label>
-            <input
-                type="text"
-                value=initial_value
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                node_ref=input_ref
-            />
-        </div>
-    }
 }

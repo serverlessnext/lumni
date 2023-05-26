@@ -1,13 +1,10 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::stringvault::StringVault;
 
 const DEFAULT_HOME_URL: &str = "/home";
 
 #[derive(Clone, Default)]
 pub struct GlobalState {
-    pub vault: Option<Rc<RefCell<StringVault>>>,
+    pub vault: Option<StringVault>,
     pub runtime: Option<RunTime>,
 }
 

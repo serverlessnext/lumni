@@ -1,18 +1,27 @@
-pub mod config_handler;
 pub mod crypto;
 pub mod error;
+mod form_handler;
+mod form_input;
+mod form_view;
 pub mod storage;
 pub mod string_ops;
+
 use std::collections::HashMap;
 
-mod form_input;
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
-pub use form_input::{FormInputField, InputData};
+pub use form_handler::{ConfigManager, FormHandler};
+pub use form_input::{
+    create_input_elements, FormInputField, InputData, InputElements,
+    InputFieldView,
+};
+pub use form_view::FormView;
 use serde_json;
 use storage::{load_secure_string, save_secure_string};
 use string_ops::generate_password;
 use web_sys::CryptoKey;
+
+const EMPTY_SALT: &str = "";
 
 pub type SecureStringResult<T> = Result<T, SecureStringError>;
 
@@ -21,8 +30,6 @@ pub struct StringVault {
     key: CryptoKey,
     hashed_username: String,
 }
-
-const EMPTY_SALT: &str = "";
 
 impl StringVault {
     pub async fn new(

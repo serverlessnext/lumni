@@ -5,8 +5,7 @@ use async_trait::async_trait;
 use blake3::hash;
 use regex::Regex;
 
-use crate::components::stringvault::config_handler::ConfigManager;
-use crate::stringvault::{FormInputField, InputData};
+use crate::stringvault::{ConfigManager, FormInputField, InputData};
 
 mod list;
 pub use list::{ObjectStoreList, ObjectStoreListView};

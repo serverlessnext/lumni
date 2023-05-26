@@ -5,7 +5,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use crate::components::object_store::{ObjectStore, ObjectStoreList};
-use crate::components::stringvault::config_handler::ConfigFormView;
+use crate::components::stringvault::FormHandler;
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -50,8 +50,8 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
     let form_data_handler: HtmlElement<Div> = match name {
         Some(name) => {
             let config_manager = ObjectStore::new(name);
-            let config_handler = ConfigFormView::new(config_manager, vault);
-            config_handler.form_data_handler(cx)
+            let form_handler = FormHandler::new(config_manager, vault);
+            form_handler.form_data_handler(cx)
         }
         _ => {
             // Render 404 page

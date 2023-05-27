@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use blake3::hash;
 use regex::Regex;
 
-use crate::stringvault::{ConfigManager, FormInputField, InputData};
+use crate::stringvault::{ConfigManager, FormInputFieldBuilder, FormInputField, InputData, InputElementOpts};
 use super::helpers::validate_with_pattern;
 
 
@@ -30,24 +30,22 @@ impl UserForm {
         let password_pattern = Regex::new(r"^.{8,}$").unwrap();
 
         vec![
-            FormInputField::new(
-                "USERNAME",
-                "".to_string(),
-                false,
-                Some(Arc::new(validate_with_pattern(
+            FormInputFieldBuilder::new("USERNAME")
+                .default("".to_string())
+                .enabled(false)
+                .validator(Some(Arc::new(validate_with_pattern(
                     username_pattern,
                     "Invalid username. Must contain only alphanumeric characters and underscores.".to_string(),
-                ))),
-            ),
-            FormInputField::new(
-                "PASSWORD",
-                "".to_string(),
-                true,
-                Some(Arc::new(validate_with_pattern(
+                ))))
+                .build(),
+            FormInputFieldBuilder::new("PASSWORD")
+                .default("".to_string())
+                .secret(true)
+                .validator(Some(Arc::new(validate_with_pattern(
                     password_pattern,
                     "Invalid password. Must be at least 8 characters.".to_string(),
-                ))),
-            ),
+                ))))
+                .build(),
         ]
         .into_iter()
         .map(|field| field.to_input_data())

@@ -5,27 +5,46 @@ use std::sync::Arc;
 use leptos::html::Input;
 use leptos::*;
 
-type InputElement =
-    (NodeRef<Input>, RwSignal<Option<String>>, RwSignal<String>);
+type InputElement = (NodeRef<Input>, RwSignal<Option<String>>, RwSignal<String>, Arc<InputData>);
 pub type InputElements = HashMap<String, InputElement>;
+
 
 #[component]
 pub fn InputFieldView(
     cx: Scope,
     key: String,
-    input_ref: NodeRef<Input>,
-    error_signal: RwSignal<Option<String>>,
-    value_signal: RwSignal<String>,
+    input_element: InputElement,
 ) -> impl IntoView {
+    let (input_ref, error_signal, value_signal, input_data) = input_element;
+    let (is_hidden, set_is_hidden) = create_signal(cx, input_data.opts.is_secret);
+    let masked_value = "******";
+
+    let is_secret = input_data.opts.is_secret;
+    let is_enabled = input_data.opts.is_enabled;
+
     view! { cx,
         <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
             <label class="text-left px-2 w-full">{format!("{} ", key)}</label>
             <input
                 type="text"
-                value=value_signal.get()
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                value= move || if is_hidden.get() { masked_value.to_string() } else { value_signal.get() }
+                class={ if is_enabled {
+                            "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        } else {
+                            "shadow appearance-none border rounded w-full py-2 px-3 text-gray-300 leading-tight focus:outline-none focus:shadow-outline"
+                        } }
                 node_ref=input_ref
+                disabled=!is_enabled
             />
+            { if is_secret {
+                view! { cx,
+                    <div>
+                    <input type="checkbox" on:change=move |_| set_is_hidden(!is_hidden.get())> "Show password" </input>
+                    </div>
+                }
+            } else {
+                view! { cx, <div></div> }
+            } }
             <div class="text-red-500">
                 { move || match error_signal.get() {
                     Some(error) => error.clone(),
@@ -36,10 +55,31 @@ pub fn InputFieldView(
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct InputElementOpts {
+    pub is_secret: bool,
+    pub is_enabled: bool,
+}
+
+impl Default for InputElementOpts {
+    fn default() -> Self {
+        Self {
+            is_secret: false,
+            is_enabled: true,
+        }
+    }
+}
+
+impl InputElementOpts {
+    pub fn new(is_secret: bool, is_enabled: bool) -> Self {
+        Self { is_secret, is_enabled }
+    }
+}
+
 #[derive(Clone)]
 pub struct InputData {
     pub value: String,
-    pub is_secret: bool,
+    pub opts: InputElementOpts,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
@@ -47,21 +87,22 @@ impl fmt::Debug for InputData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InputData")
             .field("value", &self.value)
-            .field("is_secret", &self.is_secret)
-            .field("validate", &self.validator.is_some())
+            .field("opts", &self.opts)
+            .field("validator", &self.validator.is_some())
             .finish()
     }
 }
 
 impl InputData {
-    fn new(
+    pub fn new(
         value: String,
-        is_secret: bool,
+        opts: InputElementOpts,
         validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
-        Self { value, is_secret, validator }
+        Self { value, opts, validator }
     }
 }
+
 
 
 #[derive(Debug, Clone)]
@@ -74,12 +115,12 @@ impl FormInputField {
     pub fn new(
         name: &str,
         default: String,
-        is_secret: bool,
+        opts: InputElementOpts,
         validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
         Self {
             name: name.to_string(),
-            input_data: InputData::new(default, is_secret, validate_fn),
+            input_data: InputData::new(default, opts, validate_fn),
         }
     }
 
@@ -88,19 +129,21 @@ impl FormInputField {
     }
 }
 
-
 pub fn create_input_elements(
     cx: Scope,
     updated_config: &HashMap<String, String>,
+    default_config: &HashMap<String, InputData>,
 ) -> InputElements {
     let mut input_elements: InputElements = HashMap::new();
     for (key, value) in updated_config {
         let error_signal = create_rw_signal(cx, None);
         let value_signal = create_rw_signal(cx, value.clone());
+        let default_input_data = default_config.get(key).expect("Default InputData to exist").clone();
         input_elements.insert(
             key.clone(),
-            (create_node_ref(cx), error_signal, value_signal),
+            (create_node_ref(cx), error_signal, value_signal, Arc::new(default_input_data)),
         );
     }
     input_elements
 }
+

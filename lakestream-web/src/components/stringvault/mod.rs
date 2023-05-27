@@ -2,6 +2,7 @@ mod crypto;
 mod error;
 mod form_handler;
 mod form_input;
+mod form_input_builder;
 mod form_view;
 mod storage;
 mod string_ops;
@@ -13,8 +14,9 @@ pub use error::SecureStringError;
 pub use form_handler::{ConfigManager, FormHandler};
 pub use form_input::{
     create_input_elements, FormInputField, InputData, InputElements,
-    InputFieldView,
+    InputFieldView, InputElementOpts,
 };
+pub use form_input_builder::FormInputFieldBuilder;
 pub use form_view::FormView;
 use serde_json;
 use storage::{load_secure_string, save_secure_string};

@@ -20,7 +20,7 @@ pub fn FormView(
     let (is_submitting, set_is_submitting) = create_signal(cx, false);
     let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
 
-    let input_elements = create_input_elements(cx, &initial_config);
+    let input_elements = create_input_elements(cx, &initial_config, &default_config);
     let input_elements_clone_submit = input_elements.clone();
 
     let on_submit = {
@@ -30,7 +30,7 @@ pub fn FormView(
             // Validate input elements
             let mut validation_errors = HashMap::new();
 
-            for (key, (input_ref, _, _)) in &input_elements {
+            for (key, (input_ref, _, _, _)) in &input_elements {
                 let value = input_ref().expect("input to exist").value();
                 let validator = default_config
                     .get(key)
@@ -47,7 +47,7 @@ pub fn FormView(
             }
 
             // Write validation errors to corresponding WriteSignals
-            for (key, (_, error_signal, _)) in &input_elements {
+            for (key, (_, error_signal, _, _)) in &input_elements {
                 if let Some(error) = validation_errors.get(key) {
                     error_signal.set(Some(error.clone()));
                 } else {
@@ -81,17 +81,16 @@ pub fn FormView(
             <For
                 each= move || {input_elements.clone().into_iter().enumerate()}
                     key=|(index, _input)| *index
-                    view= move |cx, (_, (key, (input_ref, error_signal, value_signal)))| {
+                    view= move |cx, (_, (key, input_element))| {
                         view! {
                             cx,
                             <InputFieldView
                                 key={key}
-                                input_ref={input_ref}
-                                error_signal={error_signal}
-                                value_signal={value_signal}
+                                input_element={input_element}
                             />
                         }
-                }
+
+                    }
             />
             <button
                 type="submit"
@@ -159,7 +158,7 @@ fn handle_form_submission(
             Ok(_) => {
                 log!("Successfully saved secure configuration: {:?}", form_id);
                 for (key, value) in &config {
-                    if let Some((_, _, value_signal)) = input_elements.get(key)
+                    if let Some((_, _, value_signal, _)) = input_elements.get(key)
                     {
                         value_signal.set(value.clone());
                     }
@@ -178,7 +177,7 @@ fn handle_form_submission(
 
 fn extract_config(input_elements: &InputElements) -> HashMap<String, String> {
     let mut config: HashMap<String, String> = HashMap::new();
-    for (key, (input_ref, _, value_writer)) in input_elements {
+    for (key, (input_ref, _, value_writer, _)) in input_elements {
         let value = input_ref().expect("input to exist").value();
         config.insert(key.clone(), value.clone());
         value_writer.set(value);

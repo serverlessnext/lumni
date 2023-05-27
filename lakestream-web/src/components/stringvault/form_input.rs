@@ -5,18 +5,23 @@ use std::sync::Arc;
 use leptos::html::Input;
 use leptos::*;
 
-type InputElement = (NodeRef<Input>, RwSignal<Option<String>>, RwSignal<String>, Arc<InputData>);
+type InputElement = (
+    NodeRef<Input>,
+    RwSignal<Option<String>>,
+    RwSignal<String>,
+    Arc<InputData>,
+);
 pub type InputElements = HashMap<String, InputElement>;
-
 
 #[component]
 pub fn InputFieldView(
     cx: Scope,
-    key: String,
+    label: String,
     input_element: InputElement,
 ) -> impl IntoView {
     let (input_ref, error_signal, value_signal, input_data) = input_element;
-    let (is_hidden, set_is_hidden) = create_signal(cx, input_data.opts.is_secret);
+    let (is_hidden, set_is_hidden) =
+        create_signal(cx, input_data.opts.is_secret);
     let masked_value = "******";
 
     let is_secret = input_data.opts.is_secret;
@@ -24,15 +29,11 @@ pub fn InputFieldView(
 
     view! { cx,
         <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
-            <label class="text-left px-2 w-full">{format!("{} ", key)}</label>
+            <label class="text-left px-2 w-full">{format!("{} ", label)}</label>
             <input
                 type="text"
                 value= move || if is_hidden.get() { masked_value.to_string() } else { value_signal.get() }
-                class={ if is_enabled {
-                            "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        } else {
-                            "shadow appearance-none border rounded w-full py-2 px-3 text-gray-300 leading-tight focus:outline-none focus:shadow-outline"
-                        } }
+                class=get_input_class(is_enabled)
                 node_ref=input_ref
                 disabled=!is_enabled
             />
@@ -46,12 +47,19 @@ pub fn InputFieldView(
                 view! { cx, <div></div> }
             } }
             <div class="text-red-500">
-                { move || match error_signal.get() {
-                    Some(error) => error.clone(),
-                    None => "".to_string(),
-                }}
+                { move || error_signal.get().unwrap_or("".to_string()) }
             </div>
         </div>
+    }
+}
+
+fn get_input_class(is_enabled: bool) -> &'static str {
+    if is_enabled {
+        "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 \
+         leading-tight focus:outline-none focus:shadow-outline"
+    } else {
+        "shadow appearance-none border rounded w-full py-2 px-3 text-gray-300 \
+         leading-tight focus:outline-none focus:shadow-outline"
     }
 }
 
@@ -72,7 +80,10 @@ impl Default for InputElementOpts {
 
 impl InputElementOpts {
     pub fn new(is_secret: bool, is_enabled: bool) -> Self {
-        Self { is_secret, is_enabled }
+        Self {
+            is_secret,
+            is_enabled,
+        }
     }
 }
 
@@ -99,11 +110,13 @@ impl InputData {
         opts: InputElementOpts,
         validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
-        Self { value, opts, validator }
+        Self {
+            value,
+            opts,
+            validator,
+        }
     }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct FormInputField {
@@ -134,16 +147,24 @@ pub fn create_input_elements(
     updated_config: &HashMap<String, String>,
     default_config: &HashMap<String, InputData>,
 ) -> InputElements {
-    let mut input_elements: InputElements = HashMap::new();
-    for (key, value) in updated_config {
-        let error_signal = create_rw_signal(cx, None);
-        let value_signal = create_rw_signal(cx, value.clone());
-        let default_input_data = default_config.get(key).expect("Default InputData to exist").clone();
-        input_elements.insert(
-            key.clone(),
-            (create_node_ref(cx), error_signal, value_signal, Arc::new(default_input_data)),
-        );
-    }
-    input_elements
+    updated_config
+        .iter()
+        .map(|(key, value)| {
+            let error_signal = create_rw_signal(cx, None);
+            let value_signal = create_rw_signal(cx, value.clone());
+            let default_input_data = default_config
+                .get(key)
+                .expect("Default InputData to exist")
+                .clone();
+            (
+                key.clone(),
+                (
+                    create_node_ref(cx),
+                    error_signal,
+                    value_signal,
+                    Arc::new(default_input_data),
+                ),
+            )
+        })
+        .collect()
 }
-

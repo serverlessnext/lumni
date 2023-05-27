@@ -13,8 +13,8 @@ use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
 pub use form_handler::{ConfigManager, FormHandler};
 pub use form_input::{
-    create_input_elements, FormInputField, InputData, InputElements,
-    InputFieldView, InputElementOpts,
+    create_input_elements, FormInputField, InputData, InputElementOpts,
+    InputElements, InputFieldView,
 };
 pub use form_input_builder::FormInputFieldBuilder;
 pub use form_view::FormView;
@@ -22,7 +22,6 @@ use serde_json;
 use storage::{load_secure_string, save_secure_string};
 use string_ops::generate_password;
 use web_sys::CryptoKey;
-
 
 const EMPTY_SALT: &str = "";
 
@@ -88,13 +87,12 @@ impl StringVault {
     ) -> SecureStringResult<HashMap<String, String>> {
         let form_id = &form_owner.id.clone();
         let passwords = self.load_passwords().await?;
-        let password =
-            passwords
-                .get(form_id)
-                .ok_or(SecureStringError::PasswordNotFound(format!(
-                    "Password for {} not found",
-                    form_id
-                )))?;
+        let password = passwords.get(form_id).ok_or(
+            SecureStringError::PasswordNotFound(format!(
+                "Password for {} not found",
+                form_id
+            )),
+        )?;
 
         let derived_key = derive_crypto_key(&password, "").await?;
         let config_json = load_secure_string(form_owner, &derived_key).await?;
@@ -115,8 +113,7 @@ impl StringVault {
             tag: self.hashed_username.to_string().clone(),
             id: "self".to_string(),
         };
-        save_secure_string(form_owner, &passwords_json, &self.key)
-            .await
+        save_secure_string(form_owner, &passwords_json, &self.key).await
     }
 
     // Loads the password map after decrypting it with the vault key
@@ -127,8 +124,7 @@ impl StringVault {
             tag: self.hashed_username.to_string().clone(),
             id: "self".to_string(),
         };
-        let passwords_json =
-            load_secure_string(form_owner, &self.key).await?;
+        let passwords_json = load_secure_string(form_owner, &self.key).await?;
         let passwords: HashMap<String, String> =
             serde_json::from_str(&passwords_json)
                 .map_err(SecureStringError::from)?;

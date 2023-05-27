@@ -3,10 +3,10 @@ use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AesGcmParams, AesKeyGenParams, CryptoKey, Pbkdf2Params};
 
-use super::FormOwner;
 use super::error::SecureStringError;
-use super::storage::{load_string, save_string, create_storage_key};
+use super::storage::{create_storage_key, load_string, save_string};
 use super::string_ops::generate_salt;
+use super::FormOwner;
 use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
 
 const KEY_USAGE_DERIVE_KEY: &str = "deriveKey";

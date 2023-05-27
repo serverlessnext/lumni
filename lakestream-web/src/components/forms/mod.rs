@@ -1,3 +1,3 @@
-pub mod user;
-pub mod object_store;
 mod helpers;
+pub mod object_store;
+pub mod user;

@@ -36,7 +36,7 @@ pub fn UserId(cx: Scope) -> impl IntoView {
 
     let form_data_handler: HtmlElement<Div> = match id {
         Some(id) if id == "admin" => {
-            let config_manager = UserForm::new("admin".to_string());
+            let config_manager = UserForm::new(id);
             let form_handler = FormHandler::new(config_manager, vault);
             form_handler.form_data_handler(cx)
         }
@@ -60,4 +60,3 @@ pub fn UserId(cx: Scope) -> impl IntoView {
         </div>
     }
 }
-

@@ -5,8 +5,10 @@ use async_trait::async_trait;
 use blake3::hash;
 use regex::Regex;
 
-use crate::stringvault::{ConfigManager, FormInputFieldBuilder, FormInputField, InputData, InputElementOpts};
 use super::helpers::validate_with_pattern;
+use crate::stringvault::{
+    ConfigManager, FormInputFieldBuilder, InputData,
+};
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
@@ -95,5 +97,3 @@ impl ConfigManager for ObjectStore {
         "object_store".to_string()
     }
 }
-
-

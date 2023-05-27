@@ -5,7 +5,7 @@ use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use super::{FormView, FormOwner, InputData, SecureStringError, StringVault};
+use super::{FormOwner, FormView, InputData, SecureStringError, StringVault};
 
 #[async_trait(?Send)]
 pub trait ConfigManager: Clone {

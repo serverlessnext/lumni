@@ -5,8 +5,8 @@ use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
 use super::{
-    create_input_elements, InputData, InputElements, InputFieldView,
-    StringVault, FormOwner,
+    create_input_elements, FormOwner, InputData, InputElements, InputFieldView,
+    StringVault,
 };
 
 #[component]
@@ -20,7 +20,8 @@ pub fn FormView(
     let (is_submitting, set_is_submitting) = create_signal(cx, false);
     let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
 
-    let input_elements = create_input_elements(cx, &initial_config, &default_config);
+    let input_elements =
+        create_input_elements(cx, &initial_config, &default_config);
     let input_elements_clone_submit = input_elements.clone();
 
     let on_submit = {
@@ -81,11 +82,11 @@ pub fn FormView(
             <For
                 each= move || {input_elements.clone().into_iter().enumerate()}
                     key=|(index, _input)| *index
-                    view= move |cx, (_, (key, input_element))| {
+                    view= move |cx, (_, (label, input_element))| {
                         view! {
                             cx,
                             <InputFieldView
-                                key={key}
+                                label={label}
                                 input_element={input_element}
                             />
                         }
@@ -154,11 +155,15 @@ fn handle_form_submission(
     let config = extract_config(&input_elements);
     let form_id = form_owner.id.clone();
     spawn_local(async move {
-        match vault.save_secure_configuration(form_owner, config.clone()).await {
+        match vault
+            .save_secure_configuration(form_owner, config.clone())
+            .await
+        {
             Ok(_) => {
                 log!("Successfully saved secure configuration: {:?}", form_id);
                 for (key, value) in &config {
-                    if let Some((_, _, value_signal, _)) = input_elements.get(key)
+                    if let Some((_, _, value_signal, _)) =
+                        input_elements.get(key)
                     {
                         value_signal.set(value.clone());
                     }

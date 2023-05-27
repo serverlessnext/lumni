@@ -1,6 +1,6 @@
-
 use std::sync::Arc;
-use super::{InputData, InputElementOpts, FormInputField};
+
+use super::{FormInputField, InputData, InputElementOpts};
 
 #[derive(Clone, Default)]
 pub struct FormInputFieldBuilder {
@@ -33,7 +33,10 @@ impl FormInputFieldBuilder {
         self
     }
 
-    pub fn validator(mut self, validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>) -> Self {
+    pub fn validator(
+        mut self,
+        validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+    ) -> Self {
         self.validate_fn = validate_fn;
         self
     }
@@ -41,7 +44,11 @@ impl FormInputFieldBuilder {
     pub fn build(self) -> FormInputField {
         FormInputField {
             name: self.name,
-            input_data: InputData::new(self.default, self.opts, self.validate_fn),
+            input_data: InputData::new(
+                self.default,
+                self.opts,
+                self.validate_fn,
+            ),
         }
     }
 }

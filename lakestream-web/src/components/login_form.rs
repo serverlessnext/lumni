@@ -8,7 +8,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
-const ROOT_USERNAME: &str = "root";
+const ROOT_USERNAME: &str = "admin";
 
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {

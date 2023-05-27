@@ -1,4 +1,3 @@
-
 use regex::Regex;
 
 pub fn validate_with_pattern(

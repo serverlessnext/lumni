@@ -2,7 +2,7 @@ use leptos::html::Input;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 
-use super::ObjectStore;
+use super::forms::object_store::ObjectStore;
 use crate::utils::local_storage::{load_from_storage, save_to_storage};
 
 const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";

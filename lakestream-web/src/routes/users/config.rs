@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use leptos::html::Div;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use crate::components::object_store_list::ObjectStoreList;
-use crate::components::forms::object_store::ObjectStore;
+use crate::components::forms::user::UserForm;
 use crate::components::stringvault::FormHandler;
 use crate::GlobalState;
 
@@ -24,7 +21,7 @@ impl Params for RouteParams {
 }
 
 #[component]
-pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
+pub fn UserId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -37,20 +34,9 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         None => None,
     };
 
-    let name = if let Some(id) = &id {
-        let valid_map: HashMap<String, String> =
-            ObjectStoreList::load_from_local_storage()
-                .into_iter()
-                .map(|item| (item.id(), item.name))
-                .collect();
-        valid_map.get(id).cloned()
-    } else {
-        None
-    };
-
-    let form_data_handler: HtmlElement<Div> = match name {
-        Some(name) => {
-            let config_manager = ObjectStore::new(name);
+    let form_data_handler: HtmlElement<Div> = match id {
+        Some(id) if id == "admin" => {
+            let config_manager = UserForm::new("admin".to_string());
             let form_handler = FormHandler::new(config_manager, vault);
             form_handler.form_data_handler(cx)
         }
@@ -74,3 +60,4 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         </div>
     }
 }
+

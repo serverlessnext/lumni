@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::{About, Home, Login, ObjectStores, ObjectStoresId};
+use crate::routes::{Home, ObjectStores, ObjectStoresId, UserId, About, Login};
 use crate::{GlobalState, RunTime};
 
 #[component]
@@ -12,11 +12,12 @@ pub fn App(cx: Scope) -> impl IntoView {
     provide_context(cx, state);
 
     let set_previous_url =
-        create_write_slice(cx, state, |state, previous_url| {
+        create_write_slice(cx, state, |state, previous_url: String| {
+            let updated_url = previous_url.replace(":", "/");
             state
                 .runtime
                 .get_or_insert_with(RunTime::new)
-                .set_previous_url(previous_url);
+                .set_previous_url(updated_url);
         });
 
     let vault_initialized = create_read_slice(cx, state, |state| {
@@ -39,6 +40,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="flex">
                         <a href="/home" class="text-teal-200 hover:text-white mr-4">"Home"</a>
                         <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
+                        <a href="/users/admin" class="text-teal-200 hover:text-white mr-4">"Admin"</a>
                         <a href="/about" class="text-teal-200 hover:text-white mr-4">"About"</a>
                     </div>
                 </nav>
@@ -46,17 +48,6 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <Routes>
                         <Route path="/" view=|cx| view! { cx, <Home/> }/>
                         <Route path="/home" view=|cx| view! { cx, <Home/> }/>
-                        <Route path="/about" view=|cx| view! { cx, <About/> }/>
-                        <Route
-                            path="/_login/:url"
-                            view=move |cx| {
-                                let location = use_location(cx);
-                                let pathname = location.pathname.get();
-                                let previous_path = pathname.strip_prefix("/_login").unwrap_or(&pathname).to_string();
-                                set_previous_url(previous_path);
-                                view! { cx, <Login/>}
-                            }
-                        />
                         <ProtectedRoute
                             path="/object-stores"
                             redirect_path="/_login/object-stores"
@@ -67,7 +58,27 @@ pub fn App(cx: Scope) -> impl IntoView {
                             path="/object-stores/:id"
                             redirect_path="/_login/object-stores"
                             condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <ObjectStoresId/> }/>
+                            view=|cx| view! { cx, <ObjectStoresId/> }
+                        />
+                        <ProtectedRoute
+                            path="/users/:id"
+                            // we only support single admin id now
+                            redirect_path="/_login/users:admin"
+                            condition=move |_| vault_initialized.get()
+                            view=|cx| view! { cx, <UserId/> }
+                        />
+                        <Route path="/about" view=|cx| view! { cx, <About/> }/>
+                        <Route
+                            path="/_login/:*url"
+                            view=move |cx| {
+                                log::info!("Login route");
+                                let location = use_location(cx);
+                                let pathname = location.pathname.get();
+                                let previous_path = pathname.strip_prefix("/_login").unwrap_or(&pathname).to_string();
+                                set_previous_url(previous_path);
+                                view! { cx, <Login/>}
+                            }
+                        />
                     </Routes>
                 </main>
             </Router>

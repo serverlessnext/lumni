@@ -6,9 +6,7 @@ use blake3::hash;
 use regex::Regex;
 
 use crate::stringvault::{ConfigManager, FormInputField, InputData};
-
-mod list;
-pub use list::{ObjectStoreList, ObjectStoreListView};
+use super::helpers::validate_with_pattern;
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
@@ -36,42 +34,47 @@ impl ObjectStore {
             FormInputField::new(
                 "BUCKET_URI",
                 "s3://".to_string(),
-                Arc::new(validate_with_pattern(
+                false,
+                Some(Arc::new(validate_with_pattern(
                     uri_pattern,
                     "Invalid URI scheme. Must start with 's3://'.".to_string(),
-                )),
+                ))),
             ),
             FormInputField::new(
                 "AWS_ACCESS_KEY_ID",
                 "".to_string(),
-                Arc::new(validate_with_pattern(
+                false,
+                Some(Arc::new(validate_with_pattern(
                     aws_key_pattern,
                     "Invalid AWS access key id.".to_string(),
-                )),
+                ))),
             ),
             FormInputField::new(
                 "AWS_SECRET_ACCESS_KEY",
                 "".to_string(),
-                Arc::new(validate_with_pattern(
+                true,
+                Some(Arc::new(validate_with_pattern(
                     aws_secret_pattern,
                     "Invalid AWS secret access key.".to_string(),
-                )),
+                ))),
             ),
             FormInputField::new(
                 "AWS_REGION",
                 "auto".to_string(),
-                Arc::new(validate_with_pattern(
+                false,
+                Some(Arc::new(validate_with_pattern(
                     region_pattern,
                     "Invalid AWS region.".to_string(),
-                )),
+                ))),
             ),
             FormInputField::new(
                 "S3_ENDPOINT_URL",
                 "".to_string(),
-                Arc::new(validate_with_pattern(
+                false,
+                Some(Arc::new(validate_with_pattern(
                     endpoint_url_pattern,
                     "Invalid S3 endpoint URL.".to_string(),
-                )),
+                ))),
             ),
         ]
         .into_iter()
@@ -102,15 +105,4 @@ impl ConfigManager for ObjectStore {
     }
 }
 
-fn validate_with_pattern(
-    pattern: Regex,
-    error_msg: String,
-) -> Box<dyn Fn(&str) -> Result<(), String>> {
-    Box::new(move |input: &str| {
-        if pattern.is_match(input) {
-            Ok(())
-        } else {
-            Err(error_msg.clone())
-        }
-    })
-}
+

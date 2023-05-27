@@ -39,15 +39,16 @@ pub fn InputFieldView(
 #[derive(Clone)]
 pub struct InputData {
     pub value: String,
-    pub validator: Arc<dyn Fn(&str) -> Result<(), String>>,
+    pub is_secret: bool,
+    pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
 impl fmt::Debug for InputData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InputData")
             .field("value", &self.value)
-            // Simply indicate presence of a validation function, since we can't print the function itself
-            .field("validate", &true) // always true in current design
+            .field("is_secret", &self.is_secret)
+            .field("validate", &self.validator.is_some())
             .finish()
     }
 }
@@ -55,11 +56,13 @@ impl fmt::Debug for InputData {
 impl InputData {
     fn new(
         value: String,
-        validator: Arc<dyn Fn(&str) -> Result<(), String>>,
+        is_secret: bool,
+        validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
-        Self { value, validator }
+        Self { value, is_secret, validator }
     }
 }
+
 
 #[derive(Debug, Clone)]
 pub struct FormInputField {
@@ -71,11 +74,12 @@ impl FormInputField {
     pub fn new(
         name: &str,
         default: String,
-        validate_fn: Arc<dyn Fn(&str) -> Result<(), String>>,
+        is_secret: bool,
+        validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
         Self {
             name: name.to_string(),
-            input_data: InputData::new(default, validate_fn),
+            input_data: InputData::new(default, is_secret, validate_fn),
         }
     }
 
@@ -83,6 +87,7 @@ impl FormInputField {
         (self.name, self.input_data)
     }
 }
+
 
 pub fn create_input_elements(
     cx: Scope,

@@ -38,10 +38,11 @@ pub fn FormView(
                     .validator
                     .clone();
 
-                if let Err(e) = validator(&value) {
-                    log::error!("Validation failed: {}", e);
-                    validation_errors.insert(key.clone(), e.to_string());
-                    ev.prevent_default(); // prevent form submission
+                if let Some(validator) = &validator {
+                    if let Err(e) = validator(&value) {
+                        log::error!("Validation failed: {}", e);
+                        validation_errors.insert(key.clone(), e.to_string());
+                    }
                 }
             }
 

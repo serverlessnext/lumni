@@ -6,6 +6,7 @@ use wasm_bindgen::JsValue;
 #[derive(Debug)]
 pub enum SecureStringError {
     JsError(JsValue),
+    DecryptError(String),
     Base64Error(DecodeError),
     NoWindow,
     NoCrypto,
@@ -37,6 +38,9 @@ impl fmt::Display for SecureStringError {
         match self {
             SecureStringError::JsError(e) => {
                 write!(f, "JavaScript error: {:?}", e)
+            }
+            SecureStringError::DecryptError(msg) => {
+                write!(f, "Decryption error: {}", msg)
             }
             SecureStringError::Base64Error(e) => {
                 write!(f, "Base64 decoding error: {}", e)

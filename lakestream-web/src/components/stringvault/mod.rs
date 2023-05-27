@@ -6,8 +6,12 @@ mod form_input_builder;
 mod form_view;
 mod storage;
 mod string_ops;
-
+use leptos::log;
 use std::collections::HashMap;
+use serde_json;
+use storage::{load_secure_string, save_secure_string};
+use string_ops::generate_password;
+use web_sys::CryptoKey;
 
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
@@ -18,10 +22,6 @@ pub use form_input::{
 };
 pub use form_input_builder::FormInputFieldBuilder;
 pub use form_view::FormView;
-use serde_json;
-use storage::{load_secure_string, save_secure_string};
-use string_ops::generate_password;
-use web_sys::CryptoKey;
 
 const EMPTY_SALT: &str = "";
 
@@ -54,6 +54,32 @@ impl StringVault {
             hashed_username,
         })
     }
+
+    pub async fn new_and_validate(
+        username: &str,
+        password: &str,
+    ) -> SecureStringResult<Self> {
+        let vault = StringVault::new(username, password).await?;
+
+        // Try to load the passwords to validate the password
+        match vault.load_passwords().await {
+            Ok(_) => Ok(vault),
+            Err(err) => match err {
+                SecureStringError::NoLocalStorageData => {
+                    // user is not yet created
+                    log!("New user create");
+                    Ok(vault)
+                },
+                SecureStringError::DecryptError(_) => {
+                    // user exists but password is wrong
+                    // TODO: offer reset password option
+                    Err(err)
+                },
+                _ => Err(err), // Propagate any other errors
+            },
+        }
+    }
+
 
     pub fn set_admin_key(&mut self, new_key: CryptoKey) {
         self.key = new_key;

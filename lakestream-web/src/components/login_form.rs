@@ -10,6 +10,7 @@ use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "admin";
 
+
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
@@ -24,6 +25,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                 runtime.set_vault_initialized(initialized);
             }
         });
+
+    // Create an error message signal
+    let error_signal = create_rw_signal(cx, None);
 
     // Create a readable state slice for the previous URL.
     let previous_url = create_read_slice(cx, state, |state| {
@@ -41,7 +45,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            match StringVault::new(ROOT_USERNAME, &password).await {
+            match StringVault::new_and_validate(ROOT_USERNAME, &password).await {
                 Ok(string_vault) => {
                     set_vault(string_vault);
                     set_vault_initialized(true);
@@ -52,11 +56,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                     }
                 }
                 Err(err) => {
-                    web_sys::console::log_1(&JsValue::from_str(&format!(
-                        "Error deriving key: {:?}",
-                        err
-                    )));
-                    // TODO: Add error handling code here.
+                    let msg = err.to_string();
+                    web_sys::console::log_1(&JsValue::from_str(&msg));
+                    error_signal.set(Some(msg));
                 }
             }
         });
@@ -70,6 +72,10 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                     class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     node_ref=password_ref
                 />
+            </div>
+
+            <div class="text-red-500">
+                { move || error_signal.get().unwrap_or("".to_string()) }
             </div>
 
             <button

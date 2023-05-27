@@ -37,7 +37,7 @@ pub fn InputFieldView(
                 node_ref=input_ref
                 disabled=!is_enabled
             />
-            { if is_secret {
+            { if is_secret && is_enabled {
                 view! { cx,
                     <div>
                     <input type="checkbox" on:change=move |_| set_is_hidden(!is_hidden.get())> "Show password" </input>

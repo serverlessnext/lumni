@@ -46,15 +46,15 @@ pub async fn load_secure_string(
     let encrypted_data_base64 = load_string(&storage_key)
         .await
         .ok_or(SecureStringError::NoLocalStorageData)?;
-
     let encrypted_data_with_iv =
         general_purpose::STANDARD.decode(&encrypted_data_base64)?;
-
     let (iv, encrypted_data) = encrypted_data_with_iv.split_at(12);
     let encrypted_data = Uint8Array::from(&encrypted_data[..]);
     let iv = Uint8Array::from(&iv[..]);
 
-    let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv).await?;
+    let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv)
+        .await
+        .map_err(|_| SecureStringError::DecryptError("Please ensure the password is correct.".to_owned()))?;
     Ok(decrypted_data)
 }
 

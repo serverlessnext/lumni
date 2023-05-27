@@ -26,22 +26,12 @@ impl UserForm {
     }
 
     fn default_fields(username: &str) -> HashMap<String, InputData> {
-        let username_pattern = Regex::new(r"^[a-zA-Z0-9_]+$").unwrap();
         let password_pattern = Regex::new(r"^.{8,}$").unwrap();
 
         vec![
-            FormInputFieldBuilder::new("USERNAME")
-                .default(username.to_string())
-                .enabled(false)
-                .validator(Some(Arc::new(validate_with_pattern(
-                    username_pattern,
-                    "Invalid username. Must contain only alphanumeric \
-                     characters and underscores."
-                        .to_string(),
-                ))))
-                .build(),
             FormInputFieldBuilder::new("PASSWORD")
                 .default("".to_string())
+                .enabled(false)
                 .secret(true)
                 .validator(Some(Arc::new(validate_with_pattern(
                     password_pattern,

@@ -40,7 +40,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="flex">
                         <a href="/home" class="text-teal-200 hover:text-white mr-4">"Home"</a>
                         <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
-                        <a href="/users/admin" class="text-teal-200 hover:text-white mr-4">"Admin"</a>
+                        <a href="/users/admin" class="text-teal-200 hover:text-white mr-4">"Settings"</a>
                         <a href="/about" class="text-teal-200 hover:text-white mr-4">"About"</a>
                     </div>
                 </nav>

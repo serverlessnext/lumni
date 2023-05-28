@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::{About, Home, Login, ObjectStores, ObjectStoresId, UserId};
+use crate::routes::{About, Home, Login, ObjectStores, ObjectStoresId, UserId, Logout};
 use crate::{GlobalState, RunTime};
 
 #[component]
@@ -42,6 +42,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                         <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
                         <a href="/users/admin" class="text-teal-200 hover:text-white mr-4">"Settings"</a>
                         <a href="/about" class="text-teal-200 hover:text-white mr-4">"About"</a>
+                        <a href="/logout" class="text-teal-200 hover:text-white mr-4">"Logout"</a>
                     </div>
                 </nav>
                 <main>
@@ -68,6 +69,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                             view=|cx| view! { cx, <UserId/> }
                         />
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>
+                        <Route path="/logout" view=|cx| view! { cx, <Logout/> }/>
                         <Route
                             path="/_login/:*url"
                             view=move |cx| {

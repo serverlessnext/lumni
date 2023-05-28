@@ -4,6 +4,7 @@ mod form_handler;
 mod form_input;
 mod form_input_builder;
 mod form_view;
+mod secure_storage;
 mod storage;
 mod string_ops;
 use std::collections::HashMap;
@@ -18,8 +19,8 @@ pub use form_input::{
 pub use form_input_builder::FormInputFieldBuilder;
 pub use form_view::FormView;
 use leptos::log;
+use secure_storage::SecureStorage;
 use serde_json;
-use storage::{delete_secure_string, load_secure_string, save_secure_string};
 use string_ops::generate_password;
 use web_sys::CryptoKey;
 
@@ -35,7 +36,7 @@ pub struct FormOwner {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
-    key: CryptoKey,
+    secure_storage: SecureStorage,
     username: String,
     hashed_username: String,
 }
@@ -48,8 +49,13 @@ impl StringVault {
         let hashed_username = hash_username(username);
         let crypto_key =
             derive_key_from_password(&hashed_username, password).await?;
+        let form_owner = FormOwner {
+            tag: hashed_username.clone(),
+            id: "self".to_string(),
+        };
+        let secure_storage = SecureStorage::new(form_owner, crypto_key);
         Ok(Self {
-            key: crypto_key,
+            secure_storage,
             username: username.to_string(),
             hashed_username,
         })
@@ -62,7 +68,7 @@ impl StringVault {
         let vault = StringVault::new(username, password).await?;
 
         // Try to load the passwords to validate the password
-        match vault.load_passwords().await {
+        match vault.secure_storage.load().await {
             Ok(_) => Ok(vault),
             Err(err) => match err {
                 SecureStringError::NoLocalStorageData => {
@@ -81,10 +87,10 @@ impl StringVault {
     }
 
     pub fn set_admin_key(&mut self, new_key: CryptoKey) {
-        self.key = new_key;
+        let form_owner = self.secure_storage.form_owner().clone();
+        self.secure_storage = SecureStorage::new(form_owner, new_key);
     }
 
-    // Saves the configuration securely after encrypting it with a derived key
     pub async fn save_secure_configuration(
         &mut self,
         form_owner: FormOwner,
@@ -94,15 +100,20 @@ impl StringVault {
         let derived_key = derive_crypto_key(&password, EMPTY_SALT).await?;
         let config_json = serde_json::to_string(&config)?;
         let form_id = &form_owner.id.clone();
-        save_secure_string(form_owner, &config_json, &derived_key).await?;
 
-        let mut passwords = match self.load_passwords().await {
-            Ok(passwords) => passwords,
-            Err(_) => HashMap::new(),
-        };
+        let secure_storage =
+            SecureStorage::new(form_owner.clone(), derived_key);
+        secure_storage.save(&config_json).await?;
 
+        let mut passwords: HashMap<String, String> =
+            match self.secure_storage.load().await {
+                Ok(passwords_json) => serde_json::from_str(&passwords_json)?,
+                Err(_) => HashMap::new(),
+            };
         passwords.insert(form_id.to_string(), password);
-        self.save_passwords(passwords).await
+        self.secure_storage
+            .save(&serde_json::to_string(&passwords)?)
+            .await
     }
 
     // Loads the configuration securely after decrypting it with a derived key
@@ -111,7 +122,8 @@ impl StringVault {
         form_owner: FormOwner,
     ) -> SecureStringResult<HashMap<String, String>> {
         let form_id = &form_owner.id.clone();
-        let passwords = self.load_passwords().await?;
+        let passwords: HashMap<String, String> =
+            serde_json::from_str(&self.secure_storage.load().await?)?;
         let password = passwords.get(form_id).ok_or(
             SecureStringError::PasswordNotFound(format!(
                 "Password for {} not found",
@@ -120,40 +132,14 @@ impl StringVault {
         )?;
 
         let derived_key = derive_crypto_key(&password, "").await?;
-        let config_json = load_secure_string(form_owner, &derived_key).await?;
+        let secure_storage =
+            SecureStorage::new(form_owner.clone(), derived_key);
+        let config_json = secure_storage.load().await?;
         let config: HashMap<String, String> =
             serde_json::from_str(&config_json)
                 .map_err(SecureStringError::from)?;
 
         Ok(config)
-    }
-
-    // Saves the password map after encrypting it with the vault key
-    async fn save_passwords(
-        &mut self,
-        passwords: HashMap<String, String>,
-    ) -> SecureStringResult<()> {
-        let passwords_json = serde_json::to_string(&passwords)?;
-        let form_owner = FormOwner {
-            tag: self.hashed_username.to_string().clone(),
-            id: "self".to_string(),
-        };
-        save_secure_string(form_owner, &passwords_json, &self.key).await
-    }
-
-    // Loads the password map after decrypting it with the vault key
-    async fn load_passwords(
-        &self,
-    ) -> SecureStringResult<HashMap<String, String>> {
-        let form_owner = FormOwner {
-            tag: self.hashed_username.to_string().clone(),
-            id: "self".to_string(),
-        };
-        let passwords_json = load_secure_string(form_owner, &self.key).await?;
-        let passwords: HashMap<String, String> =
-            serde_json::from_str(&passwords_json)
-                .map_err(SecureStringError::from)?;
-        Ok(passwords)
     }
 
     pub async fn reset_vault(username: &str) -> SecureStringResult<()> {
@@ -163,8 +149,8 @@ impl StringVault {
             id: "self".to_string(),
         };
 
-        // Delete the secure configuration and the passwords associated with this vault.
-        delete_secure_string(form_owner).await?;
+        let secure_storage = SecureStorage::for_deletion(form_owner);
+        secure_storage.delete().await?;
 
         Ok(())
     }

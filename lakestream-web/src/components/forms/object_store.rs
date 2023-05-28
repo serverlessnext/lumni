@@ -28,13 +28,13 @@ impl ObjectStore {
     }
 
     pub fn default_config(&self) -> HashMap<String, String> {
-        Self::default_fields()
+        self.default_fields()
             .into_iter()
             .map(|(key, input_data)| (key, input_data.value))
             .collect()
     }
 
-    fn default_fields() -> HashMap<String, InputData> {
+    fn default_fields(&self) -> HashMap<String, InputData> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
         let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
@@ -42,6 +42,11 @@ impl ObjectStore {
         let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
         vec![
+            FormInputFieldBuilder::new("__NAME__")
+                .default(self.name.clone())
+                .validator(None)
+                .enabled(false)
+                .build(),
             FormInputFieldBuilder::new("BUCKET_URI")
                 .default("s3://".to_string())
                 .validator(Some(Arc::new(validate_with_pattern(
@@ -83,7 +88,6 @@ impl ObjectStore {
         .map(|field| field.to_input_data())
         .collect()
     }
-
 }
 
 #[async_trait(?Send)]
@@ -93,7 +97,7 @@ impl ConfigManager for ObjectStore {
     }
 
     fn default_fields(&self) -> HashMap<String, InputData> {
-        ObjectStore::default_fields()
+        self.default_fields()
     }
 
     fn id(&self) -> String {
@@ -103,5 +107,4 @@ impl ConfigManager for ObjectStore {
     fn tag(&self) -> String {
         Self::tag(self)
     }
-
 }

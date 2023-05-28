@@ -23,6 +23,17 @@ impl ObjectStore {
         hash.to_hex().to_string()
     }
 
+    pub fn tag(&self) -> String {
+        "object_store".to_string()
+    }
+
+    pub fn default_config(&self) -> HashMap<String, String> {
+        Self::default_fields()
+            .into_iter()
+            .map(|(key, input_data)| (key, input_data.value))
+            .collect()
+    }
+
     fn default_fields() -> HashMap<String, InputData> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
@@ -72,15 +83,13 @@ impl ObjectStore {
         .map(|field| field.to_input_data())
         .collect()
     }
+
 }
 
 #[async_trait(?Send)]
 impl ConfigManager for ObjectStore {
     fn get_default_config(&self) -> HashMap<String, String> {
-        Self::default_fields()
-            .into_iter()
-            .map(|(key, input_data)| (key, input_data.value))
-            .collect()
+        self.default_config()
     }
 
     fn default_fields(&self) -> HashMap<String, InputData> {
@@ -92,6 +101,7 @@ impl ConfigManager for ObjectStore {
     }
 
     fn tag(&self) -> String {
-        "object_store".to_string()
+        Self::tag(self)
     }
+
 }

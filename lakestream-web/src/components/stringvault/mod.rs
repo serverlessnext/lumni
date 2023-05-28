@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
-pub use form_handler::{ConfigManager, FormHandler};
+pub use form_handler::{ConfigManager, FormHandler, handle_form_submission};
 pub use form_input::{
     create_input_elements, FormInputField, InputData, InputElementOpts,
     InputElements, InputFieldView,
@@ -69,7 +69,10 @@ impl StringVault {
 
         // Try to load the passwords to validate the password
         match vault.secure_storage.load().await {
-            Ok(_) => Ok(vault),
+            Ok(contents) => {
+                log!("Contents: {}", contents);
+                Ok(vault)
+            },
             Err(err) => match err {
                 SecureStringError::NoLocalStorageData => {
                     // user is not yet created
@@ -100,7 +103,7 @@ impl StringVault {
         let derived_key = derive_crypto_key(&password, EMPTY_SALT).await?;
         let config_json = serde_json::to_string(&config)?;
         let form_id = &form_owner.id.clone();
-
+        log!("Saving config: {}", config_json);
         let secure_storage =
             SecureStorage::new(form_owner.clone(), derived_key);
         secure_storage.save(&config_json).await?;

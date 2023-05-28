@@ -113,3 +113,30 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         }
     }
 }
+
+pub fn handle_form_submission(
+    mut vault: StringVault,
+    form_owner: FormOwner,
+    form_config: HashMap<String, String>,
+    set_is_submitting: WriteSignal<bool>,
+    set_submit_error: WriteSignal<Option<String>>,
+) {
+    let form_id = form_owner.id.clone();
+    spawn_local(async move {
+        match vault
+            .save_secure_configuration(form_owner, form_config)
+            .await
+        {
+            Ok(_) => {
+                log!("Successfully saved secure configuration: {:?}", form_id);
+                set_is_submitting.set(false);
+            }
+            Err(e) => {
+                log!("Failed to save secure configuration. Error: {:?}", e);
+                set_submit_error.set(Some(e.to_string()));
+                set_is_submitting.set(false);
+            }
+        };
+    });
+    log!("Saved items");
+}

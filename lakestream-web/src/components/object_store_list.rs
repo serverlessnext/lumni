@@ -2,8 +2,11 @@ use leptos::html::Input;
 use leptos::*;
 use serde::{Deserialize, Serialize};
 
+use crate::GlobalState;
+use crate::stringvault::{StringVault, FormOwner, handle_form_submission};
 use super::forms::object_store::ObjectStore;
 use crate::utils::local_storage::{load_from_storage, save_to_storage};
+
 
 const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";
 
@@ -12,7 +15,15 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
     let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new());
     provide_context(cx, set_item_list);
 
+    let vault = use_context::<RwSignal<GlobalState>>(cx)
+        .expect("state to have been provided")
+        .with(|state| state.vault.clone())
+        .expect("vault to have been initialized");
+
     let input_ref = create_node_ref::<Input>(cx);
+
+    let (is_submitting, set_is_submitting) = create_signal(cx, false);
+    let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
 
     fn get_input_value(input_ref: NodeRef<Input>) -> Option<String> {
         let input = input_ref.get()?;
@@ -25,8 +36,22 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         }
     }
 
-    fn create_object_store(name: String) -> ObjectStore {
-        ObjectStore::new(name)
+    fn create_object_store(
+        vault: StringVault,
+        name: String,
+        set_is_submitting: WriteSignal<bool>,
+        set_submit_error: WriteSignal<Option<String>>,
+    ) -> ObjectStore {
+        let object_store = ObjectStore::new(name);
+        let form_owner = FormOwner {
+            tag: object_store.tag().to_uppercase(),
+            id: object_store.id(),
+        };
+        let mut default_config = object_store.default_config();
+        default_config.insert("AWS_ACCESS_KEY_ID".to_string(), "MY_AWS_ACCESS_KEY_ID".to_string());
+        default_config.insert("AWS_SECRET_ACCESS_KEY".to_string(), "MY_AWS_SECRET_ACCESS_KEY".to_string());
+        handle_form_submission(vault, form_owner, default_config, set_is_submitting, set_submit_error);
+        object_store
     }
 
     create_effect(cx, move |_| {
@@ -41,6 +66,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         }
     });
 
+    let vault_clone = vault.clone();
     let input_ref_clone = input_ref.clone();
     view! { cx,
         <div>
@@ -49,7 +75,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Enter" {
                         if let Some(name) = get_input_value(input_ref_clone.clone()) {
-                            let new_item = create_object_store(name);
+                            let new_item = create_object_store(vault_clone.clone(), name, set_is_submitting.clone(), set_submit_error.clone());
                             set_item_list.update(|item_list| item_list.add(new_item));
                         }
                     }
@@ -58,7 +84,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
             />
             <button class="px-4 py-2" on:click=move |_| {
                 if let Some(name) = get_input_value(input_ref_clone.clone()) {
-                    let new_item = create_object_store(name);
+                    let new_item = create_object_store(vault.clone(), name, set_is_submitting.clone(), set_submit_error.clone());
                     set_item_list.update(|item_list| item_list.add(new_item));
                 }
             }> "Add Item" </button>

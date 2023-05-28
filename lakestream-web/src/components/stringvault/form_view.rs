@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use wasm_bindgen_futures::spawn_local;
+
 
 use super::{
     create_input_elements, FormOwner, InputData, InputElements, InputFieldView,
-    StringVault,
+    StringVault, handle_form_submission,
 };
 
 #[component]
@@ -58,11 +58,12 @@ pub fn FormView(
 
             // If there are no validation errors, handle form submission
             if validation_errors.is_empty() {
+                let form_config = extract_config(&input_elements);
                 log!("Validation successful");
                 handle_form_submission(
                     vault.clone(),
                     form_owner.clone(),
-                    input_elements,
+                    form_config,
                     set_is_submitting,
                     set_submit_error,
                 );
@@ -143,41 +144,6 @@ impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
     fn call(&mut self, ev: SubmitEvent, input_elements: InputElements) {
         self(ev, input_elements)
     }
-}
-
-fn handle_form_submission(
-    mut vault: StringVault,
-    form_owner: FormOwner,
-    input_elements: InputElements,
-    set_is_submitting: WriteSignal<bool>,
-    set_submit_error: WriteSignal<Option<String>>,
-) {
-    let config = extract_config(&input_elements);
-    let form_id = form_owner.id.clone();
-    spawn_local(async move {
-        match vault
-            .save_secure_configuration(form_owner, config.clone())
-            .await
-        {
-            Ok(_) => {
-                log!("Successfully saved secure configuration: {:?}", form_id);
-                for (key, value) in &config {
-                    if let Some((_, _, value_signal, _)) =
-                        input_elements.get(key)
-                    {
-                        value_signal.set(value.clone());
-                    }
-                }
-                set_is_submitting.set(false);
-            }
-            Err(e) => {
-                log!("Failed to save secure configuration. Error: {:?}", e);
-                set_submit_error.set(Some(e.to_string()));
-                set_is_submitting.set(false);
-            }
-        };
-    });
-    log!("Saved items");
 }
 
 fn extract_config(input_elements: &InputElements) -> HashMap<String, String> {

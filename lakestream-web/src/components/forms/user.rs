@@ -6,9 +6,7 @@ use blake3::hash;
 use regex::Regex;
 
 use super::helpers::validate_with_pattern;
-use crate::stringvault::{
-    ConfigManager, FormInputFieldBuilder, InputData,
-};
+use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
 
 #[derive(Debug, Clone)]
 pub struct UserForm {
@@ -28,18 +26,15 @@ impl UserForm {
     fn default_fields(username: &str) -> HashMap<String, InputData> {
         let password_pattern = Regex::new(r"^.{8,}$").unwrap();
 
-        vec![
-            FormInputFieldBuilder::new("PASSWORD")
-                .default("".to_string())
-                .enabled(false)
-                .secret(true)
-                .validator(Some(Arc::new(validate_with_pattern(
-                    password_pattern,
-                    "Invalid password. Must be at least 8 characters."
-                        .to_string(),
-                ))))
-                .build(),
-        ]
+        vec![FormInputFieldBuilder::new("PASSWORD")
+            .default("".to_string())
+            .enabled(false)
+            .secret(true)
+            .validator(Some(Arc::new(validate_with_pattern(
+                password_pattern,
+                "Invalid password. Must be at least 8 characters.".to_string(),
+            ))))
+            .build()]
         .into_iter()
         .map(|field| field.to_input_data())
         .collect()

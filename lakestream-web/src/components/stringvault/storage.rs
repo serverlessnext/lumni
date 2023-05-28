@@ -54,8 +54,20 @@ pub async fn load_secure_string(
 
     let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv)
         .await
-        .map_err(|_| SecureStringError::DecryptError("Please ensure the password is correct.".to_owned()))?;
+        .map_err(|_| {
+            SecureStringError::DecryptError(
+                "Please ensure the password is correct.".to_owned(),
+            )
+        })?;
     Ok(decrypted_data)
+}
+
+pub async fn delete_secure_string(
+    form_owner: FormOwner,
+) -> SecureStringResult<()> {
+    let storage_key = create_storage_key(&form_owner);
+    delete_string(&storage_key).await?;
+    Ok(())
 }
 
 pub async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
@@ -90,4 +102,25 @@ pub async fn load_string(key: &str) -> Option<String> {
         log!("Error: Unable to access window object.");
     }
     None
+}
+
+pub async fn delete_string(key: &str) -> Result<(), JsValue> {
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            storage.remove_item(key).map_err(|_| {
+                JsValue::from_str(
+                    "Error: Unable to remove data from localStorage.",
+                )
+            })?;
+            return Ok(());
+        } else {
+            return Err(JsValue::from_str(
+                "Error: localStorage is not available.",
+            ));
+        }
+    } else {
+        return Err(JsValue::from_str(
+            "Error: Unable to access window object.",
+        ));
+    }
 }

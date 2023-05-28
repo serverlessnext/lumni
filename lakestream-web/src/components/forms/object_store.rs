@@ -6,9 +6,7 @@ use blake3::hash;
 use regex::Regex;
 
 use super::helpers::validate_with_pattern;
-use crate::stringvault::{
-    ConfigManager, FormInputFieldBuilder, InputData,
-};
+use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {

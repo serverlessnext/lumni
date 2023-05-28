@@ -1,9 +1,7 @@
-
 use leptos::ev::MouseEvent;
 use leptos::*;
 
 use crate::GlobalState;
-
 
 #[component]
 pub fn LogoutForm(cx: Scope) -> impl IntoView {

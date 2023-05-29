@@ -7,6 +7,17 @@ use crate::routes::{
 };
 use crate::{GlobalState, RunTime};
 
+// const API_PATH: &str = "/api/v1";
+
+// while API_PATH const is preferred, cant use this at compile time in concat!
+// redirect_path also must give a static string so cant use format"))
+macro_rules! redirect_path {
+    ($route:expr) => {
+        concat!("/api/v1/login/", $route)
+    };
+}
+
+
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());
@@ -53,32 +64,31 @@ pub fn App(cx: Scope) -> impl IntoView {
                         <Route path="/home" view=|cx| view! { cx, <Home/> }/>
                         <ProtectedRoute
                             path="/object-stores"
-                            redirect_path="/_login/object-stores"
+                            redirect_path=redirect_path!("object-stores")
                             condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <ObjectStores/> }
                         />
                         <ProtectedRoute
                             path="/object-stores/:id"
-                            redirect_path="/_login/object-stores"
+                            redirect_path=redirect_path!("object-stores")
                             condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <ObjectStoresId/> }
                         />
                         <ProtectedRoute
                             path="/users/:id"
                             // we only support single admin id now
-                            redirect_path="/_login/users:admin"
+                            redirect_path=redirect_path!("users:admin")
                             condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <UserId/> }
                         />
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>
                         <Route path="/logout" view=|cx| view! { cx, <Logout/> }/>
                         <Route
-                            path="/_login/:*url"
+                            path=redirect_path!(":id")
                             view=move |cx| {
-                                log::info!("Login route");
                                 let location = use_location(cx);
                                 let pathname = location.pathname.get();
-                                let previous_path = pathname.strip_prefix("/_login").unwrap_or(&pathname).to_string();
+                                let previous_path = pathname.strip_prefix(redirect_path!("")).unwrap_or(&pathname).to_string();
                                 set_previous_url(previous_path);
                                 view! { cx, <Login/>}
                             }
@@ -90,3 +100,5 @@ pub fn App(cx: Scope) -> impl IntoView {
         </div>
     }
 }
+
+

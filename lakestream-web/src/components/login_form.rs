@@ -1,10 +1,11 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
-use leptos::html::Input;
+use leptos::html::{Form, HtmlElement, Input};
 use leptos::*;
 use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::components::SubmitButtonType;
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -15,6 +16,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
 
+    // Page must start in a loading state
+    let is_loading = create_rw_signal(cx, true);
+
     // Create writable state slices for the vault and initialization status.
     let set_vault =
         create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
@@ -24,6 +28,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                 runtime.set_vault_initialized(initialized);
             }
         });
+
+    // assume user is not defined as default
+    let is_user_defined = create_rw_signal(cx, false);
 
     // Create an error message signal
     let error_signal = create_rw_signal(cx, None);
@@ -36,16 +43,20 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let redirect_url = previous_url().unwrap_or_default();
     let password_ref: NodeRef<Input> = create_node_ref(cx);
 
-    // Define the form submission behavior.
-    let on_submit = move |ev: SubmitEvent| {
+    let handle_submission = move |ev: SubmitEvent, user_defined: bool| {
         ev.prevent_default();
         let password = password_ref().expect("password to exist").value();
         // clone so original does not get moved into the closure
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            match StringVault::new_and_validate(ROOT_USERNAME, &password).await
-            {
+            let vault_result = if user_defined {
+                StringVault::new_and_validate(ROOT_USERNAME, &password).await
+            } else {
+                StringVault::new_and_create(ROOT_USERNAME, &password).await
+            };
+
+            match vault_result {
                 Ok(string_vault) => {
                     set_vault(string_vault);
                     set_vault_initialized(true);
@@ -64,38 +75,95 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         });
     };
 
+    let on_submit_user_defined = {
+        let handle_submission = handle_submission.clone();
+        move |ev: SubmitEvent| handle_submission(ev, true)
+    };
+
+    let on_submit_user_undefined = {
+        let handle_submission = handle_submission.clone();
+        move |ev: SubmitEvent| handle_submission(ev, false)
+    };
+
+    // check if user is defined
+    create_effect(cx, move |_| {
+        spawn_local({
+            async move {
+                let user_exists = StringVault::user_exists(ROOT_USERNAME).await;
+                is_user_defined.set(user_exists);
+                is_loading.set(false);
+            }
+        });
+    });
+
     view! {
         cx,
-         <form class="flex flex-col w-96" on:submit=on_submit.clone()>
-             <div class="flex flex-col mb-4">
-                 <label class="mb-2">"Password"</label>
-                 <input type="password"
-                     class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                     node_ref=password_ref
-                 />
-             </div>
-
-             <button
-                 type="submit"
-                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-             >
-                 "Log In"
-             </button>
-         </form>
-
-         // show if there an error on password input
-         {move || if error_signal.get().is_some() {
-             view! { cx,
-                <div>
-                    <div class="text-red-500">
-                     { move || error_signal.get().unwrap_or("".to_string()) }
-                     </div>
-                     <ResetPasswordButton />
+        {move || if is_user_defined.get() {
+            view! {
+                cx,
+                <div class="px-2 py-2">
+                {form_view(cx, password_ref, on_submit_user_defined.clone(), SubmitButtonType::Login)}
+                {move || if error_signal.get().is_some() {
+                    view! { cx,
+                       <div>
+                           <div class="text-red-500">
+                            { move || error_signal.get().unwrap_or("".to_string()) }
+                            </div>
+                            <ResetPasswordButton />
+                       </div>
+                    }
+                } else {
+                    view! { cx, <div></div> }
+                }}
                 </div>
-             }
-         } else {
-             view! { cx, <div></div> }
-         }}
+            }
+        } else if is_loading.get() {
+            view! {
+                cx,
+                <div>"Loading..."</div>
+            }
+        } else {
+            view! {
+                cx,
+                <div class="px-2 py-2">
+                {form_view(cx, password_ref, on_submit_user_undefined.clone(), SubmitButtonType::Create("user"))}
+                </div>
+            }
+        }}
+    }
+}
+
+fn form_view(
+    cx: Scope,
+    password_ref: NodeRef<Input>,
+    on_submit: impl Fn(SubmitEvent) + 'static,
+    button_type: SubmitButtonType,
+) -> HtmlElement<Form> {
+    let placeholder = match button_type {
+        SubmitButtonType::Create(_) => "Enter new password",
+        _ => "Enter password",
+    };
+
+    view! {
+        cx,
+        <form class="flex flex-col w-96" on:submit=on_submit>
+            <div class="flex flex-col mb-4">
+                <input type="password"
+                    placeholder={placeholder}
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    node_ref=password_ref
+                />
+            </div>
+
+            <div class="flex flex-col items-start">
+            <button
+                type="submit"
+                class={button_type.button_class()}
+            >
+                {button_type.button_text()}
+            </button>
+            </div>
+        </form>
     }
 }
 

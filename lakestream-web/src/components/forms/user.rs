@@ -28,7 +28,7 @@ impl UserForm {
 
         vec![FormInputFieldBuilder::new("PASSWORD")
             .default("".to_string())
-            .enabled(false)
+            .enabled(true)
             .secret(true)
             .validator(Some(Arc::new(validate_with_pattern(
                 password_pattern,

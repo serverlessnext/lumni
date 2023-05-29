@@ -57,6 +57,15 @@ impl StringVault {
         })
     }
 
+    pub async fn user_exists(username: &str) -> bool {
+        let hashed_username = hash_username(username);
+        let form_owner = FormOwner {
+            tag: hashed_username.clone(),
+            id: "self".to_string(),
+        };
+        SecureStorage::exists(form_owner).await
+    }
+
     pub async fn new_and_validate(
         username: &str,
         password: &str,
@@ -65,9 +74,33 @@ impl StringVault {
 
         // Try to load the passwords to validate the password
         match vault.secure_storage.load().await {
-            Ok(contents) => {
-                Ok(vault)
-            }
+            Ok(_) => Ok(vault),
+            Err(err) => match err {
+                SecureStringError::NoLocalStorageData => {
+                    // user is not yet created
+                    Ok(vault)
+                }
+                SecureStringError::DecryptError(_) => {
+                    // user exists but password is wrong
+                    // TODO: offer reset password option
+                    Err(err)
+                }
+                _ => Err(err), // Propagate any other errors
+            },
+        }
+    }
+
+    pub async fn new_and_create(
+        username: &str,
+        password: &str,
+    ) -> SecureStringResult<Self> {
+        // TODO: check if user exists
+        StringVault::reset_vault(username).await?;
+        let vault = StringVault::new(username, password).await?;
+
+        // Try to load the passwords to validate the password
+        match vault.secure_storage.load().await {
+            Ok(contents) => Ok(vault),
             Err(err) => match err {
                 SecureStringError::NoLocalStorageData => {
                     // user is not yet created

@@ -24,6 +24,11 @@ impl SecureStorage {
         }
     }
 
+    pub async fn exists(form_owner: FormOwner) -> bool {
+        let storage_key = create_storage_key(&form_owner);
+        load_string(&storage_key).await.is_some()
+    }
+
     pub fn form_owner(&self) -> &FormOwner {
         &self.form_owner
     }

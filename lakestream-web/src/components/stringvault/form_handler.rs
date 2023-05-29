@@ -58,7 +58,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         SecureStringError::PasswordNotFound(_)
                         | SecureStringError::NoLocalStorageData => {
                             // use default if cant load existing
-                            log::info!("Cant load existing configuration. Creating new.");
+                            log::info!(
+                                "Cant load existing configuration. Creating \
+                                 new."
+                            );
                             set_loaded_config(Some(default_config));
                         }
                         _ => {

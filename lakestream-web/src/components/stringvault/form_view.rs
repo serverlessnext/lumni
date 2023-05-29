@@ -3,11 +3,9 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-
-use super::{
-    create_input_elements, FormOwner, InputData, InputElements, InputFieldView,
-    StringVault, handle_form_submission,
-};
+use super::form_handler::handle_form_submission;
+use super::form_input::create_input_elements;
+use super::{FormOwner, InputData, InputElements, InputFieldView, StringVault};
 
 #[component]
 pub fn FormView(

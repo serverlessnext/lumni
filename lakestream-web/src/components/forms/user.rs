@@ -23,7 +23,7 @@ impl UserForm {
         hash.to_hex().to_string()
     }
 
-    fn default_fields(username: &str) -> HashMap<String, InputData> {
+    fn default_fields(_username: &str) -> HashMap<String, InputData> {
         let password_pattern = Regex::new(r"^.{8,}$").unwrap();
 
         vec![FormInputFieldBuilder::new("PASSWORD")

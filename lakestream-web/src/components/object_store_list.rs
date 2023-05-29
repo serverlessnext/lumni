@@ -1,25 +1,20 @@
 use leptos::html::Input;
 use leptos::*;
-use serde::{Deserialize, Serialize};
 
-use crate::GlobalState;
-use crate::stringvault::{StringVault, FormOwner, SecureStringResult, handle_form_submission};
 use super::forms::object_store::ObjectStore;
-use crate::utils::local_storage::load_from_storage;
-
-
-const LOCAL_STORAGE_KEY: &str = "OBJECT_STORES";
+use crate::stringvault::{FormOwner, SecureStringResult, StringVault};
+use crate::GlobalState;
 
 #[component]
 pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
-
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
         .expect("vault to have been initialized");
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
-    let (item_list, set_item_list) = create_signal(cx, ObjectStoreList::new(vault.clone()));
+    let (item_list, set_item_list) =
+        create_signal(cx, ObjectStoreList::new(vault.clone()));
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
@@ -38,7 +33,6 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         }
     }
 
-
     let vault_clone = vault.clone();
     create_effect(cx, move |_| {
         spawn_local({
@@ -48,13 +42,18 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 
             async move {
                 let object_store_list = item_list.get_untracked();
-                let initial_items = object_store_list.load_from_vault().await.unwrap_or_default();
-                set_item_list.set(ObjectStoreList { items: initial_items, vault });
+                let initial_items = object_store_list
+                    .load_from_vault()
+                    .await
+                    .unwrap_or_default();
+                set_item_list.set(ObjectStoreList {
+                    items: initial_items,
+                    vault,
+                });
                 set_is_loading.set(false);
             }
         });
     });
-
 
     create_effect(cx, move |_| {
         if let Some(input) = input_ref.get() {
@@ -108,7 +107,11 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 }
 
 #[component]
-fn ListItem(cx: Scope, item: ObjectStore, set_is_loading: WriteSignal<bool>) -> impl IntoView {
+fn ListItem(
+    cx: Scope,
+    item: ObjectStore,
+    set_is_loading: WriteSignal<bool>,
+) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ObjectStoreList>>(cx).unwrap();
     let item_id = item.id();
     let item_name = item.name;
@@ -133,7 +136,6 @@ pub struct ObjectStoreList {
 }
 
 impl ObjectStoreList {
-
     pub fn new(vault: StringVault) -> Self {
         Self {
             items: vec![],
@@ -141,7 +143,9 @@ impl ObjectStoreList {
         }
     }
 
-    pub async fn load_from_vault(&self) -> SecureStringResult<Vec<ObjectStore>> {
+    pub async fn load_from_vault(
+        &self,
+    ) -> SecureStringResult<Vec<ObjectStore>> {
         let configs = self.vault.list_configurations().await?;
         let items = configs
             .into_iter()
@@ -152,19 +156,12 @@ impl ObjectStoreList {
         Ok(items)
     }
 
-    // TODO: still in use by routes/config, should use load_from_vault instead
-    pub fn load_from_local_storage() -> Vec<ObjectStore> {
-        load_from_storage::<Vec<ItemSerialized>>(LOCAL_STORAGE_KEY)
-            .map(|values| {
-                values
-                    .into_iter()
-                    .map(|stored| stored.into_item())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    pub fn add(&mut self, name: String, set_is_submitting: WriteSignal<bool>, set_submit_error: WriteSignal<Option<String>>) {
+    pub fn add(
+        &mut self,
+        name: String,
+        set_is_submitting: WriteSignal<bool>,
+        _set_submit_error: WriteSignal<Option<String>>,
+    ) {
         set_is_submitting.set(true);
 
         let object_store = ObjectStore::new(name.clone());
@@ -172,9 +169,14 @@ impl ObjectStoreList {
             tag: object_store.tag().to_uppercase(),
             id: object_store.id(),
         };
-        let default_config = object_store.default_config();
-        // TODO: implement vault.add_configuration
-        handle_form_submission(self.vault.clone(), form_owner, default_config, set_is_submitting, set_submit_error);
+
+        spawn_local({
+            let mut vault = self.vault.clone();
+            async move {
+                let _ = vault.add_configuration(form_owner, name).await;
+                set_is_submitting.set(false);
+            }
+        });
         self.items.push(object_store);
     }
 
@@ -196,23 +198,4 @@ impl ObjectStoreList {
 
         self.items.retain(|item| item.name != name);
     }
-}
-
-impl ItemSerialized {
-    pub fn into_item(self) -> ObjectStore {
-        ObjectStore { name: self.name }
-    }
-}
-
-impl From<&ObjectStore> for ItemSerialized {
-    fn from(item: &ObjectStore) -> Self {
-        Self {
-            name: item.name.clone(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ItemSerialized {
-    pub name: String,
 }

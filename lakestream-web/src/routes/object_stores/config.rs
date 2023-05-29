@@ -1,11 +1,7 @@
-use std::collections::HashMap;
-
-use leptos::html::Div;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use crate::components::forms::object_store::ObjectStore;
-use crate::components::object_store_list::ObjectStoreList;
 use crate::components::stringvault::FormHandler;
 use crate::GlobalState;
 
@@ -37,40 +33,55 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         None => None,
     };
 
-    let name = if let Some(id) = &id {
-        let valid_map: HashMap<String, String> =
-            ObjectStoreList::load_from_local_storage()
-                .into_iter()
-                .map(|item| (item.id(), item.name))
-                .collect();
-        valid_map.get(id).cloned()
-    } else {
-        None
-    };
+    let (is_loading, set_is_loading) = create_signal(cx, true);
+    let (config_name, set_config_name) = create_signal(cx, None::<String>);
 
-    let form_data_handler: HtmlElement<Div> = match name {
-        Some(name) => {
-            let config_manager = ObjectStore::new(name);
-            let form_handler = FormHandler::new(config_manager, vault);
-            form_handler.form_data_handler(cx)
-        }
-        _ => {
-            // Render 404 page
-            view! {
-                cx,
-                <div>
-                    <h1>"404: Page Not Found"</h1>
-                    <p>"The page you requested could not be found."</p>
-                </div>
+    let vault_clone = vault.clone();
+    create_effect(cx, move |_| {
+        let vault = vault_clone.clone();
+        spawn_local({
+            let set_config_name = set_config_name.clone();
+            let vault = vault.clone();
+            let id = id.clone();
+
+            async move {
+                let configurations =
+                    vault.list_configurations().await.unwrap_or_default();
+                let name =
+                    configurations.into_iter().find_map(|(config_id, name)| {
+                        if config_id == id.as_deref().unwrap_or_default() {
+                            Some(name)
+                        } else {
+                            None
+                        }
+                    });
+                set_config_name.set(name);
+                set_is_loading.set(false);
             }
-            .into()
-        }
-    };
+        });
+    });
 
     view! {
         cx,
-        <div>
-            {form_data_handler}
-        </div>
-    }
+        {move || if is_loading.get() {
+            view! { cx, <div>"Loading..."</div> }
+        } else {
+            match config_name.get() {
+                Some(name) => {
+                    let config_manager = ObjectStore::new(name.clone());
+                    let form_handler = FormHandler::new(config_manager, vault.clone());
+                    form_handler.form_data_handler(cx)
+                }
+                None => {
+                    view! {
+                        cx,
+                        <div>
+                            <h1>"404: Page Not Found"</h1>
+                            <p>"The page you requested could not be found."</p>
+                        </div>
+                    }
+                }
+            }
+        }
+    }}
 }

@@ -51,18 +51,18 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             spawn_local(async move {
                 match vault_clone.load_secure_configuration(form_owner).await {
                     Ok(new_config) => {
-                        log!("loading config: {:?}", new_config);
+                        log::warn!("Successfully loaded configuration");
                         set_loaded_config(Some(new_config));
                     }
                     Err(e) => match e {
                         SecureStringError::PasswordNotFound(_)
                         | SecureStringError::NoLocalStorageData => {
                             // use default if cant load existing
-                            log!("Cant load existing configuration: {:?}", e);
+                            log::info!("Cant load existing configuration. Creating new.");
                             set_loaded_config(Some(default_config));
                         }
                         _ => {
-                            log!("error loading config: {:?}", e);
+                            log::error!("error loading config: {:?}", e);
                             set_load_config_error(Some(e.to_string()));
                         }
                     },

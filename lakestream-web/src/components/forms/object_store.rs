@@ -36,7 +36,7 @@ impl ObjectStore {
             FormInputFieldBuilder::new("__NAME__")
                 .default(self.name.clone())
                 .validator(None)
-                .enabled(false)
+                .text(false)
                 .build(),
             FormInputFieldBuilder::new("BUCKET_URI")
                 .default("s3://".to_string())

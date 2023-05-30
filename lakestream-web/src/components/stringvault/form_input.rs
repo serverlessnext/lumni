@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use leptos::log;
 use leptos::html::Input;
 use leptos::*;
 
@@ -20,27 +21,50 @@ pub fn InputFieldView(
     input_element: InputElement,
 ) -> impl IntoView {
     let (input_ref, error_signal, value_signal, input_data) = input_element;
-    let (is_hidden, set_is_hidden) =
-        create_signal(cx, input_data.opts.is_secret);
-    let masked_value = "******";
+    let is_enabled = input_data.input_field.is_enabled();
+    let is_secret = input_data.input_field.is_secret();
+    let is_password = input_data.input_field.is_password();
 
-    let is_secret = input_data.opts.is_secret;
-    let is_enabled = input_data.opts.is_enabled;
+    let masked_value = "******";
+    let (is_hidden, set_is_hidden) = create_signal(cx, is_secret || is_password);
+
+    log!("value is {:?}", value_signal.get());
+
+    let show_hide_checkbox = is_secret && is_enabled && !is_password;
 
     view! { cx,
         <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
             <label class="text-left px-2 w-full">{format!("{} ", label)}</label>
             <input
-                type="text"
-                value= move || if is_hidden.get() { masked_value.to_string() } else { value_signal.get() }
+                type=if is_password { "password" } else { "text" }
+                value= move || {
+                    let value = value_signal.get();
+                    if value.is_empty() {
+                        "".to_string()
+                    } else if is_hidden.get() && (is_secret || is_password) {
+                        masked_value.to_string()
+                    } else {
+                        value
+                    }
+                }
+                placeholder= move || {
+                    let value = value_signal.get();
+                    if value.is_empty() {
+                        "none".to_string()
+                    } else if is_hidden.get() {
+                        masked_value.to_string()
+                    } else {
+                        value
+                    }
+                }
                 class=get_input_class(is_enabled)
                 node_ref=input_ref
                 disabled=!is_enabled
             />
-            { if is_secret && is_enabled {
+            { if show_hide_checkbox {
                 view! { cx,
                     <div>
-                    <input type="checkbox" on:change=move |_| set_is_hidden(!is_hidden.get())> "Show password" </input>
+                        <input type="checkbox" on:change=move |_| set_is_hidden(!is_hidden.get())> "Show password" </input>
                     </div>
                 }
             } else {
@@ -53,6 +77,8 @@ pub fn InputFieldView(
     }
 }
 
+
+
 fn get_input_class(is_enabled: bool) -> &'static str {
     if is_enabled {
         "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 \
@@ -63,34 +89,55 @@ fn get_input_class(is_enabled: bool) -> &'static str {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct InputElementOpts {
-    pub is_secret: bool,
-    pub is_enabled: bool,
+#[derive(Debug, Clone)]
+pub enum InputField {
+    Text { is_enabled: bool },
+    Secret { is_enabled: bool },
+    Password { is_enabled: bool },
 }
 
-impl Default for InputElementOpts {
+impl InputField {
+    pub fn new_text(is_enabled: bool) -> Self {
+        Self::Text { is_enabled }
+    }
+
+    pub fn new_secret(is_enabled: bool) -> Self {
+        Self::Secret { is_enabled }
+    }
+
+    pub fn new_password(is_enabled: bool) -> Self {
+        Self::Password { is_enabled }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        match self {
+            Self::Text { is_enabled } => *is_enabled,
+            Self::Secret { is_enabled } => *is_enabled,
+            Self::Password { is_enabled } => *is_enabled,
+        }
+    }
+
+    pub fn is_secret(&self) -> bool {
+        matches!(self, Self::Secret { .. })
+    }
+
+    pub fn is_password(&self) -> bool {
+        matches!(self, Self::Password { .. })
+    }
+}
+
+impl Default for InputField {
     fn default() -> Self {
-        Self {
-            is_secret: false,
-            is_enabled: true,
-        }
+        Self::Text { is_enabled: true }
     }
 }
 
-impl InputElementOpts {
-    pub fn new(is_secret: bool, is_enabled: bool) -> Self {
-        Self {
-            is_secret,
-            is_enabled,
-        }
-    }
-}
+
 
 #[derive(Clone)]
 pub struct InputData {
     pub value: String,
-    pub opts: InputElementOpts,
+    pub input_field: InputField,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
@@ -98,7 +145,7 @@ impl fmt::Debug for InputData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InputData")
             .field("value", &self.value)
-            .field("opts", &self.opts)
+            .field("input_field", &self.input_field)
             .field("validator", &self.validator.is_some())
             .finish()
     }
@@ -107,12 +154,12 @@ impl fmt::Debug for InputData {
 impl InputData {
     pub fn new(
         value: String,
-        opts: InputElementOpts,
+        input_field: InputField,
         validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
         Self {
             value,
-            opts,
+            input_field,
             validator,
         }
     }
@@ -128,12 +175,12 @@ impl FormInputField {
     pub fn new(
         name: &str,
         default: String,
-        opts: InputElementOpts,
+        input_field: InputField,
         validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     ) -> Self {
         Self {
             name: name.to_string(),
-            input_data: InputData::new(default, opts, validate_fn),
+            input_data: InputData::new(default, input_field, validate_fn),
         }
     }
 

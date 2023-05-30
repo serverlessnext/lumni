@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use super::{FormInputField, InputData, InputElementOpts};
+use super::{FormInputField, InputData, InputField};
 
 #[derive(Clone, Default)]
 pub struct FormInputFieldBuilder {
     name: String,
     default: String,
-    opts: InputElementOpts,
+    input_field: InputField,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
@@ -14,6 +14,7 @@ impl FormInputFieldBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
+            input_field: InputField::new_text(true), // Default to Text field
             ..Default::default()
         }
     }
@@ -23,13 +24,18 @@ impl FormInputFieldBuilder {
         self
     }
 
-    pub fn secret(mut self, is_secret: bool) -> Self {
-        self.opts.is_secret = is_secret;
+    pub fn text(mut self, is_enabled: bool) -> Self {
+        self.input_field = InputField::new_text(is_enabled);
         self
     }
 
-    pub fn enabled(mut self, is_enabled: bool) -> Self {
-        self.opts.is_enabled = is_enabled;
+    pub fn secret(mut self, is_enabled: bool) -> Self {
+        self.input_field = InputField::new_secret(is_enabled);
+        self
+    }
+
+    pub fn password(mut self, is_enabled: bool) -> Self {
+        self.input_field = InputField::new_password(is_enabled);
         self
     }
 
@@ -46,9 +52,10 @@ impl FormInputFieldBuilder {
             name: self.name,
             input_data: InputData::new(
                 self.default,
-                self.opts,
+                self.input_field,
                 self.validate_fn,
             ),
         }
     }
 }
+

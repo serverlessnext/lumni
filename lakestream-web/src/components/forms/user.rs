@@ -30,8 +30,7 @@ impl UserForm {
 
         vec![FormInputFieldBuilder::new("PASSWORD")
             .default("".to_string())
-            .enabled(true)
-            .secret(true)
+            .password(true)
             .validator(Some(Arc::new(validate_with_pattern(
                 password_pattern,
                 "Invalid password. Must be at least 8 characters.".to_string(),

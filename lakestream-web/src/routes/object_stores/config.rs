@@ -1,6 +1,7 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
+use std::collections::HashMap;
 use crate::components::forms::object_store::ObjectStore;
 use crate::components::stringvault::FormHandler;
 use crate::GlobalState;
@@ -27,41 +28,42 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         .expect("vault to have been initialized");
 
     let params = use_params::<RouteParams>(cx);
-    // TODO: implement error handling
-    let form_id: Option<String> = match params.try_get() {
-        Some(Ok(route_params)) => Some(route_params.id.clone()),
-        Some(Err(_)) => panic!("invalid params"),
-        None => panic!("params not found"),
-    };
-    let form_id_clone = form_id.as_deref().unwrap_or_default().to_string();
+    let form_id: Option<String> = params
+        .try_get()
+        .and_then(|result| result.ok())
+        .map(|route_params| route_params.id.clone());
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
-    let (config_name, set_config_name) = create_signal(cx, None::<String>);
-
+    let is_object_store = create_rw_signal(cx, None::<ObjectStore>);
 
     let vault_clone = vault.clone();
+    let form_id_clone = form_id.clone();
     create_effect(cx, move |_| {
-        let vault = vault_clone.clone();
-        spawn_local({
-            let set_config_name = set_config_name.clone();
-            let vault = vault.clone();
-            let id = form_id.clone();
-
-            async move {
-                let configurations =
-                    vault.list_configurations().await.unwrap_or_default();
-                let name =
-                    configurations.into_iter().find_map(|(config_id, name)| {
-                        if config_id == id.as_deref().unwrap_or_default() {
-                            Some(name)
-                        } else {
-                            None
+        match form_id_clone.as_ref() {
+            Some(form_id) if !form_id.is_empty() => {
+                if !form_id.is_empty() {
+                    let vault = vault_clone.clone();
+                    let is_object_store = is_object_store.clone();
+                    let form_id = form_id_clone.clone();
+                    spawn_local({
+                        async move {
+                            let configurations = vault.list_configurations().await.unwrap_or_else(|_| HashMap::new());
+                            let name = configurations.get(form_id.as_ref().unwrap());
+                            if let Some(name) = name {
+                                is_object_store.set(Some(ObjectStore {
+                                    name: name.to_string(),
+                                    id: form_id.clone().unwrap_or_default(),
+                                }));
+                            }
+                            set_is_loading.set(false);
                         }
                     });
-                set_config_name.set(name);
+                }
+            }
+            _ => {
                 set_is_loading.set(false);
             }
-        });
+        }
     });
 
     view! {
@@ -69,13 +71,9 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         {move || if is_loading.get() {
             view! { cx, <div>"Loading..."</div> }
         } else {
-            match config_name.get() {
-                Some(name) => {
-                    let config_manager = ObjectStore {
-                        name: name.clone(),
-                        id: form_id_clone.clone(),
-                    };
-                    let form_handler = FormHandler::new(config_manager, vault.clone());
+            match is_object_store.get() {
+                Some(object_store) => {
+                    let form_handler = FormHandler::new(object_store, vault.clone());
                     form_handler.form_data_handler(cx)
                 }
                 None => {
@@ -91,3 +89,4 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         }
     }}
 }
+

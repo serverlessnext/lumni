@@ -49,7 +49,6 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             spawn_local(async move {
                 match vault_clone.load_secure_configuration(form_owner).await {
                     Ok(new_config) => {
-                        log::warn!("Successfully loaded configuration");
                         set_loaded_config(Some(new_config));
                     }
                     Err(e) => match e {

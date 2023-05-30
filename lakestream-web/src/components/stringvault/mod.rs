@@ -133,7 +133,7 @@ impl StringVault {
 
     pub async fn list_configurations(
         &self,
-    ) -> SecureStringResult<Vec<(String, String)>> {
+    ) -> SecureStringResult<HashMap<String, String>> {
         // Load the stored form metadata.
         let forms_db: HashMap<String, HashMap<String, String>> =
             serde_json::from_str(&self.secure_storage.load().await?)?;
@@ -143,8 +143,10 @@ impl StringVault {
             .into_iter()
             .map(|(id, meta)| {
                 // Extract the name of the form, using "Unknown" as the default.
-                let name =
-                    meta.get("NAME").unwrap_or(&"Unknown".to_string()).clone();
+                let name = meta
+                    .get("NAME")
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown".to_string());
 
                 // Return a tuple of the form id and name.
                 (id, name)

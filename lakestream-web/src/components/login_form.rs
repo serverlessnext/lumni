@@ -1,5 +1,5 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
-use leptos::html::{Form, HtmlElement, Input};
+use leptos::html::{Form, HtmlElement, Button, Input};
 use leptos::*;
 use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
@@ -109,7 +109,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                            <div class="text-red-500">
                             { move || error_signal.get().unwrap_or("".to_string()) }
                             </div>
-                            <ResetPasswordButton />
+                            {reset_password_button(cx, is_user_defined.clone())}
                        </div>
                     }
                 } else {
@@ -167,24 +167,38 @@ fn form_view(
     }
 }
 
-#[component]
-pub fn ResetPasswordButton(cx: Scope) -> impl IntoView {
-    let reset_vault = move |ev: MouseEvent| {
-        ev.prevent_default(); // needed to prevent form submission
-        spawn_local(async move {
-            match StringVault::reset_vault(ROOT_USERNAME).await {
-                Ok(_) => log!("Vault reset successfully"),
-                Err(err) => log!("Error resetting vault: {:?}", err),
-            }
-        });
+fn reset_password_button(
+    cx: Scope,
+    is_user_defined: RwSignal<bool>,
+) -> impl Fn() -> HtmlElement<Button> {
+
+    let reset_vault = {
+        let is_user_defined = is_user_defined.clone();
+        move |ev: MouseEvent| {
+            ev.prevent_default(); // needed to prevent form submission
+            spawn_local({
+                let is_user_defined = is_user_defined.clone();
+                async move {
+                    match StringVault::reset_vault(ROOT_USERNAME).await {
+                        Ok(_) => {
+                            log!("Vault reset successfully");
+                            is_user_defined.set(false);
+                        }
+                        Err(err) => log!("Error resetting vault: {:?}", err),
+                    }
+                }
+            });
+        }
     };
 
-    view! { cx,
-        <button
-            class=""
-            on:click=reset_vault
-        >
-            "Reset Password"
-        </button>
+    move || {
+        view! { cx,
+            <button
+                class=""
+                on:click=reset_vault
+            >
+                "Reset Password"
+            </button>
+        }
     }
 }

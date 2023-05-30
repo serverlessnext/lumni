@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use blake3::hash;
+use uuid::Uuid;
 use regex::Regex;
 
 use super::helpers::validate_with_pattern;
@@ -11,19 +10,22 @@ use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
 #[derive(Debug, Clone)]
 pub struct UserForm {
     pub name: String,
+    pub id: String,
 }
 
 impl UserForm {
     pub fn new(name: String) -> Self {
-        Self { name }
+        Self {
+            name,
+            id: Uuid::new_v4().to_string(),
+        }
     }
 
     pub fn id(&self) -> String {
-        let hash = hash(self.name.as_bytes());
-        hash.to_hex().to_string()
+        self.id.clone()
     }
 
-    fn default_fields(_username: &str) -> HashMap<String, InputData> {
+    fn default_fields(&self) -> HashMap<String, InputData> {
         let password_pattern = Regex::new(r"^.{8,}$").unwrap();
 
         vec![FormInputFieldBuilder::new("PASSWORD")
@@ -41,25 +43,12 @@ impl UserForm {
     }
 }
 
-#[async_trait(?Send)]
 impl ConfigManager for UserForm {
-    fn get_default_config(&self) -> HashMap<String, String> {
-        Self::default_fields(&self.name)
-            .into_iter()
-            .map(|(key, input_data)| (key, input_data.value))
-            .collect()
-    }
-
     fn default_fields(&self) -> HashMap<String, InputData> {
-        // for UserForm, name is the username
-        UserForm::default_fields(&self.name)
+        self.default_fields()
     }
 
     fn id(&self) -> String {
-        Self::id(self)
-    }
-
-    fn tag(&self) -> String {
-        "user_form".to_string()
+        self.id()
     }
 }

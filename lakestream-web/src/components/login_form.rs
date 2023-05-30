@@ -1,5 +1,5 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
-use leptos::html::{Form, HtmlElement, Button, Input};
+use leptos::html::{Button, Form, HtmlElement, Input};
 use leptos::*;
 use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
@@ -126,7 +126,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_view(cx, password_ref, on_submit_user_undefined.clone(), SubmitButtonType::Create("user"))}
+                {form_view(cx, password_ref, on_submit_user_undefined.clone(), SubmitButtonType::Create("new password"))}
                 </div>
             }
         }}
@@ -171,7 +171,6 @@ fn reset_password_button(
     cx: Scope,
     is_user_defined: RwSignal<bool>,
 ) -> impl Fn() -> HtmlElement<Button> {
-
     let reset_vault = {
         let is_user_defined = is_user_defined.clone();
         move |ev: MouseEvent| {

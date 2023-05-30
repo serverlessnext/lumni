@@ -30,6 +30,16 @@ pub struct FormOwner {
     pub id: String,
 }
 
+impl FormOwner {
+    pub fn new_with_form_tag(id: String) -> Self {
+        Self {
+            tag: "FORM".to_string(),
+            id,
+        }
+    }
+}
+
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
     secure_storage: SecureStorage,

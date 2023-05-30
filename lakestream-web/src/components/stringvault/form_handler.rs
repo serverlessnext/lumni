@@ -1,17 +1,13 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
 use super::{FormOwner, FormView, InputData, SecureStringError, StringVault};
 
-#[async_trait(?Send)]
 pub trait ConfigManager: Clone {
-    fn get_default_config(&self) -> HashMap<String, String>;
     fn default_fields(&self) -> HashMap<String, InputData>;
-    fn tag(&self) -> String;
     fn id(&self) -> String;
 }
 
@@ -29,10 +25,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
     }
 
     fn form_owner(&self) -> FormOwner {
-        FormOwner {
-            tag: self.config_manager.tag().to_uppercase(),
-            id: self.config_manager.id(),
-        }
+        FormOwner::new_with_form_tag(self.config_manager.id())
     }
 
     pub fn form_data_handler(&self, cx: Scope) -> HtmlElement<Div> {
@@ -46,7 +39,12 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
         create_effect(cx, move |_| {
             let vault_clone = vault_clone.clone();
-            let default_config = config_manager_clone.get_default_config();
+            let default_config = config_manager_clone
+                .default_fields()
+                .into_iter()
+                .map(|(key, input_data)| (key, input_data.value))
+                .collect();
+
             let form_owner = form_owner_clone.clone();
             spawn_local(async move {
                 match vault_clone.load_secure_configuration(form_owner).await {

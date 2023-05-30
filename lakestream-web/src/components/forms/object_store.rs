@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use blake3::hash;
+use uuid::Uuid;
 use regex::Regex;
 
 use super::helpers::validate_with_pattern;
@@ -11,27 +10,19 @@ use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
     pub name: String,
+    pub id: String,
 }
 
 impl ObjectStore {
     pub fn new(name: String) -> Self {
-        Self { name }
+        Self {
+            name,
+            id: Uuid::new_v4().to_string(),
+        }
     }
 
     pub fn id(&self) -> String {
-        let hash = hash(self.name.as_bytes());
-        hash.to_hex().to_string()
-    }
-
-    pub fn tag(&self) -> String {
-        "object_store".to_string()
-    }
-
-    pub fn default_config(&self) -> HashMap<String, String> {
-        self.default_fields()
-            .into_iter()
-            .map(|(key, input_data)| (key, input_data.value))
-            .collect()
+        self.id.clone()
     }
 
     fn default_fields(&self) -> HashMap<String, InputData> {
@@ -90,21 +81,12 @@ impl ObjectStore {
     }
 }
 
-#[async_trait(?Send)]
 impl ConfigManager for ObjectStore {
-    fn get_default_config(&self) -> HashMap<String, String> {
-        self.default_config()
-    }
-
     fn default_fields(&self) -> HashMap<String, InputData> {
         self.default_fields()
     }
 
     fn id(&self) -> String {
-        Self::id(self)
-    }
-
-    fn tag(&self) -> String {
-        Self::tag(self)
+        self.id()
     }
 }

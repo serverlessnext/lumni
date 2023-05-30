@@ -123,7 +123,7 @@ fn ListItem(
                     {item_name.clone()}
                 </a>
                 " | "
-                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_name.clone(), set_is_loading.clone()))> "delete" </button>
+                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id.clone(), set_is_loading.clone()))> "delete" </button>
             </div>
         </li>
     }
@@ -149,8 +149,8 @@ impl ObjectStoreList {
         let configs = self.vault.list_configurations().await?;
         let items = configs
             .into_iter()
-            .map(|(_, name)| {
-                ObjectStore { name } // you may need to adjust this if ObjectStore needs more data
+            .map(|(id, name)| {
+                ObjectStore { name, id }
             })
             .collect();
         Ok(items)
@@ -166,7 +166,7 @@ impl ObjectStoreList {
 
         let object_store = ObjectStore::new(name.clone());
         let form_owner = FormOwner {
-            tag: object_store.tag().to_uppercase(),
+            tag: "FORM".to_string(),
             id: object_store.id(),
         };
 
@@ -180,13 +180,9 @@ impl ObjectStoreList {
         self.items.push(object_store);
     }
 
-    pub fn remove(&mut self, name: String, set_is_loading: WriteSignal<bool>) {
+    pub fn remove(&mut self, item_id: String, set_is_loading: WriteSignal<bool>) {
         set_is_loading.set(true);
-        let object_store = ObjectStore::new(name.clone());
-        let form_owner = FormOwner {
-            tag: object_store.tag().to_uppercase(),
-            id: object_store.id(),
-        };
+        let form_owner = FormOwner::new_with_form_tag(item_id.clone());
 
         spawn_local({
             let mut vault = self.vault.clone();
@@ -196,6 +192,6 @@ impl ObjectStoreList {
             }
         });
 
-        self.items.retain(|item| item.name != name);
+        self.items.retain(|item| item.id != item_id);
     }
 }

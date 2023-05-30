@@ -2,20 +2,21 @@ use leptos::*;
 use web_sys::window;
 
 #[component]
-pub fn Logout(cx: Scope) -> impl IntoView {
-    const ERROR_MESSAGE: &str = "Failed to log out. Try to refresh the page.";
+pub fn Redirect(cx: Scope) -> impl IntoView {
+    const ERROR_MESSAGE: &str =
+        "Failed to redirect. Please try to refresh the page.";
 
     let redirect_url = "/home";
-    let logout_success = create_rw_signal(cx, None::<String>);
+    let error_message = create_rw_signal(cx, None::<String>);
 
     if let Some(window) = window() {
         if let Err(_) = window.location().replace(redirect_url) {
-            logout_success.set(Some(ERROR_MESSAGE.to_string()));
+            error_message.set(Some(ERROR_MESSAGE.to_string()));
         }
     }
 
     {
-        if let Some(error) = logout_success.get() {
+        if let Some(error) = error_message.get() {
             view! {
                 cx,
                 <div>{error}</div>
@@ -23,7 +24,7 @@ pub fn Logout(cx: Scope) -> impl IntoView {
         } else {
             view! {
                 cx,
-                <div>"Logging out..."</div>
+                <div>"Redirecting..."</div>
             }
         }
     }

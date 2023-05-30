@@ -3,7 +3,7 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::routes::{
-    About, Home, Login, Logout, ObjectStores, ObjectStoresId, UserId,
+    About, Home, Login, Logout, ObjectStores, ObjectStoresId, Redirect, UserId,
 };
 use crate::{GlobalState, RunTime};
 
@@ -46,7 +46,7 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
 
-            <Router>
+            <Router fallback=|cx| view! { cx, <Redirect/>}.into_view(cx)>
                 <nav class="bg-teal-500 p-3">
                     <div class="mb-2 text-white text-2xl font-bold">"Lakestream"</div>
                     <div class="flex">
@@ -60,8 +60,19 @@ pub fn App(cx: Scope) -> impl IntoView {
                 <main>
                     <Routes>
                         <Route path="/" view=|cx| view! { cx, <Home/> }/>
-                        <Route path="/home" view=|cx| view! { cx, <Home/> }/>
                         <ProtectedRoute
+                            path="/home"
+                            redirect_path=redirect_path!("home")
+                            condition=move |_| vault_initialized.get()
+                            view=|cx| view! { cx, <Home/> }
+                        />
+                       <ProtectedRoute
+                            path="/object-stores"
+                            redirect_path=redirect_path!("object-stores")
+                            condition=move |_| vault_initialized.get()
+                            view=|cx| view! { cx, <ObjectStores/> }
+                        />
+                       <ProtectedRoute
                             path="/object-stores"
                             redirect_path=redirect_path!("object-stores")
                             condition=move |_| vault_initialized.get()

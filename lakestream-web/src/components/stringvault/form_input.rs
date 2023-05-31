@@ -6,6 +6,9 @@ use leptos::log;
 use leptos::html::Input;
 use leptos::*;
 
+use web_sys::HtmlInputElement;
+
+
 type InputElement = (
     NodeRef<Input>,
     RwSignal<Option<String>>,
@@ -26,9 +29,10 @@ pub fn InputFieldView(
     let is_password = input_data.input_field.is_password();
 
     let masked_value = "******";
-    let (is_hidden, set_is_hidden) = create_signal(cx, is_secret || is_password);
+    let is_hidden = create_rw_signal(cx, is_secret || is_password);
 
-    log!("value is {:?}", value_signal.get());
+    let initial_value = if is_hidden.get() { masked_value.to_string() } else { value_signal.get() };
+    let display_value_signal = create_rw_signal(cx, initial_value);
 
     let show_hide_checkbox = is_secret && is_enabled && !is_password;
 
@@ -37,15 +41,9 @@ pub fn InputFieldView(
             <label class="text-left px-2 w-full">{format!("{} ", label)}</label>
             <input
                 type=if is_password { "password" } else { "text" }
-                value= move || {
-                    let value = value_signal.get();
-                    if value.is_empty() {
-                        "".to_string()
-                    } else if is_hidden.get() && (is_secret || is_password) {
-                        masked_value.to_string()
-                    } else {
-                        value
-                    }
+                prop:value= { display_value_signal }
+                on:input=move |ev| {
+                    display_value_signal.set(event_target_value(&ev));
                 }
                 placeholder= move || {
                     let value = value_signal.get();
@@ -64,7 +62,15 @@ pub fn InputFieldView(
             { if show_hide_checkbox {
                 view! { cx,
                     <div>
-                        <input type="checkbox" on:change=move |_| set_is_hidden(!is_hidden.get())> "Show password" </input>
+                        <input type="checkbox" on:change=move |_| {
+                            is_hidden.set(!is_hidden.get());
+                            display_value_signal.set(if is_hidden.get() {
+                                masked_value.to_string()
+                            } else {
+                                value_signal.get()
+                            });
+                        }
+                                > "Show password" </input>
                     </div>
                 }
             } else {

@@ -29,8 +29,8 @@ pub fn FormView(
             // Validate input elements
             let mut validation_errors = HashMap::new();
 
-            for (key, (input_ref, _, _, _)) in &input_elements {
-                let value = input_ref().expect("input to exist").value();
+            for (key, (_, _, value_signal, _)) in &input_elements {
+                let value = value_signal.get();
                 let validator = default_config
                     .get(key)
                     .expect("Validator to exist")
@@ -56,8 +56,11 @@ pub fn FormView(
 
             // If there are no validation errors, handle form submission
             if validation_errors.is_empty() {
-                let form_config = extract_config(&input_elements);
-                log!("Validation successful");
+                //let form_config = extract_config(&input_elements);
+                let form_config: HashMap<String, String> = input_elements
+                    .iter()
+                    .map(|(key, (_, _, value_signal, _))| (key.clone(), value_signal.get()))
+                    .collect();
                 handle_form_submission(
                     vault.clone(),
                     form_owner.clone(),
@@ -144,12 +147,3 @@ impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
     }
 }
 
-fn extract_config(input_elements: &InputElements) -> HashMap<String, String> {
-    let mut config: HashMap<String, String> = HashMap::new();
-    for (key, (input_ref, _, value_writer, _)) in input_elements {
-        let value = input_ref().expect("input to exist").value();
-        config.insert(key.clone(), value.clone());
-        value_writer.set(value);
-    }
-    config
-}

@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use std::collections::HashMap;
 use crate::components::forms::object_store::ObjectStore;
 use crate::components::stringvault::FormHandler;
 use crate::GlobalState;
@@ -38,31 +39,33 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
 
     let vault_clone = vault.clone();
     let form_id_clone = form_id.clone();
-    create_effect(cx, move |_| {
-        match form_id_clone.as_ref() {
-            Some(form_id) if !form_id.is_empty() => {
-                if !form_id.is_empty() {
-                    let vault = vault_clone.clone();
-                    let is_object_store = is_object_store.clone();
-                    let form_id = form_id_clone.clone();
-                    spawn_local({
-                        async move {
-                            let configurations = vault.list_configurations().await.unwrap_or_else(|_| HashMap::new());
-                            let name = configurations.get(form_id.as_ref().unwrap());
-                            if let Some(name) = name {
-                                is_object_store.set(Some(ObjectStore {
-                                    name: name.to_string(),
-                                    id: form_id.clone().unwrap_or_default(),
-                                }));
-                            }
-                            set_is_loading.set(false);
+    create_effect(cx, move |_| match form_id_clone.as_ref() {
+        Some(form_id) if !form_id.is_empty() => {
+            if !form_id.is_empty() {
+                let vault = vault_clone.clone();
+                let is_object_store = is_object_store.clone();
+                let form_id = form_id_clone.clone();
+                spawn_local({
+                    async move {
+                        let configurations = vault
+                            .list_configurations()
+                            .await
+                            .unwrap_or_else(|_| HashMap::new());
+                        let name =
+                            configurations.get(form_id.as_ref().unwrap());
+                        if let Some(name) = name {
+                            is_object_store.set(Some(ObjectStore {
+                                name: name.to_string(),
+                                id: form_id.clone().unwrap_or_default(),
+                            }));
                         }
-                    });
-                }
+                        set_is_loading.set(false);
+                    }
+                });
             }
-            _ => {
-                set_is_loading.set(false);
-            }
+        }
+        _ => {
+            set_is_loading.set(false);
         }
     });
 
@@ -89,4 +92,3 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         }
     }}
 }
-

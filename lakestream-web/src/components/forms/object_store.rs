@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use uuid::Uuid;
 use regex::Regex;
+use uuid::Uuid;
 
 use super::helpers::validate_with_pattern;
 use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};

@@ -13,7 +13,7 @@ use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
 pub use form_handler::{ConfigManager, FormHandler};
 pub use form_input::{
-    FormInputField, InputData, InputField, InputElements, InputFieldView,
+    FormInputField, InputData, InputElements, InputField, InputFieldView,
 };
 pub use form_input_builder::FormInputFieldBuilder;
 pub use form_view::FormView;
@@ -38,7 +38,6 @@ impl FormOwner {
         }
     }
 }
-
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {

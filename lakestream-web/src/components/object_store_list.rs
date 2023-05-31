@@ -149,9 +149,7 @@ impl ObjectStoreList {
         let configs = self.vault.list_configurations().await?;
         let items = configs
             .into_iter()
-            .map(|(id, name)| {
-                ObjectStore { name, id }
-            })
+            .map(|(id, name)| ObjectStore { name, id })
             .collect();
         Ok(items)
     }
@@ -180,7 +178,11 @@ impl ObjectStoreList {
         self.items.push(object_store);
     }
 
-    pub fn remove(&mut self, item_id: String, set_is_loading: WriteSignal<bool>) {
+    pub fn remove(
+        &mut self,
+        item_id: String,
+        set_is_loading: WriteSignal<bool>,
+    ) {
         set_is_loading.set(true);
         let form_owner = FormOwner::new_with_form_tag(item_id.clone());
 

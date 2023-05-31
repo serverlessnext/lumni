@@ -54,10 +54,12 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                         let name =
                             configurations.get(form_id.as_ref().unwrap());
                         if let Some(name) = name {
-                            is_object_store.set(Some(ObjectStore {
-                                name: name.to_string(),
-                                id: form_id.clone().unwrap_or_default(),
-                            }));
+                            is_object_store.set(Some(
+                                ObjectStore::new_with_id(
+                                    name.to_string(),
+                                    form_id.clone().unwrap_or_default(),
+                                ),
+                            ));
                         }
                         set_is_loading.set(false);
                     }

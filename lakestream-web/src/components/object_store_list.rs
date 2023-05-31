@@ -95,7 +95,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                     <ul>
                         <For
                             each={move || item_list.get().items.clone()}
-                            key=|item| item.name.clone()
+                            key=|item| item.name()
                             view=move |cx, item: ObjectStore| view! { cx, <ListItem item set_is_loading/> }
                         />
                     </ul>
@@ -114,7 +114,7 @@ fn ListItem(
 ) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ObjectStoreList>>(cx).unwrap();
     let item_id = item.id();
-    let item_name = item.name;
+    let item_name = item.name();
 
     view! { cx,
         <li>
@@ -149,7 +149,7 @@ impl ObjectStoreList {
         let configs = self.vault.list_configurations().await?;
         let items = configs
             .into_iter()
-            .map(|(id, name)| ObjectStore { name, id })
+            .map(|(id, name)| ObjectStore::new_with_id(name, id))
             .collect();
         Ok(items)
     }
@@ -194,6 +194,6 @@ impl ObjectStoreList {
             }
         });
 
-        self.items.retain(|item| item.id != item_id);
+        self.items.retain(|item| item.id() != item_id);
     }
 }

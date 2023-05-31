@@ -13,14 +13,10 @@ type InputElement = (
 );
 pub type InputElements = HashMap<String, InputElement>;
 
-
-
 const MASKED_VALUE: &str = "*****";
-
 
 #[component]
 pub fn LockIcon(cx: Scope, is_locked: bool) -> impl IntoView {
-
     if is_locked {
         view! {
             cx,
@@ -37,7 +33,6 @@ pub fn LockIcon(cx: Scope, is_locked: bool) -> impl IntoView {
         }
     }
 }
-
 
 #[component]
 pub fn LockIconView(
@@ -69,10 +64,7 @@ pub fn LockIconView(
             }}
         </div>
     }
-
-
 }
-
 
 #[component]
 pub fn InputFieldView(
@@ -89,10 +81,24 @@ pub fn InputFieldView(
 
     // signals
     let initial_value = value_signal.get();
-    let is_locked = create_rw_signal(cx, if initial_value.is_empty() { false } else { is_secret || is_password });
-    let initial_value = if is_locked.get() { if initial_value.is_empty() { "".to_string() } else { MASKED_VALUE.to_string() } } else { initial_value };
+    let is_locked = create_rw_signal(
+        cx,
+        if initial_value.is_empty() {
+            false
+        } else {
+            is_secret || is_password
+        },
+    );
+    let initial_value = if is_locked.get() {
+        if initial_value.is_empty() {
+            "".to_string()
+        } else {
+            MASKED_VALUE.to_string()
+        }
+    } else {
+        initial_value
+    };
     let display_value_signal = create_rw_signal(cx, initial_value);
-
 
     view! { cx,
         <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
@@ -140,7 +146,6 @@ pub fn InputFieldView(
         </div>
     }
 }
-
 
 fn get_input_class(is_enabled: bool) -> &'static str {
     if is_enabled {

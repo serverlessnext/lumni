@@ -8,6 +8,7 @@ use super::{FormOwner, FormView, InputData, SecureStringError, StringVault};
 
 pub trait ConfigManager: Clone {
     fn default_fields(&self) -> HashMap<String, InputData>;
+    fn name(&self) -> String;
     fn id(&self) -> String;
 }
 

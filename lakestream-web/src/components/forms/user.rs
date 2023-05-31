@@ -9,8 +9,8 @@ use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
 
 #[derive(Debug, Clone)]
 pub struct UserForm {
-    pub name: String,
-    pub id: String,
+    name: String,
+    id: String,
 }
 
 impl UserForm {
@@ -19,6 +19,14 @@ impl UserForm {
             name,
             id: Uuid::new_v4().to_string(),
         }
+    }
+
+    pub fn new_with_id(name: String, id: String) -> Self {
+        Self { name, id }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 
     pub fn id(&self) -> String {
@@ -45,6 +53,10 @@ impl UserForm {
 impl ConfigManager for UserForm {
     fn default_fields(&self) -> HashMap<String, InputData> {
         self.default_fields()
+    }
+
+    fn name(&self) -> String {
+        self.name()
     }
 
     fn id(&self) -> String {

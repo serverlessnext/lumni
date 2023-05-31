@@ -59,7 +59,9 @@ pub fn FormView(
                 //let form_config = extract_config(&input_elements);
                 let form_config: HashMap<String, String> = input_elements
                     .iter()
-                    .map(|(key, (_, _, value_signal, _))| (key.clone(), value_signal.get()))
+                    .map(|(key, (_, _, value_signal, _))| {
+                        (key.clone(), value_signal.get())
+                    })
                     .collect();
                 handle_form_submission(
                     vault.clone(),
@@ -146,4 +148,3 @@ impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
         self(ev, input_elements)
     }
 }
-

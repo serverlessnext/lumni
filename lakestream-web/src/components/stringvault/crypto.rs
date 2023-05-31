@@ -6,7 +6,7 @@ use web_sys::{AesGcmParams, AesKeyGenParams, CryptoKey, Pbkdf2Params};
 use super::error::SecureStringError;
 use super::storage::{create_storage_key, load_string, save_string};
 use super::string_ops::generate_salt;
-use super::FormOwner;
+use super::ObjectKey;
 use crate::utils::convert_types::{string_to_uint8array, uint8array_to_string};
 
 const KEY_USAGE_DERIVE_KEY: &str = "deriveKey";
@@ -149,11 +149,11 @@ pub async fn derive_key_from_password(
     hashed_username: &str,
     password: &str,
 ) -> SecureStringResult<CryptoKey> {
-    let form_owner = FormOwner {
+    let object_key = ObjectKey {
         tag: "USER".to_string(),
         id: hashed_username.to_string(),
     };
-    let storage_key = create_storage_key(&form_owner);
+    let storage_key = create_storage_key(&object_key);
 
     let salt = match load_string(&storage_key).await {
         Some(salt) => salt,

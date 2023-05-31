@@ -4,8 +4,8 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use super::form_handler::handle_form_submission;
-use super::form_input::create_input_elements;
-use super::{FormOwner, InputData, InputElements, InputFieldView, StringVault};
+use super::form_input::{InputData, InputElements, InputFieldView, create_input_elements};
+use super::{FormOwner, StringVault};
 
 #[component]
 pub fn FormView(

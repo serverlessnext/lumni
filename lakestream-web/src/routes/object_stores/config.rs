@@ -4,7 +4,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use crate::components::forms::object_store::ObjectStore;
-use crate::components::stringvault::FormHandler;
+use crate::components::stringvault::form_handler::FormHandler;
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]

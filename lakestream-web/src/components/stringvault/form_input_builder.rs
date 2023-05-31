@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{FormInputField, InputData, InputField};
+use super::form_input::{FormInputField, InputData, InputField};
 
 #[derive(Clone, Default)]
 pub struct FormInputFieldBuilder {

@@ -1,7 +1,7 @@
 pub enum SubmitButtonType {
     Create(&'static str),
     Login,
-    Save,
+    Save(&'static str),
 }
 
 impl SubmitButtonType {
@@ -9,7 +9,7 @@ impl SubmitButtonType {
         match self {
             SubmitButtonType::Create(text) => format!("Create {}", text),
             SubmitButtonType::Login => "Log In".to_string(),
-            SubmitButtonType::Save => "Save".to_string(),
+            SubmitButtonType::Save(text) => format!("Save {}", text),
         }
     }
 
@@ -23,7 +23,7 @@ impl SubmitButtonType {
                 "inline-block px-3 bg-blue-600 hover:bg-blue-700 text-white \
                  font-bold py-2 rounded"
             }
-            SubmitButtonType::Save => {
+            SubmitButtonType::Save(_) => {
                 "inline-block px-3 bg-yellow-600 hover:bg-yellow-700 \
                  text-white font-bold py-2 rounded"
             }

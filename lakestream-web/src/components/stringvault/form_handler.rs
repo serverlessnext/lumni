@@ -4,7 +4,33 @@ use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use super::{FormOwner, FormView, InputData, SecureStringError, StringVault};
+pub use super::form_input::InputData;
+pub use super::form_input_builder::FormInputFieldBuilder;
+use super::form_view::FormView;
+use super::{SecureStringError, StringVault, ObjectKey};
+
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct FormOwner {
+    pub tag: String,
+    pub id: String,
+}
+
+impl FormOwner {
+    pub fn new_with_form_tag(id: String) -> Self {
+        Self {
+            tag: "FORM".to_string(),
+            id,
+        }
+    }
+
+    pub fn to_object_key(&self) -> ObjectKey {
+        ObjectKey {
+            tag: self.tag.clone(),
+            id: self.id.clone(),
+        }
+    }
+}
 
 pub trait ConfigManager: Clone {
     fn default_fields(&self) -> HashMap<String, InputData>;
@@ -48,7 +74,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
             let form_owner = form_owner_clone.clone();
             spawn_local(async move {
-                match vault_clone.load_secure_configuration(form_owner).await {
+                match vault_clone.load_secure_configuration(form_owner.to_object_key()).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                     }
@@ -125,7 +151,7 @@ pub fn handle_form_submission(
     let form_id = form_owner.id.clone();
     spawn_local(async move {
         match vault
-            .save_secure_configuration(form_owner, form_config)
+            .save_secure_configuration(form_owner.to_object_key(), form_config)
             .await
         {
             Ok(_) => {

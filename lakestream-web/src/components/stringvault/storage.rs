@@ -2,12 +2,12 @@ use leptos::log;
 use wasm_bindgen::JsValue;
 use web_sys::window;
 
-use super::FormOwner;
+use super::ObjectKey;
 
 const KEY_PREFIX: &str = "STRINGVAULT";
 
-pub fn create_storage_key(form_owner: &FormOwner) -> String {
-    vec![KEY_PREFIX, &form_owner.tag, &form_owner.id].join(":")
+pub fn create_storage_key(object_key: &ObjectKey) -> String {
+    vec![KEY_PREFIX, &object_key.tag, &object_key.id].join(":")
 }
 
 pub async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {

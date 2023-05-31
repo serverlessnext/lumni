@@ -8,34 +8,34 @@ use super::crypto::{decrypt, encrypt, get_crypto_subtle};
 use super::storage::{
     create_storage_key, delete_string, load_string, save_string,
 };
-use super::{FormOwner, SecureStringError, SecureStringResult};
+use super::{ObjectKey, SecureStringError, SecureStringResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SecureStorage {
-    form_owner: FormOwner,
+    object_key: ObjectKey,
     crypto_key: Option<CryptoKey>,
 }
 
 impl SecureStorage {
-    pub fn new(form_owner: FormOwner, crypto_key: CryptoKey) -> Self {
+    pub fn new(object_key: ObjectKey, crypto_key: CryptoKey) -> Self {
         Self {
-            form_owner,
+            object_key,
             crypto_key: Some(crypto_key),
         }
     }
 
-    pub async fn exists(form_owner: FormOwner) -> bool {
-        let storage_key = create_storage_key(&form_owner);
+    pub async fn exists(object_key: ObjectKey) -> bool {
+        let storage_key = create_storage_key(&object_key);
         load_string(&storage_key).await.is_some()
     }
 
-    pub fn form_owner(&self) -> &FormOwner {
-        &self.form_owner
+    pub fn object_key(&self) -> &ObjectKey {
+        &self.object_key
     }
 
-    pub fn for_deletion(form_owner: FormOwner) -> Self {
+    pub fn for_deletion(object_key: ObjectKey) -> Self {
         Self {
-            form_owner,
+            object_key,
             crypto_key: None,
         }
     }
@@ -58,7 +58,7 @@ impl SecureStorage {
         let encrypted_data_with_iv_base64 =
             general_purpose::STANDARD.encode(&encrypted_data_with_iv);
 
-        let storage_key = create_storage_key(&self.form_owner);
+        let storage_key = create_storage_key(&self.object_key);
         save_string(&storage_key, &encrypted_data_with_iv_base64)
             .await
             .map_err(SecureStringError::from)
@@ -69,7 +69,7 @@ impl SecureStorage {
             .crypto_key
             .as_ref()
             .ok_or_else(|| SecureStringError::InvalidCryptoKey)?;
-        let storage_key = create_storage_key(&self.form_owner);
+        let storage_key = create_storage_key(&self.object_key);
         let encrypted_data_base64 = load_string(&storage_key)
             .await
             .ok_or(SecureStringError::NoLocalStorageData)?;
@@ -90,12 +90,13 @@ impl SecureStorage {
     }
 
     pub async fn delete(&self) -> SecureStringResult<()> {
-        let storage_key = create_storage_key(&self.form_owner);
+        let storage_key = create_storage_key(&self.object_key);
         delete_string(&storage_key)
             .await
             .map_err(SecureStringError::from)
     }
 
+    #[allow(unused)]
     pub async fn update(&self, new_value: &str) -> SecureStringResult<()> {
         log!("Updating secure string");
         // Delete the existing string

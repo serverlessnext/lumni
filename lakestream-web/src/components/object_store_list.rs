@@ -2,7 +2,8 @@ use leptos::html::Input;
 use leptos::*;
 
 use super::forms::object_store::ObjectStore;
-use crate::stringvault::{FormOwner, SecureStringResult, StringVault};
+use crate::stringvault::{SecureStringResult, StringVault};
+use crate::stringvault::form_handler::FormOwner;
 use crate::GlobalState;
 
 #[component]
@@ -171,7 +172,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
-                let _ = vault.add_configuration(form_owner, name).await;
+                let _ = vault.add_configuration(form_owner.to_object_key(), name).await;
                 set_is_submitting.set(false);
             }
         });
@@ -189,7 +190,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
-                let _ = vault.delete_configuration(form_owner).await;
+                let _ = vault.delete_configuration(form_owner.to_object_key()).await;
                 set_is_loading.set(false);
             }
         });

@@ -5,7 +5,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use super::helpers::validate_with_pattern;
-use crate::stringvault::{ConfigManager, FormInputFieldBuilder, InputData};
+use crate::stringvault::form_handler::{ConfigManager, InputData, FormInputFieldBuilder};
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {

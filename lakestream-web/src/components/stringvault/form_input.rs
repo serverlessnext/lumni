@@ -43,7 +43,13 @@ pub fn InputFieldView(
                 type=if is_password { "password" } else { "text" }
                 prop:value= { display_value_signal }
                 on:input=move |ev| {
-                    display_value_signal.set(event_target_value(&ev));
+                    if is_hidden.get() {
+                        display_value_signal.set(masked_value.to_string());
+                    } else {
+                        let value = event_target_value(&ev);
+                        value_signal.set(value.clone());
+                        display_value_signal.set(value);
+                    }
                 }
                 placeholder= move || {
                     let value = value_signal.get();

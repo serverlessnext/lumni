@@ -1,11 +1,12 @@
+
 use leptos::ev::{MouseEvent, SubmitEvent};
-use leptos::html::{Button, Form, HtmlElement, Input};
+use leptos::html::Input;
 use leptos::*;
 use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::SubmitButtonType;
+use crate::components::buttons::{FormSubmitButton, SubmitButtonType};
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -109,7 +110,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                            <div class="text-red-500">
                             { move || error_signal.get().unwrap_or("".to_string()) }
                             </div>
-                            {reset_password_button(cx, is_user_defined.clone())}
+                            {reset_password_view(cx, is_user_defined.clone())}
                        </div>
                     }
                 } else {
@@ -138,11 +139,13 @@ fn form_view(
     password_ref: NodeRef<Input>,
     on_submit: impl Fn(SubmitEvent) + 'static,
     button_type: SubmitButtonType,
-) -> HtmlElement<Form> {
+) -> View {
     let placeholder = match button_type {
         SubmitButtonType::Create(_) => "Enter new password",
         _ => "Enter password",
     };
+
+    let is_enabled = create_rw_signal(cx, true);
 
     view! {
         cx,
@@ -156,21 +159,17 @@ fn form_view(
             </div>
 
             <div class="flex flex-col items-start">
-            <button
-                type="submit"
-                class={button_type.button_class()}
-            >
-                {button_type.button_text()}
-            </button>
+            <FormSubmitButton button_type=button_type button_enabled=is_enabled/>
             </div>
         </form>
-    }
+    }.into_view(cx)
 }
 
-fn reset_password_button(
+
+fn reset_password_view(
     cx: Scope,
     is_user_defined: RwSignal<bool>,
-) -> impl Fn() -> HtmlElement<Button> {
+) -> View {
     let reset_vault = {
         let is_user_defined = is_user_defined.clone();
         move |ev: MouseEvent| {
@@ -190,14 +189,12 @@ fn reset_password_button(
         }
     };
 
-    move || {
-        view! { cx,
-            <button
-                class=""
-                on:click=reset_vault
-            >
-                "Reset Password"
-            </button>
-        }
-    }
+    view! { cx,
+        <button
+            class=""
+            on:click=reset_vault
+        >
+            "Reset Password"
+        </button>
+    }.into_view(cx)
 }

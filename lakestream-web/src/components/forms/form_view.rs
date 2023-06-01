@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
+use crate::components::buttons::{FormSubmitButton, SubmitButtonType};
 use crate::stringvault::StringVault;
 
 use super::form_handler::{FormOwner, handle_form_submission};
@@ -22,6 +23,9 @@ pub fn FormView(
     let input_elements =
         create_input_elements(cx, &initial_config, &default_config);
     let input_elements_clone_submit = input_elements.clone();
+
+    let form_changed = create_rw_signal(cx, false);
+    let submit_disabled = move || !form_changed();
 
     let on_submit = {
         move |ev: SubmitEvent, input_elements: InputElements| {
@@ -93,17 +97,13 @@ pub fn FormView(
                             <InputFieldView
                                 label={label}
                                 input_element={input_element}
+                                input_changed={form_changed}
                             />
                         }
 
                     }
             />
-            <button
-                type="submit"
-                class="bg-amber-600 hover:bg-sky-700 px-5 py-3 text-white rounded-lg"
-            >
-                "Save"
-            </button>
+            <FormSubmitButton button_type=SubmitButtonType::Save("Changes") button_enabled=form_changed/>
             </form>
 
         // Show a loading message while the form is submitting

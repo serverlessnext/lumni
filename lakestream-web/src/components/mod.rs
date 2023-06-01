@@ -1,9 +1,8 @@
 mod login_form;
-mod submit_buttons;
 
 pub mod forms;
-pub mod object_store_list;
+pub mod buttons;
 pub mod stringvault;
+pub mod object_store_list;
 
 pub use login_form::LoginForm;
-pub use submit_buttons::SubmitButtonType;

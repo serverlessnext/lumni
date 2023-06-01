@@ -71,6 +71,7 @@ pub fn InputFieldView(
     cx: Scope,
     label: String,
     input_element: InputElement,
+    input_changed: RwSignal<bool>,
 ) -> impl IntoView {
     // defined from input_element
     let (input_ref, error_signal, value_signal, input_data) = input_element;
@@ -118,6 +119,7 @@ pub fn InputFieldView(
                             let value = event_target_value(&ev);
                             value_signal.set(value.clone());
                             display_value_signal.set(value);
+                            input_changed.set(true);
                     }}
                     placeholder= move || {
                         let value = value_signal.get();

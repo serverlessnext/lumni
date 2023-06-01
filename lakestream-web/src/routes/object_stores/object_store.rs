@@ -4,8 +4,8 @@ use std::sync::Arc;
 use regex::Regex;
 use uuid::Uuid;
 
-use super::helpers::validate_with_pattern;
-use crate::stringvault::form_handler::{ConfigManager, InputData, FormInputFieldBuilder};
+use crate::components::forms::helpers::validate_with_pattern;
+use crate::components::forms::form_handler::{ConfigManager, InputData, FormInputFieldBuilder};
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {

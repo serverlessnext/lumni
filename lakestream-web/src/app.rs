@@ -3,8 +3,10 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::routes::{
-    About, Home, Login, Logout, ObjectStores, ObjectStoresId, Redirect, UserId,
+    About, Home, Login, Logout, Redirect,
 };
+use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
+use crate::routes::users::UserId;
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";

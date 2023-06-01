@@ -4,12 +4,6 @@ mod secure_storage;
 mod storage;
 mod string_ops;
 
-// form_handler will become separate component
-pub mod form_handler;
-mod form_input;
-mod form_input_builder;
-mod form_view;
-
 use std::collections::HashMap;
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
@@ -17,8 +11,6 @@ use secure_storage::SecureStorage;
 use serde_json;
 use string_ops::generate_password;
 use web_sys::CryptoKey;
-
-use form_handler::FormOwner;
 
 pub type SecureStringResult<T> = Result<T, SecureStringError>;
 

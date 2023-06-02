@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
+use regex::Regex;
+use super::helpers::validate_with_pattern;
 use super::form_input::{FormInputField, InputData, InputField};
+
 
 #[derive(Clone, Default)]
 pub struct FormInputFieldBuilder {
@@ -10,11 +13,16 @@ pub struct FormInputFieldBuilder {
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
+pub enum InputFieldPattern {
+    PasswordChange,
+    PasswordCheck,
+}
+
 impl FormInputFieldBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            input_field: InputField::new_text(true), // Default to Text field
+            input_field: InputField::new_text(true),
             ..Default::default()
         }
     }
@@ -57,4 +65,26 @@ impl FormInputFieldBuilder {
             ),
         }
     }
+
+    pub fn with_pattern(pattern: InputFieldPattern) -> InputData {
+        let builder = match pattern {
+            InputFieldPattern::PasswordChange => {
+                let password_pattern = Regex::new(r"^.{8,}$").unwrap();
+                Self::new("PASSWORD")
+                    .default("".to_string())
+                    .password(true)
+                    .validator(Some(Arc::new(validate_with_pattern(
+                        password_pattern,
+                        "Invalid password. Must be at least 8 characters.".to_string(),
+                    ))))
+            },
+            InputFieldPattern::PasswordCheck => {
+                Self::new("PASSWORD")
+                    .default("".to_string())
+                    .password(true)
+            },
+        };
+        builder.build().to_input_data().1
+    }
 }
+

@@ -4,8 +4,8 @@ use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-pub use super::form_input::InputData;
-pub use super::form_input_builder::FormInputFieldBuilder;
+pub use super::form_input::{InputData, InputField};
+pub use super::form_input_builder::{FormInputFieldBuilder, InputFieldPattern};
 use super::form_view::FormView;
 use crate::stringvault::{ObjectKey, SecureStringError, StringVault};
 

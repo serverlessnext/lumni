@@ -9,6 +9,8 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::{ButtonType, ActionTrigger};
 use crate::components::forms::{SingleInputForm, FormError};
+use crate::components::forms::form_handler::{FormInputFieldBuilder, InputFieldPattern};
+
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -90,19 +92,18 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     });
 
     let handle_submission = Arc::new(handle_submission);
+
     let form_config_user_defined = SingleInputForm::new(
         handle_submission.clone(),
         true,
-        "password",
-        "Enter password",
         ButtonType::Login(None),
+        FormInputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck),
     );
     let form_config_user_undefined = SingleInputForm::new(
         handle_submission,
         false,
-        "password",
-        "Create new password",
         ButtonType::Create(Some("Create new password".to_string())),
+        FormInputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange),
     );
 
     view! {

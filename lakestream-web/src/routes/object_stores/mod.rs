@@ -1,7 +1,7 @@
 mod config;
-mod page;
 mod object_store;
+mod page;
 
-pub use object_store::ObjectStore;
 pub use config::ObjectStoresId;
+pub use object_store::ObjectStore;
 pub use page::ObjectStores;

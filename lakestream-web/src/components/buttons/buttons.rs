@@ -1,9 +1,14 @@
-use leptos::*;
 
-use super::SubmitButtonType;
+use leptos::*;
+use leptos::ev::MouseEvent;
+use super::ButtonType;
 
 #[component]
-pub fn FormSubmitButton(cx: Scope, button_type: SubmitButtonType, button_enabled: RwSignal<bool>) -> impl IntoView {
+pub fn FormSubmitButton(
+    cx: Scope,
+    button_type: ButtonType,
+    button_enabled: RwSignal<bool>,
+) -> impl IntoView {
     let button_text = button_type.button_text();
 
     view! {
@@ -18,5 +23,27 @@ pub fn FormSubmitButton(cx: Scope, button_type: SubmitButtonType, button_enabled
     }
 }
 
+#[component]
+pub fn ClickButton<F>(
+    cx: Scope,
+    button_type: ButtonType,
+    enabled: RwSignal<bool>,
+    on_click: F,
+) -> impl IntoView
+where
+    F: Fn(MouseEvent) + 'static,
+{
+    let button_text = button_type.button_text();
 
+    view! {
+        cx,
+        <button
+            class={move || button_type.button_class(!enabled.get())}
+            on:click=on_click
+            disabled={!enabled.get()}
+        >
+            {button_text}
+        </button>
+    }
+}
 

@@ -5,6 +5,7 @@ mod storage;
 mod string_ops;
 
 use std::collections::HashMap;
+
 use crypto::{derive_crypto_key, derive_key_from_password, hash_username};
 pub use error::SecureStringError;
 use secure_storage::SecureStorage;
@@ -13,7 +14,6 @@ use string_ops::generate_password;
 use web_sys::CryptoKey;
 
 pub type SecureStringResult<T> = Result<T, SecureStringError>;
-
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ObjectKey {
@@ -29,7 +29,6 @@ impl ObjectKey {
         }
     }
 }
-
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {

@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use crate::components::buttons::{FormSubmitButton, SubmitButtonType};
+use super::form_handler::{handle_form_submission, FormOwner};
+use super::form_input::{
+    create_input_elements, InputData, InputElements, InputFieldView,
+};
+use crate::components::buttons::{FormSubmitButton, ButtonType};
 use crate::stringvault::StringVault;
-
-use super::form_handler::{FormOwner, handle_form_submission};
-use super::form_input::{InputData, InputElements, InputFieldView, create_input_elements};
 
 #[component]
 pub fn FormView(
@@ -103,7 +104,7 @@ pub fn FormView(
 
                     }
             />
-            <FormSubmitButton button_type=SubmitButtonType::Save("Changes") button_enabled=form_changed/>
+            <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed/>
             </form>
 
         // Show a loading message while the form is submitting

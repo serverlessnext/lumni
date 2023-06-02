@@ -1,17 +1,16 @@
-
 use std::sync::Arc;
-use leptos::*;
+
+use leptos::ev::SubmitEvent;
 use leptos::html::Input;
+use leptos::*;
 
-use leptos::ev::{MouseEvent, SubmitEvent};
-use crate::components::buttons::{FormSubmitButton, SubmitButtonType};
-
+use crate::components::buttons::{FormSubmitButton, ButtonType};
 
 #[derive(Clone)]
 pub struct SingleInputForm {
     input_type: &'static str,
     input_placeholder: &'static str,
-    button_type: SubmitButtonType,
+    button_type: ButtonType,
     pub on_submit: Arc<dyn Fn(SubmitEvent) + 'static>,
 }
 
@@ -21,7 +20,7 @@ impl SingleInputForm {
         is_user_defined: bool,
         input_type: &'static str,
         input_placeholder: &'static str,
-        button_type: SubmitButtonType,
+        button_type: ButtonType,
     ) -> Self {
         let on_submit = {
             let handle_submission = handle_submission.clone();

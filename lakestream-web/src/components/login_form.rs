@@ -1,14 +1,14 @@
-
 use std::sync::Arc;
-use leptos::ev::{MouseEvent, SubmitEvent};
+
+use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::forms::SingleInputForm;
-use crate::components::buttons::SubmitButtonType;
+use crate::components::buttons::{ButtonType, ActionTrigger};
+use crate::components::forms::{SingleInputForm, FormError};
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -90,9 +90,20 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     });
 
     let handle_submission = Arc::new(handle_submission);
-    let form_config_user_defined = SingleInputForm::new(handle_submission.clone(), true, "password", "Enter password", SubmitButtonType::Login);
-    let form_config_user_undefined = SingleInputForm::new(handle_submission, false, "password", "Create new password", SubmitButtonType::Create("new password"));
-
+    let form_config_user_defined = SingleInputForm::new(
+        handle_submission.clone(),
+        true,
+        "password",
+        "Enter password",
+        ButtonType::Login(None),
+    );
+    let form_config_user_undefined = SingleInputForm::new(
+        handle_submission,
+        false,
+        "password",
+        "Create new password",
+        ButtonType::Create(Some("Create new password".to_string())),
+    );
 
     view! {
         cx,
@@ -131,35 +142,37 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     }
 }
 
-fn reset_password_view(
-    cx: Scope,
-    is_user_defined: RwSignal<bool>,
-) -> View {
-    let reset_vault = {
-        move |ev: MouseEvent| {
-            ev.prevent_default(); // needed to prevent form submission
-            spawn_local({
-                let is_user_defined = is_user_defined.clone();
-                async move {
-                    match StringVault::reset_vault(ROOT_USERNAME).await {
-                        Ok(_) => {
-                            log!("Vault reset successfully");
-                            is_user_defined.set(false);
-                        }
-                        Err(err) => log!("Error resetting vault: {:?}", err),
-                    }
-                }
-            });
+async fn reset_vault_action() -> Result<(), FormError> {
+    match StringVault::reset_vault(ROOT_USERNAME).await {
+        Ok(_) => {
+            log!("Vault reset successfully");
+            Ok(())
         }
-    };
+        Err(err) => {
+            log!("Error resetting vault: {:?}", err);
+            Err(FormError::SubmitError(format!(
+                "Error resetting vault: {:?}",
+                err
+            )))
+        }
+    }
+}
 
-    view! { cx,
-        <button
-            class=""
-            on:click=reset_vault
-        >
-            "Reset Password"
-        </button>
-    }.into_view(cx)
+fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>) -> View {
+    let action = Arc::new(move || {
+        let is_user_defined = is_user_defined.clone();
+        async move {
+            match reset_vault_action().await {
+                Ok(_) => {
+                    is_user_defined.set(false);
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
+        }
+    });
+
+    let reset_button = ActionTrigger::new(ButtonType::Reset(Some("Reset Password".to_string())), action);
+    reset_button.render_view(cx)
 }
 

@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use regex::Regex;
-use uuid::Uuid;
 
 use leptos::html::Div;
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
+use regex::Regex;
+use uuid::Uuid;
 
-use crate::GlobalState;
+use crate::components::forms::form_handler::{
+    ConfigManager, FormHandler, FormInputFieldBuilder, InputData,
+};
 use crate::components::forms::helpers::validate_with_pattern;
-use crate::components::forms::form_handler::{ConfigManager, InputData, FormInputFieldBuilder, FormHandler};
-
+use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
@@ -66,7 +67,6 @@ pub fn UserId(cx: Scope) -> impl IntoView {
         </div>
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct UserForm {

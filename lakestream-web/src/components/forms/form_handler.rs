@@ -4,12 +4,10 @@ use leptos::html::Div;
 use leptos::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::stringvault::{StringVault, ObjectKey, SecureStringError};
-
 pub use super::form_input::InputData;
 pub use super::form_input_builder::FormInputFieldBuilder;
 use super::form_view::FormView;
-
+use crate::stringvault::{ObjectKey, SecureStringError, StringVault};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FormOwner {
@@ -75,7 +73,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
             let form_owner = form_owner_clone.clone();
             spawn_local(async move {
-                match vault_clone.load_secure_configuration(form_owner.to_object_key()).await {
+                match vault_clone
+                    .load_secure_configuration(form_owner.to_object_key())
+                    .await
+                {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                     }

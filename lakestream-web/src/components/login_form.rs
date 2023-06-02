@@ -113,13 +113,11 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                 <div class="px-2 py-2">
                 {form_config_user_defined.render_view(cx, password_ref.clone())}
                 {move || if error_signal.get().is_some() {
-                    view! { cx,
-                       <div>
-                           <div class="text-red-500">
-                            { move || error_signal.get().unwrap_or("".to_string()) }
-                            </div>
-                            {reset_password_view(cx, is_user_defined.clone())}
-                       </div>
+                    view! {
+                        cx,
+                        <div>
+                            {reset_password_view(cx, is_user_defined.clone(), error_signal.clone())}
+                        </div>
                     }
                 } else {
                     view! { cx, <div></div> }
@@ -158,7 +156,7 @@ async fn reset_vault_action() -> Result<(), FormError> {
     }
 }
 
-fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>) -> View {
+fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>, error_signal: RwSignal<Option<String>>) -> View {
     let action = Arc::new(move || {
         let is_user_defined = is_user_defined.clone();
         async move {
@@ -173,6 +171,19 @@ fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>) -> View {
     });
 
     let reset_button = ActionTrigger::new(ButtonType::Reset(Some("Reset Password".to_string())), action);
-    reset_button.render_view(cx)
+    view ! {
+        cx,
+        <div class="bg-white rounded shadow p-4">
+        <div class="flex flex-col mb-4">
+            <div class="text-red-500">
+                { move || error_signal.get().unwrap_or("".to_string()) }
+            </div>
+            <p class="text-gray-700 text-lg">
+                "You have the option to reset the password. Please be aware, the configuration database is encrypted and can't be restored without the correct password. If you choose to proceed with the password reset, the database stored in this application will be permanently erased. This irreversible action should be carefully considered."
+            </p>
+        </div>
+        {reset_button.render_view(cx)}
+        </div>
+    }.into_view(cx)
 }
 

@@ -48,11 +48,12 @@ impl SingleInputForm {
                         node_ref=input_ref
                     />
                 </div>
-
                 <div class="flex flex-col items-start">
                     <FormSubmitButton button_type=self.button_type.clone() button_enabled=is_enabled/>
                 </div>
+
             </form>
         }.into_view(cx)
     }
+
 }

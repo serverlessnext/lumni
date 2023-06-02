@@ -1,4 +1,5 @@
 
+use std::sync::Arc;
 use leptos::ev::{MouseEvent, SubmitEvent};
 use leptos::html::Input;
 use leptos::*;
@@ -6,7 +7,8 @@ use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::buttons::{FormSubmitButton, SubmitButtonType};
+use crate::components::forms::SingleInputForm;
+use crate::components::buttons::SubmitButtonType;
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -76,16 +78,6 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         });
     };
 
-    let on_submit_user_defined = {
-        let handle_submission = handle_submission.clone();
-        move |ev: SubmitEvent| handle_submission(ev, true)
-    };
-
-    let on_submit_user_undefined = {
-        let handle_submission = handle_submission.clone();
-        move |ev: SubmitEvent| handle_submission(ev, false)
-    };
-
     // check if user is defined
     create_effect(cx, move |_| {
         spawn_local({
@@ -97,13 +89,18 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         });
     });
 
+    let handle_submission = Arc::new(handle_submission);
+    let form_config_user_defined = SingleInputForm::new(handle_submission.clone(), true, "password", "Enter password", SubmitButtonType::Login);
+    let form_config_user_undefined = SingleInputForm::new(handle_submission, false, "password", "Create new password", SubmitButtonType::Create("new password"));
+
+
     view! {
         cx,
         {move || if is_user_defined.get() {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_view(cx, password_ref, on_submit_user_defined.clone(), SubmitButtonType::Login)}
+                {form_config_user_defined.render_view(cx, password_ref.clone())}
                 {move || if error_signal.get().is_some() {
                     view! { cx,
                        <div>
@@ -127,51 +124,18 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_view(cx, password_ref, on_submit_user_undefined.clone(), SubmitButtonType::Create("new password"))}
+                {form_config_user_undefined.render_view(cx, password_ref.clone())}
                 </div>
             }
         }}
     }
 }
 
-fn form_view(
-    cx: Scope,
-    password_ref: NodeRef<Input>,
-    on_submit: impl Fn(SubmitEvent) + 'static,
-    button_type: SubmitButtonType,
-) -> View {
-    let placeholder = match button_type {
-        SubmitButtonType::Create(_) => "Enter new password",
-        _ => "Enter password",
-    };
-
-    let is_enabled = create_rw_signal(cx, true);
-
-    view! {
-        cx,
-        <form class="flex flex-col w-96" on:submit=on_submit>
-            <div class="flex flex-col mb-4">
-                <input type="password"
-                    placeholder={placeholder}
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    node_ref=password_ref
-                />
-            </div>
-
-            <div class="flex flex-col items-start">
-            <FormSubmitButton button_type=button_type button_enabled=is_enabled/>
-            </div>
-        </form>
-    }.into_view(cx)
-}
-
-
 fn reset_password_view(
     cx: Scope,
     is_user_defined: RwSignal<bool>,
 ) -> View {
     let reset_vault = {
-        let is_user_defined = is_user_defined.clone();
         move |ev: MouseEvent| {
             ev.prevent_default(); // needed to prevent form submission
             spawn_local({
@@ -198,3 +162,4 @@ fn reset_password_view(
         </button>
     }.into_view(cx)
 }
+

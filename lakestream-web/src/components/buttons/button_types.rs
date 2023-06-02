@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum SubmitButtonType {
     Create(&'static str),
     Login,
@@ -12,7 +13,6 @@ impl SubmitButtonType {
             SubmitButtonType::Save(text) => format!("Save {}", text),
         }
     }
-
 
     pub fn button_class(&self, is_disabled: bool) -> &'static str {
         if is_disabled {

@@ -31,8 +31,7 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         }
     }
 
-    pub fn render_view(&self, cx: Scope, input_ref: NodeRef<Input>) -> View {
-        let is_enabled = create_rw_signal(cx, true);
+    pub fn render_view(&self, cx: Scope, input_ref: NodeRef<Input>, is_enabled: Signal<bool>) -> View {
         let validation_error = create_rw_signal(cx, None);
 
         let input_type = match self.input_data.input_field {

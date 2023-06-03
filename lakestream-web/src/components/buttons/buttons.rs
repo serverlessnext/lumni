@@ -7,7 +7,7 @@ use super::ButtonType;
 pub fn FormSubmitButton(
     cx: Scope,
     button_type: ButtonType,
-    button_enabled: RwSignal<bool>,
+    button_enabled: Signal<bool>,
 ) -> impl IntoView {
     let button_text = button_type.button_text();
 
@@ -27,7 +27,7 @@ pub fn FormSubmitButton(
 pub fn ClickButton<F>(
     cx: Scope,
     button_type: ButtonType,
-    enabled: RwSignal<bool>,
+    enabled: Signal<bool>,
     on_click: F,
 ) -> impl IntoView
 where

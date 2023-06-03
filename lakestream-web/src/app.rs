@@ -4,7 +4,8 @@ use leptos_router::*;
 
 use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
 use crate::routes::users::UserId;
-use crate::routes::{About, Home, Login, Logout, Redirect};
+use crate::routes::api::{Login, ChangePassword};
+use crate::routes::{About, Home, Logout, Redirect};
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -93,6 +94,12 @@ pub fn App(cx: Scope) -> impl IntoView {
                         />
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>
                         <Route path="/logout" view=|cx| view! { cx, <Logout/> }/>
+                        <ProtectedRoute
+                            path="/change-password"
+                            redirect_path=redirect_path!("change-password")
+                            condition=move |_| !vault_initialized.get()
+                            view=|cx| view! { cx, <ChangePassword /> }
+                        />
                         <Route
                             path=redirect_path!(":id")
                             view=move |cx| {

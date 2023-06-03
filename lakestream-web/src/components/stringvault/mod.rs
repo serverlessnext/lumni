@@ -66,7 +66,7 @@ impl StringVault {
         SecureStorage::exists(object_key).await
     }
 
-    pub async fn new_and_validate(
+     pub async fn new_and_validate(
         username: &str,
         password: &str,
     ) -> SecureStringResult<Self> {
@@ -88,6 +88,19 @@ impl StringVault {
                 _ => Err(err), // Propagate any other errors
             },
         }
+    }
+
+    pub async fn validate_password(username: &str, password: &str) -> Result<bool, SecureStringError> {
+        match Self::new_and_validate(username, password).await {
+            Ok(_) => Ok(true), // Password is valid if new_and_validate doesn't return an error
+            Err(SecureStringError::DecryptError(_)) => Ok(false), // DecryptError indicates an invalid password
+            Err(err) => Err(err), // Propagate any other errors
+        }
+    }
+
+    pub async fn change_password(username: &str, old_password: &str, new_password: &str) -> SecureStringResult<()> {
+        // TODO: implemement
+        Ok(())
     }
 
     pub async fn new_and_create(

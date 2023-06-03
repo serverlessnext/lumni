@@ -45,7 +45,7 @@ where
         };
 
         view! { cx,
-            <ClickButton button_type={self.button_type.clone()} enabled={is_enabled} on_click={on_click} />
+            <ClickButton button_type={self.button_type.clone()} enabled={is_enabled.into()} on_click={on_click} />
         }
         .into_view(cx)
     }

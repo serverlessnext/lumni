@@ -36,6 +36,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 
     // assume user is not defined as default
     let is_user_defined = create_rw_signal(cx, false);
+    let is_user_defined_signal = (move || is_user_defined.get()).derive_signal(cx);
 
     // Create an error message signal
     let error_signal = create_rw_signal(cx, None);
@@ -112,7 +113,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_config_user_defined.render_view(cx, password_ref.clone())}
+                {form_config_user_defined.render_view(cx, password_ref.clone(), is_user_defined_signal.clone())}
                 {move || if error_signal.get().is_some() {
                     view! {
                         cx,
@@ -134,7 +135,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_config_user_undefined.render_view(cx, password_ref.clone())}
+                {form_config_user_undefined.render_view(cx, password_ref.clone(), is_user_defined_signal.clone())}
                 </div>
             }
         }}

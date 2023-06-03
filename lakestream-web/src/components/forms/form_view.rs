@@ -104,7 +104,7 @@ pub fn FormView(
 
                     }
             />
-            <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed/>
+            <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed.into()/>
             </form>
 
         // Show a loading message while the form is submitting

@@ -1,3 +1,4 @@
+#[allow(unused)]
 #[derive(Clone)]
 pub enum ButtonType {
     Create(Option<String>),

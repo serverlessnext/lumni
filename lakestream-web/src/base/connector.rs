@@ -5,12 +5,14 @@ use ::lakestream::{
 };
 use leptos::log;
 
+#[allow(unused)]
 #[derive(Clone)]
 pub struct LakestreamHandler {
     handler: ObjectStoreHandler,
     config: Config,
 }
 
+#[allow(unused)]
 impl LakestreamHandler {
     pub fn new(config: Config) -> Self {
         Self {
@@ -64,6 +66,7 @@ impl LakestreamHandler {
     }
 }
 
+#[allow(unused)]
 pub fn get_config() -> Config {
     let mut config_hashmap = HashMap::new();
 

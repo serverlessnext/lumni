@@ -25,3 +25,5 @@ lakestream-py:
 
 tests:
 	cargo test --package lakestream
+	cd lakestream-web && wasm-pack test --headless --firefox
+

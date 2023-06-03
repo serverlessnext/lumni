@@ -82,10 +82,6 @@ impl UserForm {
         }
     }
 
-    pub fn new_with_id(name: String, id: String) -> Self {
-        Self { name, id }
-    }
-
     pub fn name(&self) -> String {
         self.name.clone()
     }

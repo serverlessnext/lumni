@@ -15,7 +15,7 @@ pub use configurations::Configurations;
 pub use encryption::{decrypt, derive_crypto_key, encrypt, hash_username};
 pub use error::{SecureStringError, SecureStringResult};
 pub use secure_storage::SecureStorage;
-pub use string_ops::generate_password;
+pub use string_ops::generate_password_base64;
 pub use user::User;
 
 #[derive(Clone, PartialEq, Debug)]

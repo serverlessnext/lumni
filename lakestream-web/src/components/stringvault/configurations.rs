@@ -5,7 +5,7 @@ use serde_json;
 use super::encryption::derive_crypto_key;
 use super::error::SecureStringError;
 use super::secure_storage::SecureStorage;
-use super::string_ops::generate_password;
+use super::string_ops::generate_password_base64;
 use super::{ObjectKey, SecureStringResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +48,8 @@ impl Configurations {
             .get("__NAME__")
             .unwrap_or(&"Unknown".to_string())
             .clone();
-        let form_id = &object_key.id.clone();
-        let password = generate_password()?;
+        let form_id = &object_key.id;
+        let password = generate_password_base64()?;
         let derived_key = derive_crypto_key(&password, form_id).await?;
         let config_json = serde_json::to_string(&config)?;
 

@@ -3,7 +3,7 @@ use web_sys::CryptoKey;
 use super::encryption::derive_crypto_key;
 use super::error::SecureStringError;
 use super::storage::{create_storage_key, load_string, save_string};
-use super::string_ops::generate_salt;
+use super::string_ops::generate_salt_base64;
 use super::ObjectKey;
 
 type SecureStringResult<T> = Result<T, SecureStringError>;
@@ -30,7 +30,7 @@ pub async fn derive_key_from_password(
     let salt = match load_string(&storage_key).await {
         Some(salt) => salt,
         None => {
-            let new_salt = generate_salt()?;
+            let new_salt = generate_salt_base64()?;
             save_string(&storage_key, &new_salt).await?;
             new_salt
         }

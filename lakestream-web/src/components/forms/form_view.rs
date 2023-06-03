@@ -26,7 +26,6 @@ pub fn FormView(
     let input_elements_clone_submit = input_elements.clone();
 
     let form_changed = create_rw_signal(cx, false);
-    let submit_disabled = move || !form_changed();
 
     let on_submit = {
         move |ev: SubmitEvent, input_elements: InputElements| {

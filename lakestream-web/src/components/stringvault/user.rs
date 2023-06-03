@@ -75,6 +75,7 @@ impl User {
         }
     }
 
+    #[allow(unused)]
     pub async fn change_password(
         username: &str,
         old_password: &str,

@@ -240,18 +240,6 @@ pub struct FormInputField {
 }
 
 impl FormInputField {
-    pub fn new(
-        name: &str,
-        default: String,
-        input_field: InputField,
-        validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
-    ) -> Self {
-        Self {
-            name: name.to_string(),
-            input_data: InputData::new(default, input_field, validate_fn),
-        }
-    }
-
     pub fn to_input_data(self) -> (String, InputData) {
         (self.name, self.input_data)
     }

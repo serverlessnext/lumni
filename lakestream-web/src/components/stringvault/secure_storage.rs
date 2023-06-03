@@ -4,7 +4,8 @@ use js_sys::Uint8Array;
 use leptos::log;
 use web_sys::CryptoKey;
 
-use super::crypto::{decrypt, encrypt, get_crypto_subtle};
+use super::crypto::get_crypto_subtle;
+use super::encryption::{decrypt, encrypt};
 use super::storage::{
     create_storage_key, delete_string, load_string, save_string,
 };
@@ -87,6 +88,10 @@ impl SecureStorage {
                 )
             })?;
         Ok(decrypted_data)
+    }
+
+    pub fn set_admin_key(&mut self, new_key: CryptoKey) {
+        self.crypto_key = Some(new_key);
     }
 
     pub async fn delete(&self) -> SecureStringResult<()> {

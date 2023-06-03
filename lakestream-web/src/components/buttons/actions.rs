@@ -1,11 +1,11 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use leptos::*;
 use leptos::ev::MouseEvent;
+use leptos::*;
 
-use crate::components::forms::FormError;
 use super::{ButtonType, ClickButton};
+use crate::components::forms::FormError;
 
 pub struct ActionTrigger<Action>
 where
@@ -19,17 +19,23 @@ impl<Action> ActionTrigger<Action>
 where
     Action: Future<Output = Result<(), FormError>> + 'static,
 {
-    pub fn new(button_type: ButtonType, action: Arc<dyn Fn() -> Action>) -> Self {
-        Self { button_type, action }
+    pub fn new(
+        button_type: ButtonType,
+        action: Arc<dyn Fn() -> Action>,
+    ) -> Self {
+        Self {
+            button_type,
+            action,
+        }
     }
 
     pub fn render_view(&self, cx: Scope) -> View {
         let is_enabled = create_rw_signal(cx, true);
 
-        let action = Arc::clone(&self.action);  // clone action outside the closure
+        let action = Arc::clone(&self.action); // clone action outside the closure
 
         let on_click = move |event: MouseEvent| {
-            let action = Arc::clone(&action);  // clone action inside the closure
+            let action = Arc::clone(&action); // clone action inside the closure
             if !is_enabled.get() {
                 return;
             }

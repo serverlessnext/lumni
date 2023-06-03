@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use regex::Regex;
-use super::helpers::validate_with_pattern;
-use super::form_input::{FormInputField, InputData, InputField};
 
+use super::form_input::{FormInputField, InputData, InputField};
+use super::helpers::validate_with_pattern;
 
 #[derive(Clone, Default)]
 pub struct FormInputFieldBuilder {
@@ -75,16 +75,14 @@ impl FormInputFieldBuilder {
                     .password(true)
                     .validator(Some(Arc::new(validate_with_pattern(
                         password_pattern,
-                        "Invalid password. Must be at least 8 characters.".to_string(),
+                        "Invalid password. Must be at least 8 characters."
+                            .to_string(),
                     ))))
-            },
+            }
             InputFieldPattern::PasswordCheck => {
-                Self::new("PASSWORD")
-                    .default("".to_string())
-                    .password(true)
-            },
+                Self::new("PASSWORD").default("".to_string()).password(true)
+            }
         };
         builder.build().to_input_data().1
     }
 }
-

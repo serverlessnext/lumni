@@ -1,6 +1,6 @@
-
-use leptos::*;
 use leptos::ev::MouseEvent;
+use leptos::*;
+
 use super::ButtonType;
 
 #[component]
@@ -46,4 +46,3 @@ where
         </button>
     }
 }
-

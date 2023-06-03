@@ -1,3 +1,5 @@
+use std::error::Error;
+impl std::error::Error for FormError {}
 
 #[derive(Debug, Clone)]
 pub enum FormError {
@@ -17,5 +19,3 @@ impl std::fmt::Display for FormError {
         }
     }
 }
-use std::error::Error;
-impl std::error::Error for FormError {}

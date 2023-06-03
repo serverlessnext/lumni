@@ -7,10 +7,11 @@ use leptos_router::use_navigate;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::buttons::{ButtonType, ActionTrigger};
-use crate::components::forms::{SingleInputForm, FormError};
-use crate::components::forms::form_handler::{FormInputFieldBuilder, InputFieldPattern};
-
+use crate::components::buttons::{ActionTrigger, ButtonType};
+use crate::components::forms::form_handler::{
+    FormInputFieldBuilder, InputFieldPattern,
+};
+use crate::components::forms::{FormError, SingleInputForm};
 use crate::stringvault::StringVault;
 use crate::GlobalState;
 
@@ -36,7 +37,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 
     // assume user is not defined as default
     let is_user_defined = create_rw_signal(cx, false);
-    let is_user_defined_signal = (move || is_user_defined.get()).derive_signal(cx);
+    let is_user_undefined = (move || !is_user_defined.get()).derive_signal(cx);
 
     // Create an error message signal
     let error_signal = create_rw_signal(cx, None);
@@ -113,12 +114,12 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_config_user_defined.render_view(cx, password_ref.clone(), is_user_defined_signal.clone())}
+                {form_config_user_defined.render_view(cx, password_ref.clone(), is_user_defined.into())}
                 {move || if error_signal.get().is_some() {
                     view! {
                         cx,
                         <div>
-                            {reset_password_view(cx, is_user_defined.clone(), error_signal.clone())}
+                            {reset_password_view(cx, is_user_defined.clone(), error_signal)}
                         </div>
                     }
                 } else {
@@ -135,7 +136,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             view! {
                 cx,
                 <div class="px-2 py-2">
-                {form_config_user_undefined.render_view(cx, password_ref.clone(), is_user_defined_signal.clone())}
+                {form_config_user_undefined.render_view(cx, password_ref.clone(), is_user_undefined.into())}
                 </div>
             }
         }}
@@ -143,7 +144,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    match StringVault::reset_vault(ROOT_USERNAME).await {
+    match StringVault::reset(ROOT_USERNAME).await {
         Ok(_) => {
             log!("Vault reset successfully");
             Ok(())
@@ -158,7 +159,11 @@ async fn reset_vault_action() -> Result<(), FormError> {
     }
 }
 
-fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>, error_signal: RwSignal<Option<String>>) -> View {
+fn reset_password_view(
+    cx: Scope,
+    is_user_defined: RwSignal<bool>,
+    error_signal: RwSignal<Option<String>>,
+) -> View {
     let action = Arc::new(move || {
         let is_user_defined = is_user_defined.clone();
         async move {
@@ -172,7 +177,10 @@ fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>, error_signal:
         }
     });
 
-    let reset_button = ActionTrigger::new(ButtonType::Reset(Some("Reset Password".to_string())), action);
+    let reset_button = ActionTrigger::new(
+        ButtonType::Reset(Some("Reset Password".to_string())),
+        action,
+    );
     view ! {
         cx,
         <div class="bg-white rounded shadow p-4">
@@ -188,4 +196,3 @@ fn reset_password_view(cx: Scope, is_user_defined: RwSignal<bool>, error_signal:
         </div>
     }.into_view(cx)
 }
-

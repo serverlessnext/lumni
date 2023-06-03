@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
@@ -8,22 +7,24 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
+use crate::components::forms::form_handler::{
+    FormInputFieldBuilder, InputFieldPattern,
+};
 use crate::components::forms::SingleInputForm;
-use crate::components::forms::form_handler::{FormInputFieldBuilder, InputFieldPattern};
-
 use crate::stringvault::StringVault;
 
 const ROOT_USERNAME: &str = "admin";
-
 
 #[component]
 pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     let password_ref: NodeRef<Input> = create_node_ref(cx);
     let new_password_ref: NodeRef<Input> = create_node_ref(cx);
 
-    let (is_old_password_valid, set_is_old_password_valid) = create_signal(cx, false);
+    let (is_old_password_valid, set_is_old_password_valid) =
+        create_signal(cx, false);
 
-    let is_old_password_not_valid = (move || !is_old_password_valid.get()).derive_signal(cx);
+    let is_old_password_not_valid =
+        (move || !is_old_password_valid.get()).derive_signal(cx);
     let error_signal = create_rw_signal(cx, None);
 
     let handle_old_password_submission = move |ev: SubmitEvent, _: bool| {
@@ -31,15 +32,19 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         let password = password_ref().expect("password to exist").value();
 
         spawn_local(async move {
-            match StringVault::validate_password(ROOT_USERNAME, &password).await {
+            match StringVault::validate_password(ROOT_USERNAME, &password).await
+            {
                 Ok(valid) => {
                     if valid {
                         set_is_old_password_valid.set(true);
                     } else {
-                        error_signal.set(Some("Invalid password. Please try again.".to_string()));
+                        error_signal.set(Some(
+                            "Invalid password. Please try again.".to_string(),
+                        ));
                     }
-                },
-                Err(err) => error_signal.set(Some(format!("Error: {}", err.to_string()))),
+                }
+                Err(err) => error_signal
+                    .set(Some(format!("Error: {}", err.to_string()))),
             }
         });
     };
@@ -47,10 +52,17 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     let handle_new_password_submission = move |ev: SubmitEvent, _: bool| {
         ev.prevent_default();
         let password = password_ref().expect("password to exist").value();
-        let new_password = new_password_ref().expect("new password to exist").value();
+        let new_password =
+            new_password_ref().expect("new password to exist").value();
 
         spawn_local(async move {
-            match StringVault::change_password(ROOT_USERNAME, &password, &new_password).await {
+            match StringVault::change_password(
+                ROOT_USERNAME,
+                &password,
+                &new_password,
+            )
+            .await
+            {
                 Ok(_) => log!("Password changed successfully"),
                 Err(err) => {
                     let msg = err.to_string();
@@ -61,8 +73,10 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         });
     };
 
-    let handle_old_password_submission = Arc::new(handle_old_password_submission);
-    let handle_new_password_submission = Arc::new(handle_new_password_submission);
+    let handle_old_password_submission =
+        Arc::new(handle_old_password_submission);
+    let handle_new_password_submission =
+        Arc::new(handle_new_password_submission);
 
     let form_config_old_password = SingleInputForm::new(
         handle_old_password_submission.clone(),
@@ -95,4 +109,3 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         </div>
     }
 }
-

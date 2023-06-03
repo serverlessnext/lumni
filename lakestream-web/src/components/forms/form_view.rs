@@ -7,7 +7,7 @@ use super::form_handler::{handle_form_submission, FormOwner};
 use super::form_input::{
     create_input_elements, InputData, InputElements, InputFieldView,
 };
-use crate::components::buttons::{FormSubmitButton, ButtonType};
+use crate::components::buttons::{ButtonType, FormSubmitButton};
 use crate::stringvault::StringVault;
 
 #[component]

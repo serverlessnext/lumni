@@ -4,9 +4,8 @@ use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 
+use crate::components::buttons::{ButtonType, FormSubmitButton};
 use crate::components::forms::form_handler::{InputData, InputField};
-use crate::components::buttons::{FormSubmitButton, ButtonType};
-
 
 #[derive(Clone)]
 pub struct SingleInputForm<T> {
@@ -31,7 +30,12 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         }
     }
 
-    pub fn render_view(&self, cx: Scope, input_ref: NodeRef<Input>, is_enabled: Signal<bool>) -> View {
+    pub fn render_view(
+        &self,
+        cx: Scope,
+        input_ref: NodeRef<Input>,
+        is_enabled: Signal<bool>,
+    ) -> View {
         let validation_error = create_rw_signal(cx, None);
 
         let input_type = match self.input_data.input_field {
@@ -90,4 +94,3 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         }.into_view(cx)
     }
 }
-

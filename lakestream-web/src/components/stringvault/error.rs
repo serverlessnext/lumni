@@ -3,6 +3,8 @@ use std::fmt;
 use base64::DecodeError;
 use wasm_bindgen::JsValue;
 
+pub type SecureStringResult<T> = Result<T, SecureStringError>;
+
 #[derive(Debug)]
 pub enum SecureStringError {
     JsError(JsValue),

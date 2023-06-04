@@ -97,6 +97,11 @@ impl SecureStorage {
             .map_err(SecureStringError::from)
     }
 
+    pub async fn empty(&self) -> SecureStringResult<()> {
+        let empty_hashmap = serde_json::json!({}).to_string();
+        self.save(&empty_hashmap).await
+    }
+
     #[allow(unused)]
     pub async fn update(&self, new_value: &str) -> SecureStringResult<()> {
         log!("Updating secure string");
@@ -216,6 +221,36 @@ mod tests {
         // Ensure the secure string no longer exists
         let exists = SecureStorage::exists(object_key.clone()).await;
         assert_eq!(exists, false);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_empty() {
+        let object_key = ObjectKey::new("test_empty", "test_id_empty");
+        let password = "password_for_empty";
+        let value = "test_value_for_empty";
+
+        // Create the crypto key
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(value).await;
+        assert!(save_result.is_ok());
+
+        // Empty the storage
+        let empty_result = secure_storage.empty().await;
+        assert!(empty_result.is_ok());
+
+        // Load the string
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_ok());
+
+        // Assert the loaded string is an empty JSON object (which is what `empty` function should do)
+        let loaded_value = load_result.unwrap();
+        assert_eq!(loaded_value, "{}");
     }
 
     #[wasm_bindgen_test]

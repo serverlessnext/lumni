@@ -49,10 +49,10 @@ impl User {
         username: &str,
         password: &str,
     ) -> SecureStringResult<Self> {
-        // note this will overwrite any existing user
+        // this will ensure existing config is deleted
         User::reset(username).await?;
         let user = User::new(username, password).await?;
-        user.secure_storage.save("").await?;
+        user.secure_storage.empty().await?;
         Ok(user)
     }
 

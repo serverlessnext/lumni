@@ -171,10 +171,7 @@ impl ObjectStoreList {
         set_is_submitting.set(true);
 
         let object_store = ObjectStore::new(name.clone());
-        let form_owner = FormOwner {
-            tag: "FORM".to_string(),
-            id: object_store.id(),
-        };
+        let form_owner = FormOwner::new("FORM", &object_store.id());
 
         spawn_local({
             let mut vault = self.vault.clone();

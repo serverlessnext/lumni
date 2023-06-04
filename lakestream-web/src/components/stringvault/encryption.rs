@@ -62,6 +62,9 @@ pub async fn derive_crypto_key(
     password: &str,
     salt: &str,
 ) -> SecureStringResult<CryptoKey> {
+    if password.is_empty() {
+        return Err(SecureStringError::EmptyPassword);
+    }
     let subtle = get_crypto_subtle()?.2;
 
     let password_data = string_to_uint8array(password);

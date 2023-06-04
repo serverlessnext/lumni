@@ -15,15 +15,20 @@ impl User {
         password: &str,
     ) -> SecureStringResult<Self> {
         let hashed_username = hash_username(username);
+
+        let object_key_user = ObjectKey {
+            tag: "USER".to_string(),
+            id: hashed_username.to_string(),
+        };
         let crypto_key =
-            derive_key_from_password(&hashed_username, password).await?;
-        let object_key = ObjectKey {
-            tag: hashed_username.clone(),
+            derive_key_from_password(&object_key_user, password).await?;
+
+        let object_key_crypto = ObjectKey {
+            tag: object_key_user.id(),
             id: "self".to_string(),
         };
-
         Ok(Self {
-            secure_storage: SecureStorage::new(object_key, crypto_key),
+            secure_storage: SecureStorage::new(object_key_crypto, crypto_key),
         })
     }
 

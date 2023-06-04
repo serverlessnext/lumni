@@ -14,6 +14,8 @@ pub enum SecureStringError {
     NoCrypto,
     NoLocalStorageData,
     PasswordNotFound(String),
+    EmptyPassword,
+    SaltNotStored,
     InvalidCryptoKey,
     SerdeError(serde_json::Error),
 }
@@ -55,6 +57,12 @@ impl fmt::Display for SecureStringError {
             }
             SecureStringError::PasswordNotFound(msg) => {
                 write!(f, "Password not found: {}", msg)
+            }
+            SecureStringError::EmptyPassword => {
+                write!(f, "Password is empty")
+            }
+            SecureStringError::SaltNotStored => {
+                write!(f, "Salt not stored")
             }
             SecureStringError::InvalidCryptoKey => {
                 write!(f, "Invalid crypto key")

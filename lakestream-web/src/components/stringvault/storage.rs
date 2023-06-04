@@ -64,3 +64,44 @@ pub async fn delete_string(key: &str) -> Result<(), JsValue> {
         ));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use wasm_bindgen_test::*;
+
+    use super::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    async fn test_save_and_load_string() {
+        let key = "test_key";
+        let value = "test_value";
+        let save_result = save_string(key, value).await;
+        assert!(save_result.is_ok());
+        let loaded_value = load_string(key).await;
+        assert_eq!(loaded_value, Some(value.to_string()));
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_delete_string() {
+        let key = "test_key";
+        let value = "test_value";
+        let save_result = save_string(key, value).await;
+        assert!(save_result.is_ok());
+        let delete_result = delete_string(key).await;
+        assert!(delete_result.is_ok());
+        let loaded_value = load_string(key).await;
+        assert_eq!(loaded_value, None);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_create_storage_key() {
+        let object_key = ObjectKey {
+            tag: "tag".to_string(),
+            id: "id".to_string(),
+        };
+        let storage_key = create_storage_key(&object_key);
+        assert_eq!(storage_key, "STRINGVAULT:tag:id");
+    }
+}

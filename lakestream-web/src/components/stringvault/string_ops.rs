@@ -28,13 +28,12 @@ pub fn generate_salt_base64() -> Result<String, JsValue> {
     generate_string_base64(16)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    use super::*;
     use wasm_bindgen_test::*;
+
+    use super::*;
 
     #[wasm_bindgen_test]
     fn test_generate_string() {
@@ -47,7 +46,8 @@ mod tests {
     fn test_generate_string_base64() {
         let length = 16;
         let result = generate_string_base64(length).unwrap();
-        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded =
+            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 
@@ -55,7 +55,8 @@ mod tests {
     fn test_generate_password_base64() {
         let length = 16;
         let result = generate_password_base64().unwrap();
-        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded =
+            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 
@@ -63,8 +64,8 @@ mod tests {
     fn test_generate_salt_base64() {
         let length = 16;
         let result = generate_salt_base64().unwrap();
-        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded =
+            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 }
-

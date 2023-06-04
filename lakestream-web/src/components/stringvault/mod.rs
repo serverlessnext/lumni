@@ -19,21 +19,6 @@ pub use string_ops::generate_password_base64;
 pub use user::User;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct ObjectKey {
-    pub tag: String,
-    pub id: String,
-}
-
-impl ObjectKey {
-    pub fn new_with_form_tag(id: String) -> Self {
-        Self {
-            tag: "FORM".to_string(),
-            id,
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
     user: User,
     configurations: Configurations,
@@ -136,5 +121,56 @@ impl StringVault {
         self.configurations
             .delete(&mut self.user.secure_storage(), object_key)
             .await
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ObjectKey {
+    tag: String,
+    id: String,
+}
+
+impl ObjectKey {
+    pub fn new(tag: &str, id: &str) -> Self {
+        Self {
+            tag: tag.to_string(),
+            id: id.to_string(),
+        }
+    }
+
+    pub fn new_with_form_tag(id: &str) -> Self {
+        Self {
+            tag: "FORM".to_string(),
+            id: id.to_string(),
+        }
+    }
+
+    pub fn tag(&self) -> String {
+        self.tag.clone()
+    }
+
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wasm_bindgen_test::*;
+
+    use super::*;
+
+    #[wasm_bindgen_test]
+    fn test_object_key_new() {
+        let object_key = ObjectKey::new("test", "test_id");
+        assert_eq!(object_key.tag(), "test");
+        assert_eq!(object_key.id(), "test_id");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_object_key_new_with_form_tag() {
+        let object_key = ObjectKey::new_with_form_tag("test_id");
+        assert_eq!(object_key.tag(), "FORM");
+        assert_eq!(object_key.id(), "test_id");
     }
 }

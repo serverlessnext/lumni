@@ -11,11 +11,18 @@ use crate::stringvault::{ObjectKey, SecureStringError, StringVault};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FormOwner {
-    pub tag: String,
-    pub id: String,
+    tag: String,
+    id: String,
 }
 
 impl FormOwner {
+    pub fn new(tag: &str, id: &str) -> Self {
+        Self {
+            tag: tag.to_string(),
+            id: id.to_string(),
+        }
+    }
+
     pub fn new_with_form_tag(id: String) -> Self {
         Self {
             tag: "FORM".to_string(),
@@ -24,10 +31,7 @@ impl FormOwner {
     }
 
     pub fn to_object_key(&self) -> ObjectKey {
-        ObjectKey {
-            tag: self.tag.clone(),
-            id: self.id.clone(),
-        }
+        ObjectKey::new(&self.tag, &self.id)
     }
 }
 

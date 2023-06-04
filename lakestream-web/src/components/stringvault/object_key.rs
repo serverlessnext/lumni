@@ -1,4 +1,3 @@
-
 use super::error::SecureStringError;
 
 #[derive(Clone, PartialEq, Debug)]

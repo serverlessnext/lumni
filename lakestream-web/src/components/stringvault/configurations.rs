@@ -117,6 +117,11 @@ impl Configurations {
         object_key: ObjectKey,
         name: String,
     ) -> SecureStringResult<()> {
+        // NOTE: this only updates vault-user's local copy of the forms_db
+        //  it does not create a form itself like save() does.
+        //  this function is created to quickly add/ delete in a list context
+        //  (in this case a full save() would be too expensive, and unnecessary)
+        //  may have to rename to make this more clear
         let form_id = &object_key.id();
         let mut forms_db = load_forms_db(secure_storage).await?;
 

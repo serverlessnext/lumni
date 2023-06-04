@@ -78,10 +78,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         return;
                     }
                 };
-                match vault_clone
-                    .load_secure_configuration(form_owner_key)
-                    .await
-                {
+                match vault_clone.load_configuration(form_owner_key).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                     }
@@ -166,10 +163,7 @@ pub fn handle_form_submission(
             }
         };
 
-        match vault
-            .save_secure_configuration(form_owner_key, form_config)
-            .await
-        {
+        match vault.save_configuration(form_owner_key, form_config).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration: {:?}", form_id);
                 set_is_submitting.set(false);

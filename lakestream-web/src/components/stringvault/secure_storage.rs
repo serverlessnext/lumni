@@ -91,6 +91,9 @@ impl SecureStorage {
     }
 
     pub async fn delete(&self) -> SecureStringResult<()> {
+        if self.crypto_key.is_none() {
+            return Err(SecureStringError::InvalidCryptoKey);
+        }
         let storage_key = create_storage_key(&self.object_key);
         delete_string(&storage_key)
             .await
@@ -216,5 +219,145 @@ mod tests {
         // Ensure the secure string no longer exists
         let exists = SecureStorage::exists(object_key.clone()).await;
         assert_eq!(exists, false);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_for_deletion_no_key() {
+        let object_key =
+            ObjectKey::new("test_for_deletion", "test_id_for_deletion");
+
+        let secure_storage = SecureStorage::for_deletion(object_key.clone());
+
+        // Try to save a string
+        let save_result = secure_storage.save("test_value").await;
+        assert!(save_result.is_err());
+        assert_eq!(
+            save_result.unwrap_err(),
+            SecureStringError::InvalidCryptoKey
+        );
+
+        // Try to load a string
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_err());
+        assert_eq!(
+            load_result.unwrap_err(),
+            SecureStringError::InvalidCryptoKey
+        );
+
+        // Try to delete a string
+        let delete_result = secure_storage.delete().await;
+        assert!(delete_result.is_err());
+        assert_eq!(
+            delete_result.unwrap_err(),
+            SecureStringError::InvalidCryptoKey
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_large_string() {
+        let object_key =
+            ObjectKey::new("test_large_string", "test_id_large_string");
+        let password = "password";
+        let value = "a".repeat(1_000_000);
+
+        // Create the crypto key
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(&value).await;
+        assert!(save_result.is_ok());
+
+        // Load the string
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_ok());
+
+        // Assert the loaded string is equal to the original one
+        let loaded_value = load_result.unwrap();
+        assert_eq!(loaded_value, value);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_different_crypto_key() {
+        let object_key = ObjectKey::new(
+            "test_different_crypto_key",
+            "test_id_different_crypto_key",
+        );
+        let password = "password";
+        let value = "test_value";
+
+        // Create the crypto key
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(value).await;
+        assert!(save_result.is_ok());
+
+        // Create a different crypto key
+        let different_crypto_key_result =
+            derive_key_from_password(&object_key, "different_password").await;
+        assert!(different_crypto_key_result.is_ok());
+
+        let different_crypto_key = different_crypto_key_result.unwrap();
+        let different_secure_storage = SecureStorage::new(
+            object_key.clone(),
+            different_crypto_key.clone(),
+        );
+
+        // Try to load the string with the different crypto key
+        let load_result = different_secure_storage.load().await;
+        assert!(load_result.is_err());
+        assert_eq!(
+            load_result.unwrap_err(),
+            SecureStringError::DecryptError(
+                "Please ensure the password is correct.".to_owned()
+            )
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_special_characters_in_object_key() {
+        let object_key = ObjectKey::new(
+            "test_@$%^&*(){}[];:/?,<>'\"\\",
+            "test_id_@$%^&*(){}[];:/?,<>'\"\\",
+        );
+        let password = "password";
+        let value = "test_value";
+
+        // Create the crypto key
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(value).await;
+        assert!(save_result.is_ok());
+
+        // Load the string
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_ok());
+
+        // Assert the loaded string is equal to the original one
+        let loaded_value = load_result.unwrap();
+        assert_eq!(loaded_value, value);
+
+        // Delete the storage
+        let delete_result = secure_storage.delete().await;
+        assert!(delete_result.is_ok());
     }
 }

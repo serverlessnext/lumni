@@ -91,9 +91,6 @@ impl SecureStorage {
     }
 
     pub async fn delete(&self) -> SecureStringResult<()> {
-        if self.crypto_key.is_none() {
-            return Err(SecureStringError::InvalidCryptoKey);
-        }
         let storage_key = create_storage_key(&self.object_key);
         delete_string(&storage_key)
             .await
@@ -245,12 +242,9 @@ mod tests {
         );
 
         // Try to delete a string
+        // delete is idempotent and does not need key, so it should not fail
         let delete_result = secure_storage.delete().await;
-        assert!(delete_result.is_err());
-        assert_eq!(
-            delete_result.unwrap_err(),
-            SecureStringError::InvalidCryptoKey
-        );
+        assert!(delete_result.is_ok());
     }
 
     #[wasm_bindgen_test]

@@ -45,10 +45,25 @@ impl User {
         SecureStorage::exists(object_key).await
     }
 
-    pub async fn new_and_validate(
+    pub async fn create(
         username: &str,
         password: &str,
     ) -> SecureStringResult<Self> {
+        // note this will overwrite any existing user
+        User::reset(username).await?;
+        let user = User::new(username, password).await?;
+        user.secure_storage.save("").await?;
+        Ok(user)
+    }
+
+    pub async fn create_or_validate(
+        username: &str,
+        password: &str,
+    ) -> SecureStringResult<Self> {
+        if !User::exists(username).await {
+            return User::create(username, password).await;
+        }
+
         let user = User::new(username, password).await?;
 
         // Try to load the passwords to validate the password
@@ -61,7 +76,6 @@ impl User {
                 }
                 SecureStringError::DecryptError(_) => {
                     // user exists but password is wrong
-                    // TODO: offer reset password option
                     Err(err)
                 }
                 _ => Err(err), // Propagate any other errors
@@ -73,7 +87,7 @@ impl User {
         username: &str,
         password: &str,
     ) -> Result<bool, SecureStringError> {
-        match User::new_and_validate(username, password).await {
+        match User::create_or_validate(username, password).await {
             Ok(_) => Ok(true), /* Password is valid if new_and_validate doesn't return an error */
             Err(SecureStringError::DecryptError(_)) => Ok(false), /* DecryptError indicates an invalid password */
             Err(err) => Err(err), // Propagate any other errors
@@ -90,32 +104,6 @@ impl User {
         Ok(())
     }
 
-    pub async fn new_and_create(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
-        // TODO: check if user exists
-        User::reset(username).await?;
-        let user = User::new(username, password).await?;
-
-        // Try to load the passwords to validate the password
-        match user.secure_storage.load().await {
-            Ok(_) => Ok(user),
-            Err(err) => match err {
-                SecureStringError::NoLocalStorageData => {
-                    // user is not yet created
-                    Ok(user)
-                }
-                SecureStringError::DecryptError(_) => {
-                    // user exists but password is wrong
-                    // TODO: offer reset password option
-                    Err(err)
-                }
-                _ => Err(err), // Propagate any other errors
-            },
-        }
-    }
-
     pub async fn reset(username: &str) -> SecureStringResult<()> {
         let hashed_username = hash_username(username);
         let object_key = ObjectKey {
@@ -127,5 +115,123 @@ impl User {
         secure_storage.delete().await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wasm_bindgen_test::*;
+
+    use super::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    async fn test_new() {
+        let username = "username";
+        let password = "password";
+
+        let user_result = User::new(username, password).await;
+        assert!(user_result.is_ok());
+
+        let user = user_result.unwrap();
+        assert_eq!(
+            user.secure_storage.object_key().tag(),
+            hash_username(username)
+        );
+        assert_eq!(user.secure_storage.object_key().id(), "self");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_create_or_validate_new_user() {
+        let username = "new_username";
+        let password = "new_password";
+
+        // Resetting a non-existing user should not return an error
+        assert!(User::reset(username).await.is_ok());
+
+        let user_result = User::create_or_validate(username, password).await;
+        assert!(user_result.is_ok());
+
+        let user = user_result.unwrap();
+        assert_eq!(
+            user.secure_storage.object_key().tag(),
+            hash_username(username)
+        );
+        assert_eq!(user.secure_storage.object_key().id(), "self");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_create_or_validate_existing_user_wrong_password() {
+        let username = "existing_username";
+        let password = "correct_password";
+        let wrong_password = "wrong_password";
+
+        // Create the user
+        User::create(username, password).await.unwrap();
+
+        // Now try to validate the user with wrong password
+        let user_result =
+            User::create_or_validate(username, wrong_password).await;
+        assert!(user_result.is_err());
+        assert_eq!(
+            user_result.unwrap_err(),
+            SecureStringError::DecryptError(
+                "Please ensure the password is correct.".to_owned()
+            )
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_create_or_validate_existing_user_correct_password() {
+        let username = "existing_username_2";
+        let password = "correct_password_2";
+
+        // Create the user
+        User::create(username, password).await.unwrap();
+
+        // Now try to validate the user with correct password
+        let user_result = User::create_or_validate(username, password).await;
+        assert!(user_result.is_ok());
+
+        let user = user_result.unwrap();
+        assert_eq!(
+            user.secure_storage.object_key().tag(),
+            hash_username(username)
+        );
+        assert_eq!(user.secure_storage.object_key().id(), "self");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_exists() {
+        let username = "username_for_exists_test";
+        let password = "password_for_exists_test";
+
+        // Assert user doesn't exist initially
+        assert_eq!(User::exists(username).await, false);
+
+        // Create the user
+        User::create(username, password).await.unwrap();
+
+        // Assert user now exists
+        assert_eq!(User::exists(username).await, true);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_reset() {
+        let username = "username_for_reset_test";
+        let password = "password_for_reset_test";
+
+        // Create the user
+        User::create(username, password).await.unwrap();
+
+        // Assert user now exists
+        assert_eq!(User::exists(username).await, true);
+
+        // Reset the user
+        User::reset(username).await.unwrap();
+
+        // Assert user doesn't exist now
+        assert_eq!(User::exists(username).await, false);
     }
 }

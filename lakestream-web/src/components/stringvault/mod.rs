@@ -35,28 +35,18 @@ impl StringVault {
         })
     }
 
+    pub async fn create_or_validate(
+        username: &str,
+        password: &str,
+    ) -> SecureStringResult<Self> {
+        Ok(Self {
+            user: User::create_or_validate(username, password).await?,
+            configurations: Configurations {},
+        })
+    }
+
     pub async fn user_exists(username: &str) -> bool {
         User::exists(username).await
-    }
-
-    pub async fn new_and_validate(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
-        Ok(Self {
-            user: User::new_and_validate(username, password).await?,
-            configurations: Configurations {},
-        })
-    }
-
-    pub async fn new_and_create(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
-        Ok(Self {
-            user: User::new_and_create(username, password).await?,
-            configurations: Configurations {},
-        })
     }
 
     pub async fn validate_password(

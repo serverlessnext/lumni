@@ -57,11 +57,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            let vault_result = if user_defined {
-                StringVault::new_and_validate(ROOT_USERNAME, &password).await
-            } else {
-                StringVault::new_and_create(ROOT_USERNAME, &password).await
-            };
+            let vault_result =
+                StringVault::create_or_validate(ROOT_USERNAME, &password).await;
 
             match vault_result {
                 Ok(string_vault) => {

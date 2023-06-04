@@ -84,11 +84,11 @@ pub fn hash_username(user: &str) -> String {
     hash.to_hex().to_string()
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use wasm_bindgen_test::*;
+
+    use super::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -142,4 +142,3 @@ mod tests {
         assert_eq!(decrypted_data, data);
     }
 }
-

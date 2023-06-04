@@ -5,7 +5,7 @@ use wasm_bindgen::JsValue;
 
 pub type SecureStringResult<T> = Result<T, SecureStringError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SecureStringError {
     JsError(JsValue),
     DecryptError(String),
@@ -17,6 +17,7 @@ pub enum SecureStringError {
     EmptyPassword,
     SaltNotStored,
     InvalidCryptoKey,
+    InvalidArgument(String),
     SerdeError(String),
 }
 
@@ -66,6 +67,9 @@ impl fmt::Display for SecureStringError {
             }
             SecureStringError::InvalidCryptoKey => {
                 write!(f, "Invalid crypto key")
+            }
+            SecureStringError::InvalidArgument(msg) => {
+                write!(f, "Invalid argument: {}", msg)
             }
             SecureStringError::SerdeError(e) => {
                 write!(f, "Serde JSON error: {}", e)

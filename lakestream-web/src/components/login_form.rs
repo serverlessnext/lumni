@@ -50,7 +50,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let redirect_url = previous_url().unwrap_or_default();
     let password_ref: NodeRef<Input> = create_node_ref(cx);
 
-    let handle_submission = move |ev: SubmitEvent, user_defined: bool| {
+    let handle_submission = move |ev: SubmitEvent, _: bool| {
         ev.prevent_default();
         let password = password_ref().expect("password to exist").value();
         // clone so original does not get moved into the closure

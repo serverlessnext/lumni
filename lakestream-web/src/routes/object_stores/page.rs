@@ -171,13 +171,16 @@ impl ObjectStoreList {
         set_is_submitting.set(true);
 
         let object_store = ObjectStore::new(name.clone());
-        let form_owner = FormOwner::new("FORM", &object_store.id());
+        let form_owner = FormOwner::new_with_form_tag(object_store.id());
 
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
                 let _ = vault
-                    .add_configuration(form_owner.to_object_key(), name)
+                    .add_configuration(
+                        form_owner.to_object_key().unwrap(),
+                        name,
+                    )
                     .await;
                 set_is_submitting.set(false);
             }
@@ -197,7 +200,7 @@ impl ObjectStoreList {
             let mut vault = self.vault.clone();
             async move {
                 let _ = vault
-                    .delete_configuration(form_owner.to_object_key())
+                    .delete_configuration(form_owner.to_object_key().unwrap())
                     .await;
                 set_is_loading.set(false);
             }

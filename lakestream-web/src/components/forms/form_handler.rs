@@ -16,13 +16,6 @@ pub struct FormOwner {
 }
 
 impl FormOwner {
-    pub fn new(tag: &str, id: &str) -> Self {
-        Self {
-            tag: tag.to_string(),
-            id: id.to_string(),
-        }
-    }
-
     pub fn new_with_form_tag(id: String) -> Self {
         Self {
             tag: "FORM".to_string(),
@@ -30,7 +23,7 @@ impl FormOwner {
         }
     }
 
-    pub fn to_object_key(&self) -> ObjectKey {
+    pub fn to_object_key(&self) -> Result<ObjectKey, SecureStringError> {
         ObjectKey::new(&self.tag, &self.id)
     }
 }
@@ -77,8 +70,16 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
             let form_owner = form_owner_clone.clone();
             spawn_local(async move {
+                let form_owner_key = match form_owner.to_object_key() {
+                    Ok(key) => key,
+                    Err(e) => {
+                        log::error!("error creating object key: {:?}", e);
+                        set_load_config_error(Some(e.to_string()));
+                        return;
+                    }
+                };
                 match vault_clone
-                    .load_secure_configuration(form_owner.to_object_key())
+                    .load_secure_configuration(form_owner_key)
                     .await
                 {
                     Ok(new_config) => {
@@ -156,8 +157,17 @@ pub fn handle_form_submission(
 ) {
     let form_id = form_owner.id.clone();
     spawn_local(async move {
+        let form_owner_key = match form_owner.to_object_key() {
+            Ok(key) => key,
+            Err(e) => {
+                log::error!("error creating object key: {:?}", e);
+                set_submit_error.set(Some(e.to_string()));
+                return;
+            }
+        };
+
         match vault
-            .save_secure_configuration(form_owner.to_object_key(), form_config)
+            .save_secure_configuration(form_owner_key, form_config)
             .await
         {
             Ok(_) => {

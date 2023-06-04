@@ -45,7 +45,6 @@ pub async fn decrypt(
         key,
         data,
     )?;
-
     let decrypted_data_result: js_sys::ArrayBuffer =
         wasm_bindgen_futures::JsFuture::from(decrypted_data_promise)
             .await?
@@ -54,7 +53,6 @@ pub async fn decrypt(
     let decrypted_data = js_sys::Uint8Array::new(&decrypted_data_result);
     let decrypted_data_vec: Vec<u8> = decrypted_data.to_vec();
     let decrypted_data = uint8array_to_string(&decrypted_data_vec);
-
     Ok(decrypted_data)
 }
 

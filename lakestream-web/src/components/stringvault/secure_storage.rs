@@ -124,7 +124,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_new() {
-        let object_key = ObjectKey::new("test1", "test_id1");
+        let object_key = ObjectKey::new("test1", "test_id1").unwrap();
         let password = "password_for_new";
 
         let crypto_key_result =
@@ -140,7 +140,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_for_deletion() {
-        let object_key = ObjectKey::new("test2", "test_id2");
+        let object_key = ObjectKey::new("test2", "test_id2").unwrap();
 
         let secure_storage = SecureStorage::for_deletion(object_key.clone());
         assert_eq!(secure_storage.object_key, object_key);
@@ -149,7 +149,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_save_load_delete() {
-        let object_key = ObjectKey::new("test3", "test_id3");
+        let object_key = ObjectKey::new("test3", "test_id3").unwrap();
         let password = "password_for_save_load_delete";
         let value = "test_value_for_save_load_delete";
 
@@ -189,7 +189,8 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_exists() {
-        let object_key = ObjectKey::new("test_exists", "test_id_exists");
+        let object_key =
+            ObjectKey::new("test_exists", "test_id_exists").unwrap();
         let password = "password_for_exists";
         let value = "test_value_for_exists";
 
@@ -225,16 +226,18 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_empty() {
-        let object_key = ObjectKey::new("test_empty", "test_id_empty");
+        let object_key = ObjectKey::new("test_empty", "test_id_empty").unwrap();
         let password = "password_for_empty";
         let value = "test_value_for_empty";
 
         // Create the crypto key
-        let crypto_key_result = derive_key_from_password(&object_key, password).await;
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value).await;
@@ -256,7 +259,8 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_for_deletion_no_key() {
         let object_key =
-            ObjectKey::new("test_for_deletion", "test_id_for_deletion");
+            ObjectKey::new("test_for_deletion", "test_id_for_deletion")
+                .unwrap();
 
         let secure_storage = SecureStorage::for_deletion(object_key.clone());
 
@@ -285,7 +289,8 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_large_string() {
         let object_key =
-            ObjectKey::new("test_large_string", "test_id_large_string");
+            ObjectKey::new("test_large_string", "test_id_large_string")
+                .unwrap();
         let password = "password";
         let value = "a".repeat(1_000_000);
 
@@ -316,7 +321,8 @@ mod tests {
         let object_key = ObjectKey::new(
             "test_different_crypto_key",
             "test_id_different_crypto_key",
-        );
+        )
+        .unwrap();
         let password = "password";
         let value = "test_value";
 
@@ -360,7 +366,8 @@ mod tests {
         let object_key = ObjectKey::new(
             "test_@$%^&*(){}[];:/?,<>'\"\\",
             "test_id_@$%^&*(){}[];:/?,<>'\"\\",
-        );
+        )
+        .unwrap();
         let password = "password";
         let value = "test_value";
 

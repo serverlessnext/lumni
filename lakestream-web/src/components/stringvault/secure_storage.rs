@@ -90,10 +90,6 @@ impl SecureStorage {
         Ok(decrypted_data)
     }
 
-    pub fn set_admin_key(&mut self, new_key: CryptoKey) {
-        self.crypto_key = Some(new_key);
-    }
-
     pub async fn delete(&self) -> SecureStringResult<()> {
         let storage_key = create_storage_key(&self.object_key);
         delete_string(&storage_key)
@@ -109,5 +105,116 @@ impl SecureStorage {
         // Save the new value
         // self.save(new_value).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use wasm_bindgen_test::*;
+
+    use super::*;
+    use crate::stringvault::crypto::derive_key_from_password;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    async fn test_new() {
+        let object_key = ObjectKey::new("test1", "test_id1");
+        let password = "password_for_new";
+
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        assert_eq!(secure_storage.object_key, object_key);
+        assert_eq!(secure_storage.crypto_key, Some(crypto_key));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_for_deletion() {
+        let object_key = ObjectKey::new("test2", "test_id2");
+
+        let secure_storage = SecureStorage::for_deletion(object_key.clone());
+        assert_eq!(secure_storage.object_key, object_key);
+        assert_eq!(secure_storage.crypto_key, None);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_save_load_delete() {
+        let object_key = ObjectKey::new("test3", "test_id3");
+        let password = "password_for_save_load_delete";
+        let value = "test_value_for_save_load_delete";
+
+        // Create the crypto key
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(value).await;
+        assert!(save_result.is_ok());
+
+        // Load the string
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_ok());
+
+        // Assert the loaded string is equal to the original one
+        let loaded_value = load_result.unwrap();
+        assert_eq!(loaded_value, value);
+
+        // Delete the storage
+        let delete_result = secure_storage.delete().await;
+        assert!(delete_result.is_ok());
+
+        // Assert that trying to load the string results in a SecureStringError::NoLocalStorageData error
+        let load_result = secure_storage.load().await;
+        assert!(load_result.is_err());
+        assert_eq!(
+            load_result.unwrap_err(),
+            SecureStringError::NoLocalStorageData
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_exists() {
+        let object_key = ObjectKey::new("test_exists", "test_id_exists");
+        let password = "password_for_exists";
+        let value = "test_value_for_exists";
+
+        // Ensure the secure string does not exist yet
+        let exists = SecureStorage::exists(object_key.clone()).await;
+        assert_eq!(exists, false);
+
+        // Create the crypto key
+        let crypto_key_result =
+            derive_key_from_password(&object_key, password).await;
+        assert!(crypto_key_result.is_ok());
+
+        let crypto_key = crypto_key_result.unwrap();
+        let secure_storage =
+            SecureStorage::new(object_key.clone(), crypto_key.clone());
+
+        // Save the string
+        let save_result = secure_storage.save(value).await;
+        assert!(save_result.is_ok());
+
+        // Ensure the secure string now exists
+        let exists = SecureStorage::exists(object_key.clone()).await;
+        assert_eq!(exists, true);
+
+        // Delete the storage
+        let delete_result = secure_storage.delete().await;
+        assert!(delete_result.is_ok());
+
+        // Ensure the secure string no longer exists
+        let exists = SecureStorage::exists(object_key.clone()).await;
+        assert_eq!(exists, false);
     }
 }

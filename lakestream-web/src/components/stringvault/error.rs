@@ -5,7 +5,7 @@ use wasm_bindgen::JsValue;
 
 pub type SecureStringResult<T> = Result<T, SecureStringError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SecureStringError {
     JsError(JsValue),
     DecryptError(String),
@@ -17,7 +17,7 @@ pub enum SecureStringError {
     EmptyPassword,
     SaltNotStored,
     InvalidCryptoKey,
-    SerdeError(serde_json::Error),
+    SerdeError(String),
 }
 
 impl From<JsValue> for SecureStringError {
@@ -34,7 +34,7 @@ impl From<DecodeError> for SecureStringError {
 
 impl From<serde_json::Error> for SecureStringError {
     fn from(e: serde_json::Error) -> Self {
-        SecureStringError::SerdeError(e)
+        SecureStringError::SerdeError(e.to_string())
     }
 }
 

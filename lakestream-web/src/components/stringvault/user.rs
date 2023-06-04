@@ -16,17 +16,11 @@ impl User {
     ) -> SecureStringResult<Self> {
         let hashed_username = hash_username(username);
 
-        let object_key_user = ObjectKey {
-            tag: "USER".to_string(),
-            id: hashed_username.to_string(),
-        };
+        let object_key_user = ObjectKey::new("USER", &hashed_username)?;
         let crypto_key =
             derive_key_from_password(&object_key_user, password).await?;
 
-        let object_key_crypto = ObjectKey {
-            tag: object_key_user.id(),
-            id: "self".to_string(),
-        };
+        let object_key_crypto = ObjectKey::new(&object_key_user.id(), "self")?;
         Ok(Self {
             secure_storage: SecureStorage::new(object_key_crypto, crypto_key),
         })
@@ -38,10 +32,7 @@ impl User {
 
     pub async fn exists(username: &str) -> bool {
         let hashed_username = hash_username(username);
-        let object_key = ObjectKey {
-            tag: hashed_username.clone(),
-            id: "self".to_string(),
-        };
+        let object_key = ObjectKey::new(&hashed_username, "self").unwrap();
         SecureStorage::exists(object_key).await
     }
 
@@ -106,10 +97,7 @@ impl User {
 
     pub async fn reset(username: &str) -> SecureStringResult<()> {
         let hashed_username = hash_username(username);
-        let object_key = ObjectKey {
-            tag: hashed_username.clone(),
-            id: "self".to_string(),
-        };
+        let object_key = ObjectKey::new(&hashed_username, "self")?;
 
         let secure_storage = SecureStorage::for_deletion(object_key);
         secure_storage.delete().await?;

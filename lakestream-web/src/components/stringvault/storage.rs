@@ -2,12 +2,12 @@ use leptos::log;
 use wasm_bindgen::JsValue;
 use web_sys::window;
 
-use super::ObjectKey;
+use super::object_key::ObjectKey;
 
 const KEY_PREFIX: &str = "STRINGVAULT";
 
 pub fn create_storage_key(object_key: &ObjectKey) -> String {
-    vec![KEY_PREFIX, &object_key.tag, &object_key.id].join(":")
+    vec![KEY_PREFIX, &object_key.tag(), &object_key.id()].join(":")
 }
 
 pub async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
@@ -97,10 +97,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_create_storage_key() {
-        let object_key = ObjectKey {
-            tag: "tag".to_string(),
-            id: "id".to_string(),
-        };
+        let object_key = ObjectKey::new("tag", "id").unwrap();
         let storage_key = create_storage_key(&object_key);
         assert_eq!(storage_key, "STRINGVAULT:tag:id");
     }

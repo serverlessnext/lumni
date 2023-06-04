@@ -58,7 +58,7 @@ impl Configurations {
             .get("__NAME__")
             .unwrap_or(&"Unknown".to_string())
             .clone();
-        let form_id = &object_key.id;
+        let form_id = &object_key.id();
         let password = generate_password_base64()?;
         let derived_key = derive_crypto_key(&password, form_id).await?;
         let config_json = serde_json::to_string(&config)?;
@@ -85,7 +85,7 @@ impl Configurations {
         secure_storage: &SecureStorage,
         object_key: ObjectKey,
     ) -> SecureStringResult<HashMap<String, String>> {
-        let object_id = &object_key.id.clone();
+        let object_id = &object_key.id();
         let meta: HashMap<String, HashMap<String, String>> =
             serde_json::from_str(&secure_storage.load().await?)?;
         let meta =
@@ -117,7 +117,7 @@ impl Configurations {
         object_key: ObjectKey,
         name: String,
     ) -> SecureStringResult<()> {
-        let form_id = &object_key.id.clone();
+        let form_id = &object_key.id();
         let mut forms_db = load_forms_db(secure_storage).await?;
 
         let form_config = forms_db
@@ -135,7 +135,7 @@ impl Configurations {
         secure_storage: &SecureStorage,
         object_key: ObjectKey,
     ) -> SecureStringResult<()> {
-        let form_id = &object_key.id.clone();
+        let form_id = &object_key.id();
         let mut forms_db = load_forms_db(secure_storage).await?;
 
         // Remove the specific configuration

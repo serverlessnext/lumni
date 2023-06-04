@@ -83,3 +83,63 @@ pub fn hash_username(user: &str) -> String {
     let hash = hash(user.as_bytes());
     hash.to_hex().to_string()
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    async fn test_hash_username() {
+        let username = "test_username";
+        let hashed_username = hash_username(&username);
+        // Validate if the hash length is as expected
+        assert_eq!(hashed_username.len(), 64);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_derive_crypto_key() {
+        let password = "password";
+        let salt = "salt";
+        let result = derive_crypto_key(&password, &salt).await;
+        // Expect derive_crypto_key to succeed
+        assert!(result.is_ok());
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_derive_crypto_key_empty_password() {
+        let password_empty = "";
+        let salt = "salt";
+        let result = derive_crypto_key(&password_empty, &salt).await;
+        // Expect derive_crypto_key to fail due to empty password
+        assert!(result.is_err());
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_encrypt_and_decrypt() {
+        let password = "password";
+        let salt = "salt";
+        let key_result = derive_crypto_key(&password, &salt).await;
+        let key = key_result.unwrap();
+
+        let data = "data to be encrypted";
+        let iv = &[0u8; 12];
+        let encrypt_result = encrypt(&key, &data, iv).await;
+        assert!(encrypt_result.is_ok());
+
+        let (encrypted_data, iv) = encrypt_result.unwrap();
+        let encrypted_data = Uint8Array::new(&encrypted_data);
+        let iv = Uint8Array::from(iv.as_slice());
+
+        let decrypt_result = decrypt(&key, &encrypted_data, &iv).await;
+        assert!(decrypt_result.is_ok());
+
+        let decrypted_data = decrypt_result.unwrap();
+        // Expect decrypted data to match original data
+        assert_eq!(decrypted_data, data);
+    }
+}
+

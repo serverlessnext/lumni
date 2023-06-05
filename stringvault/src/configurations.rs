@@ -182,7 +182,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::stringvault::User;
+    use crate::User;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

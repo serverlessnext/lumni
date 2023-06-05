@@ -7,7 +7,7 @@ use wasm_bindgen_futures::spawn_local;
 pub use super::form_input::{InputData, InputField};
 pub use super::form_input_builder::{FormInputFieldBuilder, InputFieldPattern};
 use super::form_view::FormView;
-use crate::stringvault::{ObjectKey, SecureStringError, StringVault};
+use stringvault::{ObjectKey, SecureStringError, StringVault};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FormOwner {

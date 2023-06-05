@@ -1,7 +1,6 @@
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use js_sys::Uint8Array;
-use leptos::log;
 use web_sys::CryptoKey;
 
 use super::crypto::get_crypto_subtle;
@@ -104,7 +103,6 @@ impl SecureStorage {
 
     #[allow(unused)]
     pub async fn update(&self, new_value: &str) -> SecureStringResult<()> {
-        log!("Updating secure string");
         // Delete the existing string
         // self.delete().await?;
         // Save the new value
@@ -118,7 +116,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::stringvault::crypto::derive_key_from_password;
+    use crate::crypto::derive_key_from_password;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

@@ -5,13 +5,13 @@ use leptos::html::Input;
 use leptos::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
+use stringvault::StringVault;
 
 use crate::components::buttons::ButtonType;
 use crate::components::forms::form_handler::{
     FormInputFieldBuilder, InputFieldPattern,
 };
 use crate::components::forms::SingleInputForm;
-use crate::stringvault::StringVault;
 
 const ROOT_USERNAME: &str = "admin";
 

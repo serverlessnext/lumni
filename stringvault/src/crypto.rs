@@ -51,7 +51,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::stringvault::storage::delete_string;
+    use crate::storage::delete_string;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

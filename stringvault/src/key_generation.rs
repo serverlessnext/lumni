@@ -84,7 +84,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::stringvault::crypto::get_crypto_subtle;
+    use crate::crypto::get_crypto_subtle;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

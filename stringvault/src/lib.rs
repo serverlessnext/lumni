@@ -123,7 +123,6 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::stringvault::ObjectKey;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

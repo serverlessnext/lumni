@@ -1,9 +1,9 @@
 use leptos::html::Input;
 use leptos::*;
+use stringvault::{SecureStringResult, StringVault};
 
 use super::object_store::ObjectStore;
 use crate::components::forms::form_handler::FormOwner;
-use crate::stringvault::{SecureStringResult, StringVault};
 use crate::GlobalState;
 
 #[component]

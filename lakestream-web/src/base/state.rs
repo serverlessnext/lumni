@@ -1,4 +1,4 @@
-use crate::stringvault::StringVault;
+use stringvault::StringVault;
 
 const DEFAULT_HOME_URL: &str = "/home";
 

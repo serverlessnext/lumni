@@ -1,4 +1,3 @@
-use leptos::log;
 use wasm_bindgen::JsValue;
 use web_sys::window;
 
@@ -35,11 +34,12 @@ pub async fn load_string(key: &str) -> Option<String> {
             if let Ok(Some(data)) = storage.get_item(key) {
                 return Some(data);
             }
-        } else {
-            log!("Error: localStorage is not available.");
+        }
+        else {
+            // log!("Error: localStorage is not available.");
         }
     } else {
-        log!("Error: Unable to access window object.");
+        // log!("Error: Unable to access window object.");
     }
     None
 }

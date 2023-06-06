@@ -1,10 +1,10 @@
 use web_sys::CryptoKey;
 
 use super::encryption::derive_crypto_key;
-use super::error::{SecureStringError, SecureStringResult};
-use super::storage::{create_storage_key, load_string, save_string};
-use super::string_ops::generate_salt_base64;
-use super::ObjectKey;
+use crate::{SecureStringError, SecureStringResult};
+use crate::storage::local_storage::{create_storage_key, load_string, save_string};
+use crate::utils::generate_salt_base64;
+use crate::ObjectKey;
 
 pub fn get_crypto_subtle(
 ) -> SecureStringResult<(web_sys::Window, web_sys::Crypto, web_sys::SubtleCrypto)>
@@ -51,7 +51,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::storage::delete_string;
+    use crate::storage::local_storage::delete_string;
 
     wasm_bindgen_test_configure!(run_in_browser);
 

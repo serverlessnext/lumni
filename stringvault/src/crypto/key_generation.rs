@@ -2,7 +2,7 @@ use js_sys::Uint8Array;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{AesKeyGenParams, CryptoKey, Pbkdf2Params, SubtleCrypto};
 
-use super::error::SecureStringError;
+use crate::SecureStringError;
 
 pub async fn import_key(
     subtle: &SubtleCrypto,

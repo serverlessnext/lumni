@@ -3,7 +3,6 @@ use leptos::*;
 use stringvault::{SecureStringResult, StringVault};
 
 use super::object_store::ObjectStore;
-use crate::components::forms::form_handler::FormOwner;
 use crate::GlobalState;
 
 #[component]
@@ -171,14 +170,14 @@ impl ObjectStoreList {
         set_is_submitting.set(true);
 
         let object_store = ObjectStore::new(name.clone());
-        let form_owner = FormOwner::new_with_form_tag(object_store.id());
+        let form_name = object_store.id();
 
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
                 let _ = vault
                     .add_configuration(
-                        form_owner.to_object_key().unwrap(),
+                        &form_name,
                         name,
                     )
                     .await;
@@ -194,13 +193,13 @@ impl ObjectStoreList {
         set_is_loading: WriteSignal<bool>,
     ) {
         set_is_loading.set(true);
-        let form_owner = FormOwner::new_with_form_tag(item_id.clone());
+        let form_name = item_id.clone();
 
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
                 let _ = vault
-                    .delete_configuration(form_owner.to_object_key().unwrap())
+                    .delete_configuration(&form_name)
                     .await;
                 set_is_loading.set(false);
             }

@@ -4,6 +4,7 @@ members = [
     "lakestream",
     "lakestream-cli",
     "lakestream-web",
+    "stringvault",
 ]
 
 # Python interface to lakestream

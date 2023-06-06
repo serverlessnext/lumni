@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use serde_json;
 
-use super::encryption::derive_crypto_key;
-use super::error::SecureStringError;
-use super::secure_storage::SecureStorage;
-use super::string_ops::generate_password_base64;
-use super::{ObjectKey, SecureStringResult};
+use crate::utils::generate_password_base64;
+use crate::crypto::derive_crypto_key;
+
+use crate::SecureStringError;
+use crate::SecureStorage;
+use crate::{ObjectKey, SecureStringResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Configurations {}
@@ -51,28 +52,28 @@ impl Configurations {
     pub async fn save(
         &self,
         secure_storage: &mut SecureStorage,
-        object_key: ObjectKey,
+        form_name: &str,
         config: HashMap<String, String>,
     ) -> SecureStringResult<()> {
-        let form_name = config
+        let name = config
             .get("__NAME__")
             .unwrap_or(&"Unknown".to_string())
             .clone();
-        let form_id = &object_key.id();
         let password = generate_password_base64()?;
-        let derived_key = derive_crypto_key(&password, form_id).await?;
+        let derived_key = derive_crypto_key(&password, &form_name).await?;
         let config_json = serde_json::to_string(&config)?;
 
         // secure storage for the form
+        let object_key = ObjectKey::new("", form_name).unwrap();
         let secure_storage_form =
-            SecureStorage::new(object_key.clone(), derived_key);
+            SecureStorage::new(object_key, derived_key);
         secure_storage_form.save(&config_json).await?;
 
         let mut forms_db = load_forms_db(secure_storage).await?;
         let mut form_config = HashMap::new();
-        form_config.insert("NAME".to_string(), form_name);
+        form_config.insert("NAME".to_string(), name);
         form_config.insert("PASSWD".to_string(), password);
-        forms_db.insert(form_id.to_string(), form_config);
+        forms_db.insert(form_name.to_string(), form_config);
 
         secure_storage
             .save(&serde_json::to_string(&forms_db)?)
@@ -83,27 +84,28 @@ impl Configurations {
     pub async fn load(
         &self,
         secure_storage: &SecureStorage,
-        object_key: ObjectKey,
+        form_name: &str,
     ) -> SecureStringResult<HashMap<String, String>> {
-        let object_id = &object_key.id();
+
         let meta: HashMap<String, HashMap<String, String>> =
             serde_json::from_str(&secure_storage.load().await?)?;
         let meta =
-            meta.get(object_id)
+            meta.get(form_name)
                 .ok_or(SecureStringError::PasswordNotFound(format!(
                     "Configuration for {} not found",
-                    object_id
+                    form_name
                 )))?;
         let password =
             meta.get("PASSWD")
                 .ok_or(SecureStringError::PasswordNotFound(format!(
                     "Configuration for {} not found",
-                    object_id
+                    form_name
                 )))?;
 
-        let derived_key = derive_crypto_key(&password, object_id).await?;
+        let object_key = ObjectKey::new("", form_name).unwrap();
+        let derived_key = derive_crypto_key(&password, &form_name).await?;
         let secure_storage_form =
-            SecureStorage::new(object_key.clone(), derived_key);
+            SecureStorage::new(object_key, derived_key);
         let config_json = secure_storage_form.load().await?;
         let config: HashMap<String, String> =
             serde_json::from_str(&config_json)
@@ -114,7 +116,7 @@ impl Configurations {
     pub async fn add(
         &mut self,
         secure_storage: &SecureStorage,
-        object_key: ObjectKey,
+        form_name: &str,
         name: String,
     ) -> SecureStringResult<()> {
         // NOTE: this only updates vault-user's local copy of the forms_db
@@ -122,11 +124,10 @@ impl Configurations {
         //  this function is created to quickly add/ delete in a list context
         //  (in this case a full save() would be too expensive, and unnecessary)
         //  may have to rename to make this more clear
-        let form_id = &object_key.id();
         let mut forms_db = load_forms_db(secure_storage).await?;
 
         let form_config = forms_db
-            .entry(form_id.to_string())
+            .entry(form_name.to_string())
             .or_insert_with(HashMap::new);
         form_config.insert("NAME".to_string(), name);
         secure_storage
@@ -138,16 +139,15 @@ impl Configurations {
     pub async fn delete(
         &mut self,
         secure_storage: &SecureStorage,
-        object_key: ObjectKey,
+        form_name: &str,
     ) -> SecureStringResult<()> {
-        let form_id = &object_key.id();
         let mut forms_db = load_forms_db(secure_storage).await?;
 
         // Remove the specific configuration
-        if forms_db.remove(form_id).is_none() {
+        if forms_db.remove(form_name).is_none() {
             return Err(SecureStringError::PasswordNotFound(format!(
                 "Configuration for {} not found",
-                form_id
+                form_name
             )));
         }
 
@@ -226,11 +226,10 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let object_key =
-            ObjectKey::new("test_save_load", "test_id_save_load").unwrap();
+        let form_name = format!("{}:{}", "test_save_load", "test_id_save_load");
 
         let save_result = configurations
-            .save(&mut secure_storage, object_key.clone(), config.clone())
+            .save(&mut secure_storage, &form_name, config.clone())
             .await;
         assert!(
             save_result.is_ok(),
@@ -239,7 +238,7 @@ mod tests {
         );
 
         let load_result = configurations
-            .load(&secure_storage, object_key.clone())
+            .load(&secure_storage, &form_name)
             .await;
         assert!(
             load_result.is_ok(),
@@ -271,12 +270,11 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let object_key =
-            ObjectKey::new("test_add_delete", "test_id_add_delete").unwrap();
+        let form_name = format!("{}:{}", "test_add_delete", "test_id_add_delete");
 
         // Test adding a configuration
         let add_result = configurations
-            .save(&mut secure_storage, object_key.clone(), config.clone())
+            .save(&mut secure_storage, &form_name, config.clone())
             .await;
         assert!(
             add_result.is_ok(),
@@ -285,7 +283,7 @@ mod tests {
         );
 
         let load_result = configurations
-            .load(&secure_storage, object_key.clone())
+            .load(&secure_storage, &form_name)
             .await;
         assert!(
             load_result.is_ok(),
@@ -301,7 +299,7 @@ mod tests {
 
         // Test deleting a configuration
         let delete_result = configurations
-            .delete(&mut secure_storage, object_key.clone())
+            .delete(&mut secure_storage, &form_name)
             .await;
         assert!(
             delete_result.is_ok(),
@@ -310,7 +308,7 @@ mod tests {
         );
 
         let load_result_after_delete = configurations
-            .load(&secure_storage, object_key.clone())
+            .load(&secure_storage, &form_name)
             .await;
         assert!(
             load_result_after_delete.is_err(),
@@ -330,14 +328,13 @@ mod tests {
         let mut secure_storage = user.secure_storage().clone();
 
         let mut configurations = Configurations {};
-        let object_key = ObjectKey::new(
-            "test_delete_non_existent",
-            "test_id_delete_non_existent",
-        )
-        .unwrap();
+        let form_name = format!(
+            "{}:{}",
+            "test_delete_non_existent", "test_id_delete_non_existent"
+        );
 
         let delete_result = configurations
-            .delete(&mut secure_storage, object_key.clone())
+            .delete(&mut secure_storage, &form_name)
             .await;
         assert!(
             delete_result.is_err(),
@@ -358,14 +355,13 @@ mod tests {
         let secure_storage = user.secure_storage().clone();
 
         let configurations = Configurations {};
-        let object_key = ObjectKey::new(
-            "test_load_non_existent",
-            "test_id_load_non_existent",
-        )
-        .unwrap();
+        let form_name = format!(
+            "{}:{}",
+            "test_load_non_existent", "test_id_load_non_existent"
+        );
 
         let load_result = configurations
-            .load(&secure_storage, object_key.clone())
+            .load(&secure_storage, &form_name)
             .await;
         assert!(
             load_result.is_err(),

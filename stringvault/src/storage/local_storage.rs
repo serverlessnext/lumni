@@ -1,7 +1,7 @@
 use wasm_bindgen::JsValue;
 use web_sys::window;
 
-use super::object_key::ObjectKey;
+use crate::ObjectKey;
 
 const KEY_PREFIX: &str = "STRINGVAULT";
 

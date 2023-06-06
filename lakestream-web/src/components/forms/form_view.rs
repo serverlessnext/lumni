@@ -4,7 +4,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use stringvault::StringVault;
 
-use super::form_handler::{handle_form_submission, FormOwner};
+use super::form_handler::handle_form_submission;
 use super::form_input::{
     create_input_elements, InputData, InputElements, InputFieldView,
 };
@@ -14,7 +14,7 @@ use crate::components::buttons::{ButtonType, FormSubmitButton};
 pub fn FormView(
     cx: Scope,
     vault: StringVault,
-    form_owner: FormOwner,
+    form_name: String,
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
 ) -> impl IntoView {
@@ -70,7 +70,7 @@ pub fn FormView(
                     .collect();
                 handle_form_submission(
                     vault.clone(),
-                    form_owner.clone(),
+                    form_name.clone(),
                     form_config,
                     set_is_submitting,
                     set_submit_error,

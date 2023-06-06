@@ -3,12 +3,11 @@ use base64::Engine as _;
 use js_sys::Uint8Array;
 use web_sys::CryptoKey;
 
-use super::crypto::get_crypto_subtle;
-use super::encryption::{decrypt, encrypt};
-use super::storage::{
+use crate::crypto::{encrypt, decrypt, get_crypto_subtle};
+use super::local_storage::{
     create_storage_key, delete_string, load_string, save_string,
 };
-use super::{ObjectKey, SecureStringError, SecureStringResult};
+use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SecureStorage {

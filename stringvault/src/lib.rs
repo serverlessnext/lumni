@@ -1,24 +1,17 @@
-pub mod configurations;
-mod convert_types;
-mod crypto;
-pub mod encryption;
-pub mod error;
-mod key_generation;
-mod object_key;
-pub mod secure_storage;
-mod storage;
-pub mod string_ops;
-pub mod user;
+pub (crate) mod crypto;
+pub (crate) mod storage;
+pub (crate) mod utils;
+pub (crate) mod common;
+mod configurations;
+mod user;
+
+pub use common::{SecureStringError, SecureStringResult, ObjectKey};
+
+use user::User;
+use configurations::Configurations;
+use storage::SecureStorage;
 
 use std::collections::HashMap;
-
-pub use configurations::Configurations;
-pub use encryption::{decrypt, derive_crypto_key, encrypt, hash_username};
-pub use error::{SecureStringError, SecureStringResult};
-pub use object_key::ObjectKey;
-pub use secure_storage::SecureStorage;
-pub use string_ops::generate_password_base64;
-pub use user::User;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StringVault {
@@ -79,39 +72,39 @@ impl StringVault {
 
     pub async fn save_configuration(
         &mut self,
-        object_key: ObjectKey,
+        form_name: &str,
         config: HashMap<String, String>,
     ) -> SecureStringResult<()> {
         self.configurations
-            .save(&mut self.user.secure_storage().clone(), object_key, config)
+            .save(&mut self.user.secure_storage().clone(), form_name, config)
             .await
     }
 
     pub async fn load_configuration(
         &self,
-        object_key: ObjectKey,
+        form_name: &str,
     ) -> SecureStringResult<HashMap<String, String>> {
         self.configurations
-            .load(&self.user.secure_storage(), object_key)
+            .load(&self.user.secure_storage(), form_name)
             .await
     }
 
     pub async fn add_configuration(
         &mut self,
-        object_key: ObjectKey,
+        form_name: &str,
         name: String,
     ) -> SecureStringResult<()> {
         self.configurations
-            .add(&mut self.user.secure_storage(), object_key, name)
+            .add(&mut self.user.secure_storage(), form_name, name)
             .await
     }
 
     pub async fn delete_configuration(
         &mut self,
-        object_key: ObjectKey,
+        form_name: &str,
     ) -> SecureStringResult<()> {
         self.configurations
-            .delete(&mut self.user.secure_storage(), object_key)
+            .delete(&mut self.user.secure_storage(), form_name)
             .await
     }
 }
@@ -226,10 +219,10 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let object_key = ObjectKey::new(username, "test_id_list").unwrap();
+        let form_name = format!("{}:{}", username, "test_id_list");
 
         let save_result = string_vault
-            .save_configuration(object_key.clone(), config.clone())
+            .save_configuration(&form_name, config.clone())
             .await;
         assert!(
             save_result.is_ok(),
@@ -246,7 +239,7 @@ mod tests {
 
         let listed_configurations = list_result.unwrap();
         assert!(
-            listed_configurations.contains_key(&object_key.id()),
+            listed_configurations.contains_key(&form_name),
             "Listed configurations did not contain saved configuration"
         );
 
@@ -261,12 +254,11 @@ mod tests {
         let mut string_vault =
             StringVault::new(username, password).await.unwrap();
 
-        let object_key =
-            ObjectKey::new("test_add_delete", "test_id_add_delete").unwrap();
+        let form_name = format!("{}:{}", "test_add_delete", "test_id_add_delete");
 
         // Add a configuration with a given name
         let add_result = string_vault
-            .add_configuration(object_key.clone(), "test_config".to_string())
+            .add_configuration(&form_name, "test_config".to_string())
             .await;
         assert!(
             add_result.is_ok(),
@@ -276,7 +268,7 @@ mod tests {
 
         // Delete the configuration
         let delete_result =
-            string_vault.delete_configuration(object_key.clone()).await;
+            string_vault.delete_configuration(&form_name).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete configuration: {:?}",
@@ -285,7 +277,7 @@ mod tests {
 
         // Try to delete again, it should fail since the configuration no longer exists
         let delete_again_result =
-            string_vault.delete_configuration(object_key.clone()).await;
+            string_vault.delete_configuration(&form_name).await;
         assert!(
             delete_again_result.is_err(),
             "Successfully deleted non-existent configuration"
@@ -307,10 +299,10 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let object_key = ObjectKey::new(username, "test_id_save_load").unwrap();
+        let form_name = format!("{}:{}", username, "test_id_save_load");
 
         let save_result = string_vault
-            .save_configuration(object_key.clone(), config.clone())
+            .save_configuration(&form_name, config.clone())
             .await;
         assert!(
             save_result.is_ok(),
@@ -319,7 +311,7 @@ mod tests {
         );
 
         let load_result =
-            string_vault.load_configuration(object_key.clone()).await;
+            string_vault.load_configuration(&form_name).await;
         assert!(
             load_result.is_ok(),
             "Failed to load secure configuration: {:?}",
@@ -348,10 +340,10 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let object_key = ObjectKey::new(username, "test_id_delete").unwrap();
+        let form_name = format!("{}:{}", username, "test_id_delete");
 
         let save_result = string_vault
-            .save_configuration(object_key.clone(), config.clone())
+            .save_configuration(&form_name, config.clone())
             .await;
         assert!(
             save_result.is_ok(),
@@ -360,7 +352,7 @@ mod tests {
         );
 
         let delete_result =
-            string_vault.delete_configuration(object_key.clone()).await;
+            string_vault.delete_configuration(&form_name).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete data: {:?}",
@@ -368,7 +360,7 @@ mod tests {
         );
 
         let load_result =
-            string_vault.load_configuration(object_key.clone()).await;
+            string_vault.load_configuration(&form_name).await;
         assert!(
             load_result.is_err(),
             "Successfully loaded data after deletion"

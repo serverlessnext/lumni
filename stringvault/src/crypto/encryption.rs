@@ -3,10 +3,11 @@ use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::JsCast;
 use web_sys::{AesGcmParams, CryptoKey};
 
-use super::convert_types::{string_to_uint8array, uint8array_to_string};
-use super::crypto::get_crypto_subtle;
-use super::error::SecureStringError;
+use crate::utils::{string_to_uint8array, uint8array_to_string};
+use crate::SecureStringError;
+
 use super::key_generation::{derive_key, import_key};
+use super::utils::get_crypto_subtle;
 
 const KEY_USAGE_DERIVE_KEY: &str = "deriveKey";
 const KEY_USAGE_ENCRYPT: &str = "encrypt";

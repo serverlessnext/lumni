@@ -1,8 +1,5 @@
-use super::crypto::derive_key_from_password;
-use super::encryption::hash_username;
-use super::error::SecureStringError;
-use super::secure_storage::SecureStorage;
-use super::{ObjectKey, SecureStringResult};
+use crate::{ObjectKey, SecureStringError, SecureStringResult, SecureStorage};
+use crate::crypto::{derive_key_from_password, hash_username};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct User {

@@ -7,26 +7,8 @@ use wasm_bindgen_futures::spawn_local;
 pub use super::form_input::{InputData, InputField};
 pub use super::form_input_builder::{FormInputFieldBuilder, InputFieldPattern};
 use super::form_view::FormView;
-use stringvault::{ObjectKey, SecureStringError, StringVault};
+use stringvault::{SecureStringError, StringVault};
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct FormOwner {
-    tag: String,
-    id: String,
-}
-
-impl FormOwner {
-    pub fn new_with_form_tag(id: String) -> Self {
-        Self {
-            tag: "FORM".to_string(),
-            id,
-        }
-    }
-
-    pub fn to_object_key(&self) -> Result<ObjectKey, SecureStringError> {
-        ObjectKey::new(&self.tag, &self.id)
-    }
-}
 
 pub trait ConfigManager: Clone {
     fn default_fields(&self) -> HashMap<String, InputData>;
@@ -47,10 +29,6 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         }
     }
 
-    fn form_owner(&self) -> FormOwner {
-        FormOwner::new_with_form_tag(self.config_manager.id())
-    }
-
     pub fn form_data_handler(&self, cx: Scope) -> HtmlElement<Div> {
         let (loaded_config, set_loaded_config) = create_signal(cx, None);
         let (load_config_error, set_load_config_error) =
@@ -58,7 +36,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
-        let form_owner_clone = self.form_owner();
+        let form_name = self.config_manager.id();
 
         create_effect(cx, move |_| {
             let vault_clone = vault_clone.clone();
@@ -68,17 +46,9 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                 .map(|(key, input_data)| (key, input_data.value))
                 .collect();
 
-            let form_owner = form_owner_clone.clone();
+            let form_name_clone = form_name.clone();
             spawn_local(async move {
-                let form_owner_key = match form_owner.to_object_key() {
-                    Ok(key) => key,
-                    Err(e) => {
-                        log::error!("error creating object key: {:?}", e);
-                        set_load_config_error(Some(e.to_string()));
-                        return;
-                    }
-                };
-                match vault_clone.load_configuration(form_owner_key).await {
+                match vault_clone.load_configuration(&form_name_clone).await {
                     Ok(new_config) => {
                         set_loaded_config(Some(new_config));
                     }
@@ -104,7 +74,8 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         let default_config = config_manager_clone.default_fields();
-        let form_owner_clone = self.form_owner();
+        let form_name = self.config_manager.id();
+
         view! { cx,
             <div>
             {move ||
@@ -115,7 +86,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         <div>
                         <FormView
                             vault={vault_clone.clone()}
-                            form_owner={form_owner_clone.clone()}
+                            form_name={form_name.clone()}
                             initial_config={loaded_config}
                             default_config={default_config.clone()}
                         />
@@ -147,25 +118,15 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
 pub fn handle_form_submission(
     mut vault: StringVault,
-    form_owner: FormOwner,
+    form_name: String,
     form_config: HashMap<String, String>,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
-    let form_id = form_owner.id.clone();
     spawn_local(async move {
-        let form_owner_key = match form_owner.to_object_key() {
-            Ok(key) => key,
-            Err(e) => {
-                log::error!("error creating object key: {:?}", e);
-                set_submit_error.set(Some(e.to_string()));
-                return;
-            }
-        };
-
-        match vault.save_configuration(form_owner_key, form_config).await {
+        match vault.save_configuration(&form_name.to_string(), form_config).await {
             Ok(_) => {
-                log!("Successfully saved secure configuration: {:?}", form_id);
+                log!("Successfully saved secure configuration: {:?}", form_name);
                 set_is_submitting.set(false);
             }
             Err(e) => {

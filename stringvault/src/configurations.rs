@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use serde_json;
 
-use crate::utils::generate_password_base64;
-use crate::crypto::derive_crypto_key;
+use log::info;
 
-use crate::SecureStringError;
-use crate::SecureStorage;
-use crate::{ObjectKey, SecureStringResult};
+use crate::crypto::derive_crypto_key;
+use crate::utils::generate_password_base64;
+use crate::{ObjectKey, FormMetaData, SecureStorage, SecureStringError, SecureStringResult};
+
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Configurations {}
@@ -23,7 +24,7 @@ impl Configurations {
             Ok(data) => {
                 // Load the stored form metadata.
                 let forms_db: HashMap<String, HashMap<String, String>> =
-                    serde_json::from_str(&data)?;
+                    serde_json::from_slice(&data)?;
 
                 // Transform the metadata into the desired output format.
                 let configurations = forms_db
@@ -52,28 +53,29 @@ impl Configurations {
     pub async fn save(
         &self,
         secure_storage: &mut SecureStorage,
-        form_name: &str,
-        config: HashMap<String, String>,
+        form_meta: FormMetaData,
+        data: &[u8],
     ) -> SecureStringResult<()> {
-        let name = config
-            .get("__NAME__")
-            .unwrap_or(&"Unknown".to_string())
-            .clone();
+
+        let form_id = form_meta.id();
+        let form_name = form_meta.name();
+
+        info!("Saving configuration for {} with name {}", form_id, form_name);
+        let config: HashMap<String, String> = serde_json::from_slice(data)?;
         let password = generate_password_base64()?;
-        let derived_key = derive_crypto_key(&password, &form_name).await?;
+        let derived_key = derive_crypto_key(&password, &form_id).await?;
         let config_json = serde_json::to_string(&config)?;
 
         // secure storage for the form
-        let object_key = ObjectKey::new("", form_name).unwrap();
-        let secure_storage_form =
-            SecureStorage::new(object_key, derived_key);
+        let object_key = ObjectKey::new("", form_id).unwrap();
+        let secure_storage_form = SecureStorage::new(object_key, derived_key);
         secure_storage_form.save(&config_json).await?;
 
         let mut forms_db = load_forms_db(secure_storage).await?;
         let mut form_config = HashMap::new();
-        form_config.insert("NAME".to_string(), name);
+        form_config.insert("NAME".to_string(), form_name.to_string());
         form_config.insert("PASSWD".to_string(), password);
-        forms_db.insert(form_name.to_string(), form_config);
+        forms_db.insert(form_id.to_string(), form_config);
 
         secure_storage
             .save(&serde_json::to_string(&forms_db)?)
@@ -85,10 +87,9 @@ impl Configurations {
         &self,
         secure_storage: &SecureStorage,
         form_name: &str,
-    ) -> SecureStringResult<HashMap<String, String>> {
-
+    ) -> SecureStringResult<Vec<u8>> {
         let meta: HashMap<String, HashMap<String, String>> =
-            serde_json::from_str(&secure_storage.load().await?)?;
+            serde_json::from_slice(&secure_storage.load().await?)?;
         let meta =
             meta.get(form_name)
                 .ok_or(SecureStringError::PasswordNotFound(format!(
@@ -104,13 +105,9 @@ impl Configurations {
 
         let object_key = ObjectKey::new("", form_name).unwrap();
         let derived_key = derive_crypto_key(&password, &form_name).await?;
-        let secure_storage_form =
-            SecureStorage::new(object_key, derived_key);
-        let config_json = secure_storage_form.load().await?;
-        let config: HashMap<String, String> =
-            serde_json::from_str(&config_json)
-                .map_err(SecureStringError::from)?;
-        Ok(config)
+        let secure_storage_form = SecureStorage::new(object_key, derived_key);
+
+        Ok(secure_storage_form.load().await?)
     }
 
     pub async fn add(
@@ -164,7 +161,7 @@ async fn load_forms_db(
     secure_storage: &SecureStorage,
 ) -> SecureStringResult<HashMap<String, HashMap<String, String>>> {
     match secure_storage.load().await {
-        Ok(passwords_json) => match serde_json::from_str(&passwords_json) {
+        Ok(passwords_json) => match serde_json::from_slice(&passwords_json) {
             Ok(map) => Ok(map),
             Err(err) => Err(SecureStringError::SerdeError(format!(
                 "Failed to parse forms_db: {:?}",
@@ -226,10 +223,11 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let form_name = format!("{}:{}", "test_save_load", "test_id_save_load");
+        let form_meta = FormMetaData::new("test_save_load".to_string(), "test_id_save_load".to_string());
+        let config_bytes = serde_json::to_vec(&config).unwrap();
 
         let save_result = configurations
-            .save(&mut secure_storage, &form_name, config.clone())
+            .save(&mut secure_storage, form_meta.clone(), &config_bytes)
             .await;
         assert!(
             save_result.is_ok(),
@@ -237,16 +235,16 @@ mod tests {
             save_result.err().unwrap()
         );
 
-        let load_result = configurations
-            .load(&secure_storage, &form_name)
-            .await;
+        let load_result =
+            configurations.load(&secure_storage, form_meta.id()).await;
         assert!(
             load_result.is_ok(),
             "Failed to load configuration: {:?}",
             load_result.err().unwrap()
         );
 
-        let loaded_config = load_result.unwrap();
+        let loaded_config_bytes = load_result.unwrap();
+        let loaded_config: HashMap<String, String> = serde_json::from_slice(&loaded_config_bytes).unwrap();
         assert_eq!(
             loaded_config, config,
             "Loaded configuration did not match saved configuration"
@@ -270,11 +268,11 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let form_name = format!("{}:{}", "test_add_delete", "test_id_add_delete");
-
+        let form_meta = FormMetaData::new("test_add_delete".to_string(), "test_id_add_delete".to_string());
+        let config_bytes = serde_json::to_vec(&config).unwrap();
         // Test adding a configuration
         let add_result = configurations
-            .save(&mut secure_storage, &form_name, config.clone())
+            .save(&mut secure_storage, form_meta.clone(), &config_bytes)
             .await;
         assert!(
             add_result.is_ok(),
@@ -282,34 +280,32 @@ mod tests {
             add_result.err().unwrap()
         );
 
-        let load_result = configurations
-            .load(&secure_storage, &form_name)
-            .await;
+        let load_result =
+            configurations.load(&secure_storage, form_meta.id()).await;
         assert!(
             load_result.is_ok(),
             "Failed to load configuration after add: {:?}",
             load_result.err().unwrap()
         );
 
-        let loaded_config = load_result.unwrap();
+        let loaded_config_bytes = load_result.unwrap();
+        let loaded_config: HashMap<String, String> = serde_json::from_slice(&loaded_config_bytes).unwrap();
         assert_eq!(
             loaded_config, config,
             "Loaded configuration did not match added configuration"
         );
 
         // Test deleting a configuration
-        let delete_result = configurations
-            .delete(&mut secure_storage, &form_name)
-            .await;
+        let delete_result =
+            configurations.delete(&mut secure_storage, form_meta.id()).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete configuration: {:?}",
             delete_result.err().unwrap()
         );
 
-        let load_result_after_delete = configurations
-            .load(&secure_storage, &form_name)
-            .await;
+        let load_result_after_delete =
+            configurations.load(&secure_storage, form_meta.id()).await;
         assert!(
             load_result_after_delete.is_err(),
             "Successfully loaded configuration after delete"
@@ -333,9 +329,8 @@ mod tests {
             "test_delete_non_existent", "test_id_delete_non_existent"
         );
 
-        let delete_result = configurations
-            .delete(&mut secure_storage, &form_name)
-            .await;
+        let delete_result =
+            configurations.delete(&mut secure_storage, &form_name).await;
         assert!(
             delete_result.is_err(),
             "Successfully deleted a non-existent configuration"
@@ -360,9 +355,8 @@ mod tests {
             "test_load_non_existent", "test_id_load_non_existent"
         );
 
-        let load_result = configurations
-            .load(&secure_storage, &form_name)
-            .await;
+        let load_result =
+            configurations.load(&secure_storage, &form_name).await;
         assert!(
             load_result.is_err(),
             "Successfully loaded a non-existent configuration"

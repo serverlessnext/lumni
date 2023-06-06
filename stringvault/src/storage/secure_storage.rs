@@ -3,10 +3,10 @@ use base64::Engine as _;
 use js_sys::Uint8Array;
 use web_sys::CryptoKey;
 
-use crate::crypto::{encrypt, decrypt, get_crypto_subtle};
 use super::local_storage::{
     create_storage_key, delete_string, load_string, save_string,
 };
+use crate::crypto::{decrypt, encrypt, get_crypto_subtle};
 use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,7 +63,7 @@ impl SecureStorage {
             .map_err(SecureStringError::from)
     }
 
-    pub async fn load(&self) -> SecureStringResult<String> {
+    pub async fn load(&self) -> SecureStringResult<Vec<u8>> {
         let crypto_key = self
             .crypto_key
             .as_ref()
@@ -96,7 +96,7 @@ impl SecureStorage {
     }
 
     pub async fn empty(&self) -> SecureStringResult<()> {
-        let empty_hashmap = serde_json::json!({}).to_string();
+        let empty_hashmap = "{}".to_string();
         self.save(&empty_hashmap).await
     }
 
@@ -169,7 +169,7 @@ mod tests {
 
         // Assert the loaded string is equal to the original one
         let loaded_value = load_result.unwrap();
-        assert_eq!(loaded_value, value);
+        assert_eq!(loaded_value, value.as_bytes());
 
         // Delete the storage
         let delete_result = secure_storage.delete().await;
@@ -250,7 +250,7 @@ mod tests {
 
         // Assert the loaded string is an empty JSON object (which is what `empty` function should do)
         let loaded_value = load_result.unwrap();
-        assert_eq!(loaded_value, "{}");
+        assert_eq!(loaded_value, "{}".as_bytes());
     }
 
     #[wasm_bindgen_test]
@@ -310,7 +310,7 @@ mod tests {
 
         // Assert the loaded string is equal to the original one
         let loaded_value = load_result.unwrap();
-        assert_eq!(loaded_value, value);
+        assert_eq!(loaded_value, value.as_bytes());
     }
 
     #[wasm_bindgen_test]
@@ -387,7 +387,7 @@ mod tests {
 
         // Assert the loaded string is equal to the original one
         let loaded_value = load_result.unwrap();
-        assert_eq!(loaded_value, value);
+        assert_eq!(loaded_value, value.as_bytes());
 
         // Delete the storage
         let delete_result = secure_storage.delete().await;

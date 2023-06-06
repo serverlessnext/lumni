@@ -1,14 +1,14 @@
 use std::collections::HashMap;
+use serde_json;
 
 use leptos::html::Div;
 use leptos::*;
+use stringvault::{FormMetaData, SecureStringError, StringVault};
 use wasm_bindgen_futures::spawn_local;
 
 pub use super::form_input::{InputData, InputField};
 pub use super::form_input_builder::{FormInputFieldBuilder, InputFieldPattern};
 use super::form_view::FormView;
-use stringvault::{SecureStringError, StringVault};
-
 
 pub trait ConfigManager: Clone {
     fn default_fields(&self) -> HashMap<String, InputData>;
@@ -49,8 +49,16 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             let form_name_clone = form_name.clone();
             spawn_local(async move {
                 match vault_clone.load_configuration(&form_name_clone).await {
-                    Ok(new_config) => {
-                        set_loaded_config(Some(new_config));
+                    Ok(data) => {
+                        match serde_json::from_slice(&data) {
+                            Ok(new_config) => {
+                                set_loaded_config(Some(new_config));
+                            }
+                            Err(e) => {
+                                log::error!("error deserializing config: {:?}", e);
+                                set_load_config_error(Some(e.to_string()));
+                            }
+                        }
                     }
                     Err(e) => match e {
                         SecureStringError::PasswordNotFound(_)
@@ -74,7 +82,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         let default_config = config_manager_clone.default_fields();
-        let form_name = self.config_manager.id();
+        let form_meta = FormMetaData::new(
+            self.config_manager.id(),
+            self.config_manager.name(),
+        );
 
         view! { cx,
             <div>
@@ -86,7 +97,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         <div>
                         <FormView
                             vault={vault_clone.clone()}
-                            form_name={form_name.clone()}
+                            form_meta={form_meta.clone()}
                             initial_config={loaded_config}
                             default_config={default_config.clone()}
                         />
@@ -118,15 +129,20 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
 pub fn handle_form_submission(
     mut vault: StringVault,
-    form_name: String,
-    form_config: HashMap<String, String>,
+    form_meta: FormMetaData,
+    form_data: Vec<u8>,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
-        match vault.save_configuration(&form_name.to_string(), form_config).await {
+        match vault
+            .save_configuration(form_meta, &form_data)
+            .await
+        {
             Ok(_) => {
-                log!("Successfully saved secure configuration: {:?}", form_name);
+                log!(
+                    "Successfully saved secure configuration",
+                );
                 set_is_submitting.set(false);
             }
             Err(e) => {

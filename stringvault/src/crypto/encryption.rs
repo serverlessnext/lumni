@@ -3,11 +3,10 @@ use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::JsCast;
 use web_sys::{AesGcmParams, CryptoKey};
 
-use crate::utils::{string_to_uint8array, uint8array_to_string};
-use crate::SecureStringError;
-
 use super::key_generation::{derive_key, import_key};
 use super::utils::get_crypto_subtle;
+use crate::utils::string_to_uint8array;
+use crate::SecureStringError;
 
 const KEY_USAGE_DERIVE_KEY: &str = "deriveKey";
 const KEY_USAGE_ENCRYPT: &str = "encrypt";
@@ -39,7 +38,7 @@ pub async fn decrypt(
     key: &CryptoKey,
     data: &Uint8Array,
     iv: &Uint8Array,
-) -> SecureStringResult<String> {
+) -> SecureStringResult<Vec<u8>> {
     let (_, _, subtle) = get_crypto_subtle()?;
     let decrypted_data_promise = subtle.decrypt_with_object_and_buffer_source(
         &AesGcmParams::new("AES-GCM", iv),
@@ -53,8 +52,9 @@ pub async fn decrypt(
 
     let decrypted_data = js_sys::Uint8Array::new(&decrypted_data_result);
     let decrypted_data_vec: Vec<u8> = decrypted_data.to_vec();
-    let decrypted_data = uint8array_to_string(&decrypted_data_vec);
-    Ok(decrypted_data)
+
+    // let decrypted_data = uint8array_to_string(&decrypted_data_vec);
+    Ok(decrypted_data_vec)
 }
 
 pub async fn derive_crypto_key(
@@ -138,6 +138,6 @@ mod tests {
 
         let decrypted_data = decrypt_result.unwrap();
         // Expect decrypted data to match original data
-        assert_eq!(decrypted_data, data);
+        assert_eq!(decrypted_data, data.as_bytes());
     }
 }

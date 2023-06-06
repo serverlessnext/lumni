@@ -1,5 +1,5 @@
-use crate::{ObjectKey, SecureStringError, SecureStringResult, SecureStorage};
 use crate::crypto::{derive_key_from_password, hash_username};
+use crate::{ObjectKey, SecureStorage, SecureStringError, SecureStringResult};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct User {

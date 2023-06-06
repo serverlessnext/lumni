@@ -4,9 +4,9 @@ use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 use leptos_router::use_navigate;
+use stringvault::StringVault;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
-use stringvault::StringVault;
 
 use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::forms::form_handler::{

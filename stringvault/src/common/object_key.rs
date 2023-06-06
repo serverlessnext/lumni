@@ -72,10 +72,10 @@ mod tests {
         );
 
         // Check that ObjectKey::new returns an error when given an empty tag
-//        let object_key_empty_tag = ObjectKey::new("", "test_id");
-//        assert!(
-//            object_key_empty_tag.is_err(),
-//            "Successfully created ObjectKey with empty tag"
-//        );
+        //        let object_key_empty_tag = ObjectKey::new("", "test_id");
+        //        assert!(
+        //            object_key_empty_tag.is_err(),
+        //            "Successfully created ObjectKey with empty tag"
+        //        );
     }
 }

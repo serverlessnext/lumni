@@ -175,12 +175,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
-                let _ = vault
-                    .add_configuration(
-                        &form_name,
-                        name,
-                    )
-                    .await;
+                let _ = vault.add_configuration(&form_name, name).await;
                 set_is_submitting.set(false);
             }
         });
@@ -198,9 +193,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
-                let _ = vault
-                    .delete_configuration(&form_name)
-                    .await;
+                let _ = vault.delete_configuration(&form_name).await;
                 set_is_loading.set(false);
             }
         });

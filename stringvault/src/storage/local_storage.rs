@@ -34,8 +34,7 @@ pub async fn load_string(key: &str) -> Option<String> {
             if let Ok(Some(data)) = storage.get_item(key) {
                 return Some(data);
             }
-        }
-        else {
+        } else {
             // log!("Error: localStorage is not available.");
         }
     } else {

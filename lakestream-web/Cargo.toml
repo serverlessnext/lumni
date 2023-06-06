@@ -18,7 +18,7 @@ wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2"
 regex = { version = "1.8", default-features = false, features = ["std", "unicode"] }
 uuid = { version = "1", features = ["v4", "js"] }
-
+serde_json = "1.0"
 
 [dev-dependencies]
 wasm-bindgen = "0.2"

@@ -1,10 +1,11 @@
 use web_sys::CryptoKey;
 
 use super::encryption::derive_crypto_key;
-use crate::{SecureStringError, SecureStringResult};
-use crate::storage::local_storage::{create_storage_key, load_string, save_string};
+use crate::storage::local_storage::{
+    create_storage_key, load_string, save_string,
+};
 use crate::utils::generate_salt_base64;
-use crate::ObjectKey;
+use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
 pub fn get_crypto_subtle(
 ) -> SecureStringResult<(web_sys::Window, web_sys::Crypto, web_sys::SubtleCrypto)>

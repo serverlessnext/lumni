@@ -1,7 +1,7 @@
 use blake3::hash;
+use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::JsCast;
 use web_sys::{AesGcmParams, CryptoKey};
-use js_sys::{ArrayBuffer, Uint8Array};
 
 use super::key_generation::{derive_key, import_key};
 use super::utils::get_crypto_subtle;

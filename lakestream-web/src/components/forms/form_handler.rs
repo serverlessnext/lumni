@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use serde_json;
 
 use leptos::html::Div;
 use leptos::*;
+use serde_json;
 use stringvault::{FormMetaData, SecureStringError, StringVault};
 use wasm_bindgen_futures::spawn_local;
 
@@ -49,17 +49,15 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             let form_name_clone = form_name.clone();
             spawn_local(async move {
                 match vault_clone.load_configuration(&form_name_clone).await {
-                    Ok(data) => {
-                        match serde_json::from_slice(&data) {
-                            Ok(new_config) => {
-                                set_loaded_config(Some(new_config));
-                            }
-                            Err(e) => {
-                                log::error!("error deserializing config: {:?}", e);
-                                set_load_config_error(Some(e.to_string()));
-                            }
+                    Ok(data) => match serde_json::from_slice(&data) {
+                        Ok(new_config) => {
+                            set_loaded_config(Some(new_config));
                         }
-                    }
+                        Err(e) => {
+                            log::error!("error deserializing config: {:?}", e);
+                            set_load_config_error(Some(e.to_string()));
+                        }
+                    },
                     Err(e) => match e {
                         SecureStringError::PasswordNotFound(_)
                         | SecureStringError::NoLocalStorageData => {
@@ -135,14 +133,9 @@ pub fn handle_form_submission(
     set_submit_error: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
-        match vault
-            .save_configuration(form_meta, &form_data)
-            .await
-        {
+        match vault.save_configuration(form_meta, &form_data).await {
             Ok(_) => {
-                log!(
-                    "Successfully saved secure configuration",
-                );
+                log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);
             }
             Err(e) => {

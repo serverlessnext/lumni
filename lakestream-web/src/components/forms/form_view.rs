@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use stringvault::{StringVault, FormMetaData};
+use stringvault::{FormMetaData, StringVault};
 
 use super::form_handler::handle_form_submission;
 use super::form_input::{

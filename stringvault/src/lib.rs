@@ -102,7 +102,6 @@ impl StringVault {
             .await
     }
 
-
     pub async fn load_configuration(
         &self,
         form_name: &str,
@@ -240,9 +239,11 @@ mod tests {
                 .unwrap();
 
         let mut config = HashMap::new();
-        config.insert("some random value".to_string(), "test_config".to_string());
+        config
+            .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new("test_id_list".to_string(), username.to_string());
+        let form_meta =
+            FormMetaData::new("test_id_list".to_string(), username.to_string());
 
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
@@ -321,9 +322,13 @@ mod tests {
                 .unwrap();
 
         let mut config = HashMap::new();
-        config.insert("some random value".to_string(), "test_config".to_string());
+        config
+            .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(username.to_string(), "test_id_save_load".to_string());
+        let form_meta = FormMetaData::new(
+            username.to_string(),
+            "test_id_save_load".to_string(),
+        );
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
             .save_configuration(form_meta.clone(), &config_bytes)
@@ -363,9 +368,13 @@ mod tests {
                 .unwrap();
 
         let mut config = HashMap::new();
-        config.insert("some random value".to_string(), "test_config".to_string());
+        config
+            .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(username.to_string(), "test_id_delete".to_string());
+        let form_meta = FormMetaData::new(
+            username.to_string(),
+            "test_id_delete".to_string(),
+        );
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
             .save_configuration(form_meta.clone(), &config_bytes)
@@ -376,7 +385,8 @@ mod tests {
             save_result.err().unwrap()
         );
 
-        let delete_result = string_vault.delete_configuration(form_meta.id()).await;
+        let delete_result =
+            string_vault.delete_configuration(form_meta.id()).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete data: {:?}",

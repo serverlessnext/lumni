@@ -1,7 +1,7 @@
 use blake3::hash;
-use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::JsCast;
 use web_sys::{AesGcmParams, CryptoKey};
+use js_sys::{ArrayBuffer, Uint8Array};
 
 use super::key_generation::{derive_key, import_key};
 use super::utils::get_crypto_subtle;
@@ -16,16 +16,17 @@ type SecureStringResult<T> = Result<T, SecureStringError>;
 
 pub async fn encrypt(
     key: &CryptoKey,
-    data: &str,
+    data: &[u8],
     iv: &[u8],
 ) -> SecureStringResult<(ArrayBuffer, Vec<u8>)> {
     let (_, _, subtle) = get_crypto_subtle()?;
-    let data = string_to_uint8array(data);
+    let data_js = Uint8Array::from(&data[..]);
+
     let iv = Uint8Array::from(iv);
     let encrypted_data_promise = subtle.encrypt_with_object_and_buffer_source(
         &AesGcmParams::new("AES-GCM", &iv),
         key,
-        &data,
+        &data_js,
     )?;
     let encrypted_data: js_sys::ArrayBuffer =
         wasm_bindgen_futures::JsFuture::from(encrypted_data_promise)
@@ -125,8 +126,9 @@ mod tests {
         let key = key_result.unwrap();
 
         let data = "data to be encrypted";
+        let data_bytes = data.as_bytes();
         let iv = &[0u8; 12];
-        let encrypt_result = encrypt(&key, &data, iv).await;
+        let encrypt_result = encrypt(&key, &data_bytes, iv).await;
         assert!(encrypt_result.is_ok());
 
         let (encrypted_data, iv) = encrypt_result.unwrap();

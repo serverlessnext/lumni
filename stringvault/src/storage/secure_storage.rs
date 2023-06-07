@@ -39,7 +39,7 @@ impl SecureStorage {
         }
     }
 
-    pub async fn save(&self, value: &str) -> SecureStringResult<()> {
+    pub async fn save(&self, data: &[u8]) -> SecureStringResult<()> {
         let crypto_key = self
             .crypto_key
             .as_ref()
@@ -49,7 +49,7 @@ impl SecureStorage {
 
         let mut iv = [0u8; 12];
         crypto.get_random_values_with_u8_array(&mut iv)?;
-        let (encrypted_data, iv_vec) = encrypt(crypto_key, value, &iv).await?;
+        let (encrypted_data, iv_vec) = encrypt(crypto_key, data, &iv).await?;
 
         let encrypted_data = js_sys::Uint8Array::new(&encrypted_data);
         let encrypted_data: Vec<u8> = encrypted_data.to_vec();
@@ -96,7 +96,7 @@ impl SecureStorage {
     }
 
     pub async fn empty(&self) -> SecureStringResult<()> {
-        let empty_hashmap = "{}".to_string();
+        let empty_hashmap = "{}".as_bytes();
         self.save(&empty_hashmap).await
     }
 
@@ -160,7 +160,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Load the string
@@ -205,7 +205,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Ensure the secure string now exists
@@ -237,7 +237,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Empty the storage
@@ -262,7 +262,7 @@ mod tests {
         let secure_storage = SecureStorage::for_deletion(object_key.clone());
 
         // Try to save a string
-        let save_result = secure_storage.save("test_value").await;
+        let save_result = secure_storage.save("test_value".as_bytes()).await;
         assert!(save_result.is_err());
         assert_eq!(
             save_result.unwrap_err(),
@@ -301,7 +301,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(&value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Load the string
@@ -333,7 +333,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Create a different crypto key
@@ -378,7 +378,7 @@ mod tests {
             SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
-        let save_result = secure_storage.save(value).await;
+        let save_result = secure_storage.save(value.as_bytes()).await;
         assert!(save_result.is_ok());
 
         // Load the string

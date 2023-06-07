@@ -67,9 +67,9 @@ impl Configurations {
         let config_json = serde_json::to_string(&config)?;
 
         // secure storage for the form
-        let object_key = ObjectKey::new("", form_id).unwrap();
+        let object_key = ObjectKey::new("", form_id)?;
         let secure_storage_form = SecureStorage::new(object_key, derived_key);
-        secure_storage_form.save(&config_json).await?;
+        secure_storage_form.save(&config_json.as_bytes()).await?;
 
         let mut forms_db = load_forms_db(secure_storage).await?;
         let mut form_config = HashMap::new();
@@ -78,7 +78,7 @@ impl Configurations {
         forms_db.insert(form_id.to_string(), form_config);
 
         secure_storage
-            .save(&serde_json::to_string(&forms_db)?)
+            .save(&serde_json::to_vec(&forms_db)?)
             .await
     }
 
@@ -128,7 +128,7 @@ impl Configurations {
             .or_insert_with(HashMap::new);
         form_config.insert("NAME".to_string(), name);
         secure_storage
-            .save(&serde_json::to_string(&forms_db)?)
+            .save(&serde_json::to_vec(&forms_db)?)
             .await?;
         Ok(())
     }
@@ -150,7 +150,7 @@ impl Configurations {
 
         // Save the updated form metadata back to the vault.
         secure_storage
-            .save(&serde_json::to_string(&forms_db)?)
+            .save(&serde_json::to_vec(&forms_db)?)
             .await?;
 
         Ok(())

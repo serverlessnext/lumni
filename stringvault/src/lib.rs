@@ -13,22 +13,35 @@ use storage::SecureStorage;
 use user::User;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct FormMetaData {
+pub struct DocumentMetaData {
     id: String,
-    name: String,
+    tags: Option<HashMap<String, String>>,
 }
 
-impl FormMetaData {
-    pub fn new(id: String, name: String) -> Self {
-        Self { id, name }
+impl DocumentMetaData {
+    pub fn new(id: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            tags: None,
+        }
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
+    pub fn new_with_tags(
+        id: &str,
+        tags: HashMap<String, String>,
+    ) -> Self {
+        Self {
+            id: id.to_string(),
+            tags: Some(tags),
+        }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    pub fn tags(&self) -> Option<HashMap<String, String>> {
+        self.tags.clone()
     }
 }
 
@@ -85,39 +98,38 @@ impl StringVault {
     // Configurations related functions
     pub async fn list_configurations(
         &self,
-    ) -> SecureStringResult<HashMap<String, String>> {
+    ) -> SecureStringResult<Vec<DocumentMetaData>> {
         self.configurations.list(&self.user.secure_storage()).await
     }
 
     pub async fn save_configuration(
         &mut self,
-        form_meta: FormMetaData,
-        data: &[u8],
+        meta_data: DocumentMetaData,
+        document_content: &[u8],
     ) -> SecureStringResult<()> {
-        // TODO: change form_meta input to be &[u8], which we convert (back) into FormMetaData
+        // TODO: change meta_data input to be &[u8], which we convert (back) into FormMetaData
         // while this may seem un-necessary overhead, this will allow compatibility with other languages
         // given meta data is tiny performance penalty should be negligible
         self.configurations
-            .save(&mut self.user.secure_storage().clone(), form_meta, data)
+            .save(&mut self.user.secure_storage().clone(), meta_data, document_content)
             .await
     }
 
     pub async fn load_configuration(
         &self,
-        form_name: &str,
+        form_id: &str,
     ) -> SecureStringResult<Vec<u8>> {
         self.configurations
-            .load(&self.user.secure_storage(), form_name)
+            .load(&self.user.secure_storage(), form_id)
             .await
     }
 
     pub async fn add_configuration(
         &mut self,
-        form_name: &str,
-        name: String,
+        meta_data: DocumentMetaData,
     ) -> SecureStringResult<()> {
         self.configurations
-            .add(&mut self.user.secure_storage(), form_name, name)
+            .add(&mut self.user.secure_storage(), meta_data)
             .await
     }
 
@@ -242,12 +254,12 @@ mod tests {
         config
             .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta =
-            FormMetaData::new("test_id_list".to_string(), username.to_string());
+        let form_id = "test_id_list";
+        let meta_data = DocumentMetaData::new(form_id);
 
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
-            .save_configuration(form_meta.clone(), &config_bytes)
+            .save_configuration(meta_data, &config_bytes)
             .await;
         assert!(
             save_result.is_ok(),
@@ -264,9 +276,7 @@ mod tests {
 
         let listed_configurations = list_result.unwrap();
         assert!(
-            listed_configurations.contains_key(form_meta.id()),
-            "Listed configurations did not contain saved configuration"
-        );
+            listed_configurations.iter().any(|form_data| form_data.id() == form_id));
 
         StringVault::reset(username).await.unwrap();
     }
@@ -279,12 +289,12 @@ mod tests {
         let mut string_vault =
             StringVault::new(username, password).await.unwrap();
 
-        let form_name =
-            format!("{}:{}", "test_add_delete", "test_id_add_delete");
+        let form_id = "test_id_add_delete";
+        let meta_data = DocumentMetaData::new(&form_id);
 
         // Add a configuration with a given name
         let add_result = string_vault
-            .add_configuration(&form_name, "test_config".to_string())
+            .add_configuration(meta_data)
             .await;
         assert!(
             add_result.is_ok(),
@@ -293,7 +303,7 @@ mod tests {
         );
 
         // Delete the configuration
-        let delete_result = string_vault.delete_configuration(&form_name).await;
+        let delete_result = string_vault.delete_configuration(&form_id).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete configuration: {:?}",
@@ -302,7 +312,7 @@ mod tests {
 
         // Try to delete again, it should fail since the configuration no longer exists
         let delete_again_result =
-            string_vault.delete_configuration(&form_name).await;
+            string_vault.delete_configuration(&form_id).await;
         assert!(
             delete_again_result.is_err(),
             "Successfully deleted non-existent configuration"
@@ -325,13 +335,12 @@ mod tests {
         config
             .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(
-            username.to_string(),
-            "test_id_save_load".to_string(),
-        );
+        let form_id = username;
+        let meta_data = DocumentMetaData::new(form_id);
+
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
-            .save_configuration(form_meta.clone(), &config_bytes)
+            .save_configuration(meta_data.clone(), &config_bytes)
             .await;
         assert!(
             save_result.is_ok(),
@@ -339,7 +348,7 @@ mod tests {
             save_result.err().unwrap()
         );
 
-        let load_result = string_vault.load_configuration(form_meta.id()).await;
+        let load_result = string_vault.load_configuration(form_id).await;
         assert!(
             load_result.is_ok(),
             "Failed to load secure configuration: {:?}",
@@ -371,13 +380,12 @@ mod tests {
         config
             .insert("some random value".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(
-            username.to_string(),
-            "test_id_delete".to_string(),
-        );
+        let form_id = username;
+        let meta_data = DocumentMetaData::new(form_id);
+
         let config_bytes = serde_json::to_vec(&config).unwrap();
         let save_result = string_vault
-            .save_configuration(form_meta.clone(), &config_bytes)
+            .save_configuration(meta_data.clone(), &config_bytes)
             .await;
         assert!(
             save_result.is_ok(),
@@ -386,14 +394,14 @@ mod tests {
         );
 
         let delete_result =
-            string_vault.delete_configuration(form_meta.id()).await;
+            string_vault.delete_configuration(form_id).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete data: {:?}",
             delete_result.err().unwrap()
         );
 
-        let load_result = string_vault.load_configuration(form_meta.id()).await;
+        let load_result = string_vault.load_configuration(form_id).await;
         assert!(
             load_result.is_err(),
             "Successfully loaded data after deletion"

@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use leptos::html::Input;
 use leptos::*;
-use stringvault::{SecureStringResult, StringVault};
+use stringvault::{DocumentMetaData, SecureStringResult, StringVault};
 
 use super::object_store::ObjectStore;
 use crate::GlobalState;
@@ -156,7 +157,7 @@ impl ObjectStoreList {
         let configs = self.vault.list_configurations().await?;
         let items = configs
             .into_iter()
-            .map(|(id, name)| ObjectStore::new_with_id(name, id))
+            .map(|form_data| ObjectStore::new_with_id(form_data.tags().unwrap().get("Name").unwrap_or(&"Untitled".to_string()).clone(), form_data.id()))
             .collect();
         Ok(items)
     }
@@ -170,12 +171,18 @@ impl ObjectStoreList {
         set_is_submitting.set(true);
 
         let object_store = ObjectStore::new(name.clone());
-        let form_name = object_store.id();
+
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), name.clone());
+        let meta_data = DocumentMetaData::new_with_tags(
+            &object_store.id(),
+            tags,
+        );
 
         spawn_local({
             let mut vault = self.vault.clone();
             async move {
-                let _ = vault.add_configuration(&form_name, name).await;
+                let _ = vault.add_configuration(meta_data).await;
                 set_is_submitting.set(false);
             }
         });

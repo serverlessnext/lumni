@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::html::Div;
 use leptos::*;
 use serde_json;
-use stringvault::{FormMetaData, SecureStringError, StringVault};
+use stringvault::{DocumentMetaData, SecureStringError, StringVault};
 use wasm_bindgen_futures::spawn_local;
 
 pub use super::form_input::{InputData, InputField};
@@ -80,9 +80,12 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         let default_config = config_manager_clone.default_fields();
-        let form_meta = FormMetaData::new(
-            self.config_manager.id(),
-            self.config_manager.name(),
+
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), self.config_manager.name());
+        let meta_data = DocumentMetaData::new_with_tags(
+            &self.config_manager.id(),
+            tags,
         );
 
         view! { cx,
@@ -95,7 +98,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                         <div>
                         <FormView
                             vault={vault_clone.clone()}
-                            form_meta={form_meta.clone()}
+                            meta_data={meta_data.clone()}
                             initial_config={loaded_config}
                             default_config={default_config.clone()}
                         />
@@ -127,13 +130,13 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
 pub fn handle_form_submission(
     mut vault: StringVault,
-    form_meta: FormMetaData,
-    form_data: Vec<u8>,
+    meta_data: DocumentMetaData,
+    document_content: Vec<u8>,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
-        match vault.save_configuration(form_meta, &form_data).await {
+        match vault.save_configuration(meta_data, &document_content).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);

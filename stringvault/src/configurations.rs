@@ -6,7 +6,7 @@ use serde_json;
 use crate::crypto::derive_crypto_key;
 use crate::utils::generate_password_base64;
 use crate::{
-    FormMetaData, ObjectKey, SecureStorage, SecureStringError,
+    DocumentMetaData, ObjectKey, SecureStorage, SecureStringError,
     SecureStringResult,
 };
 
@@ -17,7 +17,7 @@ impl Configurations {
     pub async fn list(
         &self,
         secure_storage: &SecureStorage,
-    ) -> SecureStringResult<HashMap<String, String>> {
+    ) -> SecureStringResult<Vec<DocumentMetaData>> {
         // Attempt to load the data.
         match secure_storage.load().await {
             // If successful, proceed with deserialization and transformation.
@@ -29,22 +29,16 @@ impl Configurations {
                 // Transform the metadata into the desired output format.
                 let configurations = forms_db
                     .into_iter()
-                    .map(|(id, meta)| {
-                        // Extract the name of the form, using "Unknown" as the default.
-                        let name = meta
-                            .get("NAME")
-                            .cloned()
-                            .unwrap_or_else(|| "Unknown".to_string());
-
-                        // Return a tuple of the form id and name.
-                        (id, name)
+                    .map(|(id, tags)| {
+                        // Construct FormData
+                        DocumentMetaData::new_with_tags(&id, tags)
                     })
                     .collect();
 
                 Ok(configurations)
             }
-            // If loading fails with NoLocalStorageData, return an empty HashMap.
-            Err(SecureStringError::NoLocalStorageData) => Ok(HashMap::new()),
+            // If loading fails with NoLocalStorageData, return an empty Vec.
+            Err(SecureStringError::NoLocalStorageData) => Ok(Vec::new()),
             // For other errors, propagate the error.
             Err(err) => Err(err),
         }
@@ -53,30 +47,33 @@ impl Configurations {
     pub async fn save(
         &self,
         secure_storage: &mut SecureStorage,
-        form_meta: FormMetaData,
-        data: &[u8],
+        meta_data: DocumentMetaData,
+        document_content: &[u8],
     ) -> SecureStringResult<()> {
-        let form_id = form_meta.id();
-        let form_name = form_meta.name();
+        let form_id = meta_data.id();
 
-        info!(
-            "Saving configuration for {} with name {}",
-            form_id, form_name
-        );
+        info!("Saving configuration for {}", form_id);
+
         let password = generate_password_base64()?;
         let derived_key = derive_crypto_key(&password, &form_id).await?;
 
         // secure storage for the form
-        let object_key = ObjectKey::new("", form_id)?;
+        let object_key = ObjectKey::new("", &form_id)?;
         let secure_storage_form = SecureStorage::new(object_key, derived_key);
-        secure_storage_form.save(data).await?;
+        secure_storage_form.save(document_content).await?;
 
         let mut forms_db = load_forms_db(secure_storage).await?;
         let mut form_config = HashMap::new();
-        form_config.insert("NAME".to_string(), form_name.to_string());
-        form_config.insert("PASSWD".to_string(), password);
-        forms_db.insert(form_id.to_string(), form_config);
 
+        // add PASSWD to the form metadata, required to load() the data
+        form_config.insert("__PASSWD__".to_string(), password);
+
+        // add every tag in form_data.tags() to form metadata
+        // NOTE: we may have to limit this in size, or store (extra?) tags separately
+        if let Some(tags) = meta_data.tags() {
+            form_config.extend(tags);
+        }
+        forms_db.insert(form_id, form_config);
         secure_storage.save(&serde_json::to_vec(&forms_db)?).await
     }
 
@@ -84,25 +81,25 @@ impl Configurations {
     pub async fn load(
         &self,
         secure_storage: &SecureStorage,
-        form_name: &str,
+        form_id: &str,
     ) -> SecureStringResult<Vec<u8>> {
         let meta: HashMap<String, HashMap<String, String>> =
             serde_json::from_slice(&secure_storage.load().await?)?;
         let meta =
-            meta.get(form_name)
+            meta.get(form_id)
                 .ok_or(SecureStringError::PasswordNotFound(format!(
                     "Configuration for {} not found",
-                    form_name
+                    form_id
                 )))?;
         let password =
-            meta.get("PASSWD")
+            meta.get("__PASSWD__")
                 .ok_or(SecureStringError::PasswordNotFound(format!(
                     "Configuration for {} not found",
-                    form_name
+                    form_id
                 )))?;
 
-        let object_key = ObjectKey::new("", form_name).unwrap();
-        let derived_key = derive_crypto_key(&password, &form_name).await?;
+        let object_key = ObjectKey::new("", &form_id).unwrap();
+        let derived_key = derive_crypto_key(&password, &form_id).await?;
         let secure_storage_form = SecureStorage::new(object_key, derived_key);
 
         Ok(secure_storage_form.load().await?)
@@ -111,8 +108,7 @@ impl Configurations {
     pub async fn add(
         &mut self,
         secure_storage: &SecureStorage,
-        form_name: &str,
-        name: String,
+        meta_data: DocumentMetaData,
     ) -> SecureStringResult<()> {
         // NOTE: this only updates vault-user's local copy of the forms_db
         //  it does not create a form itself like save() does.
@@ -121,10 +117,15 @@ impl Configurations {
         //  may have to rename to make this more clear
         let mut forms_db = load_forms_db(secure_storage).await?;
 
+        let form_id = meta_data.id();
         let form_config = forms_db
-            .entry(form_name.to_string())
+            .entry(form_id.to_string())
             .or_insert_with(HashMap::new);
-        form_config.insert("NAME".to_string(), name);
+
+        if let Some(tags) = meta_data.tags() {
+            form_config.extend(tags);
+        }
+        //form_config.insert("NAME".to_string(), name);
         secure_storage.save(&serde_json::to_vec(&forms_db)?).await?;
         Ok(())
     }
@@ -132,15 +133,15 @@ impl Configurations {
     pub async fn delete(
         &mut self,
         secure_storage: &SecureStorage,
-        form_name: &str,
+        form_id: &str,
     ) -> SecureStringResult<()> {
         let mut forms_db = load_forms_db(secure_storage).await?;
 
         // Remove the specific configuration
-        if forms_db.remove(form_name).is_none() {
+        if forms_db.remove(form_id).is_none() {
             return Err(SecureStringError::PasswordNotFound(format!(
                 "Configuration for {} not found",
-                form_name
+                form_id
             )));
         }
 
@@ -217,14 +218,12 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(
-            "test_save_load".to_string(),
-            "test_id_save_load".to_string(),
-        );
+        let form_id = "test_id_save_load";
+        let meta_data = DocumentMetaData::new(form_id);
         let config_bytes = serde_json::to_vec(&config).unwrap();
 
         let save_result = configurations
-            .save(&mut secure_storage, form_meta.clone(), &config_bytes)
+            .save(&mut secure_storage, meta_data.clone(), &config_bytes)
             .await;
         assert!(
             save_result.is_ok(),
@@ -233,7 +232,7 @@ mod tests {
         );
 
         let load_result =
-            configurations.load(&secure_storage, form_meta.id()).await;
+            configurations.load(&secure_storage, form_id).await;
         assert!(
             load_result.is_ok(),
             "Failed to load configuration: {:?}",
@@ -266,14 +265,12 @@ mod tests {
         let mut config = HashMap::new();
         config.insert("__NAME__".to_string(), "test_config".to_string());
 
-        let form_meta = FormMetaData::new(
-            "test_add_delete".to_string(),
-            "test_id_add_delete".to_string(),
-        );
+        let form_id = "test_id_add_delete";
+        let meta_data = DocumentMetaData::new(form_id);
         let config_bytes = serde_json::to_vec(&config).unwrap();
         // Test adding a configuration
         let add_result = configurations
-            .save(&mut secure_storage, form_meta.clone(), &config_bytes)
+            .save(&mut secure_storage, meta_data.clone(), &config_bytes)
             .await;
         assert!(
             add_result.is_ok(),
@@ -282,7 +279,7 @@ mod tests {
         );
 
         let load_result =
-            configurations.load(&secure_storage, form_meta.id()).await;
+            configurations.load(&secure_storage, form_id).await;
         assert!(
             load_result.is_ok(),
             "Failed to load configuration after add: {:?}",
@@ -299,7 +296,7 @@ mod tests {
 
         // Test deleting a configuration
         let delete_result = configurations
-            .delete(&mut secure_storage, form_meta.id())
+            .delete(&mut secure_storage, form_id)
             .await;
         assert!(
             delete_result.is_ok(),
@@ -308,7 +305,7 @@ mod tests {
         );
 
         let load_result_after_delete =
-            configurations.load(&secure_storage, form_meta.id()).await;
+            configurations.load(&secure_storage, form_id).await;
         assert!(
             load_result_after_delete.is_err(),
             "Successfully loaded configuration after delete"
@@ -353,13 +350,10 @@ mod tests {
         let secure_storage = user.secure_storage().clone();
 
         let configurations = Configurations {};
-        let form_name = format!(
-            "{}:{}",
-            "test_load_non_existent", "test_id_load_non_existent"
-        );
+        let form_id = "test_id_load_non_existent";
 
         let load_result =
-            configurations.load(&secure_storage, &form_name).await;
+            configurations.load(&secure_storage, form_id).await;
         assert!(
             load_result.is_err(),
             "Successfully loaded a non-existent configuration"

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
-use stringvault::StringVault;
+use localencrypt::LocalEncrypt;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
@@ -32,7 +32,8 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         let password = password_ref().expect("password to exist").value();
 
         spawn_local(async move {
-            match StringVault::validate_password(ROOT_USERNAME, &password).await
+            match LocalEncrypt::validate_password(ROOT_USERNAME, &password)
+                .await
             {
                 Ok(valid) => {
                     if valid {
@@ -56,7 +57,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             new_password_ref().expect("new password to exist").value();
 
         spawn_local(async move {
-            match StringVault::change_password(
+            match LocalEncrypt::change_password(
                 ROOT_USERNAME,
                 &password,
                 &new_password,

@@ -1,10 +1,10 @@
-use stringvault::StringVault;
+use localencrypt::LocalEncrypt;
 
 const DEFAULT_HOME_URL: &str = "/home";
 
 #[derive(Clone, Default)]
 pub struct GlobalState {
-    pub vault: Option<StringVault>,
+    pub vault: Option<LocalEncrypt>,
     pub runtime: Option<RunTime>,
 }
 

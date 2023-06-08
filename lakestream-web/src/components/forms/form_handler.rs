@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::html::Div;
 use leptos::*;
 use serde_json;
-use stringvault::{DocumentMetaData, SecureStringError, StringVault};
+use localencrypt::{DocumentMetaData, LocalEncrypt, SecureStringError};
 use wasm_bindgen_futures::spawn_local;
 
 pub use super::form_input::{InputData, InputField};
@@ -18,11 +18,11 @@ pub trait ConfigManager: Clone {
 
 pub struct FormHandler<T: ConfigManager + Clone + 'static> {
     config_manager: T,
-    vault: StringVault,
+    vault: LocalEncrypt,
 }
 
 impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
-    pub fn new(config_manager: T, vault: StringVault) -> Self {
+    pub fn new(config_manager: T, vault: LocalEncrypt) -> Self {
         Self {
             config_manager,
             vault,
@@ -34,21 +34,23 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let (load_config_error, set_load_config_error) =
             create_signal(cx, None::<String>);
 
-        let vault_clone = self.vault.clone();
         let config_manager_clone = self.config_manager.clone();
         let form_name = self.config_manager.id();
 
+        let document_store = self.vault.create_document_store();
+
         create_effect(cx, move |_| {
-            let vault_clone = vault_clone.clone();
             let default_config = config_manager_clone
                 .default_fields()
                 .into_iter()
                 .map(|(key, input_data)| (key, input_data.value))
                 .collect();
 
+            let document_store = document_store.clone();
             let form_name_clone = form_name.clone();
             spawn_local(async move {
-                match vault_clone.load_configuration(&form_name_clone).await {
+                match document_store.load_configuration(&form_name_clone).await
+                {
                     Ok(data) => match serde_json::from_slice(&data) {
                         Ok(new_config) => {
                             set_loaded_config(Some(new_config));
@@ -83,10 +85,8 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), self.config_manager.name());
-        let meta_data = DocumentMetaData::new_with_tags(
-            &self.config_manager.id(),
-            tags,
-        );
+        let meta_data =
+            DocumentMetaData::new_with_tags(&self.config_manager.id(), tags);
 
         view! { cx,
             <div>
@@ -129,14 +129,18 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 }
 
 pub fn handle_form_submission(
-    mut vault: StringVault,
+    vault: LocalEncrypt,
     meta_data: DocumentMetaData,
     document_content: Vec<u8>,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
+    let mut document_store = vault.create_document_store();
     spawn_local(async move {
-        match vault.save_configuration(meta_data, &document_content).await {
+        match document_store
+            .save_configuration(meta_data, &document_content)
+            .await
+        {
             Ok(_) => {
                 log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);

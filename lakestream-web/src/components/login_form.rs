@@ -4,7 +4,7 @@ use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 use leptos_router::use_navigate;
-use stringvault::StringVault;
+use localencrypt::LocalEncrypt;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
@@ -58,7 +58,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 
         spawn_local(async move {
             let vault_result =
-                StringVault::create_or_validate(ROOT_USERNAME, &password).await;
+                LocalEncrypt::create_or_validate(ROOT_USERNAME, &password)
+                    .await;
 
             match vault_result {
                 Ok(string_vault) => {
@@ -83,7 +84,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     create_effect(cx, move |_| {
         spawn_local({
             async move {
-                let user_exists = StringVault::user_exists(ROOT_USERNAME).await;
+                let user_exists =
+                    LocalEncrypt::user_exists(ROOT_USERNAME).await;
                 is_user_defined.set(user_exists);
                 is_loading.set(false);
             }
@@ -141,7 +143,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    match StringVault::reset(ROOT_USERNAME).await {
+    match LocalEncrypt::reset(ROOT_USERNAME).await {
         Ok(_) => {
             log!("Vault reset successfully");
             Ok(())

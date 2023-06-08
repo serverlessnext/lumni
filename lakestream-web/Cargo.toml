@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 lakestream = { path = "../lakestream" }
-stringvault = { path = "../stringvault" }
+localencrypt = { path = "../localencrypt" }
 leptos = { version = "0.3"}
 leptos_meta = { version = "0.3", features = ["csr"] }
 leptos_router = { version = "0.3", features = ["csr"]  }

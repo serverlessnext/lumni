@@ -45,23 +45,27 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                 let form_id = form_id_clone.clone();
                 spawn_local({
                     async move {
-                        let configurations = vault
+                        let document_store = vault.create_document_store();
+                        let configurations = document_store
                             .list_configurations()
                             .await
                             .unwrap_or_else(|_| vec![]);
 
                         let name = configurations
                             .iter()
-                            .find(|form_data| form_data.id() == form_id.as_ref().unwrap().to_string())
+                            .find(|form_data| {
+                                form_data.id()
+                                    == form_id.as_ref().unwrap().to_string()
+                            })
                             .and_then(|form_data| {
                                 form_data.tags().and_then(|tags| {
-                                    tags.get("Name").cloned().or_else(|| Some("Untitled".to_string()))
+                                    tags.get("Name").cloned().or_else(|| {
+                                        Some("Untitled".to_string())
+                                    })
                                 })
                             });
 
-
                         if let Some(name) = name {
-
                             is_object_store.set(Some(
                                 ObjectStore::new_with_id(
                                     name.to_string(),

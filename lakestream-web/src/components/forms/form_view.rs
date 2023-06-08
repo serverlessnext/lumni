@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use stringvault::{DocumentMetaData, StringVault};
+use localencrypt::{DocumentMetaData, LocalEncrypt};
 
 use super::form_handler::handle_form_submission;
 use super::form_input::{
@@ -13,7 +13,7 @@ use crate::components::buttons::{ButtonType, FormSubmitButton};
 #[component]
 pub fn FormView(
     cx: Scope,
-    vault: StringVault,
+    vault: LocalEncrypt,
     meta_data: DocumentMetaData,
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
@@ -69,7 +69,8 @@ pub fn FormView(
                     })
                     .collect();
 
-                let document_content = serde_json::to_vec(&form_config).unwrap();
+                let document_content =
+                    serde_json::to_vec(&form_config).unwrap();
 
                 handle_form_submission(
                     vault.clone(),

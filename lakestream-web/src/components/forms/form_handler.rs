@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use leptos::html::Div;
 use leptos::*;
-use serde_json;
 use localencrypt::{DocumentMetaData, LocalEncrypt, SecureStringError};
+use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
 pub use super::form_input::{InputData, InputField};
@@ -37,7 +37,13 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let config_manager_clone = self.config_manager.clone();
         let form_name = self.config_manager.id();
 
-        let document_store = self.vault.create_document_store();
+        let backend = self.vault.backend();
+        let document_store = match backend {
+            localencrypt::StorageBackend::DocumentStore(document_store) => {
+                document_store.clone()
+            }
+            _ => panic!("Invalid storage backend"),
+        };
 
         create_effect(cx, move |_| {
             let default_config = config_manager_clone
@@ -49,9 +55,8 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
             let document_store = document_store.clone();
             let form_name_clone = form_name.clone();
             spawn_local(async move {
-                match document_store.load_configuration(&form_name_clone).await
-                {
-                    Ok(data) => match serde_json::from_slice(&data) {
+                match document_store.load(&form_name_clone).await {
+                    Ok(Some(data)) => match serde_json::from_slice(&data) {
                         Ok(new_config) => {
                             set_loaded_config(Some(new_config));
                         }
@@ -60,22 +65,32 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                             set_load_config_error(Some(e.to_string()));
                         }
                     },
-                    Err(e) => match e {
-                        SecureStringError::PasswordNotFound(_)
-                        | SecureStringError::NoLocalStorageData => {
-                            // use default if cant load existing
-                            log::info!(
-                                "Cant load existing configuration. Creating \
-                                 new."
-                            );
-                            set_loaded_config(Some(default_config));
+                    Ok(None) => {
+                        log::info!(
+                            "No data found for the given form id: {}. \
+                             Creating new.",
+                            &form_name_clone
+                        );
+                        set_loaded_config(Some(default_config));
+                    }
+                    Err(e) => {
+                        match e {
+                            SecureStringError::PasswordNotFound(_)
+                            | SecureStringError::NoLocalStorageData => {
+                                // use default if cant load existing
+                                log::info!(
+                                    "Cant load existing configuration. \
+                                     Creating new."
+                                );
+                                set_loaded_config(Some(default_config));
+                            }
+                            _ => {
+                                log::error!("error loading config: {:?}", e);
+                                set_load_config_error(Some(e.to_string()));
+                            }
                         }
-                        _ => {
-                            log::error!("error loading config: {:?}", e);
-                            set_load_config_error(Some(e.to_string()));
-                        }
-                    },
-                };
+                    }
+                }
             });
         });
 
@@ -135,12 +150,15 @@ pub fn handle_form_submission(
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
-    let mut document_store = vault.create_document_store();
+    let backend = vault.backend();
+    let mut document_store = match backend {
+        localencrypt::StorageBackend::DocumentStore(document_store) => {
+            document_store.clone()
+        }
+        _ => panic!("Invalid storage backend"),
+    };
     spawn_local(async move {
-        match document_store
-            .save_configuration(meta_data, &document_content)
-            .await
-        {
+        match document_store.save(meta_data, &document_content).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);

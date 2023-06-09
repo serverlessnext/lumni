@@ -1,9 +1,12 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
+use localencrypt::{LocalEncrypt, StorageBackend};
+
 use super::object_store::ObjectStore;
 use crate::components::forms::form_handler::FormHandler;
 use crate::GlobalState;
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
@@ -44,34 +47,37 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                 let is_object_store = is_object_store.clone();
                 let form_id = form_id_clone.clone();
                 spawn_local({
+
                     async move {
-                        let document_store = vault.create_document_store();
-                        let configurations = document_store
-                            .list_configurations()
-                            .await
-                            .unwrap_or_else(|_| vec![]);
+                        let backend = vault.backend();
+                        if let StorageBackend::DocumentStore(document_store) = backend {
+                            let configurations = document_store
+                                .list()
+                                .await
+                                .unwrap_or_else(|_| vec![]);
 
-                        let name = configurations
-                            .iter()
-                            .find(|form_data| {
-                                form_data.id()
-                                    == form_id.as_ref().unwrap().to_string()
-                            })
-                            .and_then(|form_data| {
-                                form_data.tags().and_then(|tags| {
-                                    tags.get("Name").cloned().or_else(|| {
-                                        Some("Untitled".to_string())
-                                    })
+                            let name = configurations
+                                .iter()
+                                .find(|form_data| {
+                                    form_data.id()
+                                        == form_id.as_ref().unwrap().to_string()
                                 })
-                            });
+                                .and_then(|form_data| {
+                                    form_data.tags().and_then(|tags| {
+                                        tags.get("Name").cloned().or_else(|| {
+                                            Some("Untitled".to_string())
+                                        })
+                                    })
+                                });
 
-                        if let Some(name) = name {
-                            is_object_store.set(Some(
-                                ObjectStore::new_with_id(
-                                    name.to_string(),
-                                    form_id.clone().unwrap_or_default(),
-                                ),
-                            ));
+                            if let Some(name) = name {
+                                is_object_store.set(Some(
+                                    ObjectStore::new_with_id(
+                                        name.to_string(),
+                                        form_id.clone().unwrap_or_default(),
+                                    ),
+                                ));
+                            }
                         }
                         set_is_loading.set(false);
                     }

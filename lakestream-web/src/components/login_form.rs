@@ -57,13 +57,11 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            let vault_result =
-                LocalEncrypt::create_or_validate(ROOT_USERNAME, &password)
-                    .await;
+            let local_encrypt = LocalEncrypt::new_with_document_store(ROOT_USERNAME, &password).await;
 
-            match vault_result {
-                Ok(string_vault) => {
-                    set_vault(string_vault);
+            match local_encrypt {
+                Ok(local_encrypt) => {
+                    set_vault(local_encrypt);
                     set_vault_initialized(true);
                     let navigate = use_navigate(cx);
                     if let Err(e) = navigate(&redirect_url, Default::default())
@@ -143,7 +141,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    match LocalEncrypt::reset(ROOT_USERNAME).await {
+    let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, "NA");
+    match local_encrypt.reset().await {
         Ok(_) => {
             log!("Vault reset successfully");
             Ok(())

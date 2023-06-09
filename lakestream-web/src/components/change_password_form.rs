@@ -32,7 +32,9 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         let password = password_ref().expect("password to exist").value();
 
         spawn_local(async move {
-            match LocalEncrypt::validate_password(ROOT_USERNAME, &password)
+            let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, &password);
+
+            match local_encrypt.validate_password()
                 .await
             {
                 Ok(valid) => {
@@ -57,8 +59,8 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             new_password_ref().expect("new password to exist").value();
 
         spawn_local(async move {
-            match LocalEncrypt::change_password(
-                ROOT_USERNAME,
+            let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, &password);
+            match local_encrypt.change_password(
                 &password,
                 &new_password,
             )

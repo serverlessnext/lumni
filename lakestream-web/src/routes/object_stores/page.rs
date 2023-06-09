@@ -21,7 +21,11 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         .with(|state| state.vault.clone())
         .expect("vault to have been initialized");
 
-    let document_store = vault.create_document_store();
+    let backend = vault.backend();
+    let document_store = match backend {
+        localencrypt::StorageBackend::DocumentStore(document_store) => document_store.clone(),
+        _ => panic!("Invalid storage backend"),
+    };
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
@@ -49,7 +53,13 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         spawn_local({
             let set_item_list = set_item_list.clone();
             let set_is_loading = set_is_loading.clone();
-            let document_store = vault_clone.create_document_store();
+            let backend = vault_clone.backend();
+            let document_store = match backend {
+                localencrypt::StorageBackend::DocumentStore(document_store) => {
+                    document_store.clone()
+                }
+                _ => panic!("Invalid storage backend"),
+            };
 
             async move {
                 let object_store_list = item_list.get_untracked();
@@ -157,7 +167,7 @@ impl ObjectStoreList {
     pub async fn load_from_vault(
         &self,
     ) -> SecureStringResult<Vec<ObjectStore>> {
-        let configs = self.document_store.list_configurations().await?;
+        let configs = self.document_store.list().await?;
         let items = configs
             .into_iter()
             .map(|form_data| {
@@ -193,7 +203,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut document_store = self.document_store.clone(); // clone document_store
             async move {
-                let _ = document_store.add_configuration(meta_data).await; // use document_store
+                let _ = document_store.add(meta_data).await; // use document_store
                 set_is_submitting.set(false);
             }
         });
@@ -211,7 +221,7 @@ impl ObjectStoreList {
         spawn_local({
             let mut document_store = self.document_store.clone(); // clone document_store
             async move {
-                let _ = document_store.delete_configuration(&form_name).await; // use document_store
+                let _ = document_store.delete(&form_name).await; // use document_store
                 set_is_loading.set(false);
             }
         });

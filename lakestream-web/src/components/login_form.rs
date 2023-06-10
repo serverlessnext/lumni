@@ -8,6 +8,7 @@ use localencrypt::LocalEncrypt;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
+use localencrypt::{StorageBackend, LocalStorage};
 use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::forms::form_handler::{
     FormInputFieldBuilder, InputFieldPattern,
@@ -57,15 +58,16 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            let local_encrypt = LocalEncrypt::new_with_document_store(ROOT_USERNAME, &password).await;
+            match StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await {
+                Ok(storage_backend) => {
+                    let local_encrypt = LocalEncrypt::builder()
+                        .with_backend(storage_backend)
+                        .build();
 
-            match local_encrypt {
-                Ok(local_encrypt) => {
                     set_vault(local_encrypt);
                     set_vault_initialized(true);
                     let navigate = use_navigate(cx);
-                    if let Err(e) = navigate(&redirect_url, Default::default())
-                    {
+                    if let Err(e) = navigate(&redirect_url, Default::default()) {
                         log!("Error navigating to {}: {}", &redirect_url, e);
                     }
                 }
@@ -82,8 +84,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     create_effect(cx, move |_| {
         spawn_local({
             async move {
-                let user_exists =
-                    LocalEncrypt::user_exists(ROOT_USERNAME).await;
+                let user_exists = LocalStorage::user_exists(ROOT_USERNAME).await;
                 is_user_defined.set(user_exists);
                 is_loading.set(false);
             }
@@ -141,21 +142,31 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, "NA");
-    match local_encrypt.reset().await {
-        Ok(_) => {
-            log!("Vault reset successfully");
-            Ok(())
-        }
+    let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, None).await;
+    match storage_backend {
+        Ok(backend) => match backend.hard_reset().await {
+            Ok(_) => {
+                log!("Vault reset successfully");
+                Ok(())
+            }
+            Err(err) => {
+                log!("Error resetting vault: {:?}", err);
+                Err(FormError::SubmitError(format!(
+                    "Error resetting vault: {:?}",
+                    err
+                )))
+            }
+        },
         Err(err) => {
-            log!("Error resetting vault: {:?}", err);
+            log!("Error creating storage backend: {:?}", err);
             Err(FormError::SubmitError(format!(
-                "Error resetting vault: {:?}",
+                "Error creating storage backend: {:?}",
                 err
             )))
         }
     }
 }
+
 
 fn reset_password_view(
     cx: Scope,

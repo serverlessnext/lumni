@@ -3,7 +3,7 @@ use std::sync::Arc;
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
-use localencrypt::LocalEncrypt;
+use localencrypt::{LocalEncrypt, StorageBackend, LocalStorage};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
@@ -32,18 +32,21 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         let password = password_ref().expect("password to exist").value();
 
         spawn_local(async move {
-            let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, &password);
-
-            match local_encrypt.validate_password()
-                .await
-            {
-                Ok(valid) => {
-                    if valid {
-                        set_is_old_password_valid.set(true);
-                    } else {
-                        error_signal.set(Some(
-                            "Invalid password. Please try again.".to_string(),
-                        ));
+            let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await;
+            match storage_backend {
+                Ok(backend) => {
+                    match backend.validate_password().await {
+                        Ok(valid) => {
+                            if valid {
+                                set_is_old_password_valid.set(true);
+                            } else {
+                                error_signal.set(Some(
+                                    "Invalid password. Please try again.".to_string(),
+                                ));
+                            }
+                        }
+                        Err(err) => error_signal
+                            .set(Some(format!("Error: {}", err.to_string()))),
                     }
                 }
                 Err(err) => error_signal
@@ -59,14 +62,18 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             new_password_ref().expect("new password to exist").value();
 
         spawn_local(async move {
-            let local_encrypt = LocalEncrypt::new(ROOT_USERNAME, &password);
-            match local_encrypt.change_password(
-                &password,
-                &new_password,
-            )
-            .await
-            {
-                Ok(_) => log!("Password changed successfully"),
+            let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await;
+            match storage_backend {
+                Ok(backend) => {
+                    match backend.change_password(&password, &new_password).await {
+                        Ok(_) => log!("Password changed successfully"),
+                        Err(err) => {
+                            let msg = err.to_string();
+                            web_sys::console::log_1(&JsValue::from_str(&msg));
+                            error_signal.set(Some(msg));
+                        }
+                    }
+                }
                 Err(err) => {
                     let msg = err.to_string();
                     web_sys::console::log_1(&JsValue::from_str(&msg));

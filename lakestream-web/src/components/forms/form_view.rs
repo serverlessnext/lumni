@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::{DocumentMetaData, LocalEncrypt};
+use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_handler::handle_form_submission;
 use super::form_input::{
@@ -14,7 +14,7 @@ use crate::components::buttons::{ButtonType, FormSubmitButton};
 pub fn FormView(
     cx: Scope,
     vault: LocalEncrypt,
-    meta_data: DocumentMetaData,
+    meta_data: ItemMetaData,
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
 ) -> impl IntoView {

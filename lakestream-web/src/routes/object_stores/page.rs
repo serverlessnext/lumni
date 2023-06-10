@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::html::Input;
 use leptos::*;
-use localencrypt::{DocumentMetaData, DocumentStore, SecureStringResult};
+use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
 
 use super::object_store::ObjectStore;
 use crate::GlobalState;
@@ -21,15 +21,16 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         .with(|state| state.vault.clone())
         .expect("vault to have been initialized");
 
-    let backend = vault.backend();
-    let document_store = match backend {
-        localencrypt::StorageBackend::DocumentStore(document_store) => document_store.clone(),
+    let local_storage = match vault.backend() {
+        localencrypt::StorageBackend::Browser(browser_storage) => {
+            browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
+        },
         _ => panic!("Invalid storage backend"),
     };
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
-        create_signal(cx, ObjectStoreList::new(document_store));
+        create_signal(cx, ObjectStoreList::new(local_storage));
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
@@ -48,16 +49,15 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
         }
     }
 
-    let vault_clone = vault.clone();
     create_effect(cx, move |_| {
         spawn_local({
             let set_item_list = set_item_list.clone();
             let set_is_loading = set_is_loading.clone();
-            let backend = vault_clone.backend();
-            let document_store = match backend {
-                localencrypt::StorageBackend::DocumentStore(document_store) => {
-                    document_store.clone()
-                }
+
+            let local_storage = match vault.backend() {
+                localencrypt::StorageBackend::Browser(browser_storage) => {
+                    browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
+                },
                 _ => panic!("Invalid storage backend"),
             };
 
@@ -69,7 +69,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                     .unwrap_or_default();
                 set_item_list.set(ObjectStoreList {
                     items: initial_items,
-                    document_store,
+                    local_storage,
                 });
                 set_is_loading.set(false);
             }
@@ -153,21 +153,21 @@ fn ListItem(
 #[derive(Debug, Clone)]
 pub struct ObjectStoreList {
     pub items: Vec<ObjectStore>,
-    pub document_store: DocumentStore,
+    pub local_storage: LocalStorage,
 }
 
 impl ObjectStoreList {
-    pub fn new(document_store: DocumentStore) -> Self {
+    pub fn new(local_storage: LocalStorage) -> Self {
         Self {
             items: vec![],
-            document_store,
+            local_storage,
         }
     }
 
     pub async fn load_from_vault(
         &self,
     ) -> SecureStringResult<Vec<ObjectStore>> {
-        let configs = self.document_store.list().await?;
+        let configs = self.local_storage.list_items().await?;
         let items = configs
             .into_iter()
             .map(|form_data| {
@@ -198,12 +198,12 @@ impl ObjectStoreList {
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), name.clone());
         let meta_data =
-            DocumentMetaData::new_with_tags(&object_store.id(), tags);
+            ItemMetaData::new_with_tags(&object_store.id(), tags);
 
         spawn_local({
-            let mut document_store = self.document_store.clone(); // clone document_store
+            let mut local_storage = self.local_storage.clone();
             async move {
-                let _ = document_store.add(meta_data).await; // use document_store
+                let _ = local_storage.add_item(meta_data).await;
                 set_is_submitting.set(false);
             }
         });
@@ -216,12 +216,11 @@ impl ObjectStoreList {
         set_is_loading: WriteSignal<bool>,
     ) {
         set_is_loading.set(true);
-        let form_name = item_id.clone();
-
         spawn_local({
-            let mut document_store = self.document_store.clone(); // clone document_store
+            let item_id = item_id.clone();
+            let mut local_storage = self.local_storage.clone();
             async move {
-                let _ = document_store.delete(&form_name).await; // use document_store
+                let _ = local_storage.delete_item(&item_id).await;
                 set_is_loading.set(false);
             }
         });

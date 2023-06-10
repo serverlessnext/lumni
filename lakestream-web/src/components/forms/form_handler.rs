@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::html::Div;
 use leptos::*;
-use localencrypt::{DocumentMetaData, LocalEncrypt, SecureStringError};
+use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
@@ -37,11 +37,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let config_manager_clone = self.config_manager.clone();
         let form_name = self.config_manager.id();
 
-        let backend = self.vault.backend();
-        let document_store = match backend {
-            localencrypt::StorageBackend::DocumentStore(document_store) => {
-                document_store.clone()
-            }
+        let local_storage = match self.vault.backend() {
+            localencrypt::StorageBackend::Browser(browser_storage) => {
+                browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
+            },
             _ => panic!("Invalid storage backend"),
         };
 
@@ -52,10 +51,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
                 .map(|(key, input_data)| (key, input_data.value))
                 .collect();
 
-            let document_store = document_store.clone();
+            let local_storage = local_storage.clone();
             let form_name_clone = form_name.clone();
             spawn_local(async move {
-                match document_store.load(&form_name_clone).await {
+                match local_storage.load_content(&form_name_clone).await {
                     Ok(Some(data)) => match serde_json::from_slice(&data) {
                         Ok(new_config) => {
                             set_loaded_config(Some(new_config));
@@ -101,7 +100,7 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), self.config_manager.name());
         let meta_data =
-            DocumentMetaData::new_with_tags(&self.config_manager.id(), tags);
+            ItemMetaData::new_with_tags(&self.config_manager.id(), tags);
 
         view! { cx,
             <div>
@@ -145,20 +144,21 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
 pub fn handle_form_submission(
     vault: LocalEncrypt,
-    meta_data: DocumentMetaData,
+    meta_data: ItemMetaData,
     document_content: Vec<u8>,
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
-    let backend = vault.backend();
-    let mut document_store = match backend {
-        localencrypt::StorageBackend::DocumentStore(document_store) => {
-            document_store.clone()
-        }
+
+    let mut local_storage = match vault.backend() {
+        localencrypt::StorageBackend::Browser(browser_storage) => {
+            browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
+        },
         _ => panic!("Invalid storage backend"),
     };
+
     spawn_local(async move {
-        match document_store.save(meta_data, &document_content).await {
+        match local_storage.save_content(meta_data, &document_content).await {
             Ok(_) => {
                 log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);

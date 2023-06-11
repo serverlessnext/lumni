@@ -57,14 +57,14 @@ pub fn App(cx: Scope) -> impl IntoView {
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
 
             <Router fallback=|cx| view! { cx, <Redirect/>}.into_view(cx)>
-                <nav class="py-3 px-4 text-lg font-medium h-24 bg-gradient-to-l from-gray-700 via-gray-900 to-black">
-                    <div class="mb-2 text-white text-2xl font-bold">"Lakestream"</div>
-                    <div class="flex items-end">
-                        <a href="/home" class="py-2 text-teal-200 hover:text-white mr-4">"Home"</a>
-                        <a href="/object-stores" class="py-2 text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
-                        <a href="/settings/user" class="py-2 text-teal-200 hover:text-white mr-4">"Settings"</a>
-                        <a href="/about" class="py-2 text-teal-200 hover:text-white mr-4">"About"</a>
-                        <a href="/logout" class="py-2 text-teal-200 hover:text-white mr-4">"Logout"</a>
+                <nav class="py-2 px-4 text-lg font-medium h-24 bg-black">
+                    <div class="mb-2 text-white text-2xl font-mono font-bold">"Lakestream"</div>
+                    <div class="flex py-3 items-end">
+                        <a href="/home" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Home"</a>
+                        <a href="/object-stores" class="text-green-300 hover:text-green-500 mr-4 font-mono">"ObjectStores"</a>
+                        <a href="/settings/user" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
+                        <a href="/about" class="text-green-300 hover:text-green-500 mr-4 font-mono">"About"</a>
+                        <a href="/logout" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Logout"</a>
                     </div>
                 </nav>
                 <main>

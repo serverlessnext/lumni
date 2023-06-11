@@ -14,14 +14,16 @@ pub enum ButtonType {
 impl ButtonType {
     fn color(&self) -> (&'static str, &'static str) {
         match self {
-            ButtonType::Create(_) => ("orange-600", "orange-700"),
-            ButtonType::Login(_) => ("blue-600", "blue-700"),
-            ButtonType::Save(_) => ("yellow-600", "yellow-700"),
-            ButtonType::Change(_) => ("yellow-600", "yellow-700"),
-            ButtonType::Confirm(_) => ("green-600", "green-700"),
-            ButtonType::Cancel(_) => ("red-600", "red-700"),
-            ButtonType::Reset(_) => ("red-600", "red-700"),
-            ButtonType::Custom(_) => ("purple-600", "purple-700"),
+            // keep full color list including bg- and hover:bg- classes
+            // else tailwind will not add them to css
+            ButtonType::Create(_) => ("bg-orange-600", "hover:bg-orange-700"),
+            ButtonType::Login(_) => ("bg-blue-600", "hover:bg-blue-700"),
+            ButtonType::Save(_) => ("bg-yellow-600", "hover:bg-yellow-700"),
+            ButtonType::Change(_) => ("bg-yellow-600", "hover:bg-yellow-700"),
+            ButtonType::Confirm(_) => ("bg-green-600", "hover:bg-green-700"),
+            ButtonType::Cancel(_) => ("bg-red-600", "hover:bg-red-700"),
+            ButtonType::Reset(_) => ("bg-red-600", "hover:bg-red-700"),
+            ButtonType::Custom(_) => ("bg-purple-600", "hover:bg-purple-700"),
         }
     }
 
@@ -62,7 +64,7 @@ impl ButtonType {
                 .to_string()
         } else {
             format!(
-                "inline-block px-3 bg-{} hover:bg-{} text-white font-bold \
+                "inline-block px-3 {} {} text-white font-bold \
                  py-2 rounded",
                 color_normal, color_hover
             )

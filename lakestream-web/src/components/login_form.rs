@@ -7,6 +7,7 @@ use leptos_router::use_navigate;
 use localencrypt::LocalEncrypt;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
+use uuid::Uuid;
 
 use localencrypt::{StorageBackend, LocalStorage};
 use crate::components::buttons::{ActionTrigger, ButtonType};
@@ -17,6 +18,8 @@ use crate::components::forms::{FormError, SingleInputForm};
 use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "admin";
+
+
 
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
@@ -205,3 +208,57 @@ fn reset_password_view(
         </div>
     }.into_view(cx)
 }
+
+#[component]
+pub fn LoginFormDebug(cx: Scope) -> impl IntoView {
+    debug_login(cx);
+    view! {
+        cx,
+        <div>
+            <p>"Debug login"</p>
+        </div>
+    }
+}
+
+fn debug_login(cx: Scope) {
+    // generate both unique user and password for each session
+    // in the event confidential data is stored during development
+    // its at least encrypted with a unique password
+    let debug_username = format!("debug-user-{}", Uuid::new_v4()).to_string();
+    let debug_password = format!("debug-password-{}", Uuid::new_v4()).to_string();
+
+    let state = use_context::<RwSignal<GlobalState>>(cx)
+        .expect("state to have been provided");
+
+    // Create writable state slices for the vault and initialization status.
+    let set_vault =
+        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
+    let set_vault_initialized =
+        create_write_slice(cx, state, |state, initialized| {
+            if let Some(runtime) = &mut state.runtime {
+                runtime.set_vault_initialized(initialized);
+            }
+        });
+
+    spawn_local(async move {
+        match StorageBackend::initiate_with_local_storage(&debug_username, Some(&debug_password)).await {
+            Ok(storage_backend) => {
+                let local_encrypt = LocalEncrypt::builder()
+                    .with_backend(storage_backend)
+                    .build();
+
+                set_vault(local_encrypt);
+                set_vault_initialized(true);
+                let navigate = use_navigate(cx);
+                if let Err(e) = navigate(&"/", Default::default()) {
+                    log!("Error navigating to {}: {}", "/", e);
+                }
+            }
+            Err(err) => {
+                let msg = err.to_string();
+                web_sys::console::log_1(&JsValue::from_str(&msg));
+            }
+        }
+    });
+}
+

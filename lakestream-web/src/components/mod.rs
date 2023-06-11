@@ -6,5 +6,5 @@ pub mod buttons;
 pub mod forms;
 
 pub use change_password_form::ChangePasswordForm;
-pub use login_form::LoginForm;
+pub use login_form::{LoginForm, LoginFormDebug};
 pub use redirect::Redirect;

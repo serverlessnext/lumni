@@ -3,7 +3,7 @@ use std::sync::Arc;
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
-use localencrypt::{LocalEncrypt, StorageBackend, LocalStorage};
+use localencrypt::StorageBackend;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 

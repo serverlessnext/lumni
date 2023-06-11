@@ -2,10 +2,11 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::api::{ChangePassword, Login};
+use crate::routes::api::Login;
 use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
-use crate::routes::users::UserId;
-use crate::routes::{About, Home, Logout, Redirect};
+use crate::routes::{About, Home, Settings, Logout, UserSettings};
+use crate::components::ChangePasswordForm;
+use crate::components::Redirect;
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -16,6 +17,14 @@ macro_rules! redirect_path {
     ($route:expr) => {
         concat!("/api/v1/login/", $route)
     };
+}
+
+#[component]
+pub fn RedirectTo(cx: Scope, path: &'static str) -> impl IntoView {
+    let navigate = use_navigate(cx);
+    if let Err(e) = navigate(&path, Default::default()) {
+        log!("Error navigating to {}: {}", path, e);
+    }
 }
 
 #[component]
@@ -53,7 +62,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="flex">
                         <a href="/home" class="text-teal-200 hover:text-white mr-4">"Home"</a>
                         <a href="/object-stores" class="text-teal-200 hover:text-white mr-4">"ObjectStores"</a>
-                        <a href="/users/admin" class="text-teal-200 hover:text-white mr-4">"Settings"</a>
+                        <a href="/settings/user" class="text-teal-200 hover:text-white mr-4">"Settings"</a>
                         <a href="/about" class="text-teal-200 hover:text-white mr-4">"About"</a>
                         <a href="/logout" class="text-teal-200 hover:text-white mr-4">"Logout"</a>
                     </div>
@@ -75,7 +84,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                         />
                        <ProtectedRoute
                             path="/object-stores"
-                            redirect_path=redirect_path!("object-stores")
+                             redirect_path=redirect_path!("object-stores")
                             condition=move |_| vault_initialized.get()
                             view=|cx| view! { cx, <ObjectStores/> }
                         />
@@ -86,21 +95,24 @@ pub fn App(cx: Scope) -> impl IntoView {
                             view=|cx| view! { cx, <ObjectStoresId/> }
                         />
                         <ProtectedRoute
-                            path="/users/:id"
-                            // we only support single admin id now
-                            redirect_path=redirect_path!("users:admin")
+                            path="/settings"
+                            redirect_path=redirect_path!("settings:user")
                             condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <UserId/> }
-                        />
+                            view=|cx| view! { cx, <Settings/> }
+                        >
+                            // catch /settings, else fallback kicks in
+                            <Route path="" view=|cx| view! { cx, <RedirectTo path="/settings/user"/> }/>
+                            <Route path="user" view=|cx| view! { cx,
+                                <UserSettings />
+                            }/>
+                            <Route path="change-password" view=|cx| view! { cx,
+                                <p>"Change Password Screen"</p>
+                                <ChangePasswordForm />
+                            }/>
+                       </ProtectedRoute>
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>
                         <Route path="/logout" view=|cx| view! { cx, <Logout/> }/>
-                        <ProtectedRoute
-                            path="/change-password"
-                            redirect_path=redirect_path!("change-password")
-                            condition=move |_| !vault_initialized.get()
-                            view=|cx| view! { cx, <ChangePassword /> }
-                        />
-                        <Route
+                       <Route
                             path=redirect_path!(":id")
                             view=move |cx| {
                                 let location = use_location(cx);

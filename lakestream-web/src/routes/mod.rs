@@ -1,11 +1,10 @@
 mod about;
-mod fallback;
 mod home;
 mod logout;
+mod settings;
 pub use about::About;
-pub use fallback::Redirect;
 pub use home::Home;
 pub use logout::Logout;
+pub use settings::{Settings, UserSettings};
 pub mod api;
 pub mod object_stores;
-pub mod users;

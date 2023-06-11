@@ -1,8 +1,6 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use localencrypt::{LocalEncrypt, StorageBackend};
-
 use super::object_store::ObjectStore;
 use crate::components::forms::form_handler::FormHandler;
 use crate::GlobalState;

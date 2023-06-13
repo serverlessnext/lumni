@@ -6,9 +6,21 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_handler::handle_form_submission;
 use super::form_input::{
-    create_input_elements, InputData, InputElements, InputFieldView,
+    create_input_elements, InputData, InputElements, InputBoxView,
 };
+use super::submission_status_view::FormSubmissionStatusView;
 use crate::components::buttons::{ButtonType, FormSubmitButton};
+
+
+pub trait OnSubmit {
+    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements);
+}
+
+impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
+    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements) {
+        self(ev, input_elements)
+    }
+}
 
 #[component]
 pub fn FormView(
@@ -18,12 +30,12 @@ pub fn FormView(
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
 ) -> impl IntoView {
+
     let (is_submitting, set_is_submitting) = create_signal(cx, false);
     let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
 
     let input_elements =
         create_input_elements(cx, &initial_config, &default_config);
-    let input_elements_clone_submit = input_elements.clone();
 
     let form_changed = create_rw_signal(cx, false);
 
@@ -86,70 +98,50 @@ pub fn FormView(
     view! {
         cx,
         <div>
-            <form class="flex flex-wrap w-96"
-                  on:submit=move |ev| {
-                    set_is_submitting(true);
-                    on_submit(ev, input_elements_clone_submit.clone())
-                  }
-            >
-            <For
-                each= move || {input_elements.clone().into_iter().enumerate()}
-                    key=|(index, _input)| *index
-                    view= move |cx, (_, (label, input_element))| {
-                        view! {
-                            cx,
-                            <InputFieldView
-                                label={label}
-                                input_element={input_element}
-                                input_changed={form_changed}
-                            />
-                        }
-
-                    }
+            <FormContentView
+                input_elements={input_elements}
+                on_submit={Box::new(on_submit)}
+                set_is_submitting={set_is_submitting}
+                form_changed={form_changed}
             />
-            <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed.into()/>
-            </form>
-
-        // Show a loading message while the form is submitting
-        { move || if is_submitting.get() {
-            view! {
-                cx,
-                <div>
-                    "Submitting..."
-                </div>
-            }
-        } else {
-            view! {
-                cx,
-                <div></div>
-            }
-        }}
-
-        // Show an error message if there was an error during submission
-        { move || if let Some(error) = submit_error.get() {
-            view! {
-                cx,
-                <div class="text-red-500">
-                    {"Error during submission: "}
-                    {error}
-                </div>
-            }
-        } else {
-            view! {
-                cx,
-                <div></div>
-            }
-        }}
+            <FormSubmissionStatusView is_submitting={is_submitting} submit_error={submit_error} />
         </div>
     }
 }
 
-pub trait OnSubmit {
-    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements);
-}
-
-impl<F: FnMut(SubmitEvent, InputElements)> OnSubmit for F {
-    fn call(&mut self, ev: SubmitEvent, input_elements: InputElements) {
-        self(ev, input_elements)
+#[component]
+pub fn FormContentView(
+    cx: Scope,
+    input_elements: InputElements,
+    on_submit: Box<dyn Fn(SubmitEvent, InputElements)>,
+    set_is_submitting: WriteSignal<bool>,
+    form_changed: RwSignal<bool>
+) -> impl IntoView {
+    let input_elements_clone = input_elements.clone();
+    view! {
+        cx,
+        <form class="flex flex-wrap w-full max-w-3xl bg-green-100 text-white border border-green-100 p-4 font-mono"
+            on:submit=move |ev| {
+                set_is_submitting.set(true);
+                on_submit(ev, input_elements.clone())
+            }
+        >
+        <For
+            each= move || {input_elements_clone.clone().into_iter().enumerate()}
+                key=|(index, _input)| *index
+                view= move |cx, (_, (label_text, input_element))| {
+                    view! {
+                        cx,
+                        <InputBoxView
+                            label_text
+                            input_element
+                            input_changed={form_changed}
+                        />
+                    }
+                }
+        />
+        <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed.into()/>
+        </form>
     }
 }
+

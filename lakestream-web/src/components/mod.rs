@@ -4,6 +4,7 @@ mod redirect;
 
 pub mod buttons;
 pub mod forms;
+pub mod icons;
 
 pub use change_password_form::ChangePasswordForm;
 pub use login_form::{LoginForm, LoginFormDebug};

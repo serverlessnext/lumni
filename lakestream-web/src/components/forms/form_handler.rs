@@ -6,9 +6,8 @@ use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
-pub use super::form_input::{InputData, InputField};
-pub use super::form_input_builder::{FormInputFieldBuilder, InputFieldPattern};
 use super::form_view::FormView;
+use crate::components::form_input::InputData;
 
 pub trait ConfigManager: Clone {
     fn default_fields(&self) -> HashMap<String, InputData>;

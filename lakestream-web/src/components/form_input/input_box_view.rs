@@ -1,19 +1,8 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
-
 use leptos::html::Input;
 use leptos::*;
 
+use super::input_data::InputElement;
 use crate::components::icons::LockIconView;
-
-type InputElement = (
-    NodeRef<Input>,
-    RwSignal<Option<String>>,
-    RwSignal<String>,
-    Arc<InputData>,
-);
-pub type InputElements = HashMap<String, InputElement>;
 
 const MASKED_VALUE: &str = "*****";
 
@@ -27,9 +16,9 @@ pub fn InputBoxView(
     // shows Label, InputField and Error
     // defined from input_element
     let (input_ref, error_signal, value_signal, input_data) = input_element;
-    let is_secret = input_data.input_field.is_secret();
-    let is_password = input_data.input_field.is_password();
-    let initial_enabled = input_data.input_field.is_enabled();
+    let is_secret = input_data.form_field.field_type.is_secret();
+    let is_password = input_data.form_field.field_type.is_password();
+    let initial_enabled = input_data.form_field.field_type.is_enabled();
 
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;
@@ -176,117 +165,4 @@ pub fn InputFieldErrorView(
         </div>
     }
     .into_view(cx)
-}
-
-#[derive(Debug, Clone)]
-pub enum InputField {
-    Text { is_enabled: bool },
-    Secret { is_enabled: bool },
-    Password { is_enabled: bool },
-}
-
-impl InputField {
-    pub fn new_text(is_enabled: bool) -> Self {
-        Self::Text { is_enabled }
-    }
-
-    pub fn new_secret(is_enabled: bool) -> Self {
-        Self::Secret { is_enabled }
-    }
-
-    pub fn new_password(is_enabled: bool) -> Self {
-        Self::Password { is_enabled }
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        match self {
-            Self::Text { is_enabled } => *is_enabled,
-            Self::Secret { is_enabled } => *is_enabled,
-            Self::Password { is_enabled } => *is_enabled,
-        }
-    }
-
-    pub fn is_secret(&self) -> bool {
-        matches!(self, Self::Secret { .. })
-    }
-
-    pub fn is_password(&self) -> bool {
-        matches!(self, Self::Password { .. })
-    }
-}
-
-impl Default for InputField {
-    fn default() -> Self {
-        Self::Text { is_enabled: true }
-    }
-}
-
-#[derive(Clone)]
-pub struct InputData {
-    pub value: String,
-    pub input_field: InputField,
-    pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
-}
-
-impl fmt::Debug for InputData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("InputData")
-            .field("value", &self.value)
-            .field("input_field", &self.input_field)
-            .field("validator", &self.validator.is_some())
-            .finish()
-    }
-}
-
-impl InputData {
-    pub fn new(
-        value: String,
-        input_field: InputField,
-        validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
-    ) -> Self {
-        Self {
-            value,
-            input_field,
-            validator,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FormInputField {
-    pub name: String,
-    pub input_data: InputData,
-}
-
-impl FormInputField {
-    pub fn to_input_data(self) -> (String, InputData) {
-        (self.name, self.input_data)
-    }
-}
-
-pub fn create_input_elements(
-    cx: Scope,
-    updated_config: &HashMap<String, String>,
-    default_config: &HashMap<String, InputData>,
-) -> InputElements {
-    updated_config
-        .iter()
-        .map(|(key, value)| {
-            let error_signal = create_rw_signal(cx, None);
-            let value_signal = create_rw_signal(cx, value.clone());
-            let default_input_data = default_config
-                .get(key)
-                .expect("Default InputData to exist")
-                .clone();
-            (
-                key.clone(),
-                (
-                    create_node_ref(cx),
-                    error_signal,
-                    value_signal,
-                    Arc::new(default_input_data),
-                ),
-            )
-        })
-        .collect()
 }

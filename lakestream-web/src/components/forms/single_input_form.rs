@@ -5,7 +5,7 @@ use leptos::html::Input;
 use leptos::*;
 
 use crate::components::buttons::{ButtonType, FormSubmitButton};
-use crate::components::forms::form_handler::{InputData, InputField};
+use crate::components::form_input::{FieldType, InputData};
 
 #[derive(Clone)]
 pub struct SingleInputForm<T> {
@@ -38,10 +38,10 @@ impl<T: Clone + 'static> SingleInputForm<T> {
     ) -> View {
         let validation_error = create_rw_signal(cx, None);
 
-        let input_type = match self.input_data.input_field {
-            InputField::Text { .. } => "text",
-            InputField::Secret { .. } => "password",
-            InputField::Password { .. } => "password",
+        let input_type = match self.input_data.form_field.field_type {
+            FieldType::Text { .. } => "text",
+            FieldType::Secret { .. } => "password",
+            FieldType::Password { .. } => "password",
         };
 
         let on_submit = {

@@ -2,27 +2,26 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use super::form_input::{FormInputField, InputData, InputField};
 use super::helpers::validate_with_pattern;
+use super::input_data::{FormInputField, InputData};
+use crate::components::form_input::{FieldLabel, FieldType, FormField};
 
 #[derive(Clone, Default)]
-pub struct FormInputFieldBuilder {
+pub struct FormFieldBuilder {
     name: String,
     default: String,
-    input_field: InputField,
+    form_field: FormField,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
-pub enum InputFieldPattern {
-    PasswordChange,
-    PasswordCheck,
-}
-
-impl FormInputFieldBuilder {
+impl FormFieldBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            input_field: InputField::new_text(true),
+            form_field: FormField {
+                field_label: Some(FieldLabel::new("")),
+                field_type: FieldType::Text { is_enabled: true },
+            },
             ..Default::default()
         }
     }
@@ -33,17 +32,22 @@ impl FormInputFieldBuilder {
     }
 
     pub fn text(mut self, is_enabled: bool) -> Self {
-        self.input_field = InputField::new_text(is_enabled);
+        self.form_field.field_type = FieldType::Text { is_enabled };
         self
     }
 
     pub fn secret(mut self, is_enabled: bool) -> Self {
-        self.input_field = InputField::new_secret(is_enabled);
+        self.form_field.field_type = FieldType::Secret { is_enabled };
         self
     }
 
     pub fn password(mut self, is_enabled: bool) -> Self {
-        self.input_field = InputField::new_password(is_enabled);
+        self.form_field.field_type = FieldType::Password { is_enabled };
+        self
+    }
+
+    pub fn label(mut self, text: Option<String>) -> Self {
+        self.form_field.field_label = text.map(|l| FieldLabel::new(&l));
         self
     }
 
@@ -60,7 +64,7 @@ impl FormInputFieldBuilder {
             name: self.name,
             input_data: InputData::new(
                 self.default,
-                self.input_field,
+                self.form_field,
                 self.validate_fn,
             ),
         }
@@ -85,4 +89,9 @@ impl FormInputFieldBuilder {
         };
         builder.build().to_input_data().1
     }
+}
+
+pub enum InputFieldPattern {
+    PasswordChange,
+    PasswordCheck,
 }

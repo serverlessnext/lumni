@@ -4,10 +4,10 @@ use std::sync::Arc;
 use regex::Regex;
 use uuid::Uuid;
 
-use crate::components::forms::form_handler::{
-    ConfigManager, FormInputFieldBuilder, InputData,
+use crate::components::form_input::{
+    validate_with_pattern, FormFieldBuilder, InputData,
 };
-use crate::components::forms::helpers::validate_with_pattern;
+use crate::components::forms::form_handler::ConfigManager;
 
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
@@ -43,26 +43,26 @@ impl ObjectStore {
         let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
         vec![
-            FormInputFieldBuilder::new("__NAME__")
+            FormFieldBuilder::new("__NAME__")
                 .default(self.name.clone())
                 .validator(None)
                 .text(false)
                 .build(),
-            FormInputFieldBuilder::new("BUCKET_URI")
+            FormFieldBuilder::new("BUCKET_URI")
                 .default("s3://".to_string())
                 .validator(Some(Arc::new(validate_with_pattern(
                     uri_pattern,
                     "Invalid URI scheme. Must start with 's3://'.".to_string(),
                 ))))
                 .build(),
-            FormInputFieldBuilder::new("AWS_ACCESS_KEY_ID")
+            FormFieldBuilder::new("AWS_ACCESS_KEY_ID")
                 .default("".to_string())
                 .validator(Some(Arc::new(validate_with_pattern(
                     aws_key_pattern,
                     "Invalid AWS access key id.".to_string(),
                 ))))
                 .build(),
-            FormInputFieldBuilder::new("AWS_SECRET_ACCESS_KEY")
+            FormFieldBuilder::new("AWS_SECRET_ACCESS_KEY")
                 .default("".to_string())
                 .secret(true)
                 .validator(Some(Arc::new(validate_with_pattern(
@@ -70,14 +70,14 @@ impl ObjectStore {
                     "Invalid AWS secret access key.".to_string(),
                 ))))
                 .build(),
-            FormInputFieldBuilder::new("AWS_REGION")
+            FormFieldBuilder::new("AWS_REGION")
                 .default("auto".to_string())
                 .validator(Some(Arc::new(validate_with_pattern(
                     region_pattern,
                     "Invalid AWS region.".to_string(),
                 ))))
                 .build(),
-            FormInputFieldBuilder::new("S3_ENDPOINT_URL")
+            FormFieldBuilder::new("S3_ENDPOINT_URL")
                 .default("".to_string())
                 .validator(Some(Arc::new(validate_with_pattern(
                     endpoint_url_pattern,

@@ -3,6 +3,8 @@ mod login_form;
 mod redirect;
 
 pub mod buttons;
+pub mod form_helpers;
+pub mod form_input;
 pub mod forms;
 pub mod icons;
 

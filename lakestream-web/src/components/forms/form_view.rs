@@ -5,11 +5,11 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_handler::handle_form_submission;
-use super::form_input::{
+use crate::components::buttons::{ButtonType, FormSubmitButton};
+use crate::components::form_helpers::FormSubmissionStatusView;
+use crate::components::form_input::{
     create_input_elements, InputBoxView, InputData, InputElements,
 };
-use super::submission_status_view::FormSubmissionStatusView;
-use crate::components::buttons::{ButtonType, FormSubmitButton};
 
 pub trait OnSubmit {
     fn call(&mut self, ev: SubmitEvent, input_elements: InputElements);

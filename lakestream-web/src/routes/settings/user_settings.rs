@@ -4,9 +4,8 @@ use leptos::html::Div;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::components::forms::form_handler::{
-    ConfigManager, FormHandler, FormInputFieldBuilder, InputData,
-};
+use crate::components::form_input::{FormFieldBuilder, InputData};
+use crate::components::forms::form_handler::{ConfigManager, FormHandler};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -62,10 +61,10 @@ impl UserForm {
 
     fn default_fields(&self) -> HashMap<String, InputData> {
         vec![
-            FormInputFieldBuilder::new("field1")
+            FormFieldBuilder::new("field1")
                 .default("".to_string())
                 .build(),
-            FormInputFieldBuilder::new("field2")
+            FormFieldBuilder::new("field2")
                 .default("".to_string())
                 .build(),
         ]

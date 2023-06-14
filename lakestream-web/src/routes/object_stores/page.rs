@@ -1,4 +1,3 @@
-
 use leptos::*;
 
 use super::list_view::ObjectStoreListView;
@@ -9,4 +8,3 @@ pub fn ObjectStores(cx: Scope) -> impl IntoView {
         <ObjectStoreListView />
     }
 }
-

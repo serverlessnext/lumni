@@ -4,12 +4,11 @@ use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 use leptos_router::use_navigate;
-use localencrypt::LocalEncrypt;
+use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
+use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
-use uuid::Uuid;
 
-use localencrypt::{StorageBackend, LocalStorage};
 use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::forms::form_handler::{
     FormInputFieldBuilder, InputFieldPattern,
@@ -18,8 +17,6 @@ use crate::components::forms::{FormError, SingleInputForm};
 use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "admin";
-
-
 
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
@@ -61,7 +58,12 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         let redirect_url = redirect_url.clone();
 
         spawn_local(async move {
-            match StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await {
+            match StorageBackend::initiate_with_local_storage(
+                ROOT_USERNAME,
+                Some(&password),
+            )
+            .await
+            {
                 Ok(storage_backend) => {
                     let local_encrypt = LocalEncrypt::builder()
                         .with_backend(storage_backend)
@@ -70,7 +72,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                     set_vault(local_encrypt);
                     set_vault_initialized(true);
                     let navigate = use_navigate(cx);
-                    if let Err(e) = navigate(&redirect_url, Default::default()) {
+                    if let Err(e) = navigate(&redirect_url, Default::default())
+                    {
                         log!("Error navigating to {}: {}", &redirect_url, e);
                     }
                 }
@@ -87,7 +90,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     create_effect(cx, move |_| {
         spawn_local({
             async move {
-                let user_exists = LocalStorage::user_exists(ROOT_USERNAME).await;
+                let user_exists =
+                    LocalStorage::user_exists(ROOT_USERNAME).await;
                 is_user_defined.set(user_exists);
                 is_loading.set(false);
             }
@@ -145,7 +149,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, None).await;
+    let storage_backend =
+        StorageBackend::initiate_with_local_storage(ROOT_USERNAME, None).await;
     match storage_backend {
         Ok(backend) => match backend.hard_reset().await {
             Ok(_) => {
@@ -169,7 +174,6 @@ async fn reset_vault_action() -> Result<(), FormError> {
         }
     }
 }
-
 
 fn reset_password_view(
     cx: Scope,
@@ -225,7 +229,8 @@ fn debug_login(cx: Scope) {
     // in the event confidential data is stored during development
     // its at least encrypted with a unique password
     let debug_username = format!("debug-user-{}", Uuid::new_v4()).to_string();
-    let debug_password = format!("debug-password-{}", Uuid::new_v4()).to_string();
+    let debug_password =
+        format!("debug-password-{}", Uuid::new_v4()).to_string();
 
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
@@ -241,7 +246,12 @@ fn debug_login(cx: Scope) {
         });
 
     spawn_local(async move {
-        match StorageBackend::initiate_with_local_storage(&debug_username, Some(&debug_password)).await {
+        match StorageBackend::initiate_with_local_storage(
+            &debug_username,
+            Some(&debug_password),
+        )
+        .await
+        {
             Ok(storage_backend) => {
                 let local_encrypt = LocalEncrypt::builder()
                     .with_backend(storage_backend)
@@ -261,4 +271,3 @@ fn debug_login(cx: Scope) {
         }
     });
 }
-

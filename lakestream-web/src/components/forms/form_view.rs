@@ -6,11 +6,10 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_handler::handle_form_submission;
 use super::form_input::{
-    create_input_elements, InputData, InputElements, InputBoxView,
+    create_input_elements, InputBoxView, InputData, InputElements,
 };
 use super::submission_status_view::FormSubmissionStatusView;
 use crate::components::buttons::{ButtonType, FormSubmitButton};
-
 
 pub trait OnSubmit {
     fn call(&mut self, ev: SubmitEvent, input_elements: InputElements);
@@ -30,7 +29,6 @@ pub fn FormView(
     initial_config: HashMap<String, String>,
     default_config: HashMap<String, InputData>,
 ) -> impl IntoView {
-
     let (is_submitting, set_is_submitting) = create_signal(cx, false);
     let (submit_error, set_submit_error) = create_signal(cx, None::<String>);
 
@@ -115,12 +113,12 @@ pub fn FormContentView(
     input_elements: InputElements,
     on_submit: Box<dyn Fn(SubmitEvent, InputElements)>,
     set_is_submitting: WriteSignal<bool>,
-    form_changed: RwSignal<bool>
+    form_changed: RwSignal<bool>,
 ) -> impl IntoView {
     let input_elements_clone = input_elements.clone();
     view! {
         cx,
-        <form class="flex flex-wrap w-full max-w-3xl bg-green-100 text-white border border-green-100 p-4 font-mono"
+        <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
             on:submit=move |ev| {
                 set_is_submitting.set(true);
                 on_submit(ev, input_elements.clone())
@@ -144,4 +142,3 @@ pub fn FormContentView(
         </form>
     }
 }
-

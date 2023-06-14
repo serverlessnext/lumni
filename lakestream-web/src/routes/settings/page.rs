@@ -1,5 +1,5 @@
 use leptos::*;
-use leptos_router::{Outlet, use_location};
+use leptos_router::{use_location, Outlet};
 
 #[component]
 pub fn Settings(cx: Scope) -> impl IntoView {
@@ -36,4 +36,3 @@ pub fn Settings(cx: Scope) -> impl IntoView {
         </main>
     }
 }
-

@@ -32,23 +32,26 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         let password = password_ref().expect("password to exist").value();
 
         spawn_local(async move {
-            let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await;
+            let storage_backend = StorageBackend::initiate_with_local_storage(
+                ROOT_USERNAME,
+                Some(&password),
+            )
+            .await;
             match storage_backend {
-                Ok(backend) => {
-                    match backend.validate_password().await {
-                        Ok(valid) => {
-                            if valid {
-                                set_is_old_password_valid.set(true);
-                            } else {
-                                error_signal.set(Some(
-                                    "Invalid password. Please try again.".to_string(),
-                                ));
-                            }
+                Ok(backend) => match backend.validate_password().await {
+                    Ok(valid) => {
+                        if valid {
+                            set_is_old_password_valid.set(true);
+                        } else {
+                            error_signal.set(Some(
+                                "Invalid password. Please try again."
+                                    .to_string(),
+                            ));
                         }
-                        Err(err) => error_signal
-                            .set(Some(format!("Error: {}", err.to_string()))),
                     }
-                }
+                    Err(err) => error_signal
+                        .set(Some(format!("Error: {}", err.to_string()))),
+                },
                 Err(err) => error_signal
                     .set(Some(format!("Error: {}", err.to_string()))),
             }
@@ -62,10 +65,17 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             new_password_ref().expect("new password to exist").value();
 
         spawn_local(async move {
-            let storage_backend = StorageBackend::initiate_with_local_storage(ROOT_USERNAME, Some(&password)).await;
+            let storage_backend = StorageBackend::initiate_with_local_storage(
+                ROOT_USERNAME,
+                Some(&password),
+            )
+            .await;
             match storage_backend {
                 Ok(backend) => {
-                    match backend.change_password(&password, &new_password).await {
+                    match backend
+                        .change_password(&password, &new_password)
+                        .await
+                    {
                         Ok(_) => log!("Password changed successfully"),
                         Err(err) => {
                             let msg = err.to_string();

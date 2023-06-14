@@ -14,7 +14,6 @@ pub struct RouteParams {
     id: String,
 }
 
-
 #[component]
 pub fn UserSettings(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
@@ -26,9 +25,9 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     let username = "admin".to_string();
 
     let form_data_handler: HtmlElement<Div> = {
-            let config_manager = UserForm::new(username);
-            let form_handler = FormHandler::new(config_manager, vault);
-            form_handler.form_data_handler(cx)
+        let config_manager = UserForm::new(username);
+        let form_handler = FormHandler::new(config_manager, vault);
+        form_handler.form_data_handler(cx)
     };
 
     view! {
@@ -62,7 +61,6 @@ impl UserForm {
     }
 
     fn default_fields(&self) -> HashMap<String, InputData> {
-
         vec![
             FormInputFieldBuilder::new("field1")
                 .default("".to_string())

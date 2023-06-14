@@ -39,8 +39,10 @@ impl<T: ConfigManager + Clone + 'static> FormHandler<T> {
 
         let local_storage = match self.vault.backend() {
             localencrypt::StorageBackend::Browser(browser_storage) => {
-                browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
-            },
+                browser_storage
+                    .local_storage()
+                    .unwrap_or_else(|| panic!("Invalid browser storage type"))
+            }
             _ => panic!("Invalid storage backend"),
         };
 
@@ -149,16 +151,20 @@ pub fn handle_form_submission(
     set_is_submitting: WriteSignal<bool>,
     set_submit_error: WriteSignal<Option<String>>,
 ) {
-
     let mut local_storage = match vault.backend() {
         localencrypt::StorageBackend::Browser(browser_storage) => {
-            browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
-        },
+            browser_storage
+                .local_storage()
+                .unwrap_or_else(|| panic!("Invalid browser storage type"))
+        }
         _ => panic!("Invalid storage backend"),
     };
 
     spawn_local(async move {
-        match local_storage.save_content(meta_data, &document_content).await {
+        match local_storage
+            .save_content(meta_data, &document_content)
+            .await
+        {
             Ok(_) => {
                 log!("Successfully saved secure configuration",);
                 set_is_submitting.set(false);

@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use leptos::html::Input;
@@ -7,7 +6,6 @@ use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
 
 use super::object_store::ObjectStore;
 use crate::GlobalState;
-
 
 #[component]
 pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
@@ -18,8 +16,10 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 
     let local_storage = match vault.backend() {
         localencrypt::StorageBackend::Browser(browser_storage) => {
-            browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
-        },
+            browser_storage
+                .local_storage()
+                .unwrap_or_else(|| panic!("Invalid browser storage type"))
+        }
         _ => panic!("Invalid storage backend"),
     };
 
@@ -51,8 +51,10 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 
             let local_storage = match vault.backend() {
                 localencrypt::StorageBackend::Browser(browser_storage) => {
-                    browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
-                },
+                    browser_storage.local_storage().unwrap_or_else(|| {
+                        panic!("Invalid browser storage type")
+                    })
+                }
                 _ => panic!("Invalid storage backend"),
             };
 
@@ -192,8 +194,7 @@ impl ObjectStoreList {
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), name.clone());
-        let meta_data =
-            ItemMetaData::new_with_tags(&object_store.id(), tags);
+        let meta_data = ItemMetaData::new_with_tags(&object_store.id(), tags);
 
         spawn_local({
             let mut local_storage = self.local_storage.clone();

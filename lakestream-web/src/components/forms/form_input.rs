@@ -17,7 +17,6 @@ pub type InputElements = HashMap<String, InputElement>;
 
 const MASKED_VALUE: &str = "*****";
 
-
 #[component]
 pub fn InputBoxView(
     cx: Scope,
@@ -45,7 +44,14 @@ pub fn InputBoxView(
             is_secret || is_password
         },
     );
-    let is_enabled = (move || if is_locked.get() { false } else { initial_enabled }).derive_signal(cx);
+    let is_enabled = (move || {
+        if is_locked.get() {
+            false
+        } else {
+            initial_enabled
+        }
+    })
+    .derive_signal(cx);
 
     let initial_value = if is_locked.get() {
         if initial_value.is_empty() {
@@ -78,14 +84,15 @@ pub fn InputBoxView(
                     click_handler
                 />
             </div>
-        }.into_view(cx)
+        }
+        .into_view(cx)
     } else {
         view! { cx, }.into_view(cx)
     };
 
     view! {
         cx,
-        <div class="bg-blue-200 w-full flex-col items-start text-left mb-4">
+        <div class="w-full flex-col items-start text-left mb-2 p-2 bg-white text-gray-800">
             <InputFieldLabelView
                 label_text
                 icon_view=icon_view
@@ -111,10 +118,11 @@ pub fn InputFieldLabelView(
 ) -> impl IntoView {
     view! {
         cx,
-        <label class="text-left px-2 w-full">
-            {label_text}
+        <div class="flex justify-between items-center">
+            <label for="field_id" class="text-base font-semibold text-gray-900">{label_text}</label>
             {icon_view}
-        </label>
+        </div>
+
     }
 }
 
@@ -140,13 +148,22 @@ pub fn InputFieldView(
                 }
             }
             placeholder="none".to_string()
-            class=move || {format!("{} w-2/3", get_input_class(is_enabled.get()))}
+            class=move || {format!("{} w-full", get_input_class(is_enabled.get()))}
             node_ref=input_ref
             disabled=move || { !is_enabled.get() }
         />
     }
 }
 
+fn get_input_class(is_enabled: bool) -> &'static str {
+    if is_enabled {
+        "bg-gray-50 border border-gray-300 text-gray-900 rounded-lg \
+         focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+    } else {
+        "bg-gray-50 border border-gray-300 text-gray-900 rounded-lg block \
+         w-full p-2.5"
+    }
+}
 
 #[component]
 pub fn InputFieldErrorView(
@@ -157,9 +174,9 @@ pub fn InputFieldErrorView(
         <div class="text-red-500">
             { move || error_signal.get().unwrap_or("".to_string()) }
         </div>
-    }.into_view(cx)
+    }
+    .into_view(cx)
 }
-
 
 #[derive(Debug, Clone)]
 pub enum InputField {
@@ -272,15 +289,4 @@ pub fn create_input_elements(
             )
         })
         .collect()
-}
-
-
-fn get_input_class(is_enabled: bool) -> &'static str {
-    if is_enabled {
-        "shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 \
-         leading-tight focus:outline-none focus:shadow-outline"
-    } else {
-        "shadow appearance-none border rounded w-full py-2 px-3 text-gray-300 \
-         leading-tight focus:outline-none focus:shadow-outline"
-    }
 }

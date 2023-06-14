@@ -2,11 +2,10 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
+use crate::components::{ChangePasswordForm, Redirect};
 use crate::routes::api::Login;
 use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
-use crate::routes::{About, Home, Settings, Logout, UserSettings};
-use crate::components::ChangePasswordForm;
-use crate::components::Redirect;
+use crate::routes::{About, Home, Logout, Settings, UserSettings};
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";

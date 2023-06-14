@@ -5,7 +5,6 @@ use super::object_store::ObjectStore;
 use crate::components::forms::form_handler::FormHandler;
 use crate::GlobalState;
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
     id: String,
@@ -45,12 +44,15 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                 let is_object_store = is_object_store.clone();
                 let form_id = form_id_clone.clone();
                 spawn_local({
-
                     async move {
                         let local_storage = match vault.backend() {
-                            localencrypt::StorageBackend::Browser(browser_storage) => {
-                                browser_storage.local_storage().unwrap_or_else(|| panic!("Invalid browser storage type"))
-                            },
+                            localencrypt::StorageBackend::Browser(
+                                browser_storage,
+                            ) => {
+                                browser_storage.local_storage().unwrap_or_else(
+                                    || panic!("Invalid browser storage type"),
+                                )
+                            }
                             _ => panic!("Invalid storage backend"),
                         };
 

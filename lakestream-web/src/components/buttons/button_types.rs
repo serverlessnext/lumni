@@ -64,8 +64,7 @@ impl ButtonType {
                 .to_string()
         } else {
             format!(
-                "inline-block px-3 {} {} text-white font-bold \
-                 py-2 rounded",
+                "inline-block px-3 {} {} text-white font-bold py-2 rounded",
                 color_normal, color_hover
             )
         }

@@ -1,8 +1,8 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::object_store::ObjectStore;
-use crate::components::forms::form_handler::FormHandler;
+use super::object_store::ObjectStoreForm;
+use crate::components::forms::{HtmlForm, HtmlFormHandler};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -33,7 +33,8 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         .map(|route_params| route_params.id.clone());
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
-    let is_object_store = create_rw_signal(cx, None::<ObjectStore>);
+
+    let form_loaded = create_rw_signal(cx, None::<HtmlForm>);
 
     let vault_clone = vault.clone();
     let form_id_clone = form_id.clone();
@@ -41,7 +42,7 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         Some(form_id) if !form_id.is_empty() => {
             if !form_id.is_empty() {
                 let vault = vault_clone.clone();
-                let is_object_store = is_object_store.clone();
+                let form_loaded = form_loaded.clone();
                 let form_id = form_id_clone.clone();
                 spawn_local({
                     async move {
@@ -76,12 +77,14 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                             });
 
                         if let Some(name) = name {
-                            is_object_store.set(Some(
-                                ObjectStore::new_with_id(
-                                    name.to_string(),
-                                    form_id.clone().unwrap_or_default(),
-                                ),
-                            ));
+                            //let object_store_form =
+                            let default_fields =
+                                ObjectStoreForm::default_fields(&name);
+                            form_loaded.set(Some(HtmlForm::new(
+                                &name,
+                                &form_id.clone().unwrap_or_default(),
+                                default_fields,
+                            )));
                         }
                         set_is_loading.set(false);
                     }
@@ -96,12 +99,12 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
     view! {
         cx,
         {move || if is_loading.get() {
-            view! { cx, <div>"Loading..."</div> }
+            view! { cx, <div>"Loading..."</div> }.into_view(cx)
         } else {
-            match is_object_store.get() {
-                Some(object_store) => {
-                    let form_handler = FormHandler::new(object_store, vault.clone());
-                    form_handler.form_data_handler(cx)
+            match form_loaded.get() {
+                Some(form) => {
+                    let handler = HtmlFormHandler::new(form, vault.clone());
+                    handler.create_view(cx)
                 }
                 None => {
                     view! {
@@ -110,7 +113,7 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                             <h1>"404: Page Not Found"</h1>
                             <p>"The page you requested could not be found."</p>
                         </div>
-                    }
+                    }.into_view(cx)
                 }
             }
         }

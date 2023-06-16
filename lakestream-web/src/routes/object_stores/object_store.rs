@@ -7,15 +7,14 @@ use uuid::Uuid;
 use crate::components::form_input::{
     validate_with_pattern, FormFieldBuilder, InputData,
 };
-use crate::components::forms::form_handler::ConfigManager;
 
 #[derive(Debug, Clone)]
-pub struct ObjectStore {
+pub struct ObjectStoreForm {
     name: String,
     id: String,
 }
 
-impl ObjectStore {
+impl ObjectStoreForm {
     pub fn new(name: String) -> Self {
         Self {
             name,
@@ -35,16 +34,16 @@ impl ObjectStore {
         self.id.clone()
     }
 
-    fn default_fields(&self) -> HashMap<String, InputData> {
+    pub fn default_fields(name: &str) -> HashMap<String, InputData> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
         let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
         let region_pattern = Regex::new(r"^[a-zA-Z0-9\-]*$").unwrap();
         let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
-        vec![
+        let fields = vec![
             FormFieldBuilder::new("__NAME__")
-                .default(self.name.clone())
+                .default(name.to_string())
                 .validator(None)
                 .text(false)
                 .build(),
@@ -87,20 +86,8 @@ impl ObjectStore {
         ]
         .into_iter()
         .map(|field| field.to_input_data())
-        .collect()
-    }
-}
+        .collect();
 
-impl ConfigManager for ObjectStore {
-    fn default_fields(&self) -> HashMap<String, InputData> {
-        self.default_fields()
-    }
-
-    fn name(&self) -> String {
-        self.name()
-    }
-
-    fn id(&self) -> String {
-        self.id()
+        fields
     }
 }

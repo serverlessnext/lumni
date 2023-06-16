@@ -3,8 +3,8 @@ use leptos::*;
 #[component]
 pub fn FormSubmissionStatusView(
     cx: Scope,
-    is_submitting: ReadSignal<bool>,
-    submit_error: ReadSignal<Option<String>>,
+    is_submitting: Signal<bool>,
+    submit_error: Signal<Option<String>>,
 ) -> impl IntoView {
     view! {
        cx,

@@ -58,30 +58,3 @@ impl FormInputField {
         (self.name, self.input_data)
     }
 }
-
-pub fn create_input_elements(
-    cx: Scope,
-    updated_config: &HashMap<String, String>,
-    default_config: &HashMap<String, InputData>,
-) -> InputElements {
-    updated_config
-        .iter()
-        .map(|(key, value)| {
-            let error_signal = create_rw_signal(cx, None);
-            let value_signal = create_rw_signal(cx, value.clone());
-            let default_input_data = default_config
-                .get(key)
-                .expect("Default InputData to exist")
-                .clone();
-            (
-                key.clone(),
-                (
-                    create_node_ref(cx),
-                    error_signal,
-                    value_signal,
-                    Arc::new(default_input_data),
-                ),
-            )
-        })
-        .collect()
-}

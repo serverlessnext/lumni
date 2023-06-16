@@ -4,7 +4,7 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
 
-use super::object_store::ObjectStore;
+use super::object_store::ObjectStoreForm;
 use crate::GlobalState;
 
 #[component]
@@ -114,7 +114,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                         <For
                             each={move || item_list.get().items.clone()}
                             key=|item| item.name()
-                            view=move |cx, item: ObjectStore| view! { cx, <ListItem item set_is_loading/> }
+                            view=move |cx, item: ObjectStoreForm| view! { cx, <ListItem item set_is_loading/> }
                         />
                     </ul>
                 </div>
@@ -127,7 +127,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 #[component]
 fn ListItem(
     cx: Scope,
-    item: ObjectStore,
+    item: ObjectStoreForm,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ObjectStoreList>>(cx).unwrap();
@@ -149,7 +149,7 @@ fn ListItem(
 
 #[derive(Debug, Clone)]
 pub struct ObjectStoreList {
-    pub items: Vec<ObjectStore>,
+    pub items: Vec<ObjectStoreForm>,
     pub local_storage: LocalStorage,
 }
 
@@ -163,12 +163,12 @@ impl ObjectStoreList {
 
     pub async fn load_from_vault(
         &self,
-    ) -> SecureStringResult<Vec<ObjectStore>> {
+    ) -> SecureStringResult<Vec<ObjectStoreForm>> {
         let configs = self.local_storage.list_items().await?;
         let items = configs
             .into_iter()
             .map(|form_data| {
-                ObjectStore::new_with_id(
+                ObjectStoreForm::new_with_id(
                     form_data
                         .tags()
                         .unwrap()
@@ -190,7 +190,7 @@ impl ObjectStoreList {
     ) {
         set_is_submitting.set(true);
 
-        let object_store = ObjectStore::new(name.clone());
+        let object_store = ObjectStoreForm::new(name.clone());
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), name.clone());

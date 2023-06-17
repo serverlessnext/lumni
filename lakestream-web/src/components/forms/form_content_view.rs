@@ -24,11 +24,10 @@ pub fn FormContentView(
         <For
             each= move || {input_elements_clone.clone().into_iter().enumerate()}
                 key=|(index, _input)| *index
-                view= move |cx, (_, (label_text, input_element))| {
+                view= move |cx, (_, (_key, input_element))| {
                     view! {
                         cx,
                         <InputBoxView
-                            label_text
                             input_element
                             input_changed={form_changed}
                         />

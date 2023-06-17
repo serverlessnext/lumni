@@ -26,8 +26,8 @@ impl FormFieldBuilder {
         }
     }
 
-    pub fn default(mut self, default: String) -> Self {
-        self.default = default;
+    pub fn default<S: Into<String>>(mut self, default: S) -> Self {
+        self.default = default.into();
         self
     }
 
@@ -46,8 +46,8 @@ impl FormFieldBuilder {
         self
     }
 
-    pub fn label(mut self, text: Option<String>) -> Self {
-        self.form_field.field_label = text.map(|l| FieldLabel::new(&l));
+    pub fn label<S: Into<String>>(mut self, text: S) -> Self {
+        self.form_field.field_label = Some(FieldLabel::new(&text.into()));
         self
     }
 

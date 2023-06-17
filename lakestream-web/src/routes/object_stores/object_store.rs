@@ -34,7 +34,7 @@ impl ObjectStoreForm {
         self.id.clone()
     }
 
-    pub fn default_fields(name: &str) -> HashMap<String, InputData> {
+    pub fn default_fields<S: Into<String>>(name: S) -> HashMap<String, InputData> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
         let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
@@ -43,26 +43,30 @@ impl ObjectStoreForm {
 
         let fields = vec![
             FormFieldBuilder::new("__NAME__")
-                .default(name.to_string())
+                .default(name)
+                .label("Name")
                 .validator(None)
                 .text(false)
                 .build(),
             FormFieldBuilder::new("BUCKET_URI")
-                .default("s3://".to_string())
+                .default("s3://")
+                .label("Bucket URI")
                 .validator(Some(Arc::new(validate_with_pattern(
                     uri_pattern,
                     "Invalid URI scheme. Must start with 's3://'.".to_string(),
                 ))))
                 .build(),
             FormFieldBuilder::new("AWS_ACCESS_KEY_ID")
-                .default("".to_string())
+                .default("")
+                .label("AWS Access Key ID")
                 .validator(Some(Arc::new(validate_with_pattern(
                     aws_key_pattern,
                     "Invalid AWS access key id.".to_string(),
                 ))))
                 .build(),
             FormFieldBuilder::new("AWS_SECRET_ACCESS_KEY")
-                .default("".to_string())
+                .default("")
+                .label("AWS Secret Access Key")
                 .secret(true)
                 .validator(Some(Arc::new(validate_with_pattern(
                     aws_secret_pattern,
@@ -70,14 +74,16 @@ impl ObjectStoreForm {
                 ))))
                 .build(),
             FormFieldBuilder::new("AWS_REGION")
-                .default("auto".to_string())
+                .default("auto")
+                .label("AWS Region")
                 .validator(Some(Arc::new(validate_with_pattern(
                     region_pattern,
                     "Invalid AWS region.".to_string(),
                 ))))
                 .build(),
             FormFieldBuilder::new("S3_ENDPOINT_URL")
-                .default("".to_string())
+                .default("")
+                .label("S3 Endpoint URL")
                 .validator(Some(Arc::new(validate_with_pattern(
                     endpoint_url_pattern,
                     "Invalid S3 endpoint URL.".to_string(),
@@ -90,4 +96,5 @@ impl ObjectStoreForm {
 
         fields
     }
+
 }

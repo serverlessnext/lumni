@@ -9,13 +9,13 @@ const MASKED_VALUE: &str = "*****";
 #[component]
 pub fn InputBoxView(
     cx: Scope,
-    label_text: String,
     input_element: InputElement,
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
     // shows Label, InputField and Error
     // defined from input_element
     let (input_ref, error_signal, value_signal, input_data) = input_element;
+    let label_text = input_data.form_field.field_label.as_ref().map_or_else(String::new, |label| label.text().to_string());
     let is_secret = input_data.form_field.field_type.is_secret();
     let is_password = input_data.form_field.field_type.is_password();
     let initial_enabled = input_data.form_field.field_type.is_enabled();

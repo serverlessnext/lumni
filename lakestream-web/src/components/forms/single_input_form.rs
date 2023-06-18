@@ -5,11 +5,11 @@ use leptos::html::Input;
 use leptos::*;
 
 use crate::components::buttons::{ButtonType, FormSubmitButton};
-use crate::components::form_input::{FieldType, InputData};
+use crate::components::form_input::{FieldType, InputFieldData};
 
 #[derive(Clone)]
 pub struct SingleInputForm<T> {
-    input_data: InputData,
+    input_data: InputFieldData,
     button_type: ButtonType,
     on_submit: Arc<dyn Fn(SubmitEvent, T) + 'static>,
     submission_data: T,
@@ -20,7 +20,7 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         handle_submission: Arc<dyn Fn(SubmitEvent, T)>,
         submission_data: T,
         button_type: ButtonType,
-        input_data: InputData,
+        input_data: InputFieldData,
     ) -> Self {
         SingleInputForm {
             input_data,
@@ -38,7 +38,7 @@ impl<T: Clone + 'static> SingleInputForm<T> {
     ) -> View {
         let validation_error = create_rw_signal(cx, None);
 
-        let input_type = match self.input_data.form_field.field_type {
+        let input_type = match self.input_data.field_type {
             FieldType::Text { .. } => "text",
             FieldType::Secret { .. } => "password",
             FieldType::Password { .. } => "password",
@@ -94,3 +94,4 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         }.into_view(cx)
     }
 }
+

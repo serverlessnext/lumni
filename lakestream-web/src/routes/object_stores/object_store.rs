@@ -5,7 +5,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use crate::components::form_input::{
-    validate_with_pattern, FormFieldBuilder, InputData,
+    validate_with_pattern, FormFieldBuilder, FormElement, InputFieldData, FieldType,
 };
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ impl ObjectStoreForm {
         self.id.clone()
     }
 
-    pub fn default_fields<S: Into<String>>(name: S) -> HashMap<String, InputData> {
+    pub fn default_fields<S: Into<String>>(name: S) -> HashMap<String, InputFieldData> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
         let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
@@ -46,7 +46,6 @@ impl ObjectStoreForm {
                 .default(name)
                 .label("Name")
                 .validator(None)
-                .text(false)
                 .build(),
             FormFieldBuilder::new("BUCKET_URI")
                 .default("s3://")
@@ -67,7 +66,7 @@ impl ObjectStoreForm {
             FormFieldBuilder::new("AWS_SECRET_ACCESS_KEY")
                 .default("")
                 .label("AWS Secret Access Key")
-                .secret(true)
+                .field_type(FieldType::Secret)
                 .validator(Some(Arc::new(validate_with_pattern(
                     aws_secret_pattern,
                     "Invalid AWS secret access key.".to_string(),
@@ -91,10 +90,15 @@ impl ObjectStoreForm {
                 .build(),
         ]
         .into_iter()
-        .map(|field| field.to_input_data())
+        .map(|field| {
+            match field {
+                FormElement::InputField(field_data) => {
+                    (field_data.name.clone(), field_data)
+                },
+            }
+        })
         .collect();
 
         fields
     }
-
 }

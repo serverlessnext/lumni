@@ -8,7 +8,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
-use crate::components::form_input::{FormFieldBuilder, InputFieldPattern};
+use crate::components::form_input::{FormFieldBuilder, FormElement, InputFieldPattern};
 use crate::components::forms::SingleInputForm;
 
 const ROOT_USERNAME: &str = "admin";
@@ -100,14 +100,20 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         handle_old_password_submission.clone(),
         false,
         ButtonType::Login(Some("Validate Current Password".to_string())),
-        FormFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck),
+        match FormFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck) {
+            FormElement::InputField(field_data) => field_data,
+        },
     );
+
     let form_config_new_password = SingleInputForm::new(
         handle_new_password_submission,
         false,
         ButtonType::Change(Some("Change password".to_string())),
-        FormFieldBuilder::with_pattern(InputFieldPattern::PasswordChange),
+        match FormFieldBuilder::with_pattern(InputFieldPattern::PasswordChange) {
+            FormElement::InputField(field_data) => field_data,
+        },
     );
+
 
     view! {
         cx,

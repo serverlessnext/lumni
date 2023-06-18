@@ -21,20 +21,20 @@ pub fn FormContentView(
                 on_submit(ev, input_elements.clone())
             }
         >
-        <For
-            each= move || {input_elements_clone.clone().into_iter().enumerate()}
-                key=|(index, _input)| *index
-                view= move |cx, (_, (_key, input_element))| {
-                    view! {
-                        cx,
-                        <InputBoxView
-                            input_element
-                            input_changed={form_changed}
-                        />
+            <For
+                each= move || {input_elements_clone.clone().into_iter().enumerate()}
+                    key=|(index, _)| *index
+                    view= move |cx, (_, (_, input_element))| {
+                        view! {
+                            cx,
+                            <InputBoxView
+                                input_element
+                                input_changed={form_changed}
+                            />
+                        }
                     }
-                }
-        />
-        <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed.into()/>
+            />
+            <FormSubmitButton button_type=ButtonType::Save(Some("Save Changes".to_string())) button_enabled=form_changed.into()/>
         </form>
-    }
+    }.into_view(cx)
 }

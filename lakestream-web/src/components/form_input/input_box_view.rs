@@ -1,8 +1,8 @@
 use leptos::html::Input;
 use leptos::*;
 
-use super::input_data::InputElement;
 use crate::components::icons::LockIconView;
+use super::{InputFieldData, InputElement};
 
 const MASKED_VALUE: &str = "*****";
 
@@ -14,11 +14,23 @@ pub fn InputBoxView(
 ) -> impl IntoView {
     // shows Label, InputField and Error
     // defined from input_element
-    let (input_ref, error_signal, value_signal, input_data) = input_element;
-    let label_text = input_data.form_field.field_label.as_ref().map_or_else(String::new, |label| label.text().to_string());
-    let is_secret = input_data.form_field.field_type.is_secret();
-    let is_password = input_data.form_field.field_type.is_password();
-    let initial_enabled = input_data.form_field.field_type.is_enabled();
+
+    let (input_ref, error_signal, value_signal, input_field_data) = input_element;
+    let (label_text, is_secret, is_password, initial_enabled) =
+        match &*input_field_data {
+            InputFieldData {
+                field_label,
+                field_type,
+                is_enabled,
+                ..
+            } => {
+                let label_text = field_label.as_ref().map_or_else(String::new, |label| label.text().to_string());
+                let is_secret = field_type.is_secret();
+                let is_password = field_type.is_password();
+                let initial_enabled = *is_enabled;
+                (label_text, is_secret, is_password, initial_enabled)
+            },
+        };
 
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;

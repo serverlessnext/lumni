@@ -1,4 +1,6 @@
-use super::field_type::FieldType;
+
+use super::InputFieldData;
+
 
 #[derive(Clone, Default, Debug)]
 pub struct FieldLabel {
@@ -17,8 +19,8 @@ impl FieldLabel {
     }
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct FormField {
-    pub field_type: FieldType,
-    pub field_label: Option<FieldLabel>,
+#[derive(Debug, Clone)]
+pub enum FormElement {
+    InputField(InputFieldData),
 }
+

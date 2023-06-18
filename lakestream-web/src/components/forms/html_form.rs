@@ -7,7 +7,7 @@ use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
 use super::form_submit::{FormSubmitData, FormSubmitHandler, SubmitFormView};
-use crate::components::form_input::{InputData, InputElements};
+use crate::components::form_input::{InputFieldData, InputElements};
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
@@ -18,14 +18,14 @@ const CANT_LOAD_CONFIG: &str =
 pub struct HtmlForm {
     name: String,
     id: String,
-    fields: HashMap<String, InputData>,
+    fields: HashMap<String, InputFieldData>,
 }
 
 impl HtmlForm {
     pub fn new(
         name: &str,
         id: &str,
-        fields: HashMap<String, InputData>,
+        fields: HashMap<String, InputFieldData>,
     ) -> Self {
         Self {
             name: name.to_string(),
@@ -42,7 +42,7 @@ impl HtmlForm {
         self.id.clone()
     }
 
-    pub fn fields(&self) -> HashMap<String, InputData> {
+    pub fn fields(&self) -> HashMap<String, InputFieldData> {
         self.fields.clone()
     }
 
@@ -179,11 +179,12 @@ impl HtmlFormHandler {
     }
 }
 
+
 fn create_form_submit_data(
     cx: Scope,
     meta_data: ItemMetaData,
     config: &HashMap<String, String>,
-    default_fields: &HashMap<String, InputData>,
+    default_fields: &HashMap<String, InputFieldData>,
 ) -> FormSubmitData {
     let input_elements: InputElements = config
         .iter()
@@ -192,7 +193,7 @@ fn create_form_submit_data(
             let value_signal = create_rw_signal(cx, value.clone());
             let default_input_data = default_fields
                 .get(key)
-                .expect("Default InputData to exist")
+                .expect("InputFieldData")
                 .clone();
             (
                 key.clone(),
@@ -207,3 +208,4 @@ fn create_form_submit_data(
         .collect();
     FormSubmitData::new(input_elements, meta_data.clone())
 }
+

@@ -1,53 +1,45 @@
 use std::sync::Arc;
 
 use regex::Regex;
+use super::InputFieldData;
 
 use super::helpers::validate_with_pattern;
-use super::input_data::{FormInputField, InputData};
-use crate::components::form_input::{FieldLabel, FieldType, FormField};
+use crate::components::form_input::{FieldLabel, FieldType, FormElement};
 
-#[derive(Clone, Default)]
+
+#[derive(Clone)]
 pub struct FormFieldBuilder {
     name: String,
     default: String,
-    form_field: FormField,
+    field_type: FieldType,
+    field_label: Option<FieldLabel>,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+    is_enabled: bool,
+}
+
+impl Default for FormFieldBuilder {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            default: String::new(),
+            field_type: FieldType::Text,
+            field_label: None,
+            validate_fn: None,
+            is_enabled: true,
+        }
+    }
 }
 
 impl FormFieldBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            form_field: FormField {
-                field_label: Some(FieldLabel::new("")),
-                field_type: FieldType::Text { is_enabled: true },
-            },
             ..Default::default()
         }
     }
 
     pub fn default<S: Into<String>>(mut self, default: S) -> Self {
         self.default = default.into();
-        self
-    }
-
-    pub fn text(mut self, is_enabled: bool) -> Self {
-        self.form_field.field_type = FieldType::Text { is_enabled };
-        self
-    }
-
-    pub fn secret(mut self, is_enabled: bool) -> Self {
-        self.form_field.field_type = FieldType::Secret { is_enabled };
-        self
-    }
-
-    pub fn password(mut self, is_enabled: bool) -> Self {
-        self.form_field.field_type = FieldType::Password { is_enabled };
-        self
-    }
-
-    pub fn label<S: Into<String>>(mut self, text: S) -> Self {
-        self.form_field.field_label = Some(FieldLabel::new(&text.into()));
         self
     }
 
@@ -59,36 +51,62 @@ impl FormFieldBuilder {
         self
     }
 
-    pub fn build(self) -> FormInputField {
-        FormInputField {
+    pub fn build(self) -> FormElement {
+        FormElement::InputField(InputFieldData {
             name: self.name,
-            input_data: InputData::new(
-                self.default,
-                self.form_field,
-                self.validate_fn,
-            ),
-        }
+            value: self.default,
+            field_type: self.field_type,
+            field_label: self.field_label,
+            validator: self.validate_fn,
+            is_enabled: self.is_enabled,
+        })
     }
 
-    pub fn with_pattern(pattern: InputFieldPattern) -> InputData {
-        let builder = match pattern {
+    pub fn field_type(mut self, field_type: FieldType) -> Self {
+        self.field_type = field_type;
+        self
+    }
+    pub fn label<S: Into<String>>(mut self, text: S) -> Self {
+        self.field_label = Some(FieldLabel::new(&text.into()));
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.is_enabled = enabled;
+        self
+    }
+
+    pub fn with_pattern(pattern: InputFieldPattern) -> FormElement {
+        match pattern {
             InputFieldPattern::PasswordChange => {
                 let password_pattern = Regex::new(r"^.{8,}$").unwrap();
                 Self::new("PASSWORD")
                     .default("".to_string())
-                    .password(true)
+                    .field_type(FieldType::Password)
                     .validator(Some(Arc::new(validate_with_pattern(
                         password_pattern,
                         "Invalid password. Must be at least 8 characters."
                             .to_string(),
                     ))))
+                    .build()
             }
             InputFieldPattern::PasswordCheck => {
-                Self::new("PASSWORD").default("".to_string()).password(true)
+                Self::new("PASSWORD").default("".to_string()).field_type(FieldType::Password).build()
             }
-        };
-        builder.build().to_input_data().1
+        }
     }
+
+    pub fn to_input_field_data(self) -> InputFieldData {
+        InputFieldData {
+            name: self.name,
+            value: self.default,
+            field_type: self.field_type,
+            field_label: self.field_label,
+            validator: self.validate_fn,
+            is_enabled: self.is_enabled,
+        }
+    }
+
 }
 
 pub enum InputFieldPattern {

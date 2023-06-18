@@ -1,6 +1,4 @@
-
 use super::InputFieldData;
-
 
 #[derive(Clone, Default, Debug)]
 pub struct FieldLabel {
@@ -8,14 +6,12 @@ pub struct FieldLabel {
 }
 
 impl FieldLabel {
-    pub fn new(text: &str) -> Self {
-        Self {
-            text: text.to_string(),
-        }
+    pub fn new<S: Into<String>>(text: S) -> Self {
+        Self { text: text.into() }
     }
 
-    pub fn text(&self) -> &str {
-        &self.text
+    pub fn text(&self) -> String {
+        self.text.clone()
     }
 }
 
@@ -23,4 +19,3 @@ impl FieldLabel {
 pub enum FormElement {
     InputField(InputFieldData),
 }
-

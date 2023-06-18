@@ -5,7 +5,6 @@ pub enum FieldType {
     Password,
 }
 
-
 impl FieldType {
     pub fn is_secret(&self) -> bool {
         matches!(self, Self::Secret)

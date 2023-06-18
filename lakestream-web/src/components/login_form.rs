@@ -10,7 +10,9 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::{ActionTrigger, ButtonType};
-use crate::components::form_input::{FormFieldBuilder, InputFieldPattern, FormElement};
+use crate::components::form_input::{
+    FormElement, InputFieldBuilder, InputFieldPattern,
+};
 use crate::components::forms::{FormError, SingleInputForm};
 use crate::GlobalState;
 
@@ -102,7 +104,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         handle_submission.clone(),
         true,
         ButtonType::Login(None),
-        match FormFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck) {
+        match InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck)
+            .build()
+        {
             FormElement::InputField(field_data) => field_data,
         },
     );
@@ -111,7 +115,9 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         handle_submission,
         false,
         ButtonType::Create(Some("Create new password".to_string())),
-        match FormFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck) {
+        match InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck)
+            .build()
+        {
             FormElement::InputField(field_data) => field_data,
         },
     );

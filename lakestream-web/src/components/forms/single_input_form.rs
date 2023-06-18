@@ -94,4 +94,3 @@ impl<T: Clone + 'static> SingleInputForm<T> {
         }.into_view(cx)
     }
 }
-

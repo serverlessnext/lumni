@@ -5,7 +5,7 @@ use std::sync::Arc;
 use leptos::html::Input;
 use leptos::*;
 
-use super::{FormFieldBuilder, FieldType, FieldLabel};
+use super::{FieldLabel, FieldType};
 
 pub type InputElement = (
     NodeRef<Input>,
@@ -15,7 +15,6 @@ pub type InputElement = (
 );
 
 pub type InputElements = HashMap<String, InputElement>;
-
 
 #[derive(Debug, Clone)]
 pub struct InputField {
@@ -43,11 +42,5 @@ impl fmt::Debug for InputFieldData {
             .field("validator", &self.validator.is_some())
             .field("is_enabled", &self.is_enabled)
             .finish()
-    }
-}
-
-impl From<FormFieldBuilder> for InputFieldData {
-    fn from(builder: FormFieldBuilder) -> Self {
-        builder.to_input_field_data()
     }
 }

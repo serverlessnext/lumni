@@ -7,7 +7,7 @@ use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
 use super::form_submit::{FormSubmitData, FormSubmitHandler, SubmitFormView};
-use crate::components::form_input::{InputFieldData, InputElements};
+use crate::components::form_input::{FormElement, InputElements};
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
@@ -18,19 +18,15 @@ const CANT_LOAD_CONFIG: &str =
 pub struct HtmlForm {
     name: String,
     id: String,
-    fields: HashMap<String, InputFieldData>,
+    elements: Vec<FormElement>,
 }
 
 impl HtmlForm {
-    pub fn new(
-        name: &str,
-        id: &str,
-        fields: HashMap<String, InputFieldData>,
-    ) -> Self {
+    pub fn new(name: &str, id: &str, elements: Vec<FormElement>) -> Self {
         Self {
             name: name.to_string(),
             id: id.to_string(),
-            fields,
+            elements,
         }
     }
 
@@ -42,14 +38,18 @@ impl HtmlForm {
         self.id.clone()
     }
 
-    pub fn fields(&self) -> HashMap<String, InputFieldData> {
-        self.fields.clone()
+    pub fn elements(&self) -> Vec<FormElement> {
+        self.elements.clone()
     }
 
     pub fn default_field_values(&self) -> HashMap<String, String> {
-        self.fields
+        self.elements
             .iter()
-            .map(|(key, input_data)| (key.clone(), input_data.value.clone()))
+            .filter_map(|element| match element {
+                FormElement::InputField(field_data) => {
+                    Some((field_data.name.clone(), field_data.value.clone()))
+                }
+            })
             .collect()
     }
 }
@@ -84,7 +84,7 @@ impl HtmlFormHandler {
 
         create_effect(cx, move |_| {
             let default_field_values = html_form.default_field_values();
-            let default_fields = html_form.fields();
+            let form_elements = html_form.elements();
             let form_name = html_form.id();
             let local_storage = local_storage.clone();
 
@@ -100,7 +100,7 @@ impl HtmlFormHandler {
                                 cx,
                                 meta_data.clone(),
                                 &new_config,
-                                &default_fields,
+                                &form_elements,
                             );
                             set_form_submit_data(Some(form_submit_data));
                         }
@@ -119,7 +119,7 @@ impl HtmlFormHandler {
                             cx,
                             meta_data.clone(),
                             &default_field_values,
-                            &default_fields,
+                            &form_elements,
                         );
                         set_form_submit_data(Some(form_submit_data));
                     }
@@ -131,7 +131,7 @@ impl HtmlFormHandler {
                                 cx,
                                 meta_data.clone(),
                                 &default_field_values,
-                                &default_fields,
+                                &form_elements,
                             );
                             set_form_submit_data(Some(form_submit_data));
                         }
@@ -179,33 +179,40 @@ impl HtmlFormHandler {
     }
 }
 
-
 fn create_form_submit_data(
     cx: Scope,
     meta_data: ItemMetaData,
     config: &HashMap<String, String>,
-    default_fields: &HashMap<String, InputFieldData>,
+    elements: &[FormElement],
 ) -> FormSubmitData {
     let input_elements: InputElements = config
         .iter()
-        .map(|(key, value)| {
-            let error_signal = create_rw_signal(cx, None);
-            let value_signal = create_rw_signal(cx, value.clone());
-            let default_input_data = default_fields
-                .get(key)
-                .expect("InputFieldData")
-                .clone();
-            (
-                key.clone(),
-                (
-                    create_node_ref(cx),
-                    error_signal,
-                    value_signal,
-                    Arc::new(default_input_data),
-                ),
-            )
+        .filter_map(|(key, value)| {
+            elements
+                .iter()
+                .filter_map(|element| match element {
+                    FormElement::InputField(field_data) => {
+                        if field_data.name == *key {
+                            let error_signal = create_rw_signal(cx, None);
+                            let value_signal =
+                                create_rw_signal(cx, value.clone());
+                            let default_input_data = field_data.clone();
+                            Some((
+                                key.clone(),
+                                (
+                                    create_node_ref(cx),
+                                    error_signal,
+                                    value_signal,
+                                    Arc::new(default_input_data),
+                                ),
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                })
+                .next()
         })
         .collect();
     FormSubmitData::new(input_elements, meta_data.clone())
 }
-

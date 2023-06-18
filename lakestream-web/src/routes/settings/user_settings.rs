@@ -1,12 +1,11 @@
 use leptos::*;
 use uuid::Uuid;
-use std::collections::HashMap;
 
-use crate::components::form_input::FormFieldBuilder;
+use crate::components::form_input::{
+    build_all, FieldBuilder, FormElement, InputFieldBuilder,
+};
 use crate::components::forms::{HtmlForm, HtmlFormHandler};
 use crate::GlobalState;
-
-use crate::components::form_input::{FormElement, InputFieldData};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RouteParams {
@@ -23,28 +22,16 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     // TODO: get this from vault
     let username = "admin".to_string();
 
-    let fields: HashMap<String, InputFieldData> = vec![
-        FormFieldBuilder::new("field1")
-            .default("".to_string())
-            .build(),
-        FormFieldBuilder::new("field2")
-            .default("".to_string())
-            .build(),
-    ]
-    .into_iter()
-    .map(|field| {
-        match field {
-            FormElement::InputField(field_data) => {
-                (field_data.name.clone(), field_data)
-            },
-        }
-    })
-    .collect();
+    let builders = vec![
+        InputFieldBuilder::from(FieldBuilder::new("field1").as_input_field())
+            .default("".to_string()),
+        InputFieldBuilder::from(FieldBuilder::new("field2").as_input_field())
+            .default("".to_string()),
+    ];
 
+    let elements: Vec<FormElement> = build_all(builders);
 
-    let form = HtmlForm::new(&username, &Uuid::new_v4().to_string(), fields);
+    let form = HtmlForm::new(&username, &Uuid::new_v4().to_string(), elements);
     let form_handler = HtmlFormHandler::new(form, vault);
     form_handler.create_view(cx)
 }
-
-

@@ -1,11 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use regex::Regex;
 use uuid::Uuid;
 
 use crate::components::form_input::{
-    validate_with_pattern, FormFieldBuilder, FormElement, InputFieldData, FieldType,
+    build_all, validate_with_pattern, FieldBuilder, FieldType, FormElement,
+    InputFieldBuilder,
 };
 
 #[derive(Debug, Clone)]
@@ -34,71 +34,65 @@ impl ObjectStoreForm {
         self.id.clone()
     }
 
-    pub fn default_fields<S: Into<String>>(name: S) -> HashMap<String, InputFieldData> {
+    pub fn default_fields<S: Into<String>>(name: S) -> Vec<FormElement> {
         let uri_pattern = Regex::new(r"^s3://").unwrap();
         let aws_key_pattern = Regex::new(r"^.+$").unwrap();
         let aws_secret_pattern = Regex::new(r"^.+$").unwrap();
         let region_pattern = Regex::new(r"^[a-zA-Z0-9\-]*$").unwrap();
         let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
-        let fields = vec![
-            FormFieldBuilder::new("__NAME__")
-                .default(name)
-                .label("Name")
-                .validator(None)
-                .build(),
-            FormFieldBuilder::new("BUCKET_URI")
-                .default("s3://")
-                .label("Bucket URI")
-                .validator(Some(Arc::new(validate_with_pattern(
-                    uri_pattern,
-                    "Invalid URI scheme. Must start with 's3://'.".to_string(),
-                ))))
-                .build(),
-            FormFieldBuilder::new("AWS_ACCESS_KEY_ID")
-                .default("")
-                .label("AWS Access Key ID")
-                .validator(Some(Arc::new(validate_with_pattern(
-                    aws_key_pattern,
-                    "Invalid AWS access key id.".to_string(),
-                ))))
-                .build(),
-            FormFieldBuilder::new("AWS_SECRET_ACCESS_KEY")
-                .default("")
-                .label("AWS Secret Access Key")
-                .field_type(FieldType::Secret)
-                .validator(Some(Arc::new(validate_with_pattern(
-                    aws_secret_pattern,
-                    "Invalid AWS secret access key.".to_string(),
-                ))))
-                .build(),
-            FormFieldBuilder::new("AWS_REGION")
-                .default("auto")
-                .label("AWS Region")
-                .validator(Some(Arc::new(validate_with_pattern(
-                    region_pattern,
-                    "Invalid AWS region.".to_string(),
-                ))))
-                .build(),
-            FormFieldBuilder::new("S3_ENDPOINT_URL")
-                .default("")
-                .label("S3 Endpoint URL")
-                .validator(Some(Arc::new(validate_with_pattern(
-                    endpoint_url_pattern,
-                    "Invalid S3 endpoint URL.".to_string(),
-                ))))
-                .build(),
-        ]
-        .into_iter()
-        .map(|field| {
-            match field {
-                FormElement::InputField(field_data) => {
-                    (field_data.name.clone(), field_data)
-                },
-            }
-        })
-        .collect();
+        let builders: Vec<InputFieldBuilder> = vec![
+            InputFieldBuilder::from(
+                FieldBuilder::new("__NAME__").label("Name"),
+            )
+            .default(name)
+            .validator(None),
+            InputFieldBuilder::from(
+                FieldBuilder::new("BUCKET_URI").label("Bucket URI"),
+            )
+            .default("s3://")
+            .validator(Some(Arc::new(validate_with_pattern(
+                uri_pattern,
+                "Invalid URI scheme. Must start with 's3://'.".to_string(),
+            )))),
+            InputFieldBuilder::from(
+                FieldBuilder::new("AWS_ACCESS_KEY_ID")
+                    .label("AWS Access Key ID"),
+            )
+            .default("")
+            .validator(Some(Arc::new(validate_with_pattern(
+                aws_key_pattern,
+                "Invalid AWS access key id.".to_string(),
+            )))),
+            InputFieldBuilder::from(
+                FieldBuilder::new("AWS_SECRET_ACCESS_KEY")
+                    .label("AWS Secret Access Key"),
+            )
+            .default("")
+            .field_type(FieldType::Secret)
+            .validator(Some(Arc::new(validate_with_pattern(
+                aws_secret_pattern,
+                "Invalid AWS secret access key.".to_string(),
+            )))),
+            InputFieldBuilder::from(
+                FieldBuilder::new("AWS_REGION").label("AWS Region"),
+            )
+            .default("auto")
+            .validator(Some(Arc::new(validate_with_pattern(
+                region_pattern,
+                "Invalid AWS region.".to_string(),
+            )))),
+            InputFieldBuilder::from(
+                FieldBuilder::new("S3_ENDPOINT_URL").label("S3 Endpoint URL"),
+            )
+            .default("")
+            .validator(Some(Arc::new(validate_with_pattern(
+                endpoint_url_pattern,
+                "Invalid S3 endpoint URL.".to_string(),
+            )))),
+        ];
 
-        fields
+        let elements: Vec<FormElement> = build_all(builders);
+        elements
     }
 }

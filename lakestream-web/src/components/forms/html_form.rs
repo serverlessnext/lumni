@@ -6,7 +6,9 @@ use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 use serde_json;
 use wasm_bindgen_futures::spawn_local;
 
-use super::form_submit::{FormSubmitData, FormSubmitHandler, SubmitFormView};
+use super::form_submit::{
+    FormSaveHandler, FormSubmitData, FormSubmitHandler, SubmitFormView,
+};
 use crate::components::form_input::{FormElement, InputElements};
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
@@ -149,7 +151,7 @@ impl HtmlFormHandler {
         view! { cx,
             {move ||
                 if let Some(form_submit_data) = form_submit_data_signal.get() {
-                    let handler = FormSubmitHandler::new(cx, vault.clone(), form_submit_data.clone());
+                    let handler = FormSaveHandler::new(cx, vault.clone(), form_submit_data);
                     view! {
                         cx,
                         <div>

@@ -1,12 +1,11 @@
-
-use leptos::*;
 use leptos::ev::SubmitEvent;
+use leptos::*;
 
-use crate::components::form_helpers::SubmissionStatusView;
-use crate::components::form_input::InputElements;
+use super::form_content_view::FormContentView;
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandler;
-use super::form_content_view::FormContentView;
+use crate::components::form_helpers::SubmissionStatusView;
+use crate::components::form_input::InputElements;
 
 #[component]
 pub fn SubmitFormView<'a>(

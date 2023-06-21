@@ -1,5 +1,5 @@
-
 use localencrypt::ItemMetaData;
+
 use crate::components::form_input::InputElements;
 
 pub enum SubmitInput {
@@ -28,4 +28,3 @@ impl FormData {
         self.input_elements.clone()
     }
 }
-

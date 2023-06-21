@@ -8,7 +8,6 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 use super::form_data::{FormData, SubmitInput};
 use crate::components::form_input::InputElements;
 
-
 pub trait SubmitHandler {
     fn data(&self) -> RwSignal<Option<FormData>>;
     fn on_submit(
@@ -38,39 +37,41 @@ impl SaveHandler {
         let vault = Rc::new(vault.clone());
 
         let on_submit_fn: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>)> =
-            Rc::new(move |submit_event: SubmitEvent, input: Option<SubmitInput>| {
-                let input_elements = match input {
-                    Some(SubmitInput::Elements(elements)) => elements,
-                    None => {
-                        handle_no_form_data();
-                        return;
+            Rc::new(
+                move |submit_event: SubmitEvent, input: Option<SubmitInput>| {
+                    let input_elements = match input {
+                        Some(SubmitInput::Elements(elements)) => elements,
+                        None => {
+                            handle_no_form_data();
+                            return;
+                        }
+                    };
+                    let form_data = match form_data_clone.get() {
+                        Some(data) => data,
+                        None => {
+                            handle_no_form_data();
+                            return;
+                        }
+                    };
+
+                    let vault = vault.clone();
+                    let meta_data = form_data.meta_data().clone();
+                    submit_event.prevent_default();
+
+                    let validation_errors =
+                        Self::perform_validation(&input_elements);
+
+                    if validation_errors.is_empty() {
+                        Self::submit_form(
+                            &input_elements,
+                            meta_data,
+                            vault,
+                            is_submitting.clone(),
+                            submit_error.clone(),
+                        );
                     }
-                };
-                let form_data = match form_data_clone.get() {
-                    Some(data) => data,
-                    None => {
-                        handle_no_form_data();
-                        return;
-                    }
-                };
-
-                let vault = vault.clone();
-                let meta_data = form_data.meta_data().clone();
-                submit_event.prevent_default();
-
-                let validation_errors =
-                    Self::perform_validation(&input_elements);
-
-                if validation_errors.is_empty() {
-                    Self::submit_form(
-                        &input_elements,
-                        meta_data,
-                        vault,
-                        is_submitting.clone(),
-                        submit_error.clone(),
-                    );
-                }
-            });
+                },
+            );
 
         Box::new(Self {
             form_data,

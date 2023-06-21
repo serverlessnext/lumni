@@ -1,11 +1,10 @@
 use leptos::*;
 use localencrypt::LocalEncrypt;
 
+use super::form_data::FormData;
 use super::load_handler::{LoadHandler, LoadVaultHandler};
 use super::submit_handler::SubmitHandler;
-use super::form_data::FormData;
 use super::HtmlForm;
-
 
 pub struct FormHandler {
     on_load: Option<Box<dyn LoadHandler>>,

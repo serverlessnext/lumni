@@ -169,7 +169,6 @@ async fn fetch_form_data(
     local_storage.load_content(&form_name).await
 }
 
-
 fn create_form_submit_data(
     cx: Scope,
     meta_data: ItemMetaData,

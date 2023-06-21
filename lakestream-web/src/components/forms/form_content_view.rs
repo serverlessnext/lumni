@@ -8,7 +8,7 @@ use crate::components::form_input::{InputBoxView, InputElements};
 pub fn FormContentView(
     cx: Scope,
     input_elements: InputElements,
-    on_submit: Box<dyn Fn(SubmitEvent, InputElements)>,
+    on_submit: Box<dyn Fn(SubmitEvent, Option<InputElements>)>,
     is_submitting: RwSignal<bool>,
 ) -> impl IntoView {
     let input_elements_clone = input_elements.clone();
@@ -18,7 +18,7 @@ pub fn FormContentView(
         <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
             on:submit=move |ev| {
                 is_submitting.set(true);
-                on_submit(ev, input_elements.clone())
+                on_submit(ev, Some(input_elements.clone()))
             }
         >
             <For

@@ -1,20 +1,12 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::rc::Rc;
 
 use leptos::*;
-use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
-use serde_json;
-use wasm_bindgen_futures::spawn_local;
+use localencrypt::LocalEncrypt;
 
-use super::form_submit::{
-    FormSaveHandler, FormSubmitData, FormSubmitHandler, SubmitFormView,
-};
-use crate::components::form_input::{FormElement, InputElements};
-
-const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
-const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
-const CANT_LOAD_CONFIG: &str =
-    "Can't load existing configuration. Creating new.";
+use super::form_handler::{FormHandler, SubmitFormView};
+use super::form_submit_handler::{FormSaveHandler, FormSubmitHandler};
+use crate::components::form_input::FormElement;
 
 #[derive(Clone, Debug)]
 pub struct HtmlForm {
@@ -56,115 +48,47 @@ impl HtmlForm {
     }
 }
 
-pub struct HtmlFormHandler {
-    form: HtmlForm,
-    vault: LocalEncrypt,
+struct HtmlFormHandler {
+    handler: Rc<FormHandler>,
 }
 
 impl HtmlFormHandler {
-    pub fn new(form: HtmlForm, vault: LocalEncrypt) -> Self {
-        Self { form, vault }
+    pub fn new(handler: FormHandler) -> Self {
+        let handler = Rc::new(handler);
+        Self { handler }
     }
 
     pub fn create_view(&self, cx: Scope) -> View {
-        let (form_submit_data_signal, set_form_submit_data) =
-            create_signal(cx, None::<FormSubmitData>);
-
-        let (load_config_error, set_load_config_error) =
-            create_signal(cx, None::<String>);
-
-        let html_form = self.form.clone();
-
-        let local_storage = match self.vault.backend() {
-            localencrypt::StorageBackend::Browser(browser_storage) => {
-                browser_storage.local_storage().unwrap_or_else(|| {
-                    panic!("{}", INVALID_BROWSER_STORAGE_TYPE)
-                })
-            }
-            _ => panic!("{}", INVALID_STORAGE_BACKEND),
-        };
-
-        create_effect(cx, move |_| {
-            let default_field_values = html_form.default_field_values();
-            let form_elements = html_form.elements();
-            let form_name = html_form.id();
-            let local_storage = local_storage.clone();
-
-            let mut tags = HashMap::new();
-            tags.insert("Name".to_string(), html_form.name());
-            let meta_data = ItemMetaData::new_with_tags(&form_name, tags);
-
-            spawn_local(async move {
-                match local_storage.load_content(&form_name).await {
-                    Ok(Some(data)) => match serde_json::from_slice(&data) {
-                        Ok(new_config) => {
-                            let form_submit_data = create_form_submit_data(
-                                cx,
-                                meta_data.clone(),
-                                &new_config,
-                                &form_elements,
-                            );
-                            set_form_submit_data(Some(form_submit_data));
-                        }
-                        Err(e) => {
-                            log::error!("error deserializing config: {:?}", e);
-                            set_load_config_error(Some(e.to_string()));
-                        }
-                    },
-                    Ok(None) => {
-                        log::info!(
-                            "No data found for the given form id: {}. \
-                             Creating new.",
-                            &form_name
-                        );
-                        let form_submit_data = create_form_submit_data(
-                            cx,
-                            meta_data.clone(),
-                            &default_field_values,
-                            &form_elements,
-                        );
-                        set_form_submit_data(Some(form_submit_data));
-                    }
-                    Err(e) => match e {
-                        SecureStringError::PasswordNotFound(_)
-                        | SecureStringError::NoLocalStorageData => {
-                            log::info!("{} Creating new.", CANT_LOAD_CONFIG);
-                            let form_submit_data = create_form_submit_data(
-                                cx,
-                                meta_data.clone(),
-                                &default_field_values,
-                                &form_elements,
-                            );
-                            set_form_submit_data(Some(form_submit_data));
-                        }
-                        _ => {
-                            log::error!("error loading config: {:?}", e);
-                            set_load_config_error(Some(e.to_string()));
-                        }
-                    },
-                }
-            });
-        });
-
-        let vault = self.vault.clone();
+        let handler = Rc::clone(&self.handler);
+        let is_submitting_signal = handler.is_submitting();
+        let submit_error_signal = handler.submit_error();
+        let form_submit_data_signal = handler.on_submit().data();
 
         view! { cx,
             {move ||
                 if let Some(form_submit_data) = form_submit_data_signal.get() {
-                    let handler = FormSaveHandler::new(cx, vault.clone(), form_submit_data);
+                    let handler = handler.clone();
                     view! {
                         cx,
                         <div>
-                            <SubmitFormView handler/>
+                            <SubmitFormView handler=&*handler form_submit_data/>
                         </div>
                     }.into_view(cx)
                 }
-                else if let Some(error) = load_config_error.get() {
+                else if let Some(error) = submit_error_signal.get() {
                     view! {
                         cx,
                         <div>
                             {"Error loading configuration: "}
                             {error}
+                        </div>
+                    }.into_view(cx)
+                }
+                else if is_submitting_signal.get() {
+                    view! {
+                        cx,
+                        <div>
+                            "Submitting..."
                         </div>
                     }.into_view(cx)
                 }
@@ -177,44 +101,47 @@ impl HtmlFormHandler {
                     }.into_view(cx)
                 }
             }
-        }.into_view(cx)
+        }
+        .into_view(cx)
     }
 }
 
-fn create_form_submit_data(
+pub struct SaveFormHandler {
     cx: Scope,
-    meta_data: ItemMetaData,
-    config: &HashMap<String, String>,
-    elements: &[FormElement],
-) -> FormSubmitData {
-    let input_elements: InputElements = config
-        .iter()
-        .filter_map(|(key, value)| {
-            elements
-                .iter()
-                .filter_map(|element| match element {
-                    FormElement::InputField(field_data) => {
-                        if field_data.name == *key {
-                            let error_signal = create_rw_signal(cx, None);
-                            let value_signal =
-                                create_rw_signal(cx, value.clone());
-                            let default_input_data = field_data.clone();
-                            Some((
-                                key.clone(),
-                                (
-                                    create_node_ref(cx),
-                                    error_signal,
-                                    value_signal,
-                                    Arc::new(default_input_data),
-                                ),
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .next()
-        })
-        .collect();
-    FormSubmitData::new(input_elements, meta_data.clone())
+    html_form_handler: HtmlFormHandler,
+}
+
+impl SaveFormHandler {
+    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Self {
+        let submit_handler = Box::new(
+            move |_cx: Scope,
+                  vault: Option<&LocalEncrypt>,
+                  form_data: RwSignal<Option<super::FormSubmitData>>|
+                  -> Box<dyn FormSubmitHandler> {
+                // Ensure vault is available
+                if let Some(_vault) = vault {
+                    FormSaveHandler::new(_cx, _vault, form_data)
+                } else {
+                    panic!("Vault is required for SaveFormHandler");
+                }
+            },
+        );
+
+        let form_handler = FormHandler::new_with_vault(
+            cx.clone(),
+            form,
+            &*vault,
+            submit_handler,
+        );
+        let html_form_handler = HtmlFormHandler::new(form_handler);
+
+        Self {
+            cx,
+            html_form_handler,
+        }
+    }
+
+    pub fn create_view(&self) -> View {
+        self.html_form_handler.create_view(self.cx)
+    }
 }

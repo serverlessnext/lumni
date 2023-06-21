@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::object_store::ObjectStoreForm;
-use crate::components::forms::{HtmlForm, HtmlFormHandler};
+use crate::components::forms::{HtmlForm, SaveFormHandler};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -103,8 +103,8 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
         } else {
             match form_loaded.get() {
                 Some(form) => {
-                    let handler = HtmlFormHandler::new(form, vault.clone());
-                    handler.create_view(cx)
+                    let save_form_handler = SaveFormHandler::new(cx, form, &vault);
+                    save_form_handler.create_view()
                 }
                 None => {
                     view! {

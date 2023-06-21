@@ -4,8 +4,10 @@ use std::rc::Rc;
 use leptos::*;
 use localencrypt::LocalEncrypt;
 
-use super::form_handler::{FormHandler, SubmitFormView};
-use super::form_submit_handler::{FormSaveHandler, FormSubmitHandler};
+use super::form_data::FormData;
+use super::handler::FormHandler;
+use super::submit_form_view::SubmitFormView;
+use super::submit_handler::{SaveHandler, SubmitHandler};
 use crate::components::form_input::FormElement;
 
 #[derive(Clone, Debug)]
@@ -116,11 +118,11 @@ impl SaveFormHandler {
         let submit_handler = Box::new(
             move |_cx: Scope,
                   vault: Option<&LocalEncrypt>,
-                  form_data: RwSignal<Option<super::FormSubmitData>>|
-                  -> Box<dyn FormSubmitHandler> {
+                  form_data: RwSignal<Option<FormData>>|
+                  -> Box<dyn SubmitHandler> {
                 // Ensure vault is available
                 if let Some(_vault) = vault {
-                    FormSaveHandler::new(_cx, _vault, form_data)
+                    SaveHandler::new(_cx, _vault, form_data)
                 } else {
                     panic!("Vault is required for SaveFormHandler");
                 }

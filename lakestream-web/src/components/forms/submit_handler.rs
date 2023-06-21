@@ -5,33 +5,12 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
+use super::form_data::{FormData, SubmitInput};
 use crate::components::form_input::InputElements;
 
-pub enum SubmitInput {
-    Elements(InputElements),
-}
 
-#[derive(Clone)]
-pub struct FormSubmitData {
-    input_elements: InputElements,
-    meta_data: ItemMetaData,
-}
-
-impl FormSubmitData {
-    pub fn new(input_elements: InputElements, meta_data: ItemMetaData) -> Self {
-        Self {
-            input_elements,
-            meta_data,
-        }
-    }
-
-    pub fn input_elements(&self) -> InputElements {
-        self.input_elements.clone()
-    }
-}
-
-pub trait FormSubmitHandler {
-    fn data(&self) -> RwSignal<Option<FormSubmitData>>;
+pub trait SubmitHandler {
+    fn data(&self) -> RwSignal<Option<FormData>>;
     fn on_submit(
         &self,
     ) -> Rc<dyn Fn(SubmitEvent, Option<SubmitInput>) + 'static>;
@@ -39,27 +18,27 @@ pub trait FormSubmitHandler {
     fn submit_error(&self) -> RwSignal<Option<String>>;
 }
 
-pub struct FormSaveHandler {
-    form_data: RwSignal<Option<FormSubmitData>>,
+pub struct SaveHandler {
+    form_data: RwSignal<Option<FormData>>,
     is_submitting: RwSignal<bool>,
     submit_error: RwSignal<Option<String>>,
     on_submit_fn: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>) + 'static>,
 }
 
-impl FormSaveHandler {
+impl SaveHandler {
     pub fn new(
         cx: Scope,
         vault: &LocalEncrypt,
-        form_data: RwSignal<Option<FormSubmitData>>,
+        form_data: RwSignal<Option<FormData>>,
     ) -> Box<Self> {
         let is_submitting = create_rw_signal(cx, false);
         let submit_error = create_rw_signal(cx, None::<String>);
 
-        let form_data_clone = form_data.clone();
+        let form_data_clone = form_data;
         let vault = Rc::new(vault.clone());
 
         let on_submit_fn: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>)> =
-            Rc::new(move |ev: SubmitEvent, input: Option<SubmitInput>| {
+            Rc::new(move |submit_event: SubmitEvent, input: Option<SubmitInput>| {
                 let input_elements = match input {
                     Some(SubmitInput::Elements(elements)) => elements,
                     None => {
@@ -76,8 +55,8 @@ impl FormSaveHandler {
                 };
 
                 let vault = vault.clone();
-                let meta_data = form_data.meta_data.clone();
-                ev.prevent_default();
+                let meta_data = form_data.meta_data().clone();
+                submit_event.prevent_default();
 
                 let validation_errors =
                     Self::perform_validation(&input_elements);
@@ -161,7 +140,7 @@ fn handle_no_form_data() {
     log::warn!("Submit attempt made but form data is not available.");
 }
 
-impl FormSubmitHandler for FormSaveHandler {
+impl SubmitHandler for SaveHandler {
     fn on_submit(
         &self,
     ) -> Rc<dyn Fn(SubmitEvent, Option<SubmitInput>) + 'static> {
@@ -176,7 +155,7 @@ impl FormSubmitHandler for FormSaveHandler {
         self.submit_error.clone()
     }
 
-    fn data(&self) -> RwSignal<Option<FormSubmitData>> {
+    fn data(&self) -> RwSignal<Option<FormData>> {
         self.form_data.clone()
     }
 }

@@ -1,7 +1,7 @@
 use leptos::*;
 
 #[component]
-pub fn FormSubmissionStatusView(
+pub fn SubmissionStatusView(
     cx: Scope,
     is_submitting: Signal<bool>,
     submit_error: Signal<Option<String>>,

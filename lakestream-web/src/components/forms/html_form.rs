@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::LocalEncrypt;
+use localencrypt::{ItemMetaData, LocalEncrypt};
 
-use super::form_data::FormData;
+use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandler;
+use super::save_handler::SaveHandler;
 use super::submit_form_view::SubmitFormView;
-use super::submit_handler::{SaveHandler, SubmitHandler};
+use super::submit_handler::{CustomSubmitHandler, SubmitHandler};
+use crate::components::buttons::ButtonType;
 use crate::components::form_input::FormElement;
 
 #[derive(Clone, Debug)]
@@ -60,11 +63,12 @@ impl HtmlFormHandler {
         Self { handler }
     }
 
-    pub fn create_view(&self, cx: Scope) -> View {
+    pub fn create_view(&self, cx: Scope, button_type: ButtonType) -> View {
         let handler = Rc::clone(&self.handler);
         let is_submitting_signal = handler.is_submitting();
         let submit_error_signal = handler.submit_error();
         let form_submit_data_signal = handler.on_submit().data();
+        let button_type = Rc::new(button_type);
 
         view! { cx,
             {move ||
@@ -73,7 +77,7 @@ impl HtmlFormHandler {
                     view! {
                         cx,
                         <div>
-                            <SubmitFormView handler=&*handler form_submit_data/>
+                            <SubmitFormView handler=&*handler form_submit_data button_type=&*button_type/>
                         </div>
                     }.into_view(cx)
                 }
@@ -129,12 +133,8 @@ impl SaveFormHandler {
             },
         );
 
-        let form_handler = FormHandler::new_with_vault(
-            cx.clone(),
-            form,
-            &*vault,
-            submit_handler,
-        );
+        let form_handler =
+            FormHandler::new_with_vault(cx, form, &*vault, submit_handler);
         let html_form_handler = HtmlFormHandler::new(form_handler);
 
         Self {
@@ -144,6 +144,67 @@ impl SaveFormHandler {
     }
 
     pub fn create_view(&self) -> View {
-        self.html_form_handler.create_view(self.cx)
+        self.html_form_handler.create_view(
+            self.cx,
+            ButtonType::Save(Some("Save Changes".to_string())),
+        )
+    }
+}
+
+pub struct CustomFormHandler {
+    cx: Scope,
+    html_form_handler: HtmlFormHandler,
+    button_type: Option<ButtonType>,
+}
+
+impl CustomFormHandler {
+    pub fn new(
+        cx: Scope,
+        form: HtmlForm,
+        custom_function: Box<dyn Fn(SubmitEvent, bool) + 'static>,
+        button_type: Option<ButtonType>,
+    ) -> Self {
+        let default_field_values = form.default_field_values();
+        let form_elements = form.elements();
+
+        // Create MetaData (you may need to adjust this for your needs)
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), form.name());
+        let meta_data = ItemMetaData::new_with_tags(&form.id(), tags);
+
+        let form_data_default = FormData::create_from_elements(
+            cx,
+            meta_data,
+            &default_field_values,
+            &form_elements,
+        );
+
+        let form_data = create_rw_signal(cx, Some(form_data_default));
+
+        let custom_submit_handler = CustomSubmitHandler::new(
+            cx,
+            form_data.clone(),
+            Rc::new(
+                move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
+                    custom_function(ev, form_data.get().is_some());
+                },
+            ),
+        );
+
+        let form_handler =
+            FormHandler::new(None, Box::new(custom_submit_handler));
+        let html_form_handler = HtmlFormHandler::new(form_handler);
+
+        Self {
+            cx,
+            html_form_handler,
+            button_type,
+        }
+    }
+
+    pub fn create_view(&self) -> View {
+        let button_type =
+            self.button_type.clone().unwrap_or(ButtonType::Submit(None));
+        self.html_form_handler.create_view(self.cx, button_type)
     }
 }

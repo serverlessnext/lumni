@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 
 use super::form_data::FormData;
 use super::HtmlForm;
-use crate::components::form_input::{FormElement, InputElements};
+use crate::components::form_input::FormElement;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
@@ -82,7 +81,7 @@ fn handle_loaded_content(
         Ok(data) => match data {
             Some(data) => match serde_json::from_slice(&data) {
                 Ok(new_config) => {
-                    let form_submit_data = create_form_submit_data(
+                    let form_submit_data = FormData::create_from_elements(
                         cx,
                         meta_data,
                         &new_config,
@@ -100,7 +99,7 @@ fn handle_loaded_content(
                     "No data found for the given form id: {}. Creating new.",
                     form_name
                 );
-                let form_submit_data = create_form_submit_data(
+                let form_submit_data = FormData::create_from_elements(
                     cx,
                     meta_data,
                     default_field_values,
@@ -113,7 +112,7 @@ fn handle_loaded_content(
             SecureStringError::PasswordNotFound(_)
             | SecureStringError::NoLocalStorageData => {
                 log::info!("{} Creating new.", CANT_LOAD_CONFIG);
-                let form_submit_data = create_form_submit_data(
+                let form_submit_data = FormData::create_from_elements(
                     cx,
                     meta_data,
                     default_field_values,
@@ -167,38 +166,4 @@ async fn fetch_form_data(
     };
 
     local_storage.load_content(&form_name).await
-}
-
-fn create_form_submit_data(
-    cx: Scope,
-    meta_data: ItemMetaData,
-    config: &HashMap<String, String>,
-    elements: &[FormElement],
-) -> FormData {
-    let input_elements: InputElements = config
-        .iter()
-        .filter_map(|(key, value)| {
-            elements.iter().find_map(|element| match element {
-                FormElement::InputField(field_data) => {
-                    if field_data.name == *key {
-                        let error_signal = create_rw_signal(cx, None);
-                        let value_signal = create_rw_signal(cx, value.clone());
-                        let default_input_data = field_data.clone();
-                        Some((
-                            key.clone(),
-                            (
-                                create_node_ref(cx),
-                                error_signal,
-                                value_signal,
-                                Arc::new(default_input_data),
-                            ),
-                        ))
-                    } else {
-                        None
-                    }
-                }
-            })
-        })
-        .collect();
-    FormData::new(input_elements, meta_data)
 }

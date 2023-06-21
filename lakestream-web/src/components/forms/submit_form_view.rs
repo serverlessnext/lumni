@@ -4,6 +4,7 @@ use leptos::*;
 use super::form_content_view::FormContentView;
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandler;
+use crate::components::buttons::ButtonType;
 use crate::components::form_helpers::SubmissionStatusView;
 use crate::components::form_input::InputElements;
 
@@ -12,6 +13,7 @@ pub fn SubmitFormView<'a>(
     cx: Scope,
     handler: &'a FormHandler,
     form_submit_data: FormData,
+    button_type: &'a ButtonType,
 ) -> impl IntoView {
     let is_submitting = handler.is_submitting();
     let submit_error = handler.submit_error();
@@ -33,6 +35,7 @@ pub fn SubmitFormView<'a>(
                 input_elements={input_elements}
                 on_submit=box_on_submit
                 is_submitting
+                button_type
             />
             <SubmissionStatusView is_submitting={is_submitting.into()} submit_error={submit_error.into()} />
         </div>

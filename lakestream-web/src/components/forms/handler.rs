@@ -23,7 +23,7 @@ impl FormHandler {
         cx: Scope,
         form: HtmlForm,
         vault: &LocalEncrypt,
-        submit_handler_factory: Box<
+        submit_handler: Box<
             dyn Fn(
                 Scope,
                 Option<&LocalEncrypt>,
@@ -35,7 +35,7 @@ impl FormHandler {
         let form_data = vault_handler.form_data();
         let on_load: Option<Box<dyn LoadHandler>> = Some(vault_handler);
 
-        let on_submit = submit_handler_factory(cx, Some(vault), form_data);
+        let on_submit = submit_handler(cx, Some(vault), form_data);
 
         Self { on_load, on_submit }
     }

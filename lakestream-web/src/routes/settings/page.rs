@@ -18,6 +18,14 @@ pub fn Settings(cx: Scope) -> impl IntoView {
                                     "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
                                 }
                             }>"Other Settings"</a>
+                        <a href="./change-password-v2"
+                            class={
+                                if page_path.get().ends_with("/change-password-v2") {
+                                    "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
+                                } else {
+                                    "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
+                                }
+                            }>"Change Password V2"</a>
                         <a href="./change-password"
                             class={
                                 if page_path.get().ends_with("/change-password") {

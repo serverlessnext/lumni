@@ -4,19 +4,23 @@ use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::*;
 use localencrypt::StorageBackend;
+use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
 use crate::components::form_input::{
-    FormElement, InputFieldBuilder, InputFieldPattern,
+    build_all, FieldBuilder, FormElement, InputFieldBuilder, InputFieldPattern,
 };
-use crate::components::forms::SingleInputForm;
+use crate::components::forms::{
+    CustomFormHandler, FormData, HtmlForm, SingleInputForm, SubmitHandler,
+};
 
 const ROOT_USERNAME: &str = "admin";
 
 #[component]
 pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
+    // NOTE: this function will be obsoleted soon -- see V2 below
     let password_ref: NodeRef<Input> = create_node_ref(cx);
     let new_password_ref: NodeRef<Input> = create_node_ref(cx);
 
@@ -137,4 +141,39 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             }}
         </div>
     }
+}
+
+#[component]
+pub fn ChangePasswordFormV2(cx: Scope) -> impl IntoView {
+    // WORK-IN-PROGRESS
+    // new implementation based on the new form builder
+
+    // Create Form Elements
+    let builders = vec![
+        InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck),
+        InputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange),
+    ];
+    let elements: Vec<FormElement> = build_all(builders);
+
+    let form =
+        HtmlForm::new("Change Password", &Uuid::new_v4().to_string(), elements);
+
+    // Define a custom function
+    let handle_password_submission = |ev: SubmitEvent, _is_form_data: bool| {
+        // Perform validation, etc.
+        ev.prevent_default();
+        log!("handle_password_submission clicked");
+    };
+
+    // Create a custom form handler with the defined function
+    let custom_form_handler = CustomFormHandler::new(
+        cx,
+        form,
+        Box::new(handle_password_submission),
+        Some(ButtonType::Login(Some(
+            "Validate Current Password".to_string(),
+        ))),
+    );
+
+    custom_form_handler.create_view()
 }

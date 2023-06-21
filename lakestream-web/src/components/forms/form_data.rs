@@ -1,6 +1,10 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use leptos::*;
 use localencrypt::ItemMetaData;
 
-use crate::components::form_input::InputElements;
+use crate::components::form_input::{FormElement, InputElements};
 
 pub enum SubmitInput {
     Elements(InputElements),
@@ -26,5 +30,40 @@ impl FormData {
 
     pub fn input_elements(&self) -> InputElements {
         self.input_elements.clone()
+    }
+
+    pub fn create_from_elements(
+        cx: Scope,
+        meta_data: ItemMetaData,
+        config: &HashMap<String, String>,
+        elements: &[FormElement],
+    ) -> FormData {
+        let input_elements: InputElements = config
+            .iter()
+            .filter_map(|(key, value)| {
+                elements.iter().find_map(|element| match element {
+                    FormElement::InputField(field_data) => {
+                        if field_data.name == *key {
+                            let error_signal = create_rw_signal(cx, None);
+                            let value_signal =
+                                create_rw_signal(cx, value.clone());
+                            let default_input_data = field_data.clone();
+                            Some((
+                                key.clone(),
+                                (
+                                    create_node_ref(cx),
+                                    error_signal,
+                                    value_signal,
+                                    Arc::new(default_input_data),
+                                ),
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                })
+            })
+            .collect();
+        Self::new(input_elements, meta_data)
     }
 }

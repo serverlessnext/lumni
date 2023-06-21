@@ -8,7 +8,7 @@ pub enum ButtonType {
     Confirm(Option<String>),
     Cancel(Option<String>),
     Reset(Option<String>),
-    Custom(Option<String>),
+    Submit(Option<String>),
 }
 
 impl ButtonType {
@@ -23,7 +23,7 @@ impl ButtonType {
             ButtonType::Confirm(_) => ("bg-green-600", "hover:bg-green-700"),
             ButtonType::Cancel(_) => ("bg-red-600", "hover:bg-red-700"),
             ButtonType::Reset(_) => ("bg-red-600", "hover:bg-red-700"),
-            ButtonType::Custom(_) => ("bg-purple-600", "hover:bg-purple-700"),
+            ButtonType::Submit(_) => ("bg-purple-600", "hover:bg-purple-700"),
         }
     }
 
@@ -50,8 +50,8 @@ impl ButtonType {
             ButtonType::Reset(text) => {
                 text.clone().unwrap_or_else(|| "Reset".to_string())
             }
-            ButtonType::Custom(text) => {
-                text.clone().unwrap_or_else(|| "Custom".to_string())
+            ButtonType::Submit(text) => {
+                text.clone().unwrap_or_else(|| "Submit".to_string())
             }
         }
     }

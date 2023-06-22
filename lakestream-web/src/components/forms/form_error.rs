@@ -13,8 +13,10 @@ impl std::fmt::Display for FormError {
             FormError::SubmitError(msg) => write!(f, "Submit error: {}", msg),
             FormError::ValidationError { field, details } => {
                 write!(f, "Validation error: {} - {}", field, details)
-            },
-            FormError::LocalEncryptError(err) => write!(f, "LocalEncrypt error: {}", err),
+            }
+            FormError::LocalEncryptError(err) => {
+                write!(f, "LocalEncrypt error: {}", err)
+            }
         }
     }
 }

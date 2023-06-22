@@ -1,4 +1,3 @@
-
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use localencrypt::StorageBackend;
@@ -10,16 +9,15 @@ use crate::components::form_input::{
     build_all, FormElement, InputFieldBuilder, InputFieldPattern,
 };
 use crate::components::forms::{
-    CustomFormHandler, FormData, HtmlForm, FormError,
+    CustomFormHandler, FormData, FormError, HtmlForm,
 };
 
 const ROOT_USERNAME: &str = "admin";
-const PASSWORD_FIELD: &str = "PASSWORD";
 const INTERNAL_ERROR: &str = "An internal error occurred: ";
 const INVALID_PASSWORD: &str = "Invalid password. Please try again.";
 const FORM_DATA_MISSING: &str = "form_data does not exist";
+const PASSWORD_FIELD: &str = "PASSWORD";
 const PASSWORD_MISSING: &str = "password does not exist";
-
 
 #[component]
 pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
@@ -27,17 +25,34 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
-    let elements_validation: Vec<FormElement> = build_all(vec![InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck)]);
-    let elements_change: Vec<FormElement> = build_all(vec![InputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange)]);
+    let elements_validation: Vec<FormElement> =
+        build_all(vec![InputFieldBuilder::with_pattern(
+            InputFieldPattern::PasswordCheck,
+        )]);
+    let elements_change: Vec<FormElement> =
+        build_all(vec![InputFieldBuilder::with_pattern(
+            InputFieldPattern::PasswordChange,
+        )]);
 
-    let form_validation = HtmlForm::new("Validate Password", &Uuid::new_v4().to_string(), elements_validation);
-    let form_change = HtmlForm::new("Change Password", &Uuid::new_v4().to_string(), elements_change);
+    let form_validation = HtmlForm::new(
+        "Validate Password",
+        &Uuid::new_v4().to_string(),
+        elements_validation,
+    );
+    let form_change = HtmlForm::new(
+        "Change Password",
+        &Uuid::new_v4().to_string(),
+        elements_change,
+    );
 
     let handle_password_validation = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             ev.prevent_default();
 
-            let password_from_user = match handle_internal_error(extract_password(form_data), validation_error) {
+            let password_from_user = match handle_internal_error(
+                extract_password(form_data),
+                validation_error,
+            ) {
                 Some(password) => password,
                 None => {
                     is_submitting.set(false);
@@ -46,7 +61,11 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             };
 
             spawn_local(async move {
-                let backend_result = initiate_storage_backend(ROOT_USERNAME, &password_from_user).await;
+                let backend_result = initiate_storage_backend(
+                    ROOT_USERNAME,
+                    &password_from_user,
+                )
+                .await;
                 if backend_result.is_ok() {
                     log!("Password validated successfully");
                     validation_error.set(None);
@@ -67,13 +86,19 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             let password = match password_validated.get() {
                 Some(password) => password,
                 None => {
-                    validation_error.set(Some(format!("{}{}", INTERNAL_ERROR, "password does not exist")));
+                    validation_error.set(Some(format!(
+                        "{}{}",
+                        INTERNAL_ERROR, "password does not exist"
+                    )));
                     is_submitting.set(false);
                     return;
                 }
             };
 
-            let new_password = match handle_internal_error(extract_password(form_data), validation_error) {
+            let new_password = match handle_internal_error(
+                extract_password(form_data),
+                validation_error,
+            ) {
                 Some(password) => password,
                 None => {
                     is_submitting.set(false);
@@ -82,13 +107,21 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             };
 
             spawn_local(async move {
-                let backend_result = initiate_storage_backend(ROOT_USERNAME, &password).await;
-                if let Some(backend) = handle_internal_error(backend_result, validation_error) {
+                let backend_result =
+                    initiate_storage_backend(ROOT_USERNAME, &password).await;
+                if let Some(backend) =
+                    handle_internal_error(backend_result, validation_error)
+                {
                     let password_change_result = backend
                         .change_password(&password, &new_password)
                         .await
                         .map_err(FormError::LocalEncryptError);
-                    if handle_internal_error(password_change_result, validation_error).is_some() {
+                    if handle_internal_error(
+                        password_change_result,
+                        validation_error,
+                    )
+                    .is_some()
+                    {
                         log!("Password changed successfully");
                         validation_error.set(None);
                         password_validated.set(Some(new_password));
@@ -106,7 +139,9 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         Box::new(handle_password_validation),
         is_submitting,
         validation_error,
-        Some(ButtonType::Login(Some("Validate Current Password".to_string()))),
+        Some(ButtonType::Login(Some(
+            "Validate Current Password".to_string(),
+        ))),
     );
 
     let change_form_handler = CustomFormHandler::new(
@@ -129,8 +164,13 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     }
 }
 
-async fn initiate_storage_backend(username: &str, password: &str) -> Result<StorageBackend, FormError> {
-    StorageBackend::initiate_with_local_storage(username, Some(password)).await.map_err(FormError::from)
+async fn initiate_storage_backend(
+    username: &str,
+    password: &str,
+) -> Result<StorageBackend, FormError> {
+    StorageBackend::initiate_with_local_storage(username, Some(password))
+        .await
+        .map_err(FormError::from)
 }
 
 fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
@@ -140,22 +180,35 @@ fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
             data.to_hash_map()
                 .get(PASSWORD_FIELD)
                 .cloned()
-                .ok_or_else(|| FormError::ValidationError { field: PASSWORD_FIELD.to_string(), details: PASSWORD_MISSING.to_string() })
+                .ok_or_else(|| FormError::ValidationError {
+                    field: PASSWORD_FIELD.to_string(),
+                    details: PASSWORD_MISSING.to_string(),
+                })
         })
 }
 
-fn handle_internal_error<T>(result: Result<T, FormError>, validation_error: RwSignal<Option<String>>) -> Option<T> {
+fn handle_internal_error<T>(
+    result: Result<T, FormError>,
+    validation_error: RwSignal<Option<String>>,
+) -> Option<T> {
     match result {
         Ok(value) => Some(value),
         Err(err) => {
             error!("{}", err); // log error to console
 
             let error_message = match &err {
-                FormError::SubmitError(msg) => format!("{}{}", INTERNAL_ERROR, msg),
+                FormError::SubmitError(msg) => {
+                    format!("{}{}", INTERNAL_ERROR, msg)
+                }
                 FormError::ValidationError { field, details } => {
-                    format!("{}Validation error in field '{}': {}", INTERNAL_ERROR, field, details)
-                },
-                FormError::LocalEncryptError(err) => format!("{}{}", INTERNAL_ERROR, err.to_string()),
+                    format!(
+                        "{}Validation error in field '{}': {}",
+                        INTERNAL_ERROR, field, details
+                    )
+                }
+                FormError::LocalEncryptError(err) => {
+                    format!("{}{}", INTERNAL_ERROR, err.to_string())
+                }
             };
 
             validation_error.set(Some(error_message));
@@ -163,4 +216,3 @@ fn handle_internal_error<T>(result: Result<T, FormError>, validation_error: RwSi
         }
     }
 }
-

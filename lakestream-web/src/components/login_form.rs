@@ -5,7 +5,6 @@ use leptos::*;
 use leptos_router::use_navigate;
 use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
-use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::{ActionTrigger, ButtonType};
@@ -22,10 +21,124 @@ const PASSWORD_FIELD: &str = "PASSWORD";
 const FORM_DATA_MISSING: &str = "form_data does not exist";
 const PASSWORD_MISSING: &str = "password does not exist";
 
+#[derive(Clone)]
+pub struct AppLogin {
+    cx: Scope,
+    set_vault: SignalSetter<LocalEncrypt>,
+    set_vault_initialized: SignalSetter<bool>,
+    is_submitting: RwSignal<bool>,
+    validation_error: RwSignal<Option<String>>,
+    redirect_url: String,
+}
+
+impl AppLogin {
+    pub fn new(
+        cx: Scope,
+        set_vault: SignalSetter<LocalEncrypt>,
+        set_vault_initialized: SignalSetter<bool>,
+        redirect_url: String,
+    ) -> Self {
+        let is_submitting = create_rw_signal(cx, false);
+        let validation_error = create_rw_signal(cx, None::<String>);
+        Self {
+            cx,
+            set_vault,
+            set_vault_initialized,
+            is_submitting,
+            validation_error,
+            redirect_url,
+        }
+    }
+
+    pub fn is_submitting(&self) -> RwSignal<bool> {
+        self.is_submitting.clone()
+    }
+
+    pub fn validation_error(&self) -> RwSignal<Option<String>> {
+        self.validation_error.clone()
+    }
+
+    pub async fn initialize_and_navigate(
+        &self,
+        password: String,
+        is_submitting: RwSignal<bool>,
+        validation_error: RwSignal<Option<String>>,
+    ) {
+        let navigate = use_navigate(self.cx);
+        match StorageBackend::initiate_with_local_storage(
+            ROOT_USERNAME,
+            Some(&password),
+        )
+        .await
+        {
+            Ok(storage_backend) => {
+                let local_encrypt = LocalEncrypt::builder()
+                    .with_backend(storage_backend)
+                    .build();
+
+                self.set_vault.set(local_encrypt);
+                self.set_vault_initialized.set(true);
+
+                if let Err(e) = navigate(&self.redirect_url, Default::default())
+                {
+                    error!("Error navigating to {}: {}", &self.redirect_url, e);
+                }
+            }
+            Err(err) => {
+                let msg = err.to_string();
+                error!("Error initializing vault: {}", msg);
+                validation_error.set(Some(msg));
+                is_submitting.set(false);
+            }
+        }
+    }
+
+    pub fn set_password_and_submit(
+        &self,
+        ev: SubmitEvent,
+        form_data: Option<FormData>,
+    ) {
+        ev.prevent_default();
+        let password = match extract_password(form_data) {
+            Ok(password) => password,
+            Err(err) => {
+                self.validation_error.set(Some(err.to_string()));
+                return;
+            }
+        };
+        let app_login = self.clone();
+        spawn_local(async move {
+            let is_submitting = app_login.is_submitting();
+            let validation_error = app_login.validation_error();
+            app_login
+                .initialize_and_navigate(
+                    password,
+                    is_submitting,
+                    validation_error,
+                )
+                .await;
+        });
+    }
+}
+
 #[component]
 pub fn LoginForm(cx: Scope) -> impl IntoView {
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
+
+    let init_vault =
+        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
+    let vault_initialized =
+        create_write_slice(cx, state, |state, initialized| {
+            if let Some(runtime) = &mut state.runtime {
+                runtime.set_vault_initialized(initialized);
+            }
+        });
+    let previous_url = create_read_slice(cx, state, |state| {
+        state.runtime.as_ref().map(|r| r.previous_url().clone())
+    });
+
+    let redirect_url = previous_url().unwrap_or_default();
 
     // Page is in a loading state until we know if the user is defined
     let is_user_defined = create_rw_signal(cx, false);
@@ -38,106 +151,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
         }
     });
 
-    // Create writable state slices for the vault and initialization status.
-    let set_vault =
-        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
-    let set_vault_initialized =
-        create_write_slice(cx, state, |state, initialized| {
-            if let Some(runtime) = &mut state.runtime {
-                runtime.set_vault_initialized(initialized);
-            }
-        });
-
-    // Create a readable state slice for the previous URL.
-    let previous_url = create_read_slice(cx, state, |state| {
-        state.runtime.as_ref().map(|r| r.previous_url().clone())
-    });
-    let redirect_url = previous_url().unwrap_or_default();
-
-    let is_submitting = create_rw_signal(cx, false);
-    let validation_error = create_rw_signal(cx, None::<String>);
-
-    let elements: Vec<FormElement> =
-        build_all(vec![InputFieldBuilder::with_pattern(
-            InputFieldPattern::PasswordCheck,
-        )]);
-
-    let form_login =
-        HtmlForm::new("Login", &Uuid::new_v4().to_string(), elements.clone());
-    let form_create =
-        HtmlForm::new("Create Password", &Uuid::new_v4().to_string(), elements);
-
-    // form submission is used for both login of existing user and new users
-    // if user does not exist it will be created when initiating StorageBackend
-    let handle_form_submission = {
-        move |ev: SubmitEvent, form_data: Option<FormData>| {
-            ev.prevent_default();
-
-            let password = match extract_password(form_data) {
-                Ok(password) => password,
-                Err(err) => {
-                    validation_error.set(Some(err.to_string()));
-                    return;
-                }
-            };
-
-            let navigate = use_navigate(cx);
-            let redirect_url = redirect_url.clone();
-
-            spawn_local(async move {
-                match StorageBackend::initiate_with_local_storage(
-                    ROOT_USERNAME,
-                    Some(&password),
-                )
-                .await
-                {
-                    Ok(storage_backend) => {
-                        let local_encrypt = LocalEncrypt::builder()
-                            .with_backend(storage_backend)
-                            .build();
-
-                        set_vault.set(local_encrypt);
-                        set_vault_initialized.set(true);
-
-                        if let Err(e) =
-                            navigate(&redirect_url, Default::default())
-                        {
-                            error!(
-                                "Error navigating to {}: {}",
-                                &redirect_url, e
-                            );
-                        }
-                    }
-                    Err(err) => {
-                        let msg = err.to_string();
-                        web_sys::console::log_1(&JsValue::from_str(&msg));
-                        validation_error.set(Some(msg));
-                        is_submitting.set(false);
-                    }
-                }
-            });
-        }
-    };
-
-    // Existing user
-    let login_form_handler = CustomFormHandler::new(
-        cx,
-        form_login,
-        Box::new(handle_form_submission.clone()),
-        is_submitting,
-        validation_error,
-        Some(ButtonType::Login(None)),
-    );
-
-    // New user gets this view
-    let create_form_handler = CustomFormHandler::new(
-        cx,
-        form_create,
-        Box::new(handle_form_submission),
-        is_submitting,
-        validation_error,
-        Some(ButtonType::Create(Some("Create new password".to_string()))),
-    );
+    let app_login =
+        AppLogin::new(cx, init_vault, vault_initialized, redirect_url);
 
     view! { cx,
         { move ||
@@ -147,12 +162,76 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                     <div>"Loading..."</div>
                 }.into_view(cx)
             } else if is_user_defined.get() {
-                login_form_handler.create_view()
+                view! {
+                    cx,
+                    <LoginUser app_login=app_login.clone()/>
+                }.into_view(cx)
             } else {
-                create_form_handler.create_view()
+                view! {
+                    cx,
+                    <CreateUser app_login=app_login.clone()/>
+                }.into_view(cx)
             }
         }
     }
+}
+
+#[component]
+pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
+    let is_submitting = app_login.is_submitting();
+    let validation_error = app_login.validation_error();
+    let elements: Vec<FormElement> =
+        build_all(vec![InputFieldBuilder::with_pattern(
+            InputFieldPattern::PasswordCheck,
+        )]);
+
+    let form_login =
+        HtmlForm::new("Login", &Uuid::new_v4().to_string(), elements);
+
+    let handle_form_submission =
+        move |ev: SubmitEvent, form_data: Option<FormData>| {
+            app_login.set_password_and_submit(ev, form_data);
+        };
+
+    let login_form_handler = CustomFormHandler::new(
+        cx,
+        form_login,
+        Box::new(handle_form_submission),
+        is_submitting,
+        validation_error,
+        Some(ButtonType::Login(None)),
+    );
+
+    login_form_handler.create_view()
+}
+
+#[component]
+pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
+    let is_submitting = app_login.is_submitting();
+    let validation_error = app_login.validation_error();
+    let elements: Vec<FormElement> =
+        build_all(vec![InputFieldBuilder::with_pattern(
+            InputFieldPattern::PasswordCheck,
+        )]);
+
+    let form_create =
+        HtmlForm::new("Create Password", &Uuid::new_v4().to_string(), elements);
+
+    let handle_form_submission =
+        move |ev: SubmitEvent, form_data: Option<FormData>| {
+            app_login.set_password_and_submit(ev, form_data);
+        };
+
+    let create_form_handler = CustomFormHandler::new(
+        cx,
+        form_create,
+        Box::new(handle_form_submission),
+        is_submitting,
+        validation_error,
+        Some(ButtonType::Create(Some("Create new password".to_string()))),
+    );
+
+    create_form_handler.create_view()
 }
 
 fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
@@ -222,7 +301,7 @@ fn debug_login(cx: Scope) {
             }
             Err(err) => {
                 let msg = err.to_string();
-                web_sys::console::log_1(&JsValue::from_str(&msg));
+                error!("{}", msg);
             }
         }
     });

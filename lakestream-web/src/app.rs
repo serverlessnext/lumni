@@ -61,9 +61,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="flex py-3 items-end">
                         <a href="/home" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Home"</a>
                         <a href="/object-stores" class="text-green-300 hover:text-green-500 mr-4 font-mono">"ObjectStores"</a>
-                        //<a href="/settings/user" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
-                        // temporary default to enable easy testing
-                        <a href="/settings/change-password " class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
+                        <a href="/settings/user" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
                         <a href="/about" class="text-green-300 hover:text-green-500 mr-4 font-mono">"About"</a>
                         <a href="/logout" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Logout"</a>
                     </div>

@@ -4,11 +4,11 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
 
-use super::object_store::ObjectStoreForm;
+use super::object_store_s3::ObjectStoreS3;
 use crate::GlobalState;
 
 #[component]
-pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
+pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -25,7 +25,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
-        create_signal(cx, ObjectStoreList::new(local_storage));
+        create_signal(cx, ConfigurationList::new(local_storage));
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
@@ -64,7 +64,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                     .load_from_vault()
                     .await
                     .unwrap_or_default();
-                set_item_list.set(ObjectStoreList {
+                set_item_list.set(ConfigurationList {
                     items: initial_items,
                     local_storage,
                 });
@@ -114,7 +114,7 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
                         <For
                             each={move || item_list.get().items.clone()}
                             key=|item| item.name()
-                            view=move |cx, item: ObjectStoreForm| view! { cx, <ListItem item set_is_loading/> }
+                            view=move |cx, item: ObjectStoreS3| view! { cx, <ListItem item set_is_loading/> }
                         />
                     </ul>
                 </div>
@@ -127,17 +127,17 @@ pub fn ObjectStoreListView(cx: Scope) -> impl IntoView {
 #[component]
 fn ListItem(
     cx: Scope,
-    item: ObjectStoreForm,
+    item: ObjectStoreS3,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
-    let set_item = use_context::<WriteSignal<ObjectStoreList>>(cx).unwrap();
+    let set_item = use_context::<WriteSignal<ConfigurationList>>(cx).unwrap();
     let item_id = item.id();
     let item_name = item.name();
 
     view! { cx,
         <li>
             <div class="px-4 py-2">
-                <a href={format!("/object-stores/{}", item_id)}>
+                <a href={format!("/configurations/{}", item_id)}>
                     {item_name.clone()}
                 </a>
                 " | "
@@ -148,12 +148,12 @@ fn ListItem(
 }
 
 #[derive(Debug, Clone)]
-pub struct ObjectStoreList {
-    pub items: Vec<ObjectStoreForm>,
+pub struct ConfigurationList {
+    pub items: Vec<ObjectStoreS3>,
     pub local_storage: LocalStorage,
 }
 
-impl ObjectStoreList {
+impl ConfigurationList {
     pub fn new(local_storage: LocalStorage) -> Self {
         Self {
             items: vec![],
@@ -163,12 +163,12 @@ impl ObjectStoreList {
 
     pub async fn load_from_vault(
         &self,
-    ) -> SecureStringResult<Vec<ObjectStoreForm>> {
+    ) -> SecureStringResult<Vec<ObjectStoreS3>> {
         let configs = self.local_storage.list_items().await?;
         let items = configs
             .into_iter()
             .map(|form_data| {
-                ObjectStoreForm::new_with_id(
+                ObjectStoreS3::new_with_id(
                     form_data
                         .tags()
                         .unwrap()
@@ -190,7 +190,7 @@ impl ObjectStoreList {
     ) {
         set_is_submitting.set(true);
 
-        let object_store = ObjectStoreForm::new(name.clone());
+        let object_store = ObjectStoreS3::new(name.clone());
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), name.clone());

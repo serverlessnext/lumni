@@ -9,12 +9,12 @@ use crate::components::form_input::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ObjectStoreForm {
+pub struct ObjectStoreS3 {
     name: String,
     id: String,
 }
 
-impl ObjectStoreForm {
+impl ObjectStoreS3 {
     pub fn new(name: String) -> Self {
         Self {
             name,

@@ -1,7 +1,7 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::object_store::ObjectStoreForm;
+use super::object_store_s3::ObjectStoreS3;
 use crate::components::forms::{HtmlForm, SaveFormHandler};
 use crate::GlobalState;
 
@@ -20,7 +20,7 @@ impl Params for RouteParams {
 }
 
 #[component]
-pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
+pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -79,7 +79,7 @@ pub fn ObjectStoresId(cx: Scope) -> impl IntoView {
                         if let Some(name) = name {
                             //let object_store_form =
                             let default_fields =
-                                ObjectStoreForm::default_fields(&name);
+                                ObjectStoreS3::default_fields(&name);
                             form_loaded.set(Some(HtmlForm::new(
                                 &name,
                                 &form_id.clone().unwrap_or_default(),

@@ -4,7 +4,7 @@ use leptos_router::*;
 
 use crate::components::{ChangePasswordForm, Redirect};
 use crate::routes::api::Login;
-use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
+use crate::routes::configurations::{Configurations, ConfigurationId};
 use crate::routes::{About, Home, Logout, Settings, UserSettings};
 use crate::{GlobalState, RunTime};
 
@@ -60,7 +60,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <div class="mb-2 text-white text-2xl font-mono font-bold">"Lakestream"</div>
                     <div class="flex py-3 items-end">
                         <a href="/home" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Home"</a>
-                        <a href="/object-stores" class="text-green-300 hover:text-green-500 mr-4 font-mono">"ObjectStores"</a>
+                        <a href="/configurations" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Configurations"</a>
                         <a href="/settings/user" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
                         <a href="/about" class="text-green-300 hover:text-green-500 mr-4 font-mono">"About"</a>
                         <a href="/logout" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Logout"</a>
@@ -76,22 +76,16 @@ pub fn App(cx: Scope) -> impl IntoView {
                             view=|cx| view! { cx, <Home/> }
                         />
                        <ProtectedRoute
-                            path="/object-stores"
-                            redirect_path=redirect_path!("object-stores")
+                            path="/configurations"
+                            redirect_path=redirect_path!("configurations")
                             condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <ObjectStores/> }
-                        />
-                       <ProtectedRoute
-                            path="/object-stores"
-                             redirect_path=redirect_path!("object-stores")
-                            condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <ObjectStores/> }
+                            view=|cx| view! { cx, <Configurations/> }
                         />
                         <ProtectedRoute
-                            path="/object-stores/:id"
-                            redirect_path=redirect_path!("object-stores")
+                            path="/configurations/:id"
+                            redirect_path=redirect_path!("configurations")
                             condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <ObjectStoresId/> }
+                            view=|cx| view! { cx, <ConfigurationId/> }
                         />
                         <ProtectedRoute
                             path="/settings"

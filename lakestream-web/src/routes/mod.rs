@@ -7,4 +7,4 @@ pub use home::Home;
 pub use logout::Logout;
 pub use settings::{Settings, UserSettings};
 pub mod api;
-pub mod object_stores;
+pub mod configurations;

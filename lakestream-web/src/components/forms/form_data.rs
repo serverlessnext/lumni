@@ -66,4 +66,14 @@ impl FormData {
             .collect();
         Self::new(input_elements, meta_data)
     }
+
+    pub fn to_hash_map(&self) -> HashMap<String, String> {
+        let document_content: HashMap<String, String> = self.input_elements
+            .iter()
+            .map(|(key, (_, _, value_signal, _))| {
+                (key.clone(), value_signal.get())
+            })
+            .collect();
+        document_content
+    }
 }

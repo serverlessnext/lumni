@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::components::{ChangePasswordForm, ChangePasswordFormV2, Redirect};
+use crate::components::{ChangePasswordForm, Redirect};
 use crate::routes::api::Login;
 use crate::routes::object_stores::{ObjectStores, ObjectStoresId};
 use crate::routes::{About, Home, Logout, Settings, UserSettings};
@@ -63,7 +63,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                         <a href="/object-stores" class="text-green-300 hover:text-green-500 mr-4 font-mono">"ObjectStores"</a>
                         //<a href="/settings/user" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
                         // temporary default to enable easy testing
-                        <a href="/settings/change-password-v2 " class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
+                        <a href="/settings/change-password " class="text-green-300 hover:text-green-500 mr-4 font-mono">"Settings"</a>
                         <a href="/about" class="text-green-300 hover:text-green-500 mr-4 font-mono">"About"</a>
                         <a href="/logout" class="text-green-300 hover:text-green-500 mr-4 font-mono">"Logout"</a>
                     </div>
@@ -110,10 +110,6 @@ pub fn App(cx: Scope) -> impl IntoView {
                             <Route path="change-password" view=|cx| view! { cx,
                                 <p>"Change Password Screen"</p>
                                 <ChangePasswordForm />
-                            }/>
-                            <Route path="change-password-v2" view=|cx| view! { cx,
-                                <p>"Change Password Screen V2"</p>
-                                <ChangePasswordFormV2 />
                             }/>
                        </ProtectedRoute>
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>

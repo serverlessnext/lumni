@@ -25,7 +25,6 @@ pub fn SubmissionStatusView(
            view! {
                cx,
                <div class="text-red-500">
-                   {"Error during submission: "}
                    {error}
                </div>
            }.into_view(cx)

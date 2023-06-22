@@ -23,12 +23,11 @@ pub struct CustomSubmitHandler {
 
 impl CustomSubmitHandler {
     pub fn new(
-        cx: Scope,
         form_data: RwSignal<Option<FormData>>,
         on_submit: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>) + 'static>,
+        is_submitting: RwSignal<bool>,
+        submit_error: RwSignal<Option<String>>,
     ) -> Self {
-        let is_submitting = create_rw_signal(cx, false);
-        let submit_error = create_rw_signal(cx, None::<String>);
         Self {
             on_submit,
             form_data,

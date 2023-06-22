@@ -1,179 +1,166 @@
-use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
-use leptos::html::Input;
 use leptos::*;
 use localencrypt::StorageBackend;
 use uuid::Uuid;
-use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
 use crate::components::form_input::{
-    build_all, FieldBuilder, FormElement, InputFieldBuilder, InputFieldPattern,
+    build_all, FormElement, InputFieldBuilder, InputFieldPattern,
 };
 use crate::components::forms::{
-    CustomFormHandler, FormData, HtmlForm, SingleInputForm, SubmitHandler,
+    CustomFormHandler, FormData, HtmlForm, FormError,
 };
 
 const ROOT_USERNAME: &str = "admin";
+const PASSWORD_FIELD: &str = "PASSWORD";
+const INTERNAL_ERROR: &str = "An internal error occurred: ";
+const INVALID_PASSWORD: &str = "Invalid password. Please try again.";
+const FORM_DATA_MISSING: &str = "form_data does not exist";
+const PASSWORD_MISSING: &str = "password does not exist";
+
 
 #[component]
 pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
-    // NOTE: this function will be obsoleted soon -- see V2 below
-    let password_ref: NodeRef<Input> = create_node_ref(cx);
-    let new_password_ref: NodeRef<Input> = create_node_ref(cx);
+    let password_validated = create_rw_signal(cx, None::<String>);
+    let is_submitting = create_rw_signal(cx, false);
+    let validation_error = create_rw_signal(cx, None::<String>);
 
-    let (is_old_password_valid, set_is_old_password_valid) =
-        create_signal(cx, false);
+    let elements_validation: Vec<FormElement> = build_all(vec![InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck)]);
+    let elements_change: Vec<FormElement> = build_all(vec![InputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange)]);
 
-    let is_old_password_not_valid =
-        (move || !is_old_password_valid.get()).derive_signal(cx);
-    let error_signal = create_rw_signal(cx, None);
+    let form_validation = HtmlForm::new("Validate Password", &Uuid::new_v4().to_string(), elements_validation);
+    let form_change = HtmlForm::new("Change Password", &Uuid::new_v4().to_string(), elements_change);
 
-    let handle_old_password_submission = move |ev: SubmitEvent, _: bool| {
-        ev.prevent_default();
-        let password = password_ref().expect("password to exist").value();
+    let handle_password_validation = {
+        move |ev: SubmitEvent, form_data: Option<FormData>| {
+            ev.prevent_default();
 
-        spawn_local(async move {
-            let storage_backend = StorageBackend::initiate_with_local_storage(
-                ROOT_USERNAME,
-                Some(&password),
-            )
-            .await;
-            match storage_backend {
-                Ok(backend) => match backend.validate_password().await {
-                    Ok(valid) => {
-                        if valid {
-                            set_is_old_password_valid.set(true);
-                        } else {
-                            error_signal.set(Some(
-                                "Invalid password. Please try again."
-                                    .to_string(),
-                            ));
-                        }
-                    }
-                    Err(err) => error_signal
-                        .set(Some(format!("Error: {}", err.to_string()))),
-                },
-                Err(err) => error_signal
-                    .set(Some(format!("Error: {}", err.to_string()))),
-            }
-        });
+            let password_from_user = match handle_internal_error(extract_password(form_data), validation_error) {
+                Some(password) => password,
+                None => {
+                    is_submitting.set(false);
+                    return;
+                }
+            };
+
+            spawn_local(async move {
+                let backend_result = initiate_storage_backend(ROOT_USERNAME, &password_from_user).await;
+                if backend_result.is_ok() {
+                    log!("Password validated successfully");
+                    validation_error.set(None);
+                    password_validated.set(Some(password_from_user));
+                } else {
+                    error!("{}", backend_result.unwrap_err()); // log error to console
+                    validation_error.set(Some(INVALID_PASSWORD.to_string()));
+                }
+                is_submitting.set(false);
+            });
+        }
     };
 
-    let handle_new_password_submission = move |ev: SubmitEvent, _: bool| {
-        ev.prevent_default();
-        let password = password_ref().expect("password to exist").value();
-        let new_password =
-            new_password_ref().expect("new password to exist").value();
+    let handle_password_change = {
+        move |ev: SubmitEvent, form_data: Option<FormData>| {
+            ev.prevent_default();
 
-        spawn_local(async move {
-            let storage_backend = StorageBackend::initiate_with_local_storage(
-                ROOT_USERNAME,
-                Some(&password),
-            )
-            .await;
-            match storage_backend {
-                Ok(backend) => {
-                    match backend
+            let password = match password_validated.get() {
+                Some(password) => password,
+                None => {
+                    validation_error.set(Some(format!("{}{}", INTERNAL_ERROR, "password does not exist")));
+                    is_submitting.set(false);
+                    return;
+                }
+            };
+
+            let new_password = match handle_internal_error(extract_password(form_data), validation_error) {
+                Some(password) => password,
+                None => {
+                    is_submitting.set(false);
+                    return;
+                }
+            };
+
+            spawn_local(async move {
+                let backend_result = initiate_storage_backend(ROOT_USERNAME, &password).await;
+                if let Some(backend) = handle_internal_error(backend_result, validation_error) {
+                    let password_change_result = backend
                         .change_password(&password, &new_password)
                         .await
-                    {
-                        Ok(_) => log!("Password changed successfully"),
-                        Err(err) => {
-                            let msg = err.to_string();
-                            web_sys::console::log_1(&JsValue::from_str(&msg));
-                            error_signal.set(Some(msg));
-                        }
+                        .map_err(FormError::LocalEncryptError);
+                    if handle_internal_error(password_change_result, validation_error).is_some() {
+                        log!("Password changed successfully");
+                        validation_error.set(None);
+                        password_validated.set(Some(new_password));
                     }
                 }
-                Err(err) => {
-                    let msg = err.to_string();
-                    web_sys::console::log_1(&JsValue::from_str(&msg));
-                    error_signal.set(Some(msg));
-                }
-            }
-        });
+                is_submitting.set(false);
+            });
+        }
     };
 
-    let handle_old_password_submission =
-        Arc::new(handle_old_password_submission);
-    let handle_new_password_submission =
-        Arc::new(handle_new_password_submission);
-
-    let form_config_old_password = SingleInputForm::new(
-        handle_old_password_submission.clone(),
-        false,
-        ButtonType::Login(Some("Validate Current Password".to_string())),
-        match InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck)
-            .build()
-        {
-            FormElement::InputField(field_data) => field_data,
-        },
-    );
-
-    let form_config_new_password = SingleInputForm::new(
-        handle_new_password_submission,
-        false,
-        ButtonType::Change(Some("Change password".to_string())),
-        match InputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange)
-            .build()
-        {
-            FormElement::InputField(field_data) => field_data,
-        },
-    );
-
-    view! {
+    // Create a custom form handlers with the defined functions
+    let validation_form_handler = CustomFormHandler::new(
         cx,
-        <div class="px-2 py-2">
-            {form_config_old_password.render_view(cx, password_ref.clone(), is_old_password_not_valid)}
-            {form_config_new_password.render_view(cx, new_password_ref.clone(), is_old_password_valid.into())}
-            {move || if error_signal.get().is_some() {
-                view! {
-                    cx,
-                    <div class="text-red-500">
-                        { error_signal.get().unwrap_or("".to_string()) }
-                    </div>
-                }
+        form_validation,
+        Box::new(handle_password_validation),
+        is_submitting,
+        validation_error,
+        Some(ButtonType::Login(Some("Validate Current Password".to_string()))),
+    );
+
+    let change_form_handler = CustomFormHandler::new(
+        cx,
+        form_change,
+        Box::new(handle_password_change),
+        is_submitting,
+        validation_error,
+        Some(ButtonType::Change(Some("Change Password".to_string()))),
+    );
+
+    view! { cx,
+        { move ||
+            if password_validated.get().is_none() {
+                validation_form_handler.create_view()
             } else {
-                view! { cx, <div></div> }
-            }}
-        </div>
+                change_form_handler.create_view()
+            }
+        }
     }
 }
 
-#[component]
-pub fn ChangePasswordFormV2(cx: Scope) -> impl IntoView {
-    // WORK-IN-PROGRESS
-    // new implementation based on the new form builder
-
-    // Create Form Elements
-    let builders = vec![
-        InputFieldBuilder::with_pattern(InputFieldPattern::PasswordCheck),
-        InputFieldBuilder::with_pattern(InputFieldPattern::PasswordChange),
-    ];
-    let elements: Vec<FormElement> = build_all(builders);
-
-    let form =
-        HtmlForm::new("Change Password", &Uuid::new_v4().to_string(), elements);
-
-    // Define a custom function
-    let handle_password_submission = |ev: SubmitEvent, _is_form_data: bool| {
-        // Perform validation, etc.
-        ev.prevent_default();
-        log!("handle_password_submission clicked");
-    };
-
-    // Create a custom form handler with the defined function
-    let custom_form_handler = CustomFormHandler::new(
-        cx,
-        form,
-        Box::new(handle_password_submission),
-        Some(ButtonType::Login(Some(
-            "Validate Current Password".to_string(),
-        ))),
-    );
-
-    custom_form_handler.create_view()
+async fn initiate_storage_backend(username: &str, password: &str) -> Result<StorageBackend, FormError> {
+    StorageBackend::initiate_with_local_storage(username, Some(password)).await.map_err(FormError::from)
 }
+
+fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
+    form_data
+        .ok_or_else(|| FormError::SubmitError(FORM_DATA_MISSING.to_string()))
+        .and_then(|data| {
+            data.to_hash_map()
+                .get(PASSWORD_FIELD)
+                .cloned()
+                .ok_or_else(|| FormError::ValidationError { field: PASSWORD_FIELD.to_string(), details: PASSWORD_MISSING.to_string() })
+        })
+}
+
+fn handle_internal_error<T>(result: Result<T, FormError>, validation_error: RwSignal<Option<String>>) -> Option<T> {
+    match result {
+        Ok(value) => Some(value),
+        Err(err) => {
+            error!("{}", err); // log error to console
+
+            let error_message = match &err {
+                FormError::SubmitError(msg) => format!("{}{}", INTERNAL_ERROR, msg),
+                FormError::ValidationError { field, details } => {
+                    format!("{}Validation error in field '{}': {}", INTERNAL_ERROR, field, details)
+                },
+                FormError::LocalEncryptError(err) => format!("{}{}", INTERNAL_ERROR, err.to_string()),
+            };
+
+            validation_error.set(Some(error_message));
+            None
+        }
+    }
+}
+

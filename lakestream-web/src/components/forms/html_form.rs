@@ -161,7 +161,9 @@ impl CustomFormHandler {
     pub fn new(
         cx: Scope,
         form: HtmlForm,
-        custom_function: Box<dyn Fn(SubmitEvent, bool) + 'static>,
+        function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
+        is_submitting: RwSignal<bool>,
+        submit_error: RwSignal<Option<String>>,
         button_type: Option<ButtonType>,
     ) -> Self {
         let default_field_values = form.default_field_values();
@@ -182,13 +184,14 @@ impl CustomFormHandler {
         let form_data = create_rw_signal(cx, Some(form_data_default));
 
         let custom_submit_handler = CustomSubmitHandler::new(
-            cx,
             form_data.clone(),
             Rc::new(
                 move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
-                    custom_function(ev, form_data.get().is_some());
+                    function(ev, form_data.get());
                 },
             ),
+            is_submitting,
+            submit_error,
         );
 
         let form_handler =

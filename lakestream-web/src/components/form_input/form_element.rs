@@ -1,4 +1,4 @@
-use super::InputFieldData;
+use super::text_box::InputFieldData;
 
 #[derive(Clone, Default, Debug)]
 pub struct FieldLabel {
@@ -17,5 +17,6 @@ impl FieldLabel {
 
 #[derive(Debug, Clone)]
 pub enum FormElement {
-    InputField(InputFieldData),
+    TextBox(InputFieldData),
+    TextArea(InputFieldData),
 }

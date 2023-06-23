@@ -1,7 +1,8 @@
 mod page;
 mod list_view;
 mod config;
-mod object_store_s3;
+mod templates;
+mod config_list;
 
 pub use config::ConfigurationId;
 pub use page::Configurations;

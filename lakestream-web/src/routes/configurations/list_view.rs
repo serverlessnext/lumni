@@ -4,7 +4,7 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
 
-use super::object_store_s3::ObjectStoreS3;
+use super::templates::{ConfigTemplate, ObjectStoreS3};
 use crate::GlobalState;
 
 #[component]

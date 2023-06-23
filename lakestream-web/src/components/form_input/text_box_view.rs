@@ -1,13 +1,14 @@
 use leptos::html::Input;
 use leptos::*;
 
-use super::{InputElement, InputFieldData};
+use super::InputElement;
+use super::text_box::InputFieldData;
 use crate::components::icons::LockIconView;
 
 const MASKED_VALUE: &str = "*****";
 
 #[component]
-pub fn InputBoxView(
+pub fn TextBoxView(
     cx: Scope,
     input_element: InputElement,
     input_changed: RwSignal<bool>,

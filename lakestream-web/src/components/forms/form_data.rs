@@ -42,11 +42,10 @@ impl FormData {
             .iter()
             .filter_map(|(key, value)| {
                 elements.iter().find_map(|element| match element {
-                    FormElement::InputField(field_data) => {
+                    FormElement::TextBox(field_data) => {
                         if field_data.name == *key {
                             let error_signal = create_rw_signal(cx, None);
-                            let value_signal =
-                                create_rw_signal(cx, value.clone());
+                            let value_signal = create_rw_signal(cx, value.clone());
                             let default_input_data = field_data.clone();
                             Some((
                                 key.clone(),
@@ -60,8 +59,13 @@ impl FormData {
                         } else {
                             None
                         }
+                    },
+                    FormElement::TextArea(field_data) => {
+                        // TODO: implement this
+                        None
                     }
                 })
+
             })
             .collect();
         Self::new(input_elements, meta_data)

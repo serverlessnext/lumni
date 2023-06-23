@@ -2,7 +2,7 @@ use leptos::*;
 use uuid::Uuid;
 
 use crate::components::form_input::{
-    build_all, FieldBuilder, FormElement, InputFieldBuilder,
+    build_all, FieldBuilder, FormElement, TextBoxBuilder,
 };
 use crate::components::forms::{HtmlForm, SaveFormHandler};
 use crate::GlobalState;
@@ -23,9 +23,9 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     let username = "admin".to_string();
 
     let builders = vec![
-        InputFieldBuilder::from(FieldBuilder::new("field1").as_input_field())
+        TextBoxBuilder::from(FieldBuilder::new("field1").as_input_field())
             .default("".to_string()),
-        InputFieldBuilder::from(FieldBuilder::new("field2").as_input_field())
+        TextBoxBuilder::from(FieldBuilder::new("field2").as_input_field())
             .default("".to_string()),
     ];
 

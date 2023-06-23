@@ -17,7 +17,7 @@ pub type InputElement = (
 pub type InputElements = HashMap<String, InputElement>;
 
 #[derive(Debug, Clone)]
-pub struct InputField {
+pub struct TextBox {
     pub name: String,
     pub input_data: InputFieldData,
 }

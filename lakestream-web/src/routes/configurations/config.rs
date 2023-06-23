@@ -1,7 +1,8 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::object_store_s3::ObjectStoreS3;
+use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
+use super::config_list::{Config, ConfigList};
 use crate::components::forms::{HtmlForm, SaveFormHandler};
 use crate::GlobalState;
 
@@ -18,6 +19,7 @@ impl Params for RouteParams {
         Ok(Self { id: id.to_string() })
     }
 }
+
 
 #[component]
 pub fn ConfigurationId(cx: Scope) -> impl IntoView {
@@ -38,6 +40,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
 
     let vault_clone = vault.clone();
     let form_id_clone = form_id.clone();
+
     create_effect(cx, move |_| match form_id_clone.as_ref() {
         Some(form_id) if !form_id.is_empty() => {
             if !form_id.is_empty() {
@@ -62,31 +65,41 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                             .await
                             .unwrap_or_else(|_| vec![]);
 
-                        let name = configurations
+                        let form_data_option = configurations
                             .iter()
                             .find(|form_data| {
                                 form_data.id()
                                     == form_id.as_ref().unwrap().to_string()
-                            })
-                            .and_then(|form_data| {
-                                form_data.tags().and_then(|tags| {
-                                    tags.get("Name").cloned().or_else(|| {
-                                        Some("Untitled".to_string())
-                                    })
+                            });
+
+                        if let Some(form_data) = form_data_option {
+                            let name = form_data.tags().and_then(|tags| {
+                                tags.get("Name").cloned().or_else(|| {
+                                    Some("Untitled".to_string())
                                 })
                             });
 
-                        if let Some(name) = name {
-                            //let object_store_form =
-                            let default_fields =
-                                ObjectStoreS3::default_fields(&name);
-                            form_loaded.set(Some(HtmlForm::new(
-                                &name,
-                                &form_id.clone().unwrap_or_default(),
-                                default_fields,
-                            )));
+                            let config_type = form_data.tags()
+                                .and_then(|tags| tags.get("__CONFIGURATION_TYPE__").cloned())
+                                .unwrap_or_else(|| "Environment".to_string());
+
+                            if let Some(name) = name {
+                                let config = match config_type.as_str() {
+                                    "ObjectStoreS3" => Config::ObjectStoreS3(ObjectStoreS3::new(name.clone())),
+                                    _ => Config::Environment(Environment::new(name.clone())),
+                                };
+
+                                let form_elements = config.form_elements(&name);
+
+                                form_loaded.set(Some(HtmlForm::new(
+                                    &name,
+                                    &form_id.clone().unwrap_or_default(),
+                                    form_elements,
+                                )));
+                            }
+
+                            set_is_loading.set(false);
                         }
-                        set_is_loading.set(false);
                     }
                 });
             }

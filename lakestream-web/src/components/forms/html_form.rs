@@ -45,7 +45,10 @@ impl HtmlForm {
         self.elements
             .iter()
             .filter_map(|element| match element {
-                FormElement::InputField(field_data) => {
+                FormElement::TextBox(field_data) => {
+                    Some((field_data.name.clone(), field_data.value.clone()))
+                },
+                FormElement::TextArea(field_data) => {
                     Some((field_data.name.clone(), field_data.value.clone()))
                 }
             })

@@ -6,7 +6,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
 use crate::components::form_input::{
-    build_all, FormElement, InputFieldBuilder, InputFieldPattern,
+    build_all, FormElement, TextBoxBuilder, InputFieldPattern,
 };
 use crate::components::forms::{
     CustomFormHandler, FormData, FormError, HtmlForm,
@@ -26,11 +26,11 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     let validation_error = create_rw_signal(cx, None::<String>);
 
     let elements_validation: Vec<FormElement> =
-        build_all(vec![InputFieldBuilder::with_pattern(
+        build_all(vec![TextBoxBuilder::with_pattern(
             InputFieldPattern::PasswordCheck,
         )]);
     let elements_change: Vec<FormElement> =
-        build_all(vec![InputFieldBuilder::with_pattern(
+        build_all(vec![TextBoxBuilder::with_pattern(
             InputFieldPattern::PasswordChange,
         )]);
 

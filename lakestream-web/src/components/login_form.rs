@@ -9,7 +9,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::form_input::{
-    build_all, FormElement, InputFieldBuilder, InputFieldPattern,
+    build_all, FormElement, TextBoxBuilder, InputFieldPattern,
 };
 use crate::components::forms::{
     CustomFormHandler, FormData, FormError, HtmlForm,
@@ -181,7 +181,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
     let is_submitting = app_login.is_submitting();
     let validation_error = app_login.validation_error();
     let elements: Vec<FormElement> =
-        build_all(vec![InputFieldBuilder::with_pattern(
+        build_all(vec![TextBoxBuilder::with_pattern(
             InputFieldPattern::PasswordCheck,
         )]);
 
@@ -210,7 +210,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
     let is_submitting = app_login.is_submitting();
     let validation_error = app_login.validation_error();
     let elements: Vec<FormElement> =
-        build_all(vec![InputFieldBuilder::with_pattern(
+        build_all(vec![TextBoxBuilder::with_pattern(
             InputFieldPattern::PasswordCheck,
         )]);
 

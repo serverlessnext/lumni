@@ -2,7 +2,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use crate::components::buttons::{ButtonType, FormSubmitButton};
-use crate::components::form_input::{InputBoxView, InputElements};
+use crate::components::form_input::{TextBoxView, InputElements};
 
 #[component]
 pub fn FormContentView<'a>(
@@ -29,7 +29,7 @@ pub fn FormContentView<'a>(
                     view= move |cx, (_, (_, input_element))| {
                         view! {
                             cx,
-                            <InputBoxView
+                            <TextBoxView
                                 input_element
                                 input_changed={form_changed}
                             />

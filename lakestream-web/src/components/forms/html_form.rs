@@ -11,7 +11,7 @@ use super::save_handler::SaveHandler;
 use super::submit_form_view::SubmitFormView;
 use super::submit_handler::{CustomSubmitHandler, SubmitHandler};
 use crate::components::buttons::ButtonType;
-use crate::components::form_input::FormElement;
+use crate::components::form_input::{FormElement, ElementDataType};
 
 #[derive(Clone, Debug)]
 pub struct HtmlForm {
@@ -45,15 +45,17 @@ impl HtmlForm {
         self.elements
             .iter()
             .filter_map(|element| match element {
-                FormElement::TextBox(field_data) => {
-                    Some((field_data.name.clone(), field_data.value.clone()))
+                FormElement::TextBox(element_data) | FormElement::TextArea(element_data) => {
+                    if let ElementDataType::TextData(text_data) = &element_data.element_type {
+                        Some((element_data.name.clone(), text_data.value.clone()))
+                    } else {
+                        None
+                    }
                 },
-                FormElement::TextArea(field_data) => {
-                    Some((field_data.name.clone(), field_data.value.clone()))
-                }
             })
             .collect()
     }
+
 }
 
 struct HtmlFormHandler {

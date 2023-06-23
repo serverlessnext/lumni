@@ -6,7 +6,7 @@ use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandler;
 use crate::components::buttons::ButtonType;
 use crate::components::form_helpers::SubmissionStatusView;
-use crate::components::form_input::InputElements;
+use crate::components::form_input::FormState;
 
 #[component]
 pub fn SubmitFormView<'a>(
@@ -18,12 +18,12 @@ pub fn SubmitFormView<'a>(
     let is_submitting = handler.is_submitting();
     let submit_error = handler.submit_error();
 
-    let input_elements = form_submit_data.input_elements();
+    let form_state = form_submit_data.form_state();
 
     let rc_on_submit = handler.on_submit().on_submit();
 
-    let box_on_submit: Box<dyn Fn(SubmitEvent, Option<InputElements>)> =
-        Box::new(move |ev: SubmitEvent, elements: Option<InputElements>| {
+    let box_on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)> =
+        Box::new(move |ev: SubmitEvent, elements: Option<FormState>| {
             let elements = elements.map(SubmitInput::Elements);
             rc_on_submit(ev, elements);
         });
@@ -32,7 +32,7 @@ pub fn SubmitFormView<'a>(
         cx,
         <div>
             <FormContentView
-                input_elements={input_elements}
+                form_state
                 on_submit=box_on_submit
                 is_submitting
                 button_type

@@ -79,6 +79,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                                 })
                             });
 
+                            // defaultts to Environment
                             let config_type = form_data.tags()
                                 .and_then(|tags| tags.get("__CONFIGURATION_TYPE__").cloned())
                                 .unwrap_or_else(|| "Environment".to_string());

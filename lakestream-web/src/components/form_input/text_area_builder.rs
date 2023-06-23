@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use super::form_field_builder::{FieldBuilder, FieldBuilderTrait};
-use super::text_box::InputFieldData;
+use super::{ElementData, ElementDataType, TextData};
 use crate::components::form_input::{FieldType, FormElement};
 
 
@@ -37,17 +37,26 @@ impl TextAreaBuilder {
         self.validate_fn = validate_fn;
         self
     }
+
     pub fn build(self) -> FormElement {
-        FormElement::TextBox(InputFieldData {
-            name: self.base.name(),
+        let text_data = TextData {
             value: self.default,
             field_type: self.field_type,
-            field_label: self.base.field_label(),
+            field_label: self.base.field_label(), // assuming you have `field_label` in `TextData`
             validator: self.validate_fn,
+        };
+
+        let element_data = ElementData {
+            name: self.base.name(),
+            element_type: ElementDataType::TextData(text_data),
             is_enabled: self.base.is_enabled(),
-        })
+            // Add other fields of `ElementData` here if there are any
+        };
+
+        FormElement::TextArea(element_data)
     }
 }
+
 
 impl FieldBuilderTrait for TextAreaBuilder {
     fn build(self) -> FormElement {

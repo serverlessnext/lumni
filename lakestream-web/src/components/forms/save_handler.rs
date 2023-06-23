@@ -7,7 +7,7 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
 use super::submit_handler::SubmitHandler;
-use crate::components::form_input::InputElements;
+use crate::components::form_input::{FormState, ElementDataType};
 
 pub struct SaveHandler {
     form_data: RwSignal<Option<FormData>>,
@@ -31,7 +31,7 @@ impl SaveHandler {
         let on_submit_fn: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>)> =
             Rc::new(
                 move |submit_event: SubmitEvent, input: Option<SubmitInput>| {
-                    let input_elements = match input {
+                    let form_state = match input {
                         Some(SubmitInput::Elements(elements)) => elements,
                         None => {
                             handle_no_form_data();
@@ -51,11 +51,11 @@ impl SaveHandler {
                     submit_event.prevent_default();
 
                     let validation_errors =
-                        Self::perform_validation(&input_elements);
+                        Self::perform_validation(&form_state);
 
                     if validation_errors.is_empty() {
                         Self::submit_form(
-                            &input_elements,
+                            &form_state,
                             meta_data,
                             vault,
                             is_submitting.clone(),
@@ -73,20 +73,17 @@ impl SaveHandler {
         })
     }
 
-    fn perform_validation(
-        input_elements: &InputElements,
-    ) -> HashMap<String, String> {
+    fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
         let mut validation_errors = HashMap::new();
-        for (key, (_, _, value_signal, _)) in input_elements {
-            let value = value_signal.get();
-            let validator = input_elements
-                .get(key)
-                .expect("Validator to exist")
-                .3
-                .validator
-                .clone();
+        for (key, element_state) in form_state {
+            let value = element_state.value.get();
+            let validator = match &element_state.schema.element_type {
+                ElementDataType::TextData(text_data) => text_data.validator.clone(),
+                // Add other ElementDataType cases if they have a validator
+                _ => None,
+            };
 
-            if let Some(validator) = &validator {
+            if let Some(validator) = validator {
                 if let Err(e) = validator(&value) {
                     log::error!("Validation failed: {}", e);
                     validation_errors.insert(key.clone(), e.to_string());
@@ -95,27 +92,27 @@ impl SaveHandler {
         }
 
         // Write validation errors to corresponding WriteSignals
-        for (key, (_, error_signal, _, _)) in input_elements {
+        for (key, element_state) in form_state {
             if let Some(error) = validation_errors.get(key) {
-                error_signal.set(Some(error.clone()));
+                element_state.error.set(Some(error.clone()));
             } else {
-                error_signal.set(None);
+                element_state.error.set(None);
             }
         }
         validation_errors
     }
 
     fn submit_form(
-        input_elements: &InputElements,
+        form_state: &FormState,
         meta_data: ItemMetaData,
         vault: Rc<LocalEncrypt>,
         is_submitting: RwSignal<bool>,
         submit_error: RwSignal<Option<String>>,
     ) {
-        let form_config: HashMap<String, String> = input_elements
+        let form_config: HashMap<String, String> = form_state
             .iter()
-            .map(|(key, (_, _, value_signal, _))| {
-                (key.clone(), value_signal.get())
+            .map(|(key, element_state)| {
+                (key.clone(), element_state.value.get())
             })
             .collect();
         let document_content = serde_json::to_vec(&form_config).unwrap();
@@ -126,7 +123,8 @@ impl SaveHandler {
             is_submitting,
             submit_error,
         );
-    }
+}
+
 }
 
 fn handle_no_form_data() {

@@ -4,22 +4,22 @@ use std::sync::Arc;
 use leptos::*;
 use localencrypt::ItemMetaData;
 
-use crate::components::form_input::{FormElement, InputElements};
+use crate::components::form_input::{FormElement, FormElementState, FormState};
 
 pub enum SubmitInput {
-    Elements(InputElements),
+    Elements(FormState),
 }
 
 #[derive(Clone)]
 pub struct FormData {
-    input_elements: InputElements,
+    form_state: FormState,
     meta_data: ItemMetaData,
 }
 
 impl FormData {
-    pub fn new(input_elements: InputElements, meta_data: ItemMetaData) -> Self {
+    pub fn new(form_state: FormState, meta_data: ItemMetaData) -> Self {
         Self {
-            input_elements,
+            form_state,
             meta_data,
         }
     }
@@ -28,8 +28,8 @@ impl FormData {
         &self.meta_data
     }
 
-    pub fn input_elements(&self) -> InputElements {
-        self.input_elements.clone()
+    pub fn form_state(&self) -> FormState {
+        self.form_state.clone()
     }
 
     pub fn create_from_elements(
@@ -38,7 +38,7 @@ impl FormData {
         config: &HashMap<String, String>,
         elements: &[FormElement],
     ) -> FormData {
-        let input_elements: InputElements = config
+        let form_state: FormState = config
             .iter()
             .filter_map(|(key, value)| {
                 elements.iter().find_map(|element| match element {
@@ -46,21 +46,20 @@ impl FormData {
                         if field_data.name == *key {
                             let error_signal = create_rw_signal(cx, None);
                             let value_signal = create_rw_signal(cx, value.clone());
-                            let default_input_data = field_data.clone();
+                            let default_input_data = Arc::new(field_data.clone());
                             Some((
                                 key.clone(),
-                                (
-                                    create_node_ref(cx),
-                                    error_signal,
-                                    value_signal,
-                                    Arc::new(default_input_data),
-                                ),
+                                FormElementState {
+                                    error: error_signal,
+                                    value: value_signal,
+                                    schema: default_input_data,
+                                },
                             ))
                         } else {
                             None
                         }
                     },
-                    FormElement::TextArea(field_data) => {
+                    FormElement::TextArea(_field_data) => {
                         // TODO: implement this
                         None
                     }
@@ -68,17 +67,18 @@ impl FormData {
 
             })
             .collect();
-        Self::new(input_elements, meta_data)
+        Self::new(form_state, meta_data)
     }
 
     pub fn to_hash_map(&self) -> HashMap<String, String> {
         let document_content: HashMap<String, String> = self
-            .input_elements
+            .form_state
             .iter()
-            .map(|(key, (_, _, value_signal, _))| {
-                (key.clone(), value_signal.get())
+            .map(|(key, element_state)| {
+                (key.clone(), element_state.value.get())
             })
             .collect();
         document_content
     }
+
 }

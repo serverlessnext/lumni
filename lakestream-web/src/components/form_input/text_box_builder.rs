@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::form_field_builder::{FieldBuilder, FieldBuilderTrait};
 use super::helpers::validate_with_pattern;
-use super::text_box::InputFieldData;
+use super::{ElementData, ElementDataType, TextData};
 use crate::components::form_input::{FieldType, FormElement};
 
 
@@ -82,17 +82,21 @@ impl TextBoxBuilder {
             .field_type(FieldType::Password),
         }
     }
-
     pub fn build(self) -> FormElement {
-        FormElement::TextBox(InputFieldData {
-            name: self.base.name(),
+        let text_data = TextData {
             value: self.default,
-            field_type: self.field_type,
             field_label: self.base.field_label(),
+            field_type: self.field_type,
             validator: self.validate_fn,
+        };
+
+        FormElement::TextBox(ElementData {
+            name: self.base.name(),
+            element_type: ElementDataType::TextData(text_data),
             is_enabled: self.base.is_enabled(),
         })
     }
+
 }
 
 impl FieldBuilderTrait for TextBoxBuilder {

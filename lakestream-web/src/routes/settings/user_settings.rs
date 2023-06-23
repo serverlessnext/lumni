@@ -23,10 +23,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     let username = "admin".to_string();
 
     let builders = vec![
-        TextBoxBuilder::from(FieldBuilder::new("field1").as_input_field())
-            .default("".to_string()),
-        TextBoxBuilder::from(FieldBuilder::new("field2").as_input_field())
-            .default("".to_string()),
+        FieldBuilder::new("field1").as_input_field(),
+        FieldBuilder::new("field2").as_input_field(),
     ];
 
     let elements: Vec<FormElement> = build_all(builders);

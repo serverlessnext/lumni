@@ -15,11 +15,9 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<FormElement> {
     let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
     let builders: Vec<TextBoxBuilder> = vec![
-        TextBoxBuilder::from(
-            FieldBuilder::new("__NAME__").label("Name"),
-        )
-        .default(name)
-        .validator(None),
+        TextBoxBuilder::from(FieldBuilder::new("__NAME__").label("Name"))
+            .default(name)
+            .validator(None),
         TextBoxBuilder::from(
             FieldBuilder::new("BUCKET_URI").label("Bucket URI"),
         )
@@ -29,8 +27,7 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<FormElement> {
             "Invalid URI scheme. Must start with 's3://'.".to_string(),
         )))),
         TextBoxBuilder::from(
-            FieldBuilder::new("AWS_ACCESS_KEY_ID")
-                .label("AWS Access Key ID"),
+            FieldBuilder::new("AWS_ACCESS_KEY_ID").label("AWS Access Key ID"),
         )
         .default("")
         .validator(Some(Arc::new(validate_with_pattern(

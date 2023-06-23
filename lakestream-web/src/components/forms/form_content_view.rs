@@ -2,7 +2,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use crate::components::buttons::{ButtonType, FormSubmitButton};
-use crate::components::form_input::{TextBoxView, FormState};
+use crate::components::form_input::{FormState, TextBoxView};
 
 #[component]
 pub fn FormContentView<'a>(

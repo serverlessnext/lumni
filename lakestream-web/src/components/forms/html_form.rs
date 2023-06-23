@@ -11,7 +11,7 @@ use super::save_handler::SaveHandler;
 use super::submit_form_view::SubmitFormView;
 use super::submit_handler::{CustomSubmitHandler, SubmitHandler};
 use crate::components::buttons::ButtonType;
-use crate::components::form_input::{FormElement, ElementDataType};
+use crate::components::form_input::{ElementDataType, FormElement};
 
 #[derive(Clone, Debug)]
 pub struct HtmlForm {
@@ -45,17 +45,22 @@ impl HtmlForm {
         self.elements
             .iter()
             .filter_map(|element| match element {
-                FormElement::TextBox(element_data) | FormElement::TextArea(element_data) => {
-                    if let ElementDataType::TextData(text_data) = &element_data.element_type {
-                        Some((element_data.name.clone(), text_data.value.clone()))
+                FormElement::TextBox(element_data)
+                | FormElement::TextArea(element_data) => {
+                    if let ElementDataType::TextData(text_data) =
+                        &element_data.element_type
+                    {
+                        Some((
+                            element_data.name.clone(),
+                            text_data.buffer_data.clone(),
+                        ))
                     } else {
                         None
                     }
-                },
+                }
             })
             .collect()
     }
-
 }
 
 struct HtmlFormHandler {
@@ -139,7 +144,7 @@ impl SaveFormHandler {
         );
 
         let form_handler =
-            FormHandler::new_with_vault(cx, form, &*vault, submit_handler);
+            FormHandler::new_with_vault(cx, form, vault, submit_handler);
         let html_form_handler = HtmlFormHandler::new(form_handler);
 
         Self {
@@ -189,7 +194,7 @@ impl CustomFormHandler {
         let form_data = create_rw_signal(cx, Some(form_data_default));
 
         let custom_submit_handler = CustomSubmitHandler::new(
-            form_data.clone(),
+            form_data,
             Rc::new(
                 move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
                     function(ev, form_data.get());

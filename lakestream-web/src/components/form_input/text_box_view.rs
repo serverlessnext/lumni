@@ -1,6 +1,6 @@
 use leptos::*;
 
-use super::{FormElementState, ElementData, ElementDataType};
+use super::{DisplayValue, ElementData, ElementDataType, FormElementState};
 use crate::components::icons::LockIconView;
 
 const MASKED_VALUE: &str = "*****";
@@ -12,8 +12,8 @@ pub fn TextBoxView(
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
     // shows Label, InputField and Error
-    let error_signal = form_element_state.error;
-    let value_signal = form_element_state.value;
+    let value_signal = form_element_state.display_value;
+    let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
 
     let (label_text, is_secret, is_password, initial_enabled) =
@@ -26,11 +26,14 @@ pub fn TextBoxView(
             } => {
                 match element_type {
                     ElementDataType::TextData(text_data) => {
-                        let label_text = text_data.field_label
+                        let label_text = text_data
+                            .field_label
                             .as_ref()
-                            .map_or_else(String::new, |label| label.text().to_string());
-                        let is_secret = text_data.field_type.is_secret(); // assuming you have `field_type` in `TextData`
-                        let is_password = text_data.field_type.is_password(); // assuming you have `field_type` in `TextData`
+                            .map_or_else(String::new, |label| {
+                                label.text().to_string()
+                            });
+                        let is_secret = text_data.field_type.is_secret();
+                        let is_password = text_data.field_type.is_password();
                         let initial_enabled = *is_enabled;
                         (label_text, is_secret, is_password, initial_enabled)
                     }
@@ -41,7 +44,6 @@ pub fn TextBoxView(
                 }
             }
         };
-
 
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;
@@ -66,14 +68,23 @@ pub fn TextBoxView(
     .derive_signal(cx);
 
     let initial_value = if is_locked.get() {
-        if initial_value.is_empty() {
-            "".to_string()
-        } else {
-            MASKED_VALUE.to_string()
+        match initial_value {
+            DisplayValue::Text(text) => {
+                if text.is_empty() {
+                    "".to_string()
+                } else {
+                    MASKED_VALUE.to_string()
+                }
+            }
+            DisplayValue::Binary(_) => MASKED_VALUE.to_string(),
         }
     } else {
-        initial_value
+        match initial_value {
+            DisplayValue::Text(text) => text,
+            DisplayValue::Binary(_) => "".to_string(),
+        }
     };
+
     let display_value_signal = create_rw_signal(cx, initial_value);
 
     let click_handler: Box<dyn Fn()> = Box::new(move || {
@@ -83,7 +94,10 @@ pub fn TextBoxView(
         display_value_signal.set(if new_state {
             MASKED_VALUE.to_string()
         } else {
-            current_value
+            match current_value {
+                DisplayValue::Text(t) => t,
+                DisplayValue::Binary(_) => "".to_string(),
+            }
         });
     });
 
@@ -142,7 +156,7 @@ pub fn InputFieldView(
     cx: Scope,
     is_password: bool,
     is_enabled: Signal<bool>,
-    value_signal: RwSignal<String>,
+    value_signal: RwSignal<DisplayValue>,
     display_value_signal: RwSignal<String>,
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
@@ -153,7 +167,7 @@ pub fn InputFieldView(
             on:input=move |ev| {
                 if is_enabled.get() {
                     let value = event_target_value(&ev);
-                    value_signal.set(value);
+                    value_signal.set(DisplayValue::Text(value));
                     input_changed.set(true);    // enable submit button
                 }
             }

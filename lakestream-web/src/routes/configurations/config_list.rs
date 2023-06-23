@@ -1,7 +1,5 @@
-
-use crate::components::form_input::FormElement;
 use super::templates::*;
-
+use crate::components::form_input::FormElement;
 
 pub trait ConfigList {
     fn name(&self) -> String;
@@ -36,4 +34,3 @@ impl ConfigList for Config {
         }
     }
 }
-

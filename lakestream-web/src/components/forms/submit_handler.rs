@@ -39,7 +39,7 @@ impl CustomSubmitHandler {
 
 impl SubmitHandler for CustomSubmitHandler {
     fn data(&self) -> RwSignal<Option<FormData>> {
-        self.form_data.clone()
+        self.form_data
     }
 
     fn on_submit(
@@ -49,10 +49,10 @@ impl SubmitHandler for CustomSubmitHandler {
     }
 
     fn is_submitting(&self) -> RwSignal<bool> {
-        self.is_submitting.clone()
+        self.is_submitting
     }
 
     fn submit_error(&self) -> RwSignal<Option<String>> {
-        self.submit_error.clone()
+        self.submit_error
     }
 }

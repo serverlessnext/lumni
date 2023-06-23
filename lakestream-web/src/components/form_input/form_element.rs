@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use std::collections::HashMap;
 
 use leptos::*;
+
 use super::FieldType;
 
 #[derive(Clone, Default, Debug)]
@@ -26,7 +27,6 @@ pub enum FormElement {
     TextArea(ElementData),
 }
 
-
 #[derive(Clone, Debug)]
 pub struct ElementData {
     pub name: String,
@@ -34,54 +34,74 @@ pub struct ElementData {
     pub is_enabled: bool,
 }
 
-
-
+#[allow(dead_code)] // silence non-use warning for now
 #[derive(Debug, Clone)]
 pub enum ElementDataType {
     TextData(TextData),
     BinaryData(BinaryData),
     DocumentData(DocumentData),
-    // and so on for other types of data
 }
 
 #[derive(Clone)]
 pub struct TextData {
-    pub value: String,
     pub field_type: FieldType,
     pub field_label: Option<FieldLabel>,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+    pub buffer_data: String, // data always gets loaded in here first
 }
 
 impl fmt::Debug for TextData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TextData")
-            .field("value", &self.value)
             .field("field_type", &self.field_type)
             .field("field_label", &self.field_label)
             .field("validator", &self.validator.is_some())
+            .field("buffer_data", &self.buffer_data)
             .finish()
     }
 }
 
-
+// not yet implemented
 #[derive(Debug, Clone)]
 pub struct BinaryData {
-    pub value: Vec<u8>,  // binary data usually represented as byte array
-    // other fields specific to binary data
+    pub field_label: Option<FieldLabel>,
+    pub buffer_data: Vec<u8>,
 }
 
+// not yet implemented
 #[derive(Debug, Clone)]
 pub struct DocumentData {
-    pub value: serde_json::Value,  // using the serde_json library for JSON values
-    // other fields specific to JSON data
-}
-
-#[derive(Clone, Debug)]
-pub struct FormElementState {
-    pub error: RwSignal<Option<String>>,
-    pub value: RwSignal<String>,
-    pub schema: Arc<ElementData>,
+    pub field_label: Option<FieldLabel>,
+    pub buffer_data: serde_json::Value,
 }
 
 pub type FormState = HashMap<String, FormElementState>;
 
+#[derive(Clone, Debug)]
+pub struct FormElementState {
+    pub display_error: RwSignal<Option<String>>,
+    pub display_value: RwSignal<DisplayValue>,
+    pub schema: Arc<ElementData>,
+}
+
+#[derive(Clone, Debug)]
+pub enum DisplayValue {
+    Text(String),
+    Binary(Vec<u8>),
+}
+
+impl DisplayValue {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            DisplayValue::Text(text) => text.is_empty(),
+            DisplayValue::Binary(data) => data.is_empty(),
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            DisplayValue::Text(text) => Some(text),
+            DisplayValue::Binary(_) => None,
+        }
+    }
+}

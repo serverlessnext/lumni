@@ -49,7 +49,7 @@ impl LoadVaultHandler {
         let vault_clone = vault.clone();
 
         spawn_local(async move {
-            match get_form_data(cx, &*form, &vault_clone).await {
+            match get_form_data(cx, &form, &vault_clone).await {
                 Ok(form_submit_data) => {
                     form_data.set(Some(form_submit_data));
                     is_loading.set(false);
@@ -165,5 +165,5 @@ async fn fetch_form_data(
         _ => panic!("{}", INVALID_STORAGE_BACKEND),
     };
 
-    local_storage.load_content(&form_name).await
+    local_storage.load_content(form_name).await
 }

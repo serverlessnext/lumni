@@ -1,8 +1,8 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use super::config_list::{Config, ConfigList};
+use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use crate::components::forms::{HtmlForm, SaveFormHandler};
 use crate::GlobalState;
 
@@ -20,7 +20,6 @@ impl Params for RouteParams {
     }
 }
 
-
 #[component]
 pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
@@ -32,21 +31,20 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let form_id: Option<String> = params
         .try_get()
         .and_then(|result| result.ok())
-        .map(|route_params| route_params.id.clone());
+        .map(|route_params| route_params.id);
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
 
     let form_loaded = create_rw_signal(cx, None::<HtmlForm>);
 
     let vault_clone = vault.clone();
-    let form_id_clone = form_id.clone();
 
-    create_effect(cx, move |_| match form_id_clone.as_ref() {
+    create_effect(cx, move |_| match form_id.as_ref() {
         Some(form_id) if !form_id.is_empty() => {
             if !form_id.is_empty() {
                 let vault = vault_clone.clone();
-                let form_loaded = form_loaded.clone();
-                let form_id = form_id_clone.clone();
+                let form_loaded = form_loaded;
+                let form_id = form_id.clone();
                 spawn_local({
                     async move {
                         let local_storage = match vault.backend() {
@@ -65,36 +63,39 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                             .await
                             .unwrap_or_else(|_| vec![]);
 
-                        let form_data_option = configurations
-                            .iter()
-                            .find(|form_data| {
-                                form_data.id()
-                                    == form_id.as_ref().unwrap().to_string()
-                            });
+                        let form_data_option = configurations.iter().find(|form_data| {
+                            form_data.id() == form_id.as_str()
+                        });
 
                         if let Some(form_data) = form_data_option {
                             let name = form_data.tags().and_then(|tags| {
-                                tags.get("Name").cloned().or_else(|| {
-                                    Some("Untitled".to_string())
-                                })
+                                tags.get("Name")
+                                    .cloned()
+                                    .or_else(|| Some("Untitled".to_string()))
                             });
 
                             // defaultts to Environment
-                            let config_type = form_data.tags()
-                                .and_then(|tags| tags.get("__CONFIGURATION_TYPE__").cloned())
+                            let config_type = form_data
+                                .tags()
+                                .and_then(|tags| {
+                                    tags.get("__CONFIGURATION_TYPE__").cloned()
+                                })
                                 .unwrap_or_else(|| "Environment".to_string());
 
                             if let Some(name) = name {
                                 let config = match config_type.as_str() {
-                                    "ObjectStoreS3" => Config::ObjectStoreS3(ObjectStoreS3::new(name.clone())),
-                                    _ => Config::Environment(Environment::new(name.clone())),
+                                    "ObjectStoreS3" => Config::ObjectStoreS3(
+                                        ObjectStoreS3::new(name.clone()),
+                                    ),
+                                    _ => Config::Environment(Environment::new(
+                                        name.clone(),
+                                    )),
                                 };
 
                                 let form_elements = config.form_elements(&name);
-
                                 form_loaded.set(Some(HtmlForm::new(
                                     &name,
-                                    &form_id.clone().unwrap_or_default(),
+                                    form_id.as_str(),
                                     form_elements,
                                 )));
                             }

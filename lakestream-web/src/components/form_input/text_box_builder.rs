@@ -1,12 +1,11 @@
-
 use std::sync::Arc;
+
 use regex::Regex;
 
 use super::form_field_builder::{FieldBuilder, FieldBuilderTrait};
 use super::helpers::validate_with_pattern;
 use super::{ElementData, ElementDataType, TextData};
 use crate::components::form_input::{FieldType, FormElement};
-
 
 pub struct TextBoxBuilder {
     base: FieldBuilder,
@@ -27,7 +26,12 @@ impl From<FieldBuilder> for TextBoxBuilder {
 }
 
 impl TextBoxBuilder {
-    pub fn new(base: FieldBuilder, default: String, field_type: FieldType, validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>) -> Self {
+    pub fn new(
+        base: FieldBuilder,
+        default: String,
+        field_type: FieldType,
+        validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+    ) -> Self {
         Self {
             base,
             default,
@@ -84,10 +88,10 @@ impl TextBoxBuilder {
     }
     pub fn build(self) -> FormElement {
         let text_data = TextData {
-            value: self.default,
             field_label: self.base.field_label(),
             field_type: self.field_type,
             validator: self.validate_fn,
+            buffer_data: self.default,
         };
 
         FormElement::TextBox(ElementData {
@@ -96,7 +100,6 @@ impl TextBoxBuilder {
             is_enabled: self.base.is_enabled(),
         })
     }
-
 }
 
 impl FieldBuilderTrait for TextBoxBuilder {

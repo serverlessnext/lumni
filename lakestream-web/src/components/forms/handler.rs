@@ -6,6 +6,10 @@ use super::load_handler::{LoadHandler, LoadVaultHandler};
 use super::submit_handler::SubmitHandler;
 use super::HtmlForm;
 
+
+type BoxedSubmitHandler = Box<dyn Fn(Scope, Option<&LocalEncrypt>, RwSignal<Option<FormData>>) -> Box<dyn SubmitHandler>>;
+
+
 pub struct FormHandler {
     on_load: Option<Box<dyn LoadHandler>>,
     on_submit: Box<dyn SubmitHandler>,
@@ -23,13 +27,7 @@ impl FormHandler {
         cx: Scope,
         form: HtmlForm,
         vault: &LocalEncrypt,
-        submit_handler: Box<
-            dyn Fn(
-                Scope,
-                Option<&LocalEncrypt>,
-                RwSignal<Option<FormData>>,
-            ) -> Box<dyn SubmitHandler>,
-        >,
+        submit_handler: BoxedSubmitHandler,
     ) -> Self {
         let vault_handler = LoadVaultHandler::new(cx, form, vault);
         let form_data = vault_handler.form_data();
@@ -45,7 +43,7 @@ impl FormHandler {
     }
 
     pub fn on_load(&self) -> Option<&dyn LoadHandler> {
-        self.on_load.as_ref().map(|handler| &**handler)
+        self.on_load.as_deref()
     }
 
     pub fn is_submitting(&self) -> RwSignal<bool> {

@@ -1,5 +1,3 @@
-
-
 use super::text_box_builder::TextBoxBuilder;
 use crate::components::form_input::{FieldLabel, FieldType, FormElement};
 
@@ -50,8 +48,6 @@ impl FieldBuilder {
 pub trait FieldBuilderTrait {
     fn build(self) -> FormElement;
 }
-
-
 
 pub fn build_all<T: FieldBuilderTrait>(builders: Vec<T>) -> Vec<FormElement> {
     builders

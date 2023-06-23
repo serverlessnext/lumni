@@ -1,10 +1,8 @@
-
 use std::sync::Arc;
 
 use super::form_field_builder::{FieldBuilder, FieldBuilderTrait};
 use super::{ElementData, ElementDataType, TextData};
 use crate::components::form_input::{FieldType, FormElement};
-
 
 pub struct TextAreaBuilder {
     base: FieldBuilder,
@@ -40,27 +38,24 @@ impl TextAreaBuilder {
 
     pub fn build(self) -> FormElement {
         let text_data = TextData {
-            value: self.default,
             field_type: self.field_type,
-            field_label: self.base.field_label(), // assuming you have `field_label` in `TextData`
+            field_label: self.base.field_label(),
             validator: self.validate_fn,
+            buffer_data: self.default,
         };
 
         let element_data = ElementData {
             name: self.base.name(),
             element_type: ElementDataType::TextData(text_data),
             is_enabled: self.base.is_enabled(),
-            // Add other fields of `ElementData` here if there are any
         };
 
         FormElement::TextArea(element_data)
     }
 }
 
-
 impl FieldBuilderTrait for TextAreaBuilder {
     fn build(self) -> FormElement {
         TextAreaBuilder::from(self).build()
     }
 }
-

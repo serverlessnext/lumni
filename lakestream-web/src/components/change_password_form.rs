@@ -6,7 +6,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::ButtonType;
 use crate::components::form_input::{
-    build_all, FormElement, TextBoxBuilder, InputFieldPattern,
+    build_all, FormElement, InputFieldPattern, TextBoxBuilder,
 };
 use crate::components::forms::{
     CustomFormHandler, FormData, FormError, HtmlForm,

@@ -7,7 +7,7 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
 use super::submit_handler::SubmitHandler;
-use crate::components::form_input::{FormState, ElementDataType};
+use crate::components::form_input::{DisplayValue, ElementDataType, FormState};
 
 pub struct SaveHandler {
     form_data: RwSignal<Option<FormData>>,
@@ -58,8 +58,8 @@ impl SaveHandler {
                             &form_state,
                             meta_data,
                             vault,
-                            is_submitting.clone(),
-                            submit_error.clone(),
+                            is_submitting,
+                            submit_error,
                         );
                     }
                 },
@@ -76,17 +76,34 @@ impl SaveHandler {
     fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
         let mut validation_errors = HashMap::new();
         for (key, element_state) in form_state {
-            let value = element_state.value.get();
+            let value = element_state.display_value.get();
             let validator = match &element_state.schema.element_type {
-                ElementDataType::TextData(text_data) => text_data.validator.clone(),
+                ElementDataType::TextData(text_data) => {
+                    text_data.validator.clone()
+                }
                 // Add other ElementDataType cases if they have a validator
                 _ => None,
             };
 
             if let Some(validator) = validator {
-                if let Err(e) = validator(&value) {
-                    log::error!("Validation failed: {}", e);
-                    validation_errors.insert(key.clone(), e.to_string());
+                match &value {
+                    DisplayValue::Text(text) => {
+                        if let Err(e) = validator(text) {
+                            log::error!("Validation failed: {}", e);
+                            validation_errors
+                                .insert(key.clone(), e.to_string());
+                        }
+                    }
+                    DisplayValue::Binary(_) => {
+                        log::error!(
+                            "Validation failed: Binary data cannot be \
+                             validated."
+                        );
+                        validation_errors.insert(
+                            key.clone(),
+                            "Binary data cannot be validated.".to_string(),
+                        );
+                    }
                 }
             }
         }
@@ -94,9 +111,9 @@ impl SaveHandler {
         // Write validation errors to corresponding WriteSignals
         for (key, element_state) in form_state {
             if let Some(error) = validation_errors.get(key) {
-                element_state.error.set(Some(error.clone()));
+                element_state.display_error.set(Some(error.clone()));
             } else {
-                element_state.error.set(None);
+                element_state.display_error.set(None);
             }
         }
         validation_errors
@@ -109,12 +126,32 @@ impl SaveHandler {
         is_submitting: RwSignal<bool>,
         submit_error: RwSignal<Option<String>>,
     ) {
+        // Check for binary data
+        for (_, element_state) in form_state.iter() {
+            if let DisplayValue::Binary(_) = element_state.display_value.get() {
+                log::error!(
+                    "Form submission failed: Binary data detected in form \
+                     data."
+                );
+                submit_error.set(Some(
+                    "Binary data detected in form data.".to_string(),
+                ));
+                is_submitting.set(false);
+                return;
+            }
+        }
+
+        // Convert form data to string key/value pairs
         let form_config: HashMap<String, String> = form_state
             .iter()
             .map(|(key, element_state)| {
-                (key.clone(), element_state.value.get())
+                (key.clone(), match element_state.display_value.get() {
+                    DisplayValue::Text(text) => text,
+                    _ => unreachable!(), // We've checked for Binary data above, so this should never happen
+                })
             })
             .collect();
+
         let document_content = serde_json::to_vec(&form_config).unwrap();
         submit_save_form_content(
             vault,
@@ -123,8 +160,7 @@ impl SaveHandler {
             is_submitting,
             submit_error,
         );
-}
-
+    }
 }
 
 fn handle_no_form_data() {
@@ -139,15 +175,15 @@ impl SubmitHandler for SaveHandler {
     }
 
     fn is_submitting(&self) -> RwSignal<bool> {
-        self.is_submitting.clone()
+        self.is_submitting
     }
 
     fn submit_error(&self) -> RwSignal<Option<String>> {
-        self.submit_error.clone()
+        self.submit_error
     }
 
     fn data(&self) -> RwSignal<Option<FormData>> {
-        self.form_data.clone()
+        self.form_data
     }
 }
 

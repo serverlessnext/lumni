@@ -46,8 +46,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
 
     create_effect(cx, move |_| {
         spawn_local({
-            let set_item_list = set_item_list.clone();
-            let set_is_loading = set_is_loading.clone();
+            let set_item_list = set_item_list;
+            let set_is_loading = set_is_loading;
 
             let local_storage = match vault.backend() {
                 localencrypt::StorageBackend::Browser(browser_storage) => {
@@ -81,8 +81,6 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
         }
     });
 
-    let input_ref_clone = input_ref.clone();
-
     view! {
         cx,
         {move || if is_loading.get() {
@@ -96,7 +94,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                         placeholder="Bucket URI"
                         on:keydown=move |ev: web_sys::KeyboardEvent| {
                             if ev.key() == "Enter" {
-                                if let Some(name) = get_input_value(input_ref_clone.clone()) {
+                                if let Some(name) = get_input_value(input_ref) {
                                     set_item_list.update(|item_list| item_list.add(name, set_is_loading, set_submit_error));
                                 }
                             }
@@ -104,7 +102,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                         node_ref=input_ref
                     />
                     <button class="px-4 py-2" on:click=move |_| {
-                        if let Some(name) = get_input_value(input_ref_clone.clone()) {
+                        if let Some(name) = get_input_value(input_ref) {
                             set_item_list.update(|item_list| item_list.add(name, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
@@ -112,7 +110,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                 <div>
                     <ul>
                         <For
-                            each={move || item_list.get().items.clone()}
+                            each={move || item_list.get().items}
                             key=|item| item.name()
                             view=move |cx, item: ObjectStoreS3| view! { cx, <ListItem item set_is_loading/> }
                         />
@@ -138,10 +136,10 @@ fn ListItem(
         <li>
             <div class="px-4 py-2">
                 <a href={format!("/configurations/{}", item_id)}>
-                    {item_name.clone()}
+                    {item_name}
                 </a>
                 " | "
-                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id.clone(), set_is_loading.clone()))> "delete" </button>
+                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id.clone(), set_is_loading))> "delete" </button>
             </div>
         </li>
     }
@@ -193,7 +191,7 @@ impl ConfigurationList {
         let object_store = ObjectStoreS3::new(name.clone());
 
         let mut tags = HashMap::new();
-        tags.insert("Name".to_string(), name.clone());
+        tags.insert("Name".to_string(), name);
         let meta_data = ItemMetaData::new_with_tags(&object_store.id(), tags);
 
         spawn_local({

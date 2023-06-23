@@ -9,7 +9,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::form_input::{
-    build_all, FormElement, TextBoxBuilder, InputFieldPattern,
+    build_all, FormElement, InputFieldPattern, TextBoxBuilder,
 };
 use crate::components::forms::{
     CustomFormHandler, FormData, FormError, HtmlForm,
@@ -51,11 +51,11 @@ impl AppLogin {
     }
 
     pub fn is_submitting(&self) -> RwSignal<bool> {
-        self.is_submitting.clone()
+        self.is_submitting
     }
 
     pub fn validation_error(&self) -> RwSignal<Option<String>> {
-        self.validation_error.clone()
+        self.validation_error
     }
 
     pub async fn initialize_and_navigate(
@@ -263,9 +263,9 @@ fn debug_login(cx: Scope) {
     // generate both unique user and password for each session
     // in the event confidential data is stored during development
     // its at least encrypted with a unique password
-    let debug_username = format!("debug-user-{}", Uuid::new_v4()).to_string();
+    let debug_username = format!("debug-user-{}", Uuid::new_v4());
     let debug_password =
-        format!("debug-password-{}", Uuid::new_v4()).to_string();
+        format!("debug-password-{}", Uuid::new_v4());
 
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
@@ -295,7 +295,7 @@ fn debug_login(cx: Scope) {
                 set_vault(local_encrypt);
                 set_vault_initialized(true);
                 let navigate = use_navigate(cx);
-                if let Err(e) = navigate(&"/", Default::default()) {
+                if let Err(e) = navigate("/", Default::default()) {
                     log!("Error navigating to {}: {}", "/", e);
                 }
             }
@@ -340,7 +340,6 @@ fn reset_password_view(
     error_signal: RwSignal<Option<String>>,
 ) -> View {
     let action = Arc::new(move || {
-        let is_user_defined = is_user_defined.clone();
         async move {
             match reset_vault_action().await {
                 Ok(_) => {

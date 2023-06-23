@@ -1,4 +1,5 @@
 use uuid::Uuid;
+
 use crate::components::form_input::FormElement;
 
 mod environment;
@@ -40,7 +41,10 @@ macro_rules! impl_config_template {
                 self.id.clone()
             }
 
-            fn form_elements<S: Into<String>>(&self, name: S) -> Vec<FormElement> {
+            fn form_elements<S: Into<String>>(
+                &self,
+                name: S,
+            ) -> Vec<FormElement> {
                 $default_fields_fn(name)
             }
         }

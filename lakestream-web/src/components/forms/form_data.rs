@@ -4,7 +4,9 @@ use std::sync::Arc;
 use leptos::*;
 use localencrypt::ItemMetaData;
 
-use crate::components::form_input::{FormElement, FormElementState, FormState};
+use crate::components::form_input::{
+    DisplayValue, FormElement, FormElementState, FormState,
+};
 
 pub enum SubmitInput {
     Elements(FormState),
@@ -45,40 +47,42 @@ impl FormData {
                     FormElement::TextBox(field_data) => {
                         if field_data.name == *key {
                             let error_signal = create_rw_signal(cx, None);
-                            let value_signal = create_rw_signal(cx, value.clone());
-                            let default_input_data = Arc::new(field_data.clone());
+                            let value_signal = create_rw_signal(
+                                cx,
+                                DisplayValue::Text(value.clone()),
+                            );
+                            let default_input_data =
+                                Arc::new(field_data.clone());
                             Some((
                                 key.clone(),
                                 FormElementState {
-                                    error: error_signal,
-                                    value: value_signal,
                                     schema: default_input_data,
+                                    display_value: value_signal,
+                                    display_error: error_signal,
                                 },
                             ))
                         } else {
                             None
                         }
-                    },
+                    }
                     FormElement::TextArea(_field_data) => {
-                        // TODO: implement this
-                        None
+                        panic!("TextArea not implemented yet")
                     }
                 })
-
             })
             .collect();
         Self::new(form_state, meta_data)
     }
 
     pub fn to_hash_map(&self) -> HashMap<String, String> {
-        let document_content: HashMap<String, String> = self
-            .form_state
+        self.form_state
             .iter()
-            .map(|(key, element_state)| {
-                (key.clone(), element_state.value.get())
+            .filter_map(|(key, element_state)| {
+                match element_state.display_value.get() {
+                    DisplayValue::Text(text) => Some((key.clone(), text)),
+                    DisplayValue::Binary(_) => None,
+                }
             })
-            .collect();
-        document_content
+            .collect()
     }
-
 }

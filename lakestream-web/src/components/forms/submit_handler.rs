@@ -1,9 +1,24 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
+use super::form_view_handler::{FormViewHandler, ViewCreator};
+use super::handler::FormHandlerTrait;
+use super::html_form::HtmlForm;
+use super::load_handler::{LoadHandler, LoadVaultHandler};
+use crate::components::buttons::ButtonType;
+
+type BoxedSubmitHandler = Box<
+    dyn Fn(
+        Scope,
+        Option<&LocalEncrypt>,
+        RwSignal<Option<FormData>>,
+    ) -> Box<dyn SubmitHandler>,
+>;
 
 pub trait SubmitHandler {
     fn data(&self) -> RwSignal<Option<FormData>>;
@@ -54,5 +69,137 @@ impl SubmitHandler for CustomSubmitHandler {
 
     fn submit_error(&self) -> RwSignal<Option<String>> {
         self.submit_error
+    }
+}
+
+pub struct SubmitFormHandler {
+    on_load: Option<Box<dyn LoadHandler>>,
+    on_submit: Box<dyn SubmitHandler>,
+}
+
+impl SubmitFormHandler {
+    pub fn new(
+        on_load: Option<Box<dyn LoadHandler>>,
+        on_submit: Box<dyn SubmitHandler>,
+    ) -> Self {
+        Self { on_load, on_submit }
+    }
+
+    pub fn new_with_vault(
+        cx: Scope,
+        form: HtmlForm,
+        vault: &LocalEncrypt,
+        submit_handler: BoxedSubmitHandler,
+    ) -> Self {
+        let vault_handler = LoadVaultHandler::new(cx, form, vault);
+        let form_data = vault_handler.form_data();
+        let on_load: Option<Box<dyn LoadHandler>> = Some(vault_handler);
+
+        let on_submit = submit_handler(cx, Some(vault), form_data);
+
+        Self { on_load, on_submit }
+    }
+
+    pub fn on_submit(&self) -> &dyn SubmitHandler {
+        &*self.on_submit
+    }
+
+    pub fn on_load(&self) -> Option<&dyn LoadHandler> {
+        self.on_load.as_deref()
+    }
+
+    pub fn is_submitting(&self) -> RwSignal<bool> {
+        self.on_submit.is_submitting()
+    }
+
+    pub fn submit_error(&self) -> RwSignal<Option<String>> {
+        self.on_submit.submit_error()
+    }
+}
+
+impl FormHandlerTrait for SubmitFormHandler {
+    fn is_processing(&self) -> RwSignal<bool> {
+        self.is_submitting()
+    }
+
+    fn process_error(&self) -> RwSignal<Option<String>> {
+        self.submit_error()
+    }
+
+    fn form_data(&self) -> RwSignal<Option<FormData>> {
+        self.on_submit().data()
+    }
+    fn on_submit(&self) -> &dyn SubmitHandler {
+        self.on_submit()
+    }
+}
+
+pub struct SubmitForm {
+    cx: Scope,
+    view_handler: FormViewHandler,
+    button_type: Option<ButtonType>,
+}
+
+impl SubmitForm {
+    pub fn new(
+        cx: Scope,
+        form: HtmlForm,
+        function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
+        is_submitting: RwSignal<bool>,
+        submit_error: RwSignal<Option<String>>,
+        button_type: Option<ButtonType>,
+    ) -> Self {
+        let default_field_values = form.default_field_values();
+        let form_elements = form.elements();
+
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), form.name().to_string());
+        let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
+
+        let form_data_default = FormData::create_from_elements(
+            cx,
+            meta_data,
+            &default_field_values,
+            &form_elements,
+        );
+
+        let form_data = create_rw_signal(cx, Some(form_data_default));
+
+        let custom_submit_handler = CustomSubmitHandler::new(
+            form_data,
+            Rc::new(
+                move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
+                    function(ev, form_data.get());
+                },
+            ),
+            is_submitting,
+            submit_error,
+        );
+
+        let form_handler = Rc::new(SubmitFormHandler::new(
+            None,
+            Box::new(custom_submit_handler),
+        ));
+        let view_handler = FormViewHandler::new(form_handler);
+
+        Self {
+            cx,
+            view_handler,
+            button_type,
+        }
+    }
+
+    pub fn to_view(&self) -> View {
+        let button_type =
+            self.button_type.clone().unwrap_or(ButtonType::Submit(None));
+        self.view_handler.to_view(self.cx, Some(button_type))
+    }
+}
+
+impl ViewCreator for SubmitForm {
+    fn to_view(&self) -> View {
+        let button_type =
+            self.button_type.clone().unwrap_or(ButtonType::Submit(None));
+        self.view_handler.to_view(self.cx, Some(button_type))
     }
 }

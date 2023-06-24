@@ -1,6 +1,7 @@
 mod change_password_form;
 mod login_form;
 mod redirect;
+mod search_form;
 
 pub mod buttons;
 pub mod form_helpers;
@@ -11,3 +12,4 @@ pub mod icons;
 pub use change_password_form::ChangePasswordForm;
 pub use login_form::{LoginForm, LoginFormDebug};
 pub use redirect::Redirect;
+pub use search_form::SearchForm;

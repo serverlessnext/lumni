@@ -11,9 +11,7 @@ use crate::components::buttons::{ActionTrigger, ButtonType};
 use crate::components::form_input::{
     build_all, FormElement, InputFieldPattern, TextBoxBuilder,
 };
-use crate::components::forms::{
-    CustomFormHandler, FormData, FormError, HtmlForm,
-};
+use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
 use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "admin";
@@ -193,7 +191,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             app_login.set_password_and_submit(ev, form_data);
         };
 
-    let login_form_handler = CustomFormHandler::new(
+    let login_form = SubmitForm::new(
         cx,
         form_login,
         Box::new(handle_form_submission),
@@ -202,7 +200,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         Some(ButtonType::Login(None)),
     );
 
-    login_form_handler.create_view()
+    login_form.to_view()
 }
 
 #[component]
@@ -222,7 +220,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             app_login.set_password_and_submit(ev, form_data);
         };
 
-    let create_form_handler = CustomFormHandler::new(
+    let create_form = SubmitForm::new(
         cx,
         form_create,
         Box::new(handle_form_submission),
@@ -231,7 +229,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         Some(ButtonType::Create(Some("Create new password".to_string()))),
     );
 
-    create_form_handler.create_view()
+    create_form.to_view()
 }
 
 fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
@@ -264,8 +262,7 @@ fn debug_login(cx: Scope) {
     // in the event confidential data is stored during development
     // its at least encrypted with a unique password
     let debug_username = format!("debug-user-{}", Uuid::new_v4());
-    let debug_password =
-        format!("debug-password-{}", Uuid::new_v4());
+    let debug_password = format!("debug-password-{}", Uuid::new_v4());
 
     let state = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided");
@@ -339,15 +336,13 @@ fn reset_password_view(
     is_user_defined: RwSignal<bool>,
     error_signal: RwSignal<Option<String>>,
 ) -> View {
-    let action = Arc::new(move || {
-        async move {
-            match reset_vault_action().await {
-                Ok(_) => {
-                    is_user_defined.set(false);
-                    Ok(())
-                }
-                Err(err) => Err(err),
+    let action = Arc::new(move || async move {
+        match reset_vault_action().await {
+            Ok(_) => {
+                is_user_defined.set(false);
+                Ok(())
             }
+            Err(err) => Err(err),
         }
     });
 

@@ -1,0 +1,206 @@
+use std::rc::Rc;
+
+use leptos::ev::SubmitEvent;
+use leptos::*;
+
+use super::form_data::{FormData, SubmitInput};
+use super::handler::FormHandlerTrait;
+use crate::components::buttons::{ButtonType, FormSubmitButton};
+use crate::components::form_helpers::SubmissionStatusView;
+use crate::components::form_input::{FormState, TextAreaView, TextBoxView};
+
+pub trait ViewCreator {
+    fn to_view(&self) -> View;
+}
+
+pub struct FormViewHandler {
+    handler: Rc<dyn FormHandlerTrait>,
+}
+
+impl FormViewHandler {
+    pub fn new(handler: Rc<dyn FormHandlerTrait>) -> Self {
+        Self { handler }
+    }
+
+    pub fn to_view(&self, cx: Scope, button_type: Option<ButtonType>) -> View {
+        let handler = Rc::clone(&self.handler);
+        let is_processing_signal = handler.is_processing();
+        let error_signal = handler.process_error();
+        let form_data_signal = handler.form_data();
+
+        view! { cx,
+            {move ||
+                if let Some(form_data) = form_data_signal.get() {
+                    FormView(cx, &button_type, handler.clone(), form_data)
+                }
+                else if let Some(error) = error_signal.get() {
+                    { ErrorView(cx, error) }.into_view(cx)
+                }
+                else if is_processing_signal.get() {
+                    { SubmittingView(cx) }.into_view(cx)
+                }
+                else {
+                    { LoadingView(cx) }.into_view(cx)
+                }
+            }
+        }
+        .into_view(cx)
+    }
+}
+
+#[allow(non_snake_case)]
+fn FormView(
+    cx: Scope,
+    button_type: &Option<ButtonType>,
+    handler: Rc<dyn FormHandlerTrait>,
+    form_data: FormData,
+) -> View {
+    match &button_type {
+        Some(bt) => {
+            let props = SubmitFormViewProps {
+                handler,
+                form_data,
+                button_type: bt.clone(),
+            };
+            SubmitFormView(cx, props).into_view(cx)
+        }
+        None => {
+            let props = LoadFormViewProps { handler, form_data };
+            LoadFormView(cx, props).into_view(cx)
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+fn LoadingView(cx: Scope) -> impl IntoView {
+    view! {
+        cx,
+        <div>
+            "Loading..."
+        </div>
+    }
+}
+
+#[allow(non_snake_case)]
+fn SubmittingView(cx: Scope) -> impl IntoView {
+    view! {
+        cx,
+        <div>
+            "Submitting..."
+        </div>
+    }
+}
+
+#[allow(non_snake_case)]
+fn ErrorView(cx: Scope, error: String) -> impl IntoView {
+    view! {
+        cx,
+        <div>
+            {"Error loading configuration: "}
+            {error}
+        </div>
+    }
+}
+
+#[component]
+pub fn SubmitFormView(
+    cx: Scope,
+    handler: Rc<dyn FormHandlerTrait>,
+    form_data: FormData,
+    button_type: ButtonType,
+) -> impl IntoView {
+    let is_submitting = handler.is_processing();
+    let submit_error = handler.process_error();
+
+    let form_state = form_data.form_state();
+
+    let rc_on_submit = handler.on_submit().on_submit();
+    let box_on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)> =
+        Box::new(move |ev: SubmitEvent, elements: Option<FormState>| {
+            let elements = elements.map(SubmitInput::Elements);
+            rc_on_submit(ev, elements);
+        });
+
+    view! {
+        cx,
+        <div>
+            <FormContentView
+                form_state
+                on_submit=box_on_submit
+                is_submitting
+                button_type=&button_type
+            />
+            <SubmissionStatusView is_submitting={is_submitting.into()} submit_error={submit_error.into()} />
+        </div>
+    }
+}
+
+#[component]
+pub fn LoadFormView(
+    cx: Scope,
+    handler: Rc<dyn FormHandlerTrait>,
+    form_data: FormData,
+) -> impl IntoView {
+    let is_loading = handler.is_processing();
+    let load_error = handler.process_error();
+
+    let form_state = form_data.form_state();
+
+    view! {
+        cx,
+        <h1>"Load Form"</h1>
+        <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
+        >
+            <For
+                each= move || {form_state.clone().into_iter().enumerate()}
+                    key=|(index, _)| *index
+                    view= move |cx, (_, (_, form_element_state))| {
+                        view! {
+                            cx,
+                            <TextAreaView
+                                form_element_state
+                            />
+                        }
+                    }
+            />
+        </form>
+        <SubmissionStatusView is_submitting={is_loading.into()} submit_error={load_error.into()} />
+    }.into_view(cx)
+}
+
+#[component]
+pub fn FormContentView<'a>(
+    cx: Scope,
+    form_state: FormState,
+    on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)>,
+    is_submitting: RwSignal<bool>,
+    button_type: &'a ButtonType,
+) -> impl IntoView {
+    let form_state_clone = form_state.clone();
+    let form_changed = create_rw_signal(cx, false);
+    let button_type = button_type.clone(); // TODO: temp clone -- should change FormSubmitButton
+    view! {
+        cx,
+        <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
+            on:submit=move |ev| {
+                is_submitting.set(true);
+                on_submit(ev, Some(form_state.clone()))
+            }
+        >
+            <For
+                each= move || {form_state_clone.clone().into_iter().enumerate()}
+                    key=|(index, _)| *index
+                    view= move |cx, (_, (_, form_element_state))| {
+                        view! {
+                            cx,
+                            <TextBoxView
+                                form_element_state
+                                input_changed={form_changed}
+                            />
+                        }
+                    }
+            />
+            <FormSubmitButton button_type button_enabled=form_changed.into()/>
+        </form>
+    }.into_view(cx)
+}

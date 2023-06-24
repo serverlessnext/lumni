@@ -68,6 +68,28 @@ impl FormData {
                     FormElement::TextArea(_field_data) => {
                         panic!("TextArea not implemented yet")
                     }
+
+                    FormElement::NestedForm(field_data) => {
+                        if field_data.name == *key {
+                            let error_signal = create_rw_signal(cx, None);
+                            let value_signal = create_rw_signal(
+                                cx,
+                                DisplayValue::Text(value.clone()),
+                            );
+                            let default_input_data =
+                                Arc::new(field_data.clone());
+                            Some((
+                                key.clone(),
+                                FormElementState {
+                                    schema: default_input_data,
+                                    display_value: value_signal,
+                                    display_error: error_signal,
+                                },
+                            ))
+                        } else {
+                            None
+                        }
+                    }
                 })
             })
             .collect();

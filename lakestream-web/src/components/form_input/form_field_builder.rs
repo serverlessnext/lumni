@@ -46,7 +46,7 @@ impl FieldBuilder {
 }
 
 pub trait FieldBuilderTrait {
-    fn build(self) -> FormElement;
+    fn build(&self) -> FormElement;
 }
 
 pub fn build_all<T: FieldBuilderTrait>(builders: Vec<T>) -> Vec<FormElement> {

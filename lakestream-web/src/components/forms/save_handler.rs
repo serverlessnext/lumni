@@ -6,7 +6,10 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
-use super::submit_handler::SubmitHandler;
+use super::form_view_handler::FormViewHandler;
+use super::html_form::HtmlForm;
+use super::submit_handler::{SubmitFormHandler, SubmitHandler};
+use crate::components::buttons::ButtonType;
 use crate::components::form_input::{DisplayValue, ElementDataType, FormState};
 
 pub struct SaveHandler {
@@ -184,6 +187,46 @@ impl SubmitHandler for SaveHandler {
 
     fn data(&self) -> RwSignal<Option<FormData>> {
         self.form_data
+    }
+}
+
+pub struct SaveForm {
+    cx: Scope,
+    view_handler: FormViewHandler,
+}
+
+impl SaveForm {
+    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Self {
+        let submit_handler = Box::new(
+            move |_cx: Scope,
+                  vault: Option<&LocalEncrypt>,
+                  form_data: RwSignal<Option<FormData>>|
+                  -> Box<dyn SubmitHandler> {
+                // Ensure vault is available
+                if let Some(_vault) = vault {
+                    SaveHandler::new(_cx, _vault, form_data)
+                } else {
+                    panic!("Vault is required for SaveFormHandler");
+                }
+            },
+        );
+
+        let form_handler = Rc::new(SubmitFormHandler::new_with_vault(
+            cx,
+            form,
+            vault,
+            submit_handler,
+        ));
+        let view_handler = FormViewHandler::new(form_handler);
+
+        Self { cx, view_handler }
+    }
+
+    pub fn to_view(&self) -> View {
+        self.view_handler.to_view(
+            self.cx,
+            Some(ButtonType::Save(Some("Save Changes".to_string()))),
+        )
     }
 }
 

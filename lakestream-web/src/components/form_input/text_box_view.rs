@@ -1,6 +1,6 @@
 use leptos::*;
 
-use super::{DisplayValue, ElementData, ElementDataType, FormElementState};
+use super::{DisplayValue, ElementDataType, FormElementState};
 use crate::components::icons::LockIconView;
 
 const MASKED_VALUE: &str = "*****";
@@ -16,33 +16,20 @@ pub fn TextBoxView(
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
 
-    let (label_text, is_secret, is_password, initial_enabled) =
-        match &*input_field_data {
-            ElementData {
-                name: _,
-                element_type,
-                is_enabled,
-                ..
-            } => {
-                match element_type {
-                    ElementDataType::TextData(text_data) => {
-                        let label_text = text_data
-                            .field_label
-                            .as_ref()
-                            .map_or_else(String::new, |label| {
-                                label.text().to_string()
-                            });
-                        let is_secret = text_data.field_type.is_secret();
-                        let is_password = text_data.field_type.is_password();
-                        let initial_enabled = *is_enabled;
-                        (label_text, is_secret, is_password, initial_enabled)
-                    }
-                    // Other cases for BinaryData, DocumentData, etc.
-                    _ => {
-                        panic!("Not yet implemented");
-                    }
-                }
-            }
+    let element_type = &input_field_data.element_type;
+    let initial_enabled = input_field_data.is_enabled;
+    let (label_text, is_secret, is_password) =
+        if let ElementDataType::TextData(text_data) = element_type {
+            let label_text = text_data
+                .field_label
+                .as_ref()
+                .map_or_else(String::new, |label| label.text());
+            let is_secret = text_data.field_type.is_secret();
+            let is_password = text_data.field_type.is_password();
+            (label_text, is_secret, is_password)
+        } else {
+            // Handle other cases for BinaryData, DocumentData, etc. or panic
+            panic!("Not yet implemented");
         };
 
     // show lock icon if secret and not password (passwords cant be unlocked)

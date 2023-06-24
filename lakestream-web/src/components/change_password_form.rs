@@ -8,9 +8,7 @@ use crate::components::buttons::ButtonType;
 use crate::components::form_input::{
     build_all, FormElement, InputFieldPattern, TextBoxBuilder,
 };
-use crate::components::forms::{
-    CustomFormHandler, FormData, FormError, HtmlForm,
-};
+use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
 
 const ROOT_USERNAME: &str = "admin";
 const INTERNAL_ERROR: &str = "An internal error occurred: ";
@@ -133,7 +131,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     };
 
     // Create a custom form handlers with the defined functions
-    let validation_form_handler = CustomFormHandler::new(
+    let validation_form = SubmitForm::new(
         cx,
         form_validation,
         Box::new(handle_password_validation),
@@ -144,7 +142,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         ))),
     );
 
-    let change_form_handler = CustomFormHandler::new(
+    let change_form = SubmitForm::new(
         cx,
         form_change,
         Box::new(handle_password_change),
@@ -156,9 +154,9 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     view! { cx,
         { move ||
             if password_validated.get().is_none() {
-                validation_form_handler.create_view()
+                validation_form.to_view()
             } else {
-                change_form_handler.create_view()
+                change_form.to_view()
             }
         }
     }

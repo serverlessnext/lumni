@@ -3,7 +3,7 @@ use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::config_list::{Config, ConfigList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
-use crate::components::forms::{HtmlForm, SaveFormHandler};
+use crate::components::forms::{HtmlForm, SaveForm};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -63,9 +63,10 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                             .await
                             .unwrap_or_else(|_| vec![]);
 
-                        let form_data_option = configurations.iter().find(|form_data| {
-                            form_data.id() == form_id.as_str()
-                        });
+                        let form_data_option =
+                            configurations.iter().find(|form_data| {
+                                form_data.id() == form_id.as_str()
+                            });
 
                         if let Some(form_data) = form_data_option {
                             let name = form_data.tags().and_then(|tags| {
@@ -81,6 +82,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                                     tags.get("__CONFIGURATION_TYPE__").cloned()
                                 })
                                 .unwrap_or_else(|| "Environment".to_string());
+                            let config_type = "ObjectStoreS3".to_string();
 
                             if let Some(name) = name {
                                 let config = match config_type.as_str() {
@@ -118,8 +120,8 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
         } else {
             match form_loaded.get() {
                 Some(form) => {
-                    let save_form_handler = SaveFormHandler::new(cx, form, &vault);
-                    save_form_handler.create_view()
+                    let save_form = SaveForm::new(cx, form, &vault);
+                    save_form.to_view()
                 }
                 None => {
                     view! {

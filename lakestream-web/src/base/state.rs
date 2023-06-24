@@ -14,6 +14,12 @@ pub struct RunTime {
     vault_initialized: bool,
 }
 
+impl Default for RunTime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RunTime {
     pub fn new() -> Self {
         Self {

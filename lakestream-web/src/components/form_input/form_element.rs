@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use leptos::*;
 
-use super::FieldType;
+use super::field_type::{DocumentType, FieldType};
 
 #[derive(Clone, Default, Debug)]
 pub struct FieldLabel {
@@ -25,6 +25,7 @@ impl FieldLabel {
 pub enum FormElement {
     TextBox(ElementData),
     TextArea(ElementData),
+    NestedForm(ElementData),
 }
 
 #[derive(Clone, Debug)]
@@ -61,18 +62,29 @@ impl fmt::Debug for TextData {
     }
 }
 
-// not yet implemented
 #[derive(Debug, Clone)]
 pub struct BinaryData {
     pub field_label: Option<FieldLabel>,
     pub buffer_data: Vec<u8>,
 }
 
-// not yet implemented
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DocumentData {
+    pub document_type: DocumentType,
     pub field_label: Option<FieldLabel>,
-    pub buffer_data: serde_json::Value,
+    pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+    pub buffer_data: String,
+}
+
+impl fmt::Debug for DocumentData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DocumentData")
+            .field("document_type", &self.document_type)
+            .field("field_label", &self.field_label)
+            .field("validator", &self.validator.is_some())
+            .field("buffer_data", &self.buffer_data)
+            .finish()
+    }
 }
 
 pub type FormState = HashMap<String, FormElementState>;

@@ -1,9 +1,13 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 
 use super::form_data::FormData;
+use super::form_view_handler::{FormViewHandler, ViewCreator};
+use super::handler::FormHandlerTrait;
+use super::submit_handler::SubmitHandler;
 use super::HtmlForm;
 use crate::components::form_input::FormElement;
 
@@ -18,6 +22,71 @@ pub trait LoadHandler {
     fn form_data(&self) -> RwSignal<Option<FormData>>;
 }
 
+pub struct LoadFormHandler {
+    on_load: Box<dyn LoadHandler>,
+}
+
+impl LoadFormHandler {
+    pub fn new(on_load: Box<dyn LoadHandler>) -> Self {
+        Self { on_load }
+    }
+
+    pub fn is_loading(&self) -> RwSignal<bool> {
+        self.on_load.is_loading()
+    }
+
+    pub fn load_error(&self) -> RwSignal<Option<String>> {
+        self.on_load.load_error()
+    }
+
+    pub fn form_data(&self) -> RwSignal<Option<FormData>> {
+        self.on_load.form_data()
+    }
+}
+
+pub struct LoadForm {
+    cx: Scope,
+    view_handler: FormViewHandler,
+}
+
+impl LoadForm {
+    pub fn new(cx: Scope, form: HtmlForm) -> Self {
+        let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
+        let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
+
+        let view_handler = FormViewHandler::new(form_handler);
+
+        Self { cx, view_handler }
+    }
+
+    pub fn to_view(&self) -> View {
+        self.view_handler.to_view(self.cx, None)
+    }
+}
+
+impl ViewCreator for LoadForm {
+    fn to_view(&self) -> View {
+        self.view_handler.to_view(self.cx, None)
+    }
+}
+
+impl FormHandlerTrait for LoadFormHandler {
+    fn is_processing(&self) -> RwSignal<bool> {
+        self.is_loading()
+    }
+
+    fn process_error(&self) -> RwSignal<Option<String>> {
+        self.load_error()
+    }
+
+    fn form_data(&self) -> RwSignal<Option<FormData>> {
+        self.form_data()
+    }
+
+    fn on_submit(&self) -> &dyn SubmitHandler {
+        panic!("LoadFormHandler does not have a submit handler")
+    }
+}
 pub struct LoadVaultHandler {
     form_data: RwSignal<Option<FormData>>,
     is_loading: RwSignal<bool>,
@@ -38,7 +107,6 @@ impl LoadHandler for LoadVaultHandler {
     }
 }
 
-use std::rc::Rc;
 impl LoadVaultHandler {
     pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Box<Self> {
         let is_loading = create_rw_signal(cx, true);
@@ -135,16 +203,16 @@ pub async fn get_form_data(
 ) -> Result<FormData, String> {
     let default_field_values = form.default_field_values();
     let form_elements = form.elements();
-    let form_name = form.id();
+    let form_name = form.id(); // use id as name
 
     let mut tags = HashMap::new();
-    tags.insert("Name".to_string(), form.name());
-    let meta_data = ItemMetaData::new_with_tags(&form_name, tags);
+    tags.insert("Name".to_string(), form.name().to_string());
+    let meta_data = ItemMetaData::new_with_tags(form_name, tags);
 
-    let content = fetch_form_data(&form_name, vault).await;
+    let content = fetch_form_data(form_name, vault).await;
     handle_loaded_content(
         cx,
-        &form_name,
+        form_name,
         &form_elements,
         meta_data,
         content,
@@ -166,4 +234,75 @@ async fn fetch_form_data(
     };
 
     local_storage.load_content(form_name).await
+}
+
+pub struct DirectLoadHandler {
+    form_data: RwSignal<Option<FormData>>,
+    is_loading: RwSignal<bool>,
+    load_error: RwSignal<Option<String>>,
+}
+
+impl DirectLoadHandler {
+    pub fn new(cx: Scope, form: HtmlForm) -> Box<Self> {
+        let is_loading = create_rw_signal(cx, true);
+        let load_error = create_rw_signal(cx, None::<String>);
+
+        let default_field_values = form.default_field_values();
+        let form_elements = form.elements();
+
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), form.name().to_string());
+        let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
+
+        let form_data = FormData::create_from_elements(
+            cx,
+            meta_data,
+            &default_field_values,
+            &form_elements,
+        );
+
+        let form_data = create_rw_signal(cx, Some(form_data));
+        is_loading.set(false);
+
+        Box::new(Self {
+            form_data,
+            is_loading,
+            load_error,
+        })
+    }
+}
+
+impl LoadHandler for DirectLoadHandler {
+    fn is_loading(&self) -> RwSignal<bool> {
+        self.is_loading
+    }
+
+    fn load_error(&self) -> RwSignal<Option<String>> {
+        self.load_error
+    }
+
+    fn form_data(&self) -> RwSignal<Option<FormData>> {
+        self.form_data
+    }
+}
+
+impl FormHandlerTrait for DirectLoadHandler {
+    fn is_processing(&self) -> RwSignal<bool> {
+        self.is_loading()
+    }
+
+    fn process_error(&self) -> RwSignal<Option<String>> {
+        self.load_error()
+    }
+
+    fn form_data(&self) -> RwSignal<Option<FormData>> {
+        self.form_data
+    }
+
+    fn on_submit(&self) -> &dyn SubmitHandler {
+        panic!(
+            "DirectLoadHandler might not have a submit handler, handle this \
+             case appropriately"
+        )
+    }
 }

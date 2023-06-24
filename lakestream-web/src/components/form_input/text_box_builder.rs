@@ -7,9 +7,12 @@ use super::helpers::validate_with_pattern;
 use super::{ElementData, ElementDataType, TextData};
 use crate::components::form_input::{FieldType, FormElement};
 
+type ValidateFn = Arc<dyn Fn(&str) -> Result<(), String>>;
+
+#[derive(Clone)]
 pub struct TextBoxBuilder {
     base: FieldBuilder,
-    default: String,
+    initial_value: String,
     field_type: FieldType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
@@ -18,7 +21,7 @@ impl From<FieldBuilder> for TextBoxBuilder {
     fn from(field_builder: FieldBuilder) -> Self {
         Self {
             base: field_builder,
-            default: String::new(),
+            initial_value: String::new(),
             field_type: FieldType::Text,
             validate_fn: None,
         }
@@ -28,20 +31,20 @@ impl From<FieldBuilder> for TextBoxBuilder {
 impl TextBoxBuilder {
     pub fn new(
         base: FieldBuilder,
-        default: String,
+        initial_value: String,
         field_type: FieldType,
-        validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+        validate_fn: Option<ValidateFn>,
     ) -> Self {
         Self {
             base,
-            default,
+            initial_value,
             field_type,
             validate_fn,
         }
     }
 
-    pub fn default<S: Into<String>>(mut self, default: S) -> Self {
-        self.default = default.into();
+    pub fn with_initial_value<S: Into<String>>(mut self, value: S) -> Self {
+        self.initial_value = value.into();
         self
     }
 
@@ -62,28 +65,20 @@ impl TextBoxBuilder {
         match pattern {
             InputFieldPattern::PasswordChange => {
                 let password_pattern = Regex::new(r"^.{8,}$").unwrap();
-                TextBoxBuilder::from(
-                    FieldBuilder::new("PASSWORD")
-                        .label("Password")
-                        .as_input_field(),
-                )
-                .default("".to_string())
-                .field_type(FieldType::Password)
-                .validator(Some(Arc::new(
-                    validate_with_pattern(
+                FieldBuilder::new("PASSWORD")
+                    .label("Password")
+                    .as_input_field()
+                    .field_type(FieldType::Password)
+                    .validator(Some(Arc::new(validate_with_pattern(
                         password_pattern,
                         "Invalid password. Must be at least 8 characters."
                             .to_string(),
-                    ),
-                )))
+                    ))))
             }
-            InputFieldPattern::PasswordCheck => TextBoxBuilder::from(
-                FieldBuilder::new("PASSWORD")
-                    .label("Password")
-                    .as_input_field(),
-            )
-            .default("".to_string())
-            .field_type(FieldType::Password),
+            InputFieldPattern::PasswordCheck => FieldBuilder::new("PASSWORD")
+                .label("Password")
+                .as_input_field()
+                .field_type(FieldType::Password),
         }
     }
     pub fn build(self) -> FormElement {
@@ -91,7 +86,7 @@ impl TextBoxBuilder {
             field_label: self.base.field_label(),
             field_type: self.field_type,
             validator: self.validate_fn,
-            buffer_data: self.default,
+            buffer_data: self.initial_value,
         };
 
         FormElement::TextBox(ElementData {
@@ -103,8 +98,8 @@ impl TextBoxBuilder {
 }
 
 impl FieldBuilderTrait for TextBoxBuilder {
-    fn build(self) -> FormElement {
-        TextBoxBuilder::from(self).build()
+    fn build(&self) -> FormElement {
+        self.clone().build()
     }
 }
 

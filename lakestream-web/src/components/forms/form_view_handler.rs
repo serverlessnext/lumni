@@ -5,7 +5,7 @@ use leptos::*;
 
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
-use crate::components::buttons::{FormButton, ButtonType, FormSubmitButton};
+use crate::components::buttons::{FormButton, FormButtonGroup};
 use crate::components::form_helpers::SubmissionStatusView;
 use crate::components::form_input::{FormState, TextAreaView, TextBoxView};
 
@@ -60,7 +60,7 @@ fn FormView(
             let props = SubmitFormViewProps {
                 handler,
                 form_data,
-                form_button: button.clone(),
+                form_button: button,
             };
             SubmitFormView(cx, props).into_view(cx)
         }
@@ -103,11 +103,11 @@ fn ErrorView(cx: Scope, error: String) -> impl IntoView {
 }
 
 #[component]
-pub fn SubmitFormView(
+fn SubmitFormView<'a>(
     cx: Scope,
     handler: Rc<dyn FormHandlerTrait>,
     form_data: FormData,
-    form_button: FormButton,
+    form_button: &'a FormButton,
 ) -> impl IntoView {
     let is_submitting = handler.is_processing();
     let submit_error = handler.process_error();
@@ -121,6 +121,9 @@ pub fn SubmitFormView(
             rc_on_submit(ev, elements);
         });
 
+    let mut button_group = FormButtonGroup::new(Some(true));
+    button_group.add_button(form_button.clone());
+
     view! {
         cx,
         <div>
@@ -128,7 +131,7 @@ pub fn SubmitFormView(
                 form_state
                 on_submit=box_on_submit
                 is_submitting
-                form_button=&form_button
+                buttons=button_group
             />
             <SubmissionStatusView is_submitting={is_submitting.into()} submit_error={submit_error.into()} />
         </div>
@@ -136,7 +139,7 @@ pub fn SubmitFormView(
 }
 
 #[component]
-pub fn LoadFormView(
+fn LoadFormView(
     cx: Scope,
     handler: Rc<dyn FormHandlerTrait>,
     form_data: FormData,
@@ -169,19 +172,18 @@ pub fn LoadFormView(
 }
 
 #[component]
-pub fn FormContentView<'a>(
+pub fn FormContentView(
     cx: Scope,
     form_state: FormState,
     on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)>,
     is_submitting: RwSignal<bool>,
-    form_button: &'a FormButton,
+    buttons: FormButtonGroup,
 ) -> impl IntoView {
     let form_state_clone = form_state.clone();
-    let form_button = form_button.clone();
     let form_changed = create_rw_signal(cx, false);
     view! {
         cx,
-        <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
+        <form class="flex flex-wrap w-full max-w-2xl text-black border p-4 font-mono"
             on:submit=move |ev| {
                 is_submitting.set(true);
                 on_submit(ev, Some(form_state.clone()))
@@ -200,7 +202,8 @@ pub fn FormContentView<'a>(
                         }
                     }
             />
-            <FormSubmitButton form_button button_enabled=form_changed.into()/>
+            { move || buttons.clone().to_view(cx, Some(form_changed.get())) }
         </form>
     }.into_view(cx)
 }
+

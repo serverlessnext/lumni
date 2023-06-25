@@ -226,7 +226,7 @@ impl SaveForm {
         let save_button = FormButton::new(
             ButtonType::Save,
             Some("Save Changes"),
-        );
+        ).set_enabled(false);
         self.view_handler.to_view(
             self.cx,
             Some(save_button),

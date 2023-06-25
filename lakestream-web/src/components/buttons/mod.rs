@@ -5,5 +5,5 @@ mod buttons;
 
 pub use actions::ActionTrigger;
 pub use button_type::ButtonType;
-pub use form_button::FormButton;
-pub use buttons::{ClickButton, FormSubmitButton};
+pub use form_button::{FormButton, FormButtonGroup};
+pub use buttons::ClickButton;

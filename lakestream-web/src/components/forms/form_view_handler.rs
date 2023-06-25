@@ -5,7 +5,7 @@ use leptos::*;
 
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
-use crate::components::buttons::{ButtonType, FormSubmitButton};
+use crate::components::buttons::{FormButton, ButtonType, FormSubmitButton};
 use crate::components::form_helpers::SubmissionStatusView;
 use crate::components::form_input::{FormState, TextAreaView, TextBoxView};
 
@@ -22,7 +22,7 @@ impl FormViewHandler {
         Self { handler }
     }
 
-    pub fn to_view(&self, cx: Scope, button_type: Option<ButtonType>) -> View {
+    pub fn to_view(&self, cx: Scope, form_button: Option<FormButton>) -> View {
         let handler = Rc::clone(&self.handler);
         let is_processing_signal = handler.is_processing();
         let error_signal = handler.process_error();
@@ -31,7 +31,7 @@ impl FormViewHandler {
         view! { cx,
             {move ||
                 if let Some(form_data) = form_data_signal.get() {
-                    FormView(cx, &button_type, handler.clone(), form_data)
+                    FormView(cx, &form_button, handler.clone(), form_data)
                 }
                 else if let Some(error) = error_signal.get() {
                     { ErrorView(cx, error) }.into_view(cx)
@@ -51,16 +51,16 @@ impl FormViewHandler {
 #[allow(non_snake_case)]
 fn FormView(
     cx: Scope,
-    button_type: &Option<ButtonType>,
+    form_button: &Option<FormButton>,
     handler: Rc<dyn FormHandlerTrait>,
     form_data: FormData,
 ) -> View {
-    match &button_type {
-        Some(bt) => {
+    match &form_button {
+        Some(button) => {
             let props = SubmitFormViewProps {
                 handler,
                 form_data,
-                button_type: bt.clone(),
+                form_button: button.clone(),
             };
             SubmitFormView(cx, props).into_view(cx)
         }
@@ -107,7 +107,7 @@ pub fn SubmitFormView(
     cx: Scope,
     handler: Rc<dyn FormHandlerTrait>,
     form_data: FormData,
-    button_type: ButtonType,
+    form_button: FormButton,
 ) -> impl IntoView {
     let is_submitting = handler.is_processing();
     let submit_error = handler.process_error();
@@ -128,7 +128,7 @@ pub fn SubmitFormView(
                 form_state
                 on_submit=box_on_submit
                 is_submitting
-                button_type=&button_type
+                form_button=&form_button
             />
             <SubmissionStatusView is_submitting={is_submitting.into()} submit_error={submit_error.into()} />
         </div>
@@ -174,11 +174,11 @@ pub fn FormContentView<'a>(
     form_state: FormState,
     on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)>,
     is_submitting: RwSignal<bool>,
-    button_type: &'a ButtonType,
+    form_button: &'a FormButton,
 ) -> impl IntoView {
     let form_state_clone = form_state.clone();
+    let form_button = form_button.clone();
     let form_changed = create_rw_signal(cx, false);
-    let button_type = button_type.clone(); // TODO: temp clone -- should change FormSubmitButton
     view! {
         cx,
         <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
@@ -200,7 +200,7 @@ pub fn FormContentView<'a>(
                         }
                     }
             />
-            <FormSubmitButton button_type button_enabled=form_changed.into()/>
+            <FormSubmitButton form_button button_enabled=form_changed.into()/>
         </form>
     }.into_view(cx)
 }

@@ -4,14 +4,14 @@ use std::sync::Arc;
 use leptos::ev::MouseEvent;
 use leptos::*;
 
-use super::{ButtonType, ClickButton};
+use super::{FormButton, ClickButton};
 use crate::components::forms::FormError;
 
 pub struct ActionTrigger<Action>
 where
     Action: Future<Output = Result<(), FormError>> + 'static,
 {
-    button_type: ButtonType,
+    form_button: FormButton,
     action: Arc<dyn Fn() -> Action>,
 }
 
@@ -20,11 +20,11 @@ where
     Action: Future<Output = Result<(), FormError>> + 'static,
 {
     pub fn new(
-        button_type: ButtonType,
+        form_button: FormButton,
         action: Arc<dyn Fn() -> Action>,
     ) -> Self {
         Self {
-            button_type,
+            form_button,
             action,
         }
     }
@@ -51,7 +51,7 @@ where
         };
 
         view! { cx,
-            <ClickButton button_type={self.button_type.clone()} enabled={is_enabled.into()} on_click={on_click} />
+            <ClickButton form_button={self.form_button.clone()} enabled={is_enabled.into()} on_click={on_click} />
         }
         .into_view(cx)
     }

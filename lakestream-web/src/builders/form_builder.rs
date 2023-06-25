@@ -1,7 +1,8 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use crate::components::form_input::{FieldBuilderTrait, FormElement};
+use crate::components::form_input::FormElement;
+use super::field_builder::FieldBuilderTrait;
 use crate::components::forms::{
     FormData, HtmlForm, LoadForm, SubmitForm, ViewCreator,
 };

@@ -29,7 +29,7 @@ impl FieldBuilder {
         self.is_enabled
     }
 
-    pub fn label<S: Into<String>>(mut self, label: S) -> Self {
+    pub fn with_label<S: Into<String>>(mut self, label: S) -> Self {
         self.field_label = Some(FieldLabel::new(label.into()));
         self
     }

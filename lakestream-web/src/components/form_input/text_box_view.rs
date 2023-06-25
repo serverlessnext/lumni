@@ -155,7 +155,7 @@ pub fn InputFieldView(
                 if is_enabled.get() {
                     let value = event_target_value(&ev);
                     value_signal.set(DisplayValue::Text(value));
-                    input_changed.set(true);    // enable submit button
+                    input_changed.set(true);    // enables submit button
                 }
             }
             placeholder="none".to_string()

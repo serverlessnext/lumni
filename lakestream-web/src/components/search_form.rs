@@ -4,8 +4,26 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::components::form_input::FieldBuilder;
-use crate::components::forms::{FormBuilder, FormData, FormError};
+use crate::builders::{FormBuilder, FieldBuilder};
+use crate::components::forms::{FormData, FormError};
+
+
+#[cfg(debug_assertions)]
+async fn debug_sleep() {
+    use std::time::Duration;
+    use async_std::task;
+    task::sleep(Duration::from_secs(1)).await;
+}
+
+macro_rules! debug_sleep {
+    () => {
+        #[cfg(debug_assertions)]
+        {
+            debug_sleep().await;
+        }
+    };
+}
+
 
 #[component]
 pub fn SearchForm(cx: Scope) -> impl IntoView {
@@ -17,36 +35,71 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
             ev.prevent_default();
 
             log!("Button clicked");
+            is_submitting.set(true);
 
-            let data = extract_form_data(form_data)
-                .map_err(|e| {
-                    log!("Error: {:?}", e);
-                    validation_error.set(Some("FORM_DATA_MISSING".to_string()));
-                })
-                .unwrap();
+            spawn_local(async move {
+                // run search on background
+                let data = extract_form_data(form_data)
+                    .map_err(|e| {
+                        log!("Error: {:?}", e);
+                        validation_error.set(Some("FORM_DATA_MISSING".to_string()));
+                    })
+                    .unwrap();
+                debug_sleep!();
 
-            log!("Form data: {:?}", data);
-            validation_error.set(Some("random error".to_string()));
-            is_submitting.set(false);
+                log!("Form data: {:?}", data);
+                is_submitting.set(false);
+
+            });
         }
     };
 
-    let form = FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
+
+    let query_form = FormBuilder::new("Query", &Uuid::new_v4().to_string())
         .add_element(Box::new(
-            FieldBuilder::new("field1")
+            FieldBuilder::new("Select")
+                .with_label("Select")
                 .as_input_field()
-                .with_initial_value("foo"),
+                .with_initial_value("*"),
         ))
         .add_element(Box::new(
-            FieldBuilder::new("field2")
+            FieldBuilder::new("From")
+                .with_label("From")
                 .as_input_field()
-                .with_initial_value("bar"),
+                .with_initial_value("table"),
         ))
         .on_submit(Box::new(handle_search), is_submitting, validation_error)
         .build(cx);
 
-    form.to_view()
+    let results_form = FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
+        .add_element(Box::new(
+            FieldBuilder::new("Query")
+                .as_input_field()
+        ))
+        .build(cx);
+
+
+    view! { cx,
+        { query_form.to_view() }
+        { move ||
+            if is_submitting.get() {
+                view! { cx, "" }.into_view(cx)
+            } else if let Some(error) = validation_error.get() {
+                view! { cx, <p>{ error }</p> }.into_view(cx)
+            } else {
+                view ! {
+                    cx,
+                    <div>
+                        <p>"Results"</p>
+                    </div>
+                    { results_form.to_view() }
+                }.into_view(cx)
+            }
+        }
+    }.into_view(cx)
 }
+
+
 
 fn extract_form_data(
     form_data: Option<FormData>,

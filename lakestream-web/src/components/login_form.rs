@@ -7,9 +7,10 @@ use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::buttons::{ActionTrigger, ButtonType};
-use crate::components::form_input::{
-    build_all, FormElement, InputFieldPattern, TextBoxBuilder,
+use crate::components::buttons::{ActionTrigger, FormButton, ButtonType};
+use crate::components::form_input::FormElement;
+use crate::builders::{
+    build_all, InputFieldPattern, TextBoxBuilder,
 };
 use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
 use crate::GlobalState;
@@ -191,13 +192,17 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             app_login.set_password_and_submit(ev, form_data);
         };
 
+    let login_button = FormButton::new(
+        ButtonType::Login,
+        None,
+    );
     let login_form = SubmitForm::new(
         cx,
         form_login,
         Box::new(handle_form_submission),
         is_submitting,
         validation_error,
-        Some(ButtonType::Login(None)),
+        Some(login_button),
     );
 
     login_form.to_view()
@@ -220,13 +225,17 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             app_login.set_password_and_submit(ev, form_data);
         };
 
+    let create_button = FormButton::new(
+        ButtonType::Create,
+        None,
+    );
     let create_form = SubmitForm::new(
         cx,
         form_create,
         Box::new(handle_form_submission),
         is_submitting,
         validation_error,
-        Some(ButtonType::Create(Some("Create new password".to_string()))),
+        Some(create_button),
     );
 
     create_form.to_view()
@@ -347,7 +356,10 @@ fn reset_password_view(
     });
 
     let reset_button = ActionTrigger::new(
-        ButtonType::Reset(Some("Reset Password".to_string())),
+        FormButton::new(
+            ButtonType::Reset,
+            Some("Reset Password"),
+        ),
         action,
     );
     view ! {

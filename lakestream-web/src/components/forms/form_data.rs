@@ -100,7 +100,7 @@ impl FormData {
         self.form_state
             .iter()
             .filter_map(|(key, element_state)| {
-                match element_state.display_value.get() {
+                match element_state.display_value.get_untracked() {
                     DisplayValue::Text(text) => Some((key.clone(), text)),
                     DisplayValue::Binary(_) => None,
                 }

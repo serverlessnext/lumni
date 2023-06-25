@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use super::form_field_builder::{FieldBuilder, FieldBuilderTrait};
-use super::helpers::validate_with_pattern;
-use super::{ElementData, ElementDataType, TextData};
-use crate::components::form_input::{FieldType, FormElement};
+use super::field_builder::{FieldBuilder, FieldBuilderTrait};
+use crate::components::form_input::{FieldType, FormElement, ElementData, ElementDataType, TextData, validate_with_pattern};
 
 type ValidateFn = Arc<dyn Fn(&str) -> Result<(), String>>;
 
@@ -66,7 +64,7 @@ impl TextBoxBuilder {
             InputFieldPattern::PasswordChange => {
                 let password_pattern = Regex::new(r"^.{8,}$").unwrap();
                 FieldBuilder::new("PASSWORD")
-                    .label("Password")
+                    .with_label("Password")
                     .as_input_field()
                     .field_type(FieldType::Password)
                     .validator(Some(Arc::new(validate_with_pattern(
@@ -76,7 +74,7 @@ impl TextBoxBuilder {
                     ))))
             }
             InputFieldPattern::PasswordCheck => FieldBuilder::new("PASSWORD")
-                .label("Password")
+                .with_label("Password")
                 .as_input_field()
                 .field_type(FieldType::Password),
         }

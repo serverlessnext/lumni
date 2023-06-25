@@ -10,7 +10,7 @@ use super::form_view_handler::{FormViewHandler, ViewCreator};
 use super::handler::FormHandlerTrait;
 use super::html_form::HtmlForm;
 use super::load_handler::{LoadHandler, LoadVaultHandler};
-use crate::components::buttons::ButtonType;
+use crate::components::buttons::{FormButton, ButtonType};
 
 type BoxedSubmitHandler = Box<
     dyn Fn(
@@ -137,7 +137,7 @@ impl FormHandlerTrait for SubmitFormHandler {
 pub struct SubmitForm {
     cx: Scope,
     view_handler: FormViewHandler,
-    button_type: Option<ButtonType>,
+    form_button: Option<FormButton>,
 }
 
 impl SubmitForm {
@@ -147,7 +147,7 @@ impl SubmitForm {
         function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
         is_submitting: RwSignal<bool>,
         submit_error: RwSignal<Option<String>>,
-        button_type: Option<ButtonType>,
+        form_button: Option<FormButton>,
     ) -> Self {
         let default_field_values = form.default_field_values();
         let form_elements = form.elements();
@@ -185,21 +185,21 @@ impl SubmitForm {
         Self {
             cx,
             view_handler,
-            button_type,
+            form_button,
         }
     }
 
     pub fn to_view(&self) -> View {
-        let button_type =
-            self.button_type.clone().unwrap_or(ButtonType::Submit(None));
-        self.view_handler.to_view(self.cx, Some(button_type))
+        let form_button =
+            self.form_button.clone().unwrap_or(FormButton::new(ButtonType::Submit, None));
+        self.view_handler.to_view(self.cx, Some(form_button))
     }
 }
 
 impl ViewCreator for SubmitForm {
     fn to_view(&self) -> View {
-        let button_type =
-            self.button_type.clone().unwrap_or(ButtonType::Submit(None));
-        self.view_handler.to_view(self.cx, Some(button_type))
+        let form_button =
+            self.form_button.clone().unwrap_or(FormButton::new(ButtonType::Submit, None));
+        self.view_handler.to_view(self.cx, Some(form_button))
     }
 }

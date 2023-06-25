@@ -4,7 +4,7 @@ use std::sync::Arc;
 use leptos::ev::MouseEvent;
 use leptos::*;
 
-use super::{FormButton, ClickButton};
+use super::{ClickButton, FormButton};
 use crate::components::forms::FormError;
 
 pub struct ActionTrigger<Action>

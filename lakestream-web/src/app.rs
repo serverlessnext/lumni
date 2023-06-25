@@ -34,7 +34,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 
     let set_previous_url =
         create_write_slice(cx, state, |state, previous_url: String| {
-            let updated_url = previous_url.replace(":", "/");
+            let updated_url = previous_url.replace(':', "/");
             state
                 .runtime
                 .get_or_insert_with(RunTime::new)

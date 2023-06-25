@@ -4,17 +4,20 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::builders::{FormBuilder, FieldBuilder};
+use crate::builders::{FieldBuilder, FormBuilder, FormParameters};
 use crate::components::forms::{FormData, FormError};
 
-
 #[cfg(debug_assertions)]
+#[cfg(feature = "debug-assertions")]
 async fn debug_sleep() {
     use std::time::Duration;
+
+    #[cfg(feature = "debug-assertions")]
     use async_std::task;
     task::sleep(Duration::from_secs(1)).await;
 }
 
+#[cfg(feature = "debug-assertions")]
 macro_rules! debug_sleep {
     () => {
         #[cfg(debug_assertions)]
@@ -23,7 +26,6 @@ macro_rules! debug_sleep {
         }
     };
 }
-
 
 #[component]
 pub fn SearchForm(cx: Scope) -> impl IntoView {
@@ -42,18 +44,24 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 let data = extract_form_data(form_data)
                     .map_err(|e| {
                         log!("Error: {:?}", e);
-                        validation_error.set(Some("FORM_DATA_MISSING".to_string()));
+                        validation_error
+                            .set(Some("FORM_DATA_MISSING".to_string()));
                     })
                     .unwrap();
+                #[cfg(feature = "debug-assertions")]
                 debug_sleep!();
 
                 log!("Form data: {:?}", data);
                 is_submitting.set(false);
-
             });
         }
     };
 
+    let form_parameters = FormParameters::new(
+        Some(Box::new(handle_search)),
+        Some(is_submitting),
+        Some(validation_error),
+    );
 
     let query_form = FormBuilder::new("Query", &Uuid::new_v4().to_string())
         .add_element(Box::new(
@@ -68,16 +76,13 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 .as_input_field()
                 .with_initial_value("table"),
         ))
-        .on_submit(Box::new(handle_search), is_submitting, validation_error)
+        .with_form_parameters(form_parameters)
         .build(cx);
 
-    let results_form = FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
-        .add_element(Box::new(
-            FieldBuilder::new("Query")
-                .as_input_field()
-        ))
-        .build(cx);
-
+    let results_form =
+        FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
+            .add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
+            .build(cx);
 
     view! { cx,
         { query_form.to_view() }
@@ -96,10 +101,9 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 }.into_view(cx)
             }
         }
-    }.into_view(cx)
+    }
+    .into_view(cx)
 }
-
-
 
 fn extract_form_data(
     form_data: Option<FormData>,

@@ -1,12 +1,9 @@
 use leptos::*;
 use uuid::Uuid;
 
-use crate::builders::{
-    build_all, FieldBuilder,
-};
+use crate::builders::{build_all, FieldBuilder};
 use crate::components::form_input::FormElement;
 use crate::components::forms::{HtmlForm, SaveForm};
-
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]

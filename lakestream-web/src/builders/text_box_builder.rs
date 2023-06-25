@@ -3,7 +3,10 @@ use std::sync::Arc;
 use regex::Regex;
 
 use super::field_builder::{FieldBuilder, FieldBuilderTrait};
-use crate::components::form_input::{FieldType, FormElement, ElementData, ElementDataType, TextData, validate_with_pattern};
+use crate::components::form_input::{
+    validate_with_pattern, ElementData, ElementDataType, FieldType,
+    FormElement, TextData,
+};
 
 type ValidateFn = Arc<dyn Fn(&str) -> Result<(), String>>;
 

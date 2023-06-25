@@ -10,7 +10,7 @@ use super::form_view_handler::{FormViewHandler, ViewCreator};
 use super::handler::FormHandlerTrait;
 use super::html_form::HtmlForm;
 use super::load_handler::{LoadHandler, LoadVaultHandler};
-use crate::components::buttons::{FormButton, ButtonType};
+use crate::components::buttons::{ButtonType, FormButton};
 
 type BoxedSubmitHandler = Box<
     dyn Fn(
@@ -190,16 +190,20 @@ impl SubmitForm {
     }
 
     pub fn to_view(&self) -> View {
-        let form_button =
-            self.form_button.clone().unwrap_or(FormButton::new(ButtonType::Submit, None));
+        let form_button = self
+            .form_button
+            .clone()
+            .unwrap_or(FormButton::new(ButtonType::Submit, None));
         self.view_handler.to_view(self.cx, Some(form_button))
     }
 }
 
 impl ViewCreator for SubmitForm {
     fn to_view(&self) -> View {
-        let form_button =
-            self.form_button.clone().unwrap_or(FormButton::new(ButtonType::Submit, None));
+        let form_button = self
+            .form_button
+            .clone()
+            .unwrap_or(FormButton::new(ButtonType::Submit, None));
         self.view_handler.to_view(self.cx, Some(form_button))
     }
 }

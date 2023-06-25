@@ -1,8 +1,6 @@
-
 use leptos::*;
+
 use super::button_type::ButtonType;
-
-
 
 #[derive(Clone)]
 pub struct FormButton {
@@ -39,8 +37,7 @@ impl FormButton {
         self.button_type.button_class(!self.is_enabled())
     }
 
-
-    pub fn to_view(&self, cx: Scope) -> impl IntoView {
+    pub fn into_view(self, cx: Scope) -> impl IntoView {
         view! {
             cx,
             <button
@@ -50,10 +47,10 @@ impl FormButton {
             >
                 {self.text()}
             </button>
-        }.into_view(cx)
+        }
+        .into_view(cx)
     }
 }
-
 
 #[derive(Clone)]
 pub struct FormButtonGroup {
@@ -74,22 +71,28 @@ impl FormButtonGroup {
         self.buttons.push(button);
     }
 
-    pub fn to_view(self, cx: Scope, form_change: Option<bool>) -> impl IntoView {
+    pub fn into_view(
+        self,
+        cx: Scope,
+        form_change: Option<bool>,
+    ) -> impl IntoView {
         let enable_on_change = self.enable_on_change.unwrap_or(false);
+        let buttons = self.buttons;
 
         view! {
             cx,
             <For
-                each=move || self.buttons.clone().into_iter().enumerate()
+                each=move || buttons.clone().into_iter().enumerate()
                 key=|(index, _)| *index
                 view=move |cx, (_, button)| {
-                    if form_change.unwrap_or(false) && self.enable_on_change.unwrap_or(false) {
-                        button.set_enabled(enable_on_change).to_view(cx)
+                    if form_change.unwrap_or(false) && enable_on_change {
+                        button.set_enabled(enable_on_change).into_view(cx)
                     } else {
-                        button.to_view(cx)
+                        button.into_view(cx)
                     }
                 }
             />
-        }.into_view(cx)
+        }
+        .into_view(cx)
     }
 }

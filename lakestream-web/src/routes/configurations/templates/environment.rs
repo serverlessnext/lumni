@@ -1,6 +1,4 @@
-use crate::builders::{
-    build_all, FieldBuilder, TextBoxBuilder,
-};
+use crate::builders::{build_all, FieldBuilder, TextBoxBuilder};
 use crate::components::form_input::FormElement;
 
 pub fn form_elements<S: Into<String>>(name: S) -> Vec<FormElement> {

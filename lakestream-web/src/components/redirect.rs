@@ -10,7 +10,7 @@ pub fn Redirect(cx: Scope) -> impl IntoView {
     let error_message = create_rw_signal(cx, None::<String>);
 
     if let Some(window) = window() {
-        if let Err(_) = window.location().replace(redirect_url) {
+        if window.location().replace(redirect_url).is_err() {
             error_message.set(Some(ERROR_MESSAGE.to_string()));
         }
     }

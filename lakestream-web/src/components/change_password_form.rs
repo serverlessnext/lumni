@@ -4,12 +4,9 @@ use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::buttons::{FormButton, ButtonType};
-
+use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
+use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::FormElement;
-use crate::builders::{
-    build_all, InputFieldPattern, TextBoxBuilder,
-};
 use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
 
 const ROOT_USERNAME: &str = "admin";
@@ -133,10 +130,8 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     };
 
     // Create a custom form handlers with the defined functions
-    let login_button = FormButton::new(
-        ButtonType::Login,
-        Some("Validate Current Password"),
-    );
+    let login_button =
+        FormButton::new(ButtonType::Login, Some("Validate Current Password"));
     let validation_form = SubmitForm::new(
         cx,
         form_validation,
@@ -146,10 +141,8 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         Some(login_button),
     );
 
-    let change_button = FormButton::new(
-        ButtonType::Change,
-        Some("Change Password"),
-    );
+    let change_button =
+        FormButton::new(ButtonType::Change, Some("Change Password"));
     let change_form = SubmitForm::new(
         cx,
         form_change,

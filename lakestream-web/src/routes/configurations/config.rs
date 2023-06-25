@@ -82,7 +82,6 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                                     tags.get("__CONFIGURATION_TYPE__").cloned()
                                 })
                                 .unwrap_or_else(|| "Environment".to_string());
-                            let config_type = "ObjectStoreS3".to_string();
 
                             if let Some(name) = name {
                                 let config = match config_type.as_str() {

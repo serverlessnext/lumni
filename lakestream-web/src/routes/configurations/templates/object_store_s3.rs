@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-
-use crate::builders::{
-    build_all, FieldBuilder, TextBoxBuilder,
+use crate::builders::{build_all, FieldBuilder, TextBoxBuilder};
+use crate::components::form_input::{
+    validate_with_pattern, FieldType, FormElement,
 };
-use crate::components::form_input::{FormElement, FieldType, validate_with_pattern};
-
 
 pub fn form_elements<S: Into<String>>(name: S) -> Vec<FormElement> {
     let uri_pattern = Regex::new(r"^s3://").unwrap();
@@ -29,7 +27,8 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<FormElement> {
             "Invalid URI scheme. Must start with 's3://'.".to_string(),
         )))),
         TextBoxBuilder::from(
-            FieldBuilder::new("AWS_ACCESS_KEY_ID").with_label("AWS Access Key ID"),
+            FieldBuilder::new("AWS_ACCESS_KEY_ID")
+                .with_label("AWS Access Key ID"),
         )
         .validator(Some(Arc::new(validate_with_pattern(
             aws_key_pattern,

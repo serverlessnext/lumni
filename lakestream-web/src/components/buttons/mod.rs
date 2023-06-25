@@ -1,9 +1,9 @@
 mod actions;
-mod form_button;
 mod button_type;
-mod buttons;
+mod click_button;
+mod form_button;
 
 pub use actions::ActionTrigger;
 pub use button_type::ButtonType;
+pub use click_button::ClickButton;
 pub use form_button::{FormButton, FormButtonGroup};
-pub use buttons::ClickButton;

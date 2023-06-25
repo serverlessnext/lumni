@@ -9,7 +9,7 @@ pub fn Logout(cx: Scope) -> impl IntoView {
     let logout_success = create_rw_signal(cx, None::<String>);
 
     if let Some(window) = window() {
-        if let Err(_) = window.location().replace(redirect_url) {
+        if window.location().replace(redirect_url).is_err() {
             logout_success.set(Some(ERROR_MESSAGE.to_string()));
         }
     }

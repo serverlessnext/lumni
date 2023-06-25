@@ -9,7 +9,7 @@ use super::form_data::{FormData, SubmitInput};
 use super::form_view_handler::FormViewHandler;
 use super::html_form::HtmlForm;
 use super::submit_handler::{SubmitFormHandler, SubmitHandler};
-use crate::components::buttons::{FormButton, ButtonType};
+use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::{DisplayValue, ElementDataType, FormState};
 
 pub struct SaveHandler {
@@ -223,14 +223,10 @@ impl SaveForm {
     }
 
     pub fn to_view(&self) -> View {
-        let save_button = FormButton::new(
-            ButtonType::Save,
-            Some("Save Changes"),
-        ).set_enabled(false);
-        self.view_handler.to_view(
-            self.cx,
-            Some(save_button),
-        )
+        let save_button =
+            FormButton::new(ButtonType::Save, Some("Save Changes"))
+                .set_enabled(false);
+        self.view_handler.to_view(self.cx, Some(save_button))
     }
 }
 

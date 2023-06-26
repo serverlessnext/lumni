@@ -4,7 +4,7 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::builders::FormSubmitParameters;
-use crate::components::form_input::{ElementDataType, FormElement};
+use crate::components::form_input::{ElementData, ElementDataType, FormElement};
 use crate::components::forms::{FormData, LoadForm, SubmitForm};
 
 pub enum FormType {
@@ -129,31 +129,25 @@ impl HtmlFormMeta {
             .iter()
             .filter_map(|element| match element {
                 FormElement::TextBox(element_data)
-                | FormElement::TextArea(element_data) => {
-                    if let ElementDataType::TextData(text_data) =
-                        &element_data.element_type
-                    {
-                        Some((
-                            element_data.name.clone(),
-                            text_data.buffer_data.clone(),
-                        ))
-                    } else {
-                        None
-                    }
-                }
-                FormElement::NestedForm(element_data) => {
-                    if let ElementDataType::DocumentData(nested_form_data) =
-                        &element_data.element_type
-                    {
-                        Some((
-                            element_data.name.clone(),
-                            nested_form_data.buffer_data.clone(),
-                        ))
-                    } else {
-                        None
-                    }
-                }
+                | FormElement::TextArea(element_data)
+                | FormElement::NestedForm(element_data) => get_default_value(element_data),
             })
             .collect()
     }
 }
+
+
+fn get_default_value(element_data: &ElementData) -> Option<(String, String)> {
+    match &element_data.element_type {
+        ElementDataType::TextData(text_data) => Some((
+            element_data.name.clone(),
+            text_data.buffer_data.clone(),
+        )),
+        ElementDataType::DocumentData(nested_form_data) => Some((
+            element_data.name.clone(),
+            nested_form_data.buffer_data.clone(),
+        )),
+        _ => None,
+    }
+}
+

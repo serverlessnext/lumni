@@ -156,7 +156,7 @@ impl SubmitForm {
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::create_from_elements(
+        let form_data_default = FormData::build(
             cx,
             meta_data,
             &default_field_values,

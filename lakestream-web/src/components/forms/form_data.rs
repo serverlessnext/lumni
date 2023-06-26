@@ -34,7 +34,7 @@ impl FormData {
         self.form_state.clone()
     }
 
-    pub fn create_from_elements(
+    pub fn build(
         cx: Scope,
         meta_data: ItemMetaData,
         config: &HashMap<String, String>,
@@ -94,6 +94,14 @@ impl FormData {
             })
             .collect();
         Self::new(form_state, meta_data)
+    }
+
+    pub fn post_to_elements(&mut self, data: HashMap<String, String>) {
+        for (key, value) in data {
+            if let Some(element_state) = self.form_state.get(&key) {
+                element_state.set_display_value(DisplayValue::Text(value));
+            }
+        }
     }
 
     pub fn to_hash_map(&self) -> HashMap<String, String> {

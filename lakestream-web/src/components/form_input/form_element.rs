@@ -96,6 +96,17 @@ pub struct FormElementState {
     pub schema: Arc<ElementData>,
 }
 
+impl FormElementState {
+    pub fn set_display_value(&self, value: DisplayValue) {
+        self.display_value.set(value);
+    }
+
+    pub fn read_display_value(&self) -> DisplayValue {
+        self.display_value.get()
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub enum DisplayValue {
     Text(String),

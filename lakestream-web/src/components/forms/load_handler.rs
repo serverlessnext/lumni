@@ -117,7 +117,7 @@ impl LoadVaultHandler {
         let vault_clone = vault.clone();
 
         spawn_local(async move {
-            match get_form_data(cx, &form, &vault_clone).await {
+            match get_form_data_from_vault(cx, &form, &vault_clone).await {
                 Ok(form_submit_data) => {
                     form_data.set(Some(form_submit_data));
                     is_loading.set(false);
@@ -149,7 +149,7 @@ fn handle_loaded_content(
         Ok(data) => match data {
             Some(data) => match serde_json::from_slice(&data) {
                 Ok(new_config) => {
-                    let form_submit_data = FormData::create_from_elements(
+                    let form_submit_data = FormData::build(
                         cx,
                         meta_data,
                         &new_config,
@@ -167,7 +167,7 @@ fn handle_loaded_content(
                     "No data found for the given form id: {}. Creating new.",
                     form_name
                 );
-                let form_submit_data = FormData::create_from_elements(
+                let form_submit_data = FormData::build(
                     cx,
                     meta_data,
                     default_field_values,
@@ -180,7 +180,7 @@ fn handle_loaded_content(
             SecureStringError::PasswordNotFound(_)
             | SecureStringError::NoLocalStorageData => {
                 log::info!("{} Creating new.", CANT_LOAD_CONFIG);
-                let form_submit_data = FormData::create_from_elements(
+                let form_submit_data = FormData::build(
                     cx,
                     meta_data,
                     default_field_values,
@@ -196,7 +196,7 @@ fn handle_loaded_content(
     }
 }
 
-pub async fn get_form_data(
+pub async fn get_form_data_from_vault(
     cx: Scope,
     form: &HtmlForm,
     vault: &LocalEncrypt,
@@ -209,7 +209,7 @@ pub async fn get_form_data(
     tags.insert("Name".to_string(), form.name().to_string());
     let meta_data = ItemMetaData::new_with_tags(form_name, tags);
 
-    let content = fetch_form_data(form_name, vault).await;
+    let content = load_form_data_from_vault(form_name, vault).await;
     handle_loaded_content(
         cx,
         form_name,
@@ -220,7 +220,7 @@ pub async fn get_form_data(
     )
 }
 
-async fn fetch_form_data(
+async fn load_form_data_from_vault(
     form_name: &str,
     vault: &LocalEncrypt,
 ) -> Result<Option<Vec<u8>>, SecureStringError> {
@@ -250,11 +250,37 @@ impl DirectLoadHandler {
         let default_field_values = form.default_field_values();
         let form_elements = form.elements();
 
-        let mut tags = HashMap::new();
+
+pub struct LoadForm {
+    cx: Scope,
+    view_handler: FormViewHandler,
+}
+
+impl LoadForm {
+    pub fn new(cx: Scope, form: HtmlForm) -> Self {
+        let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
+        let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
+
+        let view_handler = FormViewHandler::new(form_handler);
+
+        Self { cx, view_handler }
+    }
+
+    pub fn to_view(&self) -> View {
+        self.view_handler.to_view(self.cx, None)
+    }
+}
+
+impl ViewCreator for LoadForm {
+    fn to_view(&self) -> View {
+        self.view_handler.to_view(self.cx, None)
+    }
+}
+       let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data = FormData::create_from_elements(
+        let form_data = FormData::build(
             cx,
             meta_data,
             &default_field_values,

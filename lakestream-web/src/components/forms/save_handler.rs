@@ -6,9 +6,9 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
-use super::form_view_handler::FormViewHandler;
-use super::html_form::HtmlForm;
+use super::html_form::HtmlFormMeta;
 use super::submit_handler::{SubmitFormHandler, SubmitHandler};
+use super::view_handler::ViewHandler;
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::{DisplayValue, ElementDataType, FormState};
 
@@ -192,11 +192,11 @@ impl SubmitHandler for SaveHandler {
 
 pub struct SaveForm {
     cx: Scope,
-    view_handler: FormViewHandler,
+    view_handler: ViewHandler,
 }
 
 impl SaveForm {
-    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Self {
+    pub fn new(cx: Scope, form: HtmlFormMeta, vault: &LocalEncrypt) -> Self {
         let submit_handler = Box::new(
             move |_cx: Scope,
                   vault: Option<&LocalEncrypt>,
@@ -217,7 +217,7 @@ impl SaveForm {
             vault,
             submit_handler,
         ));
-        let view_handler = FormViewHandler::new(form_handler);
+        let view_handler = ViewHandler::new(form_handler);
 
         Self { cx, view_handler }
     }

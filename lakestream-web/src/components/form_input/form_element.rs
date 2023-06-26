@@ -106,7 +106,6 @@ impl FormElementState {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub enum DisplayValue {
     Text(String),

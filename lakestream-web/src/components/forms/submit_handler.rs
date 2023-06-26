@@ -6,10 +6,11 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
-use super::form_view_handler::{FormViewHandler, ViewCreator};
 use super::handler::FormHandlerTrait;
-use super::html_form::HtmlForm;
+use super::html_form::{Form, HtmlFormMeta};
 use super::load_handler::{LoadHandler, LoadVaultHandler};
+use super::view_handler::ViewHandler;
+use crate::builders::FormSubmitParameters;
 use crate::components::buttons::{ButtonType, FormButton};
 
 type BoxedSubmitHandler = Box<
@@ -29,6 +30,7 @@ pub trait SubmitHandler {
     fn submit_error(&self) -> RwSignal<Option<String>>;
 }
 
+#[derive(Clone)]
 pub struct CustomSubmitHandler {
     on_submit: Rc<dyn Fn(SubmitEvent, Option<SubmitInput>) + 'static>,
     form_data: RwSignal<Option<FormData>>,
@@ -87,7 +89,7 @@ impl SubmitFormHandler {
 
     pub fn new_with_vault(
         cx: Scope,
-        form: HtmlForm,
+        form: HtmlFormMeta,
         vault: &LocalEncrypt,
         submit_handler: BoxedSubmitHandler,
     ) -> Self {
@@ -134,16 +136,18 @@ impl FormHandlerTrait for SubmitFormHandler {
     }
 }
 
-pub struct SubmitForm {
+// this version of SubmitForm is still used by ChangePassWord and LoginForm
+// which still must be restructured to use FormBuilder
+pub struct SubmitFormClassic {
     cx: Scope,
-    view_handler: FormViewHandler,
+    view_handler: ViewHandler,
     form_button: Option<FormButton>,
 }
 
-impl SubmitForm {
+impl SubmitFormClassic {
     pub fn new(
         cx: Scope,
-        form: HtmlForm,
+        form: HtmlFormMeta,
         function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
         is_submitting: RwSignal<bool>,
         submit_error: RwSignal<Option<String>>,
@@ -165,7 +169,7 @@ impl SubmitForm {
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 
-        let custom_submit_handler = CustomSubmitHandler::new(
+        let custom_submit_handler = Box::new(CustomSubmitHandler::new(
             form_data,
             Rc::new(
                 move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
@@ -174,13 +178,13 @@ impl SubmitForm {
             ),
             is_submitting,
             submit_error,
-        );
+        ));
 
         let form_handler = Rc::new(SubmitFormHandler::new(
             None,
-            Box::new(custom_submit_handler),
+            custom_submit_handler
         ));
-        let view_handler = FormViewHandler::new(form_handler);
+        let view_handler = ViewHandler::new(form_handler);
 
         Self {
             cx,
@@ -198,12 +202,93 @@ impl SubmitForm {
     }
 }
 
-impl ViewCreator for SubmitForm {
-    fn to_view(&self) -> View {
+pub struct SubmitForm {
+    cx: Scope,
+    view_handler: ViewHandler,
+    form_button: Option<FormButton>,
+    is_processing: RwSignal<bool>,
+    process_error: RwSignal<Option<String>>,
+    form_data: RwSignal<Option<FormData>>,
+}
+
+impl SubmitForm {
+    pub fn new(
+        cx: Scope,
+        form: HtmlFormMeta,
+        submit_parameters: FormSubmitParameters,
+    ) -> Self {
+        let default_field_values = form.default_field_values();
+        let form_elements = form.elements();
+
+        let mut tags = HashMap::new();
+        tags.insert("Name".to_string(), form.name().to_string());
+        let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
+
+        let form_data_default = FormData::build(
+            cx,
+            meta_data,
+            &default_field_values,
+            &form_elements,
+        );
+
+        let is_processing = submit_parameters
+            .is_submitting()
+            .unwrap_or_else(|| create_rw_signal(cx, false));
+        let process_error = submit_parameters
+            .validation_error()
+            .unwrap_or_else(|| create_rw_signal(cx, None));
+        let form_button = submit_parameters.form_button;
+
+        let form_data = create_rw_signal(cx, Some(form_data_default));
+        let function = submit_parameters.submit_handler;
+        let custom_submit_handler = Box::new(CustomSubmitHandler::new(
+            form_data,
+            Rc::new(
+                move |ev: SubmitEvent, _submit_input: Option<SubmitInput>| {
+                    function(ev, form_data.get());
+                },
+            ),
+            is_processing,
+            process_error,
+        ));
+
+        let form_handler =
+            Rc::new(SubmitFormHandler::new(None, custom_submit_handler));
+        let view_handler = ViewHandler::new(form_handler);
+
+        Self {
+            cx,
+            view_handler,
+            form_button,
+            is_processing,
+            process_error,
+            form_data,
+        }
+    }
+
+    pub fn to_view(&self) -> View {
         let form_button = self
             .form_button
             .clone()
             .unwrap_or(FormButton::new(ButtonType::Submit, None));
         self.view_handler.to_view(self.cx, Some(form_button))
+    }
+}
+
+impl Form for SubmitForm {
+    fn is_processing(&self) -> RwSignal<bool> {
+        self.is_processing
+    }
+
+    fn process_error(&self) -> RwSignal<Option<String>> {
+        self.process_error
+    }
+
+    fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
+        self.form_data
+    }
+
+    fn to_view(&self) -> View {
+        self.to_view()
     }
 }

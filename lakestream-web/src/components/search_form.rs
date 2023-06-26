@@ -4,7 +4,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::builders::{FieldBuilder, FormBuilder, FormParameters};
+use crate::builders::{FieldBuilder, FormBuilder, FormSubmitParameters};
 use crate::components::forms::{FormData, FormError};
 
 #[cfg(debug_assertions)]
@@ -57,10 +57,11 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         }
     };
 
-    let form_parameters = FormParameters::new(
-        Some(Box::new(handle_search)),
+    let submit_parameters = FormSubmitParameters::new(
+        Box::new(handle_search),
         Some(is_submitting),
         Some(validation_error),
+        None,
     );
 
     let query_form = FormBuilder::new("Query", &Uuid::new_v4().to_string())
@@ -76,7 +77,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 .as_input_field()
                 .with_initial_value("table"),
         ))
-        .with_form_parameters(form_parameters)
+        .with_submit_parameters(submit_parameters)
         .build(cx);
 
     let results_form =

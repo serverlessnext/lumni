@@ -7,7 +7,9 @@ use wasm_bindgen_futures::spawn_local;
 use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::FormElement;
-use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
+use crate::components::forms::{
+    FormData, FormError, HtmlFormMeta, SubmitFormClassic,
+};
 
 const ROOT_USERNAME: &str = "admin";
 const INTERNAL_ERROR: &str = "An internal error occurred: ";
@@ -31,12 +33,12 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             InputFieldPattern::PasswordChange,
         )]);
 
-    let form_validation = HtmlForm::new(
+    let form_validation = HtmlFormMeta::new(
         "Validate Password",
         &Uuid::new_v4().to_string(),
         elements_validation,
     );
-    let form_change = HtmlForm::new(
+    let form_change = HtmlFormMeta::new(
         "Change Password",
         &Uuid::new_v4().to_string(),
         elements_change,
@@ -132,7 +134,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
     // Create a custom form handlers with the defined functions
     let login_button =
         FormButton::new(ButtonType::Login, Some("Validate Current Password"));
-    let validation_form = SubmitForm::new(
+    let validation_form = SubmitFormClassic::new(
         cx,
         form_validation,
         Box::new(handle_password_validation),
@@ -143,7 +145,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
 
     let change_button =
         FormButton::new(ButtonType::Change, Some("Change Password"));
-    let change_form = SubmitForm::new(
+    let change_form = SubmitFormClassic::new(
         cx,
         form_change,
         Box::new(handle_password_change),

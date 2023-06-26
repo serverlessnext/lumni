@@ -21,7 +21,7 @@ macro_rules! redirect_path {
 #[component]
 pub fn RedirectTo(cx: Scope, path: &'static str) -> impl IntoView {
     let navigate = use_navigate(cx);
-    if let Err(e) = navigate(&path, Default::default()) {
+    if let Err(e) = navigate(path, Default::default()) {
         log!("Error navigating to {}: {}", path, e);
     }
 }

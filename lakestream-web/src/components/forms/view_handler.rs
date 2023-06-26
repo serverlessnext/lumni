@@ -9,15 +9,11 @@ use crate::components::buttons::{FormButton, FormButtonGroup};
 use crate::components::form_helpers::SubmissionStatusView;
 use crate::components::form_input::{FormState, TextAreaView, TextBoxView};
 
-pub trait ViewCreator {
-    fn to_view(&self) -> View;
-}
-
-pub struct FormViewHandler {
+pub struct ViewHandler {
     handler: Rc<dyn FormHandlerTrait>,
 }
 
-impl FormViewHandler {
+impl ViewHandler {
     pub fn new(handler: Rc<dyn FormHandlerTrait>) -> Self {
         Self { handler }
     }

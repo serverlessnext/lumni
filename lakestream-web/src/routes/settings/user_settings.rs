@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::builders::{build_all, FieldBuilder};
 use crate::components::form_input::FormElement;
-use crate::components::forms::{HtmlForm, SaveForm};
+use crate::components::forms::{HtmlFormMeta, SaveForm};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -28,7 +28,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
     let elements: Vec<FormElement> = build_all(builders);
 
-    let form = HtmlForm::new(&username, &Uuid::new_v4().to_string(), elements);
+    let form =
+        HtmlFormMeta::new(&username, &Uuid::new_v4().to_string(), elements);
     let save_form = SaveForm::new(cx, form, &vault);
     save_form.to_view()
 }

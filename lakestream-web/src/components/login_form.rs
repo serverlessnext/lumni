@@ -10,7 +10,9 @@ use wasm_bindgen_futures::spawn_local;
 use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
 use crate::components::form_input::FormElement;
-use crate::components::forms::{FormData, FormError, HtmlForm, SubmitForm};
+use crate::components::forms::{
+    FormData, FormError, HtmlFormMeta, SubmitFormClassic,
+};
 use crate::GlobalState;
 
 const ROOT_USERNAME: &str = "admin";
@@ -183,7 +185,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         )]);
 
     let form_login =
-        HtmlForm::new("Login", &Uuid::new_v4().to_string(), elements);
+        HtmlFormMeta::new("Login", &Uuid::new_v4().to_string(), elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -191,7 +193,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         };
 
     let login_button = FormButton::new(ButtonType::Login, None);
-    let login_form = SubmitForm::new(
+    let login_form = SubmitFormClassic::new(
         cx,
         form_login,
         Box::new(handle_form_submission),
@@ -212,8 +214,11 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             InputFieldPattern::PasswordCheck,
         )]);
 
-    let form_create =
-        HtmlForm::new("Create Password", &Uuid::new_v4().to_string(), elements);
+    let form_create = HtmlFormMeta::new(
+        "Create Password",
+        &Uuid::new_v4().to_string(),
+        elements,
+    );
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -221,7 +226,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         };
 
     let create_button = FormButton::new(ButtonType::Create, None);
-    let create_form = SubmitForm::new(
+    let create_form = SubmitFormClassic::new(
         cx,
         form_create,
         Box::new(handle_form_submission),

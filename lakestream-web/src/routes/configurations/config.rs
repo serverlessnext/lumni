@@ -3,7 +3,7 @@ use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::config_list::{Config, ConfigList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
-use crate::components::forms::{HtmlForm, SaveForm};
+use crate::components::forms::{HtmlFormMeta, SaveForm};
 use crate::GlobalState;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -35,7 +35,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
 
-    let form_loaded = create_rw_signal(cx, None::<HtmlForm>);
+    let form_loaded = create_rw_signal(cx, None::<HtmlFormMeta>);
 
     let vault_clone = vault.clone();
 
@@ -94,7 +94,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                                 };
 
                                 let form_elements = config.form_elements(&name);
-                                form_loaded.set(Some(HtmlForm::new(
+                                form_loaded.set(Some(HtmlFormMeta::new(
                                     &name,
                                     form_id.as_str(),
                                     form_elements,

@@ -5,10 +5,10 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 
 use super::form_data::FormData;
-use super::form_view_handler::{FormViewHandler, ViewCreator};
 use super::handler::FormHandlerTrait;
+use super::html_form::{Form, HtmlFormMeta};
 use super::submit_handler::SubmitHandler;
-use super::HtmlForm;
+use super::view_handler::ViewHandler;
 use crate::components::form_input::FormElement;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
@@ -46,17 +46,21 @@ impl LoadFormHandler {
 
 pub struct LoadForm {
     cx: Scope,
-    view_handler: FormViewHandler,
+    form_handler: Rc<dyn FormHandlerTrait>,
+    view_handler: ViewHandler,
 }
 
 impl LoadForm {
-    pub fn new(cx: Scope, form: HtmlForm) -> Self {
+    pub fn new(cx: Scope, form: HtmlFormMeta) -> Self {
         let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
+
         let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
-
-        let view_handler = FormViewHandler::new(form_handler);
-
-        Self { cx, view_handler }
+        let view_handler = ViewHandler::new(Rc::clone(&form_handler));
+        Self {
+            cx,
+            form_handler,
+            view_handler,
+        }
     }
 
     pub fn to_view(&self) -> View {
@@ -64,9 +68,21 @@ impl LoadForm {
     }
 }
 
-impl ViewCreator for LoadForm {
+impl Form for LoadForm {
+    fn is_processing(&self) -> RwSignal<bool> {
+        self.form_handler.is_processing()
+    }
+
+    fn process_error(&self) -> RwSignal<Option<String>> {
+        self.form_handler.process_error()
+    }
+
+    fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
+        self.form_handler.form_data()
+    }
+
     fn to_view(&self) -> View {
-        self.view_handler.to_view(self.cx, None)
+        self.to_view()
     }
 }
 
@@ -108,7 +124,11 @@ impl LoadHandler for LoadVaultHandler {
 }
 
 impl LoadVaultHandler {
-    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Box<Self> {
+    pub fn new(
+        cx: Scope,
+        form: HtmlFormMeta,
+        vault: &LocalEncrypt,
+    ) -> Box<Self> {
         let is_loading = create_rw_signal(cx, true);
         let load_error = create_rw_signal(cx, None::<String>);
         let form_data = create_rw_signal(cx, None::<FormData>);
@@ -198,7 +218,7 @@ fn handle_loaded_content(
 
 pub async fn get_form_data_from_vault(
     cx: Scope,
-    form: &HtmlForm,
+    form: &HtmlFormMeta,
     vault: &LocalEncrypt,
 ) -> Result<FormData, String> {
     let default_field_values = form.default_field_values();
@@ -243,40 +263,14 @@ pub struct DirectLoadHandler {
 }
 
 impl DirectLoadHandler {
-    pub fn new(cx: Scope, form: HtmlForm) -> Box<Self> {
+    pub fn new(cx: Scope, form: HtmlFormMeta) -> Box<Self> {
         let is_loading = create_rw_signal(cx, true);
         let load_error = create_rw_signal(cx, None::<String>);
 
         let default_field_values = form.default_field_values();
         let form_elements = form.elements();
 
-
-pub struct LoadForm {
-    cx: Scope,
-    view_handler: FormViewHandler,
-}
-
-impl LoadForm {
-    pub fn new(cx: Scope, form: HtmlForm) -> Self {
-        let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
-        let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
-
-        let view_handler = FormViewHandler::new(form_handler);
-
-        Self { cx, view_handler }
-    }
-
-    pub fn to_view(&self) -> View {
-        self.view_handler.to_view(self.cx, None)
-    }
-}
-
-impl ViewCreator for LoadForm {
-    fn to_view(&self) -> View {
-        self.view_handler.to_view(self.cx, None)
-    }
-}
-       let mut tags = HashMap::new();
+        let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 

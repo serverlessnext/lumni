@@ -1,17 +1,18 @@
+use std::collections::HashMap;
+
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use super::field_builder::FieldBuilderTrait;
+use crate::components::buttons::FormButton;
 use crate::components::form_input::FormElement;
-use crate::components::forms::{
-    FormData, HtmlForm, LoadForm, SubmitForm, ViewCreator,
-};
+use crate::components::forms::{Form, FormData, FormType, HtmlForm};
 
 pub struct FormBuilder {
     title: String,
     id: String,
     elements: Vec<Box<dyn FieldBuilderTrait>>,
-    form_parameters: Option<FormParameters>,
+    submit_parameters: Option<FormSubmitParameters>,
 }
 
 impl FormBuilder {
@@ -20,7 +21,7 @@ impl FormBuilder {
             title: title.into(),
             id: id.into(),
             elements: Vec::new(),
-            form_parameters: None,
+            submit_parameters: None,
         }
     }
 
@@ -29,57 +30,53 @@ impl FormBuilder {
         self
     }
 
-    pub fn with_form_parameters(mut self, parameters: FormParameters) -> Self {
-        self.form_parameters = Some(parameters);
+    pub fn with_submit_parameters(mut self, parameters: FormSubmitParameters) -> Self {
+        self.submit_parameters = Some(parameters);
         self
     }
 
-    pub fn build(self, cx: Scope) -> Box<dyn ViewCreator> {
+    pub fn build(self, cx: Scope) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
             self.elements.iter().map(|b| b.build()).collect();
-        let form = HtmlForm::new(&self.title, &self.id, elements);
 
-        if let Some(parameters) = self.form_parameters {
-            let is_submitting = parameters
-                .is_submitting
-                .unwrap_or_else(|| create_rw_signal(cx, false));
-            let validation_error = parameters
-                .validation_error
-                .unwrap_or_else(|| create_rw_signal(cx, None));
-
-            let form_handler = SubmitForm::new(
-                cx,
-                form,
-                parameters.submit_handler.unwrap(),
-                is_submitting,
-                validation_error,
-                None,
-            );
-
-            Box::new(form_handler)
+        if let Some(submit_parameters) = self.submit_parameters {
+            HtmlForm::new(cx, &self.title, &self.id, elements, Some(submit_parameters))
+                .build(FormType::Submit)
         } else {
-            let load_form = LoadForm::new(cx, form);
-            Box::new(load_form)
+            HtmlForm::new(cx, &self.title, &self.id, elements, None)
+                .build(FormType::Load)
         }
     }
 }
 
-pub struct FormParameters {
-    submit_handler: Option<Box<dyn Fn(SubmitEvent, Option<FormData>)>>,
+pub struct FormSubmitParameters {
+    // pub parameters are meant to be consumed when used in a form
+    pub submit_handler: Box<dyn Fn(SubmitEvent, Option<FormData>)>,
+    pub form_button: Option<FormButton>,
     is_submitting: Option<RwSignal<bool>>,
     validation_error: Option<RwSignal<Option<String>>>,
 }
 
-impl FormParameters {
+impl FormSubmitParameters {
     pub fn new(
-        submit_handler: Option<Box<dyn Fn(SubmitEvent, Option<FormData>)>>,
+        submit_handler: Box<dyn Fn(SubmitEvent, Option<FormData>)>,
         is_submitting: Option<RwSignal<bool>>,
         validation_error: Option<RwSignal<Option<String>>>,
+        form_button: Option<FormButton>,
     ) -> Self {
         Self {
             submit_handler,
+            form_button,
             is_submitting,
             validation_error,
         }
+    }
+
+    pub fn is_submitting(&self) -> Option<RwSignal<bool>> {
+        self.is_submitting
+    }
+
+    pub fn validation_error(&self) -> Option<RwSignal<Option<String>>> {
+        self.validation_error
     }
 }

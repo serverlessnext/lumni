@@ -49,8 +49,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let handle_search = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             ev.prevent_default();
-
-            log!("Button clicked");
+            results_rw.set(None);
             is_submitting.set(true);
 
             spawn_local(async move {
@@ -103,8 +102,9 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     view! { cx,
         { query_form.to_view() }
         { move ||
-            if is_submitting.get() {
-                view! { cx, "" }.into_view(cx)
+            if results_rw.get().is_none() {
+                // submit not yet clicked
+                view! { cx, ""}.into_view(cx)
             } else if let Some(error) = validation_error.get() {
                 view! { cx, <p>{ error }</p> }.into_view(cx)
             } else {

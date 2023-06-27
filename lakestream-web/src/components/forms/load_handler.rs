@@ -9,6 +9,7 @@ use super::handler::FormHandlerTrait;
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
+use crate::builders::FormLoadParameters;
 use crate::components::form_input::FormElement;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
@@ -27,10 +28,6 @@ pub struct LoadFormHandler {
 }
 
 impl LoadFormHandler {
-    pub fn new(on_load: Box<dyn LoadHandler>) -> Self {
-        Self { on_load }
-    }
-
     pub fn is_loading(&self) -> RwSignal<bool> {
         self.on_load.is_loading()
     }
@@ -47,24 +44,23 @@ impl LoadFormHandler {
 pub struct LoadForm {
     cx: Scope,
     form_handler: Rc<dyn FormHandlerTrait>,
-    view_handler: ViewHandler,
 }
 
 impl LoadForm {
-    pub fn new(cx: Scope, form: HtmlForm) -> Self {
+    pub fn new(form: HtmlForm, parameters: Option<FormLoadParameters>) -> Self {
+        if let Some(parameters) = parameters {
+            if let Some(handler) = parameters.load_handler {
+                // load handler writes to form_data_rw
+                handler(form.form_data_rw());
+            }
+        }
+        let cx = form.cx();
         let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
-
         let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
-        let view_handler = ViewHandler::new(Rc::clone(&form_handler));
         Self {
             cx,
             form_handler,
-            view_handler,
         }
-    }
-
-    pub fn to_view(&self) -> View {
-        self.view_handler.to_view(self.cx, None)
     }
 }
 
@@ -82,7 +78,7 @@ impl Form for LoadForm {
     }
 
     fn to_view(&self) -> View {
-        self.to_view()
+        ViewHandler::new(Rc::clone(&self.form_handler)).to_view(self.cx, None)
     }
 }
 
@@ -238,31 +234,21 @@ async fn load_form_data_from_vault(
 }
 
 pub struct DirectLoadHandler {
-    form_data: RwSignal<Option<FormData>>,
     is_loading: RwSignal<bool>,
     load_error: RwSignal<Option<String>>,
+    form_data_rw: RwSignal<Option<FormData>>,
 }
 
 impl DirectLoadHandler {
     pub fn new(cx: Scope, form: HtmlForm) -> Box<Self> {
-        let is_loading = create_rw_signal(cx, true);
+        let is_loading = create_rw_signal(cx, false);
         let load_error = create_rw_signal(cx, None::<String>);
-
-        let form_elements = form.elements();
-
-        let mut tags = HashMap::new();
-        tags.insert("Name".to_string(), form.name().to_string());
-        let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
-
-        let form_data = FormData::build(cx, meta_data, &form_elements);
-
-        let form_data = create_rw_signal(cx, Some(form_data));
-        is_loading.set(false);
+        let form_data_rw = form.form_data_rw();
 
         Box::new(Self {
-            form_data,
             is_loading,
             load_error,
+            form_data_rw,
         })
     }
 }
@@ -277,7 +263,7 @@ impl LoadHandler for DirectLoadHandler {
     }
 
     fn form_data(&self) -> RwSignal<Option<FormData>> {
-        self.form_data
+        self.form_data_rw
     }
 }
 
@@ -291,7 +277,7 @@ impl FormHandlerTrait for DirectLoadHandler {
     }
 
     fn form_data(&self) -> RwSignal<Option<FormData>> {
-        self.form_data
+        self.form_data_rw
     }
 
     fn on_submit(&self) -> &dyn SubmitHandler {

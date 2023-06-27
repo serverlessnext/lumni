@@ -79,14 +79,14 @@ impl FormSubmitParameters {
 
 pub struct FormLoadParameters {
     // pub parameters are meant to be consumed when used in a form
-    pub load_handler: Option<Box<dyn Fn()>>,
+    pub load_handler: Option<Box<dyn Fn(RwSignal<Option<FormData>>)>>,
     is_loading: Option<RwSignal<bool>>,
     validation_error: Option<RwSignal<Option<String>>>,
 }
 
 impl FormLoadParameters {
     pub fn new(
-        load_handler: Option<Box<dyn Fn()>>,
+        load_handler: Option<Box<dyn Fn(RwSignal<Option<FormData>>)>>,
         is_loading: Option<RwSignal<bool>>,
         validation_error: Option<RwSignal<Option<String>>>,
     ) -> Self {

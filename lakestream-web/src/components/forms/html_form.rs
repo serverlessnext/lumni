@@ -38,15 +38,13 @@ impl HtmlForm {
                 parameters,
             )),
             FormType::Load(parameters) => {
-                if let Some(parameters) = parameters {
-                    if let Some(handler) = parameters.load_handler {
-                        // TODO: update LoadForm to accept parameters
-                        log!("Handler passed");
-                    }
-                }
-                Box::new(LoadForm::new(self.cx, self))
+                Box::new(LoadForm::new(self, parameters))
             }
         }
+    }
+
+    pub fn cx(&self) -> Scope {
+        self.cx
     }
 
     pub fn name(&self) -> &str {
@@ -55,6 +53,10 @@ impl HtmlForm {
 
     pub fn id(&self) -> &str {
         &self.html_form_meta.id
+    }
+
+    pub fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
+        self.form_data_rw
     }
 
     pub fn elements(&self) -> Vec<FormElement> {

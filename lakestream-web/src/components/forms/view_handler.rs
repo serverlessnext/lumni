@@ -147,7 +147,6 @@ fn LoadFormView(
 
     view! {
         cx,
-        <h1>"Load Form"</h1>
         <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
         >
             <For

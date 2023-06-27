@@ -121,7 +121,6 @@ impl FormData {
         self.form_state
             .iter()
             .filter_map(|(key, element_state)| {
-
                 match element_state.read_display_value() {
                     DisplayValue::Text(text) => Some((key.clone(), text)),
                     DisplayValue::Binary(_) => None,

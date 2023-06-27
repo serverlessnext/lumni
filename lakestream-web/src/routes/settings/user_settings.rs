@@ -28,13 +28,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
     let elements: Vec<FormElement> = build_all(builders);
 
-    let form = HtmlForm::new(
-        cx,
-        &username,
-        &Uuid::new_v4().to_string(),
-        elements,
-        None,
-    );
+    let form =
+        HtmlForm::new(cx, &username, &Uuid::new_v4().to_string(), elements);
     let save_form = SaveForm::new(cx, form, &vault);
     save_form.to_view()
 }

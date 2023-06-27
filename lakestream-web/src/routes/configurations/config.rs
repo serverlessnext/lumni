@@ -110,7 +110,6 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                         &form_info.name,
                         &form_info.form_id,
                         form_info.form_elements,
-                        None,
                     );
                     let save_form = SaveForm::new(cx, form, &vault);
                     save_form.to_view()

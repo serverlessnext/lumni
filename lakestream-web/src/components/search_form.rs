@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::builders::{FieldBuilder, FormBuilder, FormSubmitParameters};
+use crate::builders::{
+    FieldBuilder, FormBuilder, FormSubmitParameters, FormType,
+};
 use crate::components::forms::{FormData, FormError};
 
 #[cfg(debug_assertions)]
@@ -34,10 +35,13 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let validation_error = create_rw_signal(cx, None::<String>);
 
     // define results_form first as its the target for handle_search
-    let results_form =
-        FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
-            //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
-            .build(cx);
+    let results_form = FormBuilder::new(
+        "Search Form",
+        &Uuid::new_v4().to_string(),
+        FormType::Load(None),
+    )
+    //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
+    .build(cx);
 
     // allows to overwrite the form
     let results_rw = results_form.form_data_rw();
@@ -77,21 +81,24 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         None,
     );
 
-    let query_form = FormBuilder::new("Query", &Uuid::new_v4().to_string())
-        .add_element(Box::new(
-            FieldBuilder::new("Select")
-                .with_label("Select")
-                .as_input_field()
-                .with_initial_value("*"),
-        ))
-        .add_element(Box::new(
-            FieldBuilder::new("From")
-                .with_label("From")
-                .as_input_field()
-                .with_initial_value("table"),
-        ))
-        .with_submit_parameters(submit_parameters)
-        .build(cx);
+    let query_form = FormBuilder::new(
+        "Query",
+        &Uuid::new_v4().to_string(),
+        FormType::Submit(submit_parameters),
+    )
+    .add_element(Box::new(
+        FieldBuilder::new("Select")
+            .with_label("Select")
+            .as_input_field()
+            .with_initial_value("*"),
+    ))
+    .add_element(Box::new(
+        FieldBuilder::new("From")
+            .with_label("From")
+            .as_input_field()
+            .with_initial_value("table"),
+    ))
+    .build(cx);
 
     view! { cx,
         { query_form.to_view() }

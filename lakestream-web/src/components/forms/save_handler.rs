@@ -131,7 +131,8 @@ impl SaveHandler {
     ) {
         // Check for binary data
         for (_, element_state) in form_state.iter() {
-            if let DisplayValue::Binary(_) = element_state.read_display_value() {
+            if let DisplayValue::Binary(_) = element_state.read_display_value()
+            {
                 log::error!(
                     "Form submission failed: Binary data detected in form \
                      data."

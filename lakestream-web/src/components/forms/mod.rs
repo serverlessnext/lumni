@@ -9,7 +9,7 @@ mod view_handler;
 
 pub use form_data::{FormData, SubmitInput};
 pub use form_error::FormError;
-pub use html_form::{Form, FormType, HtmlForm, HtmlFormMeta};
+pub use html_form::{Form, HtmlForm, HtmlFormMeta};
 pub use load_handler::LoadForm;
 pub use save_handler::SaveForm;
 pub use submit_handler::{SubmitForm, SubmitFormClassic, SubmitHandler};

@@ -209,7 +209,7 @@ impl SubmitForm {
     pub fn new(
         cx: Scope,
         form: HtmlFormMeta,
-        elements: &Vec<FormElement>,
+        elements: &[FormElement],
         submit_parameters: FormSubmitParameters,
     ) -> Self {
         let mut tags = HashMap::new();

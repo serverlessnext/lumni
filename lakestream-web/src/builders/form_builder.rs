@@ -1,27 +1,25 @@
-use std::collections::HashMap;
-
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use super::field_builder::FieldBuilderTrait;
 use crate::components::buttons::FormButton;
 use crate::components::form_input::FormElement;
-use crate::components::forms::{Form, FormData, FormType, HtmlForm};
+use crate::components::forms::{Form, FormData, HtmlForm};
 
 pub struct FormBuilder {
     title: String,
     id: String,
     elements: Vec<Box<dyn FieldBuilderTrait>>,
-    submit_parameters: Option<FormSubmitParameters>,
+    form_type: FormType,
 }
 
 impl FormBuilder {
-    pub fn new<S: Into<String>>(title: S, id: S) -> Self {
+    pub fn new<S: Into<String>>(title: S, id: S, form_type: FormType) -> Self {
         Self {
             title: title.into(),
             id: id.into(),
             elements: Vec::new(),
-            submit_parameters: None,
+            form_type,
         }
     }
 
@@ -30,30 +28,19 @@ impl FormBuilder {
         self
     }
 
-    pub fn with_submit_parameters(
-        mut self,
-        parameters: FormSubmitParameters,
-    ) -> Self {
-        self.submit_parameters = Some(parameters);
-        self
-    }
-
     pub fn build(self, cx: Scope) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
             self.elements.iter().map(|b| b.build()).collect();
 
-        if let Some(submit_parameters) = self.submit_parameters {
-            HtmlForm::new(
-                cx,
-                &self.title,
-                &self.id,
-                elements,
-                Some(submit_parameters),
-            )
-            .build(FormType::Submit)
-        } else {
-            HtmlForm::new(cx, &self.title, &self.id, elements, None)
-                .build(FormType::Load)
+        match self.form_type {
+            FormType::Submit(parameters) => {
+                HtmlForm::new(cx, &self.title, &self.id, elements)
+                    .build(FormType::Submit(parameters))
+            }
+            FormType::Load(parameters) => {
+                HtmlForm::new(cx, &self.title, &self.id, elements)
+                    .build(FormType::Load(parameters))
+            }
         }
     }
 }
@@ -88,4 +75,38 @@ impl FormSubmitParameters {
     pub fn validation_error(&self) -> Option<RwSignal<Option<String>>> {
         self.validation_error
     }
+}
+
+pub struct FormLoadParameters {
+    // pub parameters are meant to be consumed when used in a form
+    pub load_handler: Option<Box<dyn Fn()>>,
+    is_loading: Option<RwSignal<bool>>,
+    validation_error: Option<RwSignal<Option<String>>>,
+}
+
+impl FormLoadParameters {
+    pub fn new(
+        load_handler: Option<Box<dyn Fn()>>,
+        is_loading: Option<RwSignal<bool>>,
+        validation_error: Option<RwSignal<Option<String>>>,
+    ) -> Self {
+        Self {
+            load_handler,
+            is_loading,
+            validation_error,
+        }
+    }
+
+    pub fn is_loading(&self) -> Option<RwSignal<bool>> {
+        self.is_loading
+    }
+
+    pub fn validation_error(&self) -> Option<RwSignal<Option<String>>> {
+        self.validation_error
+    }
+}
+
+pub enum FormType {
+    Submit(FormSubmitParameters),
+    Load(Option<FormLoadParameters>),
 }

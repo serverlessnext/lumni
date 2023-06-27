@@ -5,7 +5,8 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::components::form_input::{
-    DisplayValue, FormElement, FormElementState, FormState,
+    DisplayValue, ElementData, ElementDataType, FormElement, FormElementState,
+    FormState,
 };
 
 pub enum SubmitInput {
@@ -34,7 +35,22 @@ impl FormData {
         self.form_state.clone()
     }
 
-    pub fn build(
+    fn create_element_state(
+        cx: Scope,
+        initial_value: DisplayValue,
+        element_data: Arc<ElementData>,
+    ) -> FormElementState {
+        let error_signal = create_rw_signal(cx, None);
+        let value_signal = create_rw_signal(cx, initial_value);
+
+        FormElementState {
+            schema: element_data,
+            display_value: value_signal,
+            display_error: error_signal,
+        }
+    }
+
+    pub fn build_with_config(
         cx: Scope,
         meta_data: ItemMetaData,
         config: &HashMap<String, String>,
@@ -44,48 +60,13 @@ impl FormData {
             .iter()
             .filter_map(|(key, value)| {
                 elements.iter().find_map(|element| match element {
-                    FormElement::TextBox(field_data) => {
+                    FormElement::TextBox(field_data)
+                    | FormElement::TextArea(field_data)
+                    | FormElement::NestedForm(field_data) => {
                         if field_data.name == *key {
-                            let error_signal = create_rw_signal(cx, None);
-                            let value_signal = create_rw_signal(
-                                cx,
-                                DisplayValue::Text(value.clone()),
-                            );
-                            let default_input_data =
-                                Arc::new(field_data.clone());
-                            Some((
-                                key.clone(),
-                                FormElementState {
-                                    schema: default_input_data,
-                                    display_value: value_signal,
-                                    display_error: error_signal,
-                                },
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                    FormElement::TextArea(_field_data) => {
-                        panic!("TextArea not implemented yet")
-                    }
-
-                    FormElement::NestedForm(field_data) => {
-                        if field_data.name == *key {
-                            let error_signal = create_rw_signal(cx, None);
-                            let value_signal = create_rw_signal(
-                                cx,
-                                DisplayValue::Text(value.clone()),
-                            );
-                            let default_input_data =
-                                Arc::new(field_data.clone());
-                            Some((
-                                key.clone(),
-                                FormElementState {
-                                    schema: default_input_data,
-                                    display_value: value_signal,
-                                    display_error: error_signal,
-                                },
-                            ))
+                            let initial_value =
+                                DisplayValue::Text(value.clone());
+                            Some(element.build_form_state(cx, initial_value))
                         } else {
                             None
                         }
@@ -96,23 +77,85 @@ impl FormData {
         Self::new(form_state, meta_data)
     }
 
-    pub fn post_to_elements(&mut self, data: HashMap<String, String>) {
-        for (key, value) in data {
-            if let Some(element_state) = self.form_state.get(&key) {
-                element_state.set_display_value(DisplayValue::Text(value));
-            }
-        }
+    pub fn build(
+        cx: Scope,
+        meta_data: ItemMetaData,
+        elements: &[FormElement],
+    ) -> FormData {
+        let form_state: FormState = elements
+            .iter()
+            .map(|element| {
+                let (_name, initial_value) = match element {
+                    FormElement::TextBox(data)
+                    | FormElement::TextArea(data)
+                    | FormElement::NestedForm(data) => {
+                        let name = data.name.clone();
+                        let initial_value = match &data.element_type {
+                            ElementDataType::TextData(text_data) => {
+                                DisplayValue::Text(
+                                    text_data.buffer_data.clone(),
+                                )
+                            }
+                            ElementDataType::BinaryData(binary_data) => {
+                                DisplayValue::Binary(
+                                    binary_data.buffer_data.clone(),
+                                )
+                            }
+                            ElementDataType::DocumentData(document_data) => {
+                                DisplayValue::Text(
+                                    document_data.buffer_data.clone(),
+                                )
+                            }
+                        };
+                        (name, initial_value)
+                    }
+                };
+                element.build_form_state(cx, initial_value)
+            })
+            .collect();
+
+        Self::new(form_state, meta_data)
     }
 
     pub fn to_hash_map(&self) -> HashMap<String, String> {
         self.form_state
             .iter()
             .filter_map(|(key, element_state)| {
-                match element_state.display_value.get_untracked() {
+
+                match element_state.read_display_value() {
                     DisplayValue::Text(text) => Some((key.clone(), text)),
                     DisplayValue::Binary(_) => None,
                 }
             })
             .collect()
+    }
+}
+
+pub trait FormElementBuilder {
+    fn build_form_state(
+        &self,
+        cx: Scope,
+        initial_value: DisplayValue,
+    ) -> (String, FormElementState);
+}
+
+impl FormElementBuilder for FormElement {
+    fn build_form_state(
+        &self,
+        cx: Scope,
+        initial_value: DisplayValue,
+    ) -> (String, FormElementState) {
+        match self {
+            FormElement::TextBox(data)
+            | FormElement::TextArea(data)
+            | FormElement::NestedForm(data) => {
+                let element_state = FormData::create_element_state(
+                    cx,
+                    initial_value,
+                    Arc::new(data.clone()),
+                );
+                (data.name.clone(), element_state)
+            }
+        }
     }
 }

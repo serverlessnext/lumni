@@ -21,6 +21,7 @@ impl FieldLabel {
     }
 }
 
+#[allow(dead_code)] // silence non-use warning for now
 #[derive(Debug, Clone)]
 pub enum FormElement {
     TextBox(ElementData),
@@ -97,12 +98,8 @@ pub struct FormElementState {
 }
 
 impl FormElementState {
-    pub fn set_display_value(&self, value: DisplayValue) {
-        self.display_value.set(value);
-    }
-
     pub fn read_display_value(&self) -> DisplayValue {
-        self.display_value.get()
+        self.display_value.get_untracked()
     }
 }
 

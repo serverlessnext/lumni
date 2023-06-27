@@ -11,7 +11,7 @@ use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
 use crate::components::form_input::FormElement;
 use crate::components::forms::{
-    FormData, FormError, HtmlFormMeta, SubmitFormClassic,
+    FormData, FormError, HtmlForm, SubmitFormClassic,
 };
 use crate::GlobalState;
 
@@ -185,7 +185,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         )]);
 
     let form_login =
-        HtmlFormMeta::new("Login", &Uuid::new_v4().to_string(), elements);
+        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), elements, None);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -214,10 +214,12 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             InputFieldPattern::PasswordCheck,
         )]);
 
-    let form_create = HtmlFormMeta::new(
+    let form_create = HtmlForm::new(
+        cx,
         "Create Password",
         &Uuid::new_v4().to_string(),
         elements,
+        None,
     );
 
     let handle_form_submission =

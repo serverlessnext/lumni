@@ -7,11 +7,12 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
-use super::html_form::{Form, HtmlFormMeta};
+use super::html_form::{Form, HtmlForm, HtmlFormMeta};
 use super::load_handler::{LoadHandler, LoadVaultHandler};
 use super::view_handler::ViewHandler;
 use crate::builders::FormSubmitParameters;
 use crate::components::buttons::{ButtonType, FormButton};
+use crate::components::form_input::FormElement;
 
 type BoxedSubmitHandler = Box<
     dyn Fn(
@@ -89,7 +90,7 @@ impl SubmitFormHandler {
 
     pub fn new_with_vault(
         cx: Scope,
-        form: HtmlFormMeta,
+        form: HtmlForm,
         vault: &LocalEncrypt,
         submit_handler: BoxedSubmitHandler,
     ) -> Self {
@@ -131,6 +132,7 @@ impl FormHandlerTrait for SubmitFormHandler {
     fn form_data(&self) -> RwSignal<Option<FormData>> {
         self.on_submit().data()
     }
+
     fn on_submit(&self) -> &dyn SubmitHandler {
         self.on_submit()
     }
@@ -147,25 +149,19 @@ pub struct SubmitFormClassic {
 impl SubmitFormClassic {
     pub fn new(
         cx: Scope,
-        form: HtmlFormMeta,
+        form: HtmlForm,
         function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
         is_submitting: RwSignal<bool>,
         submit_error: RwSignal<Option<String>>,
         form_button: Option<FormButton>,
     ) -> Self {
-        let default_field_values = form.default_field_values();
         let form_elements = form.elements();
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::build(
-            cx,
-            meta_data,
-            &default_field_values,
-            &form_elements,
-        );
+        let form_data_default = FormData::build(cx, meta_data, &form_elements);
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 
@@ -180,10 +176,8 @@ impl SubmitFormClassic {
             submit_error,
         ));
 
-        let form_handler = Rc::new(SubmitFormHandler::new(
-            None,
-            custom_submit_handler
-        ));
+        let form_handler =
+            Rc::new(SubmitFormHandler::new(None, custom_submit_handler));
         let view_handler = ViewHandler::new(form_handler);
 
         Self {
@@ -215,21 +209,14 @@ impl SubmitForm {
     pub fn new(
         cx: Scope,
         form: HtmlFormMeta,
+        elements: &Vec<FormElement>,
         submit_parameters: FormSubmitParameters,
     ) -> Self {
-        let default_field_values = form.default_field_values();
-        let form_elements = form.elements();
-
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::build(
-            cx,
-            meta_data,
-            &default_field_values,
-            &form_elements,
-        );
+        let form_data_default = FormData::build(cx, meta_data, elements);
 
         let is_processing = submit_parameters
             .is_submitting()

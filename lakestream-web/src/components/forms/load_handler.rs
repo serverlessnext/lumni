@@ -6,7 +6,7 @@ use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
 
 use super::form_data::FormData;
 use super::handler::FormHandlerTrait;
-use super::html_form::{Form, HtmlFormMeta};
+use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
 use crate::components::form_input::FormElement;
@@ -51,7 +51,7 @@ pub struct LoadForm {
 }
 
 impl LoadForm {
-    pub fn new(cx: Scope, form: HtmlFormMeta) -> Self {
+    pub fn new(cx: Scope, form: HtmlForm) -> Self {
         let handler: Box<DirectLoadHandler> = DirectLoadHandler::new(cx, form);
 
         let form_handler: Rc<dyn FormHandlerTrait> = Rc::new(*handler);
@@ -124,11 +124,7 @@ impl LoadHandler for LoadVaultHandler {
 }
 
 impl LoadVaultHandler {
-    pub fn new(
-        cx: Scope,
-        form: HtmlFormMeta,
-        vault: &LocalEncrypt,
-    ) -> Box<Self> {
+    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Box<Self> {
         let is_loading = create_rw_signal(cx, true);
         let load_error = create_rw_signal(cx, None::<String>);
         let form_data = create_rw_signal(cx, None::<FormData>);
@@ -163,36 +159,33 @@ fn handle_loaded_content(
     form_elements: &[FormElement],
     meta_data: ItemMetaData,
     content: Result<Option<Vec<u8>>, SecureStringError>,
-    default_field_values: &HashMap<String, String>,
 ) -> Result<FormData, String> {
     match content {
         Ok(data) => match data {
-            Some(data) => match serde_json::from_slice(&data) {
-                Ok(new_config) => {
-                    let form_submit_data = FormData::build(
-                        cx,
-                        meta_data,
-                        &new_config,
-                        form_elements,
-                    );
-                    Ok(form_submit_data)
+            Some(data) => {
+                match serde_json::from_slice::<HashMap<String, String>>(&data) {
+                    Ok(new_config) => {
+                        let form_submit_data = FormData::build_with_config(
+                            cx,
+                            meta_data,
+                            &new_config,
+                            form_elements,
+                        );
+                        Ok(form_submit_data)
+                    }
+                    Err(e) => {
+                        log::error!("error deserializing config: {:?}", e);
+                        Err(e.to_string())
+                    }
                 }
-                Err(e) => {
-                    log::error!("error deserializing config: {:?}", e);
-                    Err(e.to_string())
-                }
-            },
+            }
             None => {
                 log::info!(
                     "No data found for the given form id: {}. Creating new.",
                     form_name
                 );
-                let form_submit_data = FormData::build(
-                    cx,
-                    meta_data,
-                    default_field_values,
-                    form_elements,
-                );
+                let form_submit_data =
+                    FormData::build(cx, meta_data, form_elements);
                 Ok(form_submit_data)
             }
         },
@@ -200,12 +193,8 @@ fn handle_loaded_content(
             SecureStringError::PasswordNotFound(_)
             | SecureStringError::NoLocalStorageData => {
                 log::info!("{} Creating new.", CANT_LOAD_CONFIG);
-                let form_submit_data = FormData::build(
-                    cx,
-                    meta_data,
-                    default_field_values,
-                    form_elements,
-                );
+                let form_submit_data =
+                    FormData::build(cx, meta_data, form_elements);
                 Ok(form_submit_data)
             }
             _ => {
@@ -218,10 +207,9 @@ fn handle_loaded_content(
 
 pub async fn get_form_data_from_vault(
     cx: Scope,
-    form: &HtmlFormMeta,
+    form: &HtmlForm,
     vault: &LocalEncrypt,
 ) -> Result<FormData, String> {
-    let default_field_values = form.default_field_values();
     let form_elements = form.elements();
     let form_name = form.id(); // use id as name
 
@@ -230,14 +218,7 @@ pub async fn get_form_data_from_vault(
     let meta_data = ItemMetaData::new_with_tags(form_name, tags);
 
     let content = load_form_data_from_vault(form_name, vault).await;
-    handle_loaded_content(
-        cx,
-        form_name,
-        &form_elements,
-        meta_data,
-        content,
-        &default_field_values,
-    )
+    handle_loaded_content(cx, form_name, &form_elements, meta_data, content)
 }
 
 async fn load_form_data_from_vault(
@@ -263,23 +244,17 @@ pub struct DirectLoadHandler {
 }
 
 impl DirectLoadHandler {
-    pub fn new(cx: Scope, form: HtmlFormMeta) -> Box<Self> {
+    pub fn new(cx: Scope, form: HtmlForm) -> Box<Self> {
         let is_loading = create_rw_signal(cx, true);
         let load_error = create_rw_signal(cx, None::<String>);
 
-        let default_field_values = form.default_field_values();
         let form_elements = form.elements();
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data = FormData::build(
-            cx,
-            meta_data,
-            &default_field_values,
-            &form_elements,
-        );
+        let form_data = FormData::build(cx, meta_data, &form_elements);
 
         let form_data = create_rw_signal(cx, Some(form_data));
         is_loading.set(false);

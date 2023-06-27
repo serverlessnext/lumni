@@ -3,22 +3,9 @@ use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::config_list::{Config, ConfigList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
-use crate::components::forms::{HtmlFormMeta, SaveForm};
+use crate::components::form_input::FormElement;
+use crate::components::forms::{HtmlForm, SaveForm};
 use crate::GlobalState;
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct RouteParams {
-    id: String,
-}
-
-impl Params for RouteParams {
-    fn from_map(map: &ParamsMap) -> Result<Self, ParamsError> {
-        let id = map
-            .get("id")
-            .ok_or_else(|| ParamsError::MissingParam("id".to_string()))?;
-        Ok(Self { id: id.to_string() })
-    }
-}
 
 #[component]
 pub fn ConfigurationId(cx: Scope) -> impl IntoView {
@@ -35,7 +22,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
 
-    let form_loaded = create_rw_signal(cx, None::<HtmlFormMeta>);
+    let form_loaded = create_rw_signal(cx, None::<FormInfo>);
 
     let vault_clone = vault.clone();
 
@@ -86,21 +73,20 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                             if let Some(name) = name {
                                 let config = match config_type.as_str() {
                                     "ObjectStoreS3" => Config::ObjectStoreS3(
-                                        ObjectStoreS3::new(name.clone()),
+                                        ObjectStoreS3::new(&name),
                                     ),
                                     _ => Config::Environment(Environment::new(
-                                        name.clone(),
+                                        &name,
                                     )),
                                 };
 
                                 let form_elements = config.form_elements(&name);
-                                form_loaded.set(Some(HtmlFormMeta::new(
-                                    &name,
-                                    form_id.as_str(),
+                                form_loaded.set(Some(FormInfo {
+                                    name,
+                                    form_id: form_id.clone(),
                                     form_elements,
-                                )));
+                                }));
                             }
-
                             set_is_loading.set(false);
                         }
                     }
@@ -118,7 +104,14 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
             view! { cx, <div>"Loading..."</div> }.into_view(cx)
         } else {
             match form_loaded.get() {
-                Some(form) => {
+                Some(form_info) => {
+                    let form = HtmlForm::new(
+                        cx,
+                        &form_info.name,
+                        &form_info.form_id,
+                        form_info.form_elements,
+                        None,
+                    );
                     let save_form = SaveForm::new(cx, form, &vault);
                     save_form.to_view()
                 }
@@ -134,4 +127,25 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
             }
         }
     }}
+}
+
+#[derive(Clone)]
+struct FormInfo {
+    name: String,
+    form_id: String,
+    form_elements: Vec<FormElement>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct RouteParams {
+    id: String,
+}
+
+impl Params for RouteParams {
+    fn from_map(map: &ParamsMap) -> Result<Self, ParamsError> {
+        let id = map
+            .get("id")
+            .ok_or_else(|| ParamsError::MissingParam("id".to_string()))?;
+        Ok(Self { id: id.to_string() })
+    }
 }

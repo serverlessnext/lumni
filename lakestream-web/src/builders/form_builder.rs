@@ -30,7 +30,10 @@ impl FormBuilder {
         self
     }
 
-    pub fn with_submit_parameters(mut self, parameters: FormSubmitParameters) -> Self {
+    pub fn with_submit_parameters(
+        mut self,
+        parameters: FormSubmitParameters,
+    ) -> Self {
         self.submit_parameters = Some(parameters);
         self
     }
@@ -40,8 +43,14 @@ impl FormBuilder {
             self.elements.iter().map(|b| b.build()).collect();
 
         if let Some(submit_parameters) = self.submit_parameters {
-            HtmlForm::new(cx, &self.title, &self.id, elements, Some(submit_parameters))
-                .build(FormType::Submit)
+            HtmlForm::new(
+                cx,
+                &self.title,
+                &self.id,
+                elements,
+                Some(submit_parameters),
+            )
+            .build(FormType::Submit)
         } else {
             HtmlForm::new(cx, &self.title, &self.id, elements, None)
                 .build(FormType::Load)

@@ -8,7 +8,7 @@ use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::FormElement;
 use crate::components::forms::{
-    FormData, FormError, HtmlFormMeta, SubmitFormClassic,
+    FormData, FormError, HtmlForm, SubmitFormClassic,
 };
 
 const ROOT_USERNAME: &str = "admin";
@@ -33,15 +33,19 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
             InputFieldPattern::PasswordChange,
         )]);
 
-    let form_validation = HtmlFormMeta::new(
+    let form_validation = HtmlForm::new(
+        cx,
         "Validate Password",
         &Uuid::new_v4().to_string(),
         elements_validation,
+        None,
     );
-    let form_change = HtmlFormMeta::new(
+    let form_change = HtmlForm::new(
+        cx,
         "Change Password",
         &Uuid::new_v4().to_string(),
         elements_change,
+        None,
     );
 
     let handle_password_validation = {

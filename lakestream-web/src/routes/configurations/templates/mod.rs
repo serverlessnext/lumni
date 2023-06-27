@@ -6,8 +6,8 @@ mod environment;
 mod object_store_s3;
 
 pub trait ConfigTemplate {
-    fn new(name: String) -> Self;
-    fn new_with_id(name: String, id: String) -> Self;
+    fn new<S: Into<String>>(name: S) -> Self;
+    fn new_with_id<S: Into<String>>(name: S, id: S) -> Self;
     fn name(&self) -> String;
     fn id(&self) -> String;
     fn form_elements<S: Into<String>>(&self, name: S) -> Vec<FormElement>;
@@ -22,15 +22,18 @@ macro_rules! impl_config_template {
         }
 
         impl ConfigTemplate for $struct_name {
-            fn new(name: String) -> Self {
+            fn new<S: Into<String>>(name: S) -> Self {
                 Self {
-                    name,
+                    name: name.into(),
                     id: Uuid::new_v4().to_string(),
                 }
             }
 
-            fn new_with_id(name: String, id: String) -> Self {
-                Self { name, id }
+            fn new_with_id<S: Into<String>>(name: S, id: S) -> Self {
+                Self {
+                    name: name.into(),
+                    id: id.into(),
+                }
             }
 
             fn name(&self) -> String {

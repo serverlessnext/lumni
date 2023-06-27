@@ -6,7 +6,7 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
-use super::html_form::HtmlFormMeta;
+use super::html_form::HtmlForm;
 use super::submit_handler::{SubmitFormHandler, SubmitHandler};
 use super::view_handler::ViewHandler;
 use crate::components::buttons::{ButtonType, FormButton};
@@ -79,7 +79,7 @@ impl SaveHandler {
     fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
         let mut validation_errors = HashMap::new();
         for (key, element_state) in form_state {
-            let value = element_state.display_value.get();
+            let value = element_state.read_display_value();
             let validator = match &element_state.schema.element_type {
                 ElementDataType::TextData(text_data) => {
                     text_data.validator.clone()
@@ -131,7 +131,7 @@ impl SaveHandler {
     ) {
         // Check for binary data
         for (_, element_state) in form_state.iter() {
-            if let DisplayValue::Binary(_) = element_state.display_value.get() {
+            if let DisplayValue::Binary(_) = element_state.read_display_value() {
                 log::error!(
                     "Form submission failed: Binary data detected in form \
                      data."
@@ -148,7 +148,7 @@ impl SaveHandler {
         let form_config: HashMap<String, String> = form_state
             .iter()
             .map(|(key, element_state)| {
-                (key.clone(), match element_state.display_value.get() {
+                (key.clone(), match element_state.read_display_value() {
                     DisplayValue::Text(text) => text,
                     _ => unreachable!(), // We've checked for Binary data above, so this should never happen
                 })
@@ -196,7 +196,7 @@ pub struct SaveForm {
 }
 
 impl SaveForm {
-    pub fn new(cx: Scope, form: HtmlFormMeta, vault: &LocalEncrypt) -> Self {
+    pub fn new(cx: Scope, form: HtmlForm, vault: &LocalEncrypt) -> Self {
         let submit_handler = Box::new(
             move |_cx: Scope,
                   vault: Option<&LocalEncrypt>,

@@ -1,10 +1,7 @@
-use std::collections::HashMap;
-
 use leptos::*;
-use localencrypt::ItemMetaData;
 
 use crate::builders::FormSubmitParameters;
-use crate::components::form_input::{ElementData, ElementDataType, FormElement};
+use crate::components::form_input::FormElement;
 use crate::components::forms::{FormData, LoadForm, SubmitForm};
 
 pub enum FormType {
@@ -15,8 +12,9 @@ pub enum FormType {
 pub struct HtmlForm {
     cx: Scope,
     html_form_meta: HtmlFormMeta,
-    form_data_rw: RwSignal<Option<FormData>>,
+    elements: Vec<FormElement>,
     submit_parameters: Option<FormSubmitParameters>,
+    form_data_rw: RwSignal<Option<FormData>>,
 }
 
 impl HtmlForm {
@@ -27,22 +25,15 @@ impl HtmlForm {
         elements: Vec<FormElement>,
         submit_parameters: Option<FormSubmitParameters>,
     ) -> Self {
-        let mut tags = HashMap::new();
-        tags.insert("Name".to_string(), name.to_string());
-        let meta_data = ItemMetaData::new_with_tags(name, tags);
-
-        let config = HashMap::new();
-        let form_data =
-            FormData::build(cx, meta_data, &config, &elements);
-        let form_data_rw = create_rw_signal(cx, Some(form_data));
-
-        let html_form_meta = HtmlFormMeta::new(name, id, elements);
+        let form_data_rw = create_rw_signal(cx, None);
+        let html_form_meta = HtmlFormMeta::new(name, id);
 
         Self {
             cx,
             html_form_meta,
-            form_data_rw,
+            elements,
             submit_parameters,
+            form_data_rw,
         }
     }
 
@@ -51,12 +42,24 @@ impl HtmlForm {
             FormType::Submit => Box::new(SubmitForm::new(
                 self.cx,
                 self.html_form_meta,
-                self.submit_parameters.expect("Submit parameters are required"),
+                &self.elements,
+                self.submit_parameters
+                    .expect("Submit parameters are required"),
             )),
-            FormType::Load => {
-                Box::new(LoadForm::new(self.cx, self.html_form_meta))
-            }
+            FormType::Load => Box::new(LoadForm::new(self.cx, self)),
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.html_form_meta.name
+    }
+
+    pub fn id(&self) -> &str {
+        &self.html_form_meta.id
+    }
+
+    pub fn elements(&self) -> Vec<FormElement> {
+        self.elements.clone()
     }
 }
 
@@ -100,15 +103,13 @@ pub trait Form {
 pub struct HtmlFormMeta {
     name: String,
     id: String,
-    elements: Vec<FormElement>,
 }
 
 impl HtmlFormMeta {
-    pub fn new(name: &str, id: &str, elements: Vec<FormElement>) -> Self {
+    pub fn new(name: &str, id: &str) -> Self {
         Self {
             name: name.to_string(),
             id: id.to_string(),
-            elements,
         }
     }
 
@@ -119,35 +120,4 @@ impl HtmlFormMeta {
     pub fn id(&self) -> &str {
         &self.id
     }
-
-    pub fn elements(&self) -> Vec<FormElement> {
-        self.elements.clone()
-    }
-
-    pub fn default_field_values(&self) -> HashMap<String, String> {
-        self.elements
-            .iter()
-            .filter_map(|element| match element {
-                FormElement::TextBox(element_data)
-                | FormElement::TextArea(element_data)
-                | FormElement::NestedForm(element_data) => get_default_value(element_data),
-            })
-            .collect()
-    }
 }
-
-
-fn get_default_value(element_data: &ElementData) -> Option<(String, String)> {
-    match &element_data.element_type {
-        ElementDataType::TextData(text_data) => Some((
-            element_data.name.clone(),
-            text_data.buffer_data.clone(),
-        )),
-        ElementDataType::DocumentData(nested_form_data) => Some((
-            element_data.name.clone(),
-            nested_form_data.buffer_data.clone(),
-        )),
-        _ => None,
-    }
-}
-

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
@@ -32,6 +33,15 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
+    // define results_form first as its the target for handle_search
+    let results_form =
+        FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
+            //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
+            .build(cx);
+
+    // allows to overwrite the form
+    let results_rw = results_form.form_data_rw();
+
     let handle_search = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             ev.prevent_default();
@@ -41,7 +51,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
 
             spawn_local(async move {
                 // run search on background
-                let data = extract_form_data(form_data)
+                let data = extract_form_data(form_data.clone())
                     .map_err(|e| {
                         log!("Error: {:?}", e);
                         validation_error
@@ -52,6 +62,9 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 debug_sleep!();
 
                 log!("Form data: {:?}", data);
+                if form_data.is_some() {
+                    results_rw.set(form_data);
+                }
                 is_submitting.set(false);
             });
         }
@@ -79,11 +92,6 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         ))
         .with_submit_parameters(submit_parameters)
         .build(cx);
-
-    let results_form =
-        FormBuilder::new("Search Form", &Uuid::new_v4().to_string())
-            .add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
-            .build(cx);
 
     view! { cx,
         { query_form.to_view() }

@@ -9,7 +9,7 @@ use super::handler::FormHandlerTrait;
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
-use crate::builders::FormLoadParameters;
+use crate::builders::LoadParameters;
 use crate::components::form_input::FormElement;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
@@ -47,7 +47,7 @@ pub struct LoadForm {
 }
 
 impl LoadForm {
-    pub fn new(form: HtmlForm, parameters: Option<FormLoadParameters>) -> Self {
+    pub fn new(form: HtmlForm, parameters: Option<LoadParameters>) -> Self {
         if let Some(parameters) = parameters {
             if let Some(handler) = parameters.load_handler {
                 // load handler writes to form_data_rw
@@ -206,7 +206,7 @@ pub async fn get_form_data_from_vault(
     form: &HtmlForm,
     vault: &LocalEncrypt,
 ) -> Result<FormData, String> {
-    let form_elements = form.elements();
+    let form_elements = form.elements.clone();
     let form_name = form.id(); // use id as name
 
     let mut tags = HashMap::new();

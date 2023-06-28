@@ -2,12 +2,12 @@ use leptos::*;
 
 use crate::builders::FormType;
 use crate::components::form_input::FormElement;
-use crate::components::forms::{FormData, LoadForm, SubmitForm};
+use crate::components::forms::{FormData, LoadForm, SubmitForm, LoadAndSubmitForm};
 
 pub struct HtmlForm {
     cx: Scope,
     html_form_meta: HtmlFormMeta,
-    elements: Vec<FormElement>,
+    pub elements: Vec<FormElement>,
     form_data_rw: RwSignal<Option<FormData>>,
 }
 
@@ -31,14 +31,20 @@ impl HtmlForm {
 
     pub fn build(self, form_type: FormType) -> Box<dyn Form> {
         match form_type {
-            FormType::Submit(parameters) => Box::new(SubmitForm::new(
-                self.cx,
-                self.html_form_meta,
-                &self.elements,
-                parameters,
+            FormType::SubmitData(submit_parameters) => Box::new(SubmitForm::new(
+                self,
+                submit_parameters,
             )),
-            FormType::Load(parameters) => {
-                Box::new(LoadForm::new(self, parameters))
+            FormType::LoadData(load_parameters) => {
+                Box::new(LoadForm::new(self, Some(load_parameters)))
+            }
+            FormType::LoadElements => Box::new(LoadForm::new(self, None)),
+            FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
+                Box::new(LoadAndSubmitForm::new(
+                    self,
+                    load_parameters,
+                    submit_parameters,
+                ))
             }
         }
     }
@@ -57,10 +63,6 @@ impl HtmlForm {
 
     pub fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
         self.form_data_rw
-    }
-
-    pub fn elements(&self) -> Vec<FormElement> {
-        self.elements.clone()
     }
 }
 

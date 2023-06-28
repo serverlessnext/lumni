@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
+use std::sync::Arc;
+use regex::Regex;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
 
 use crate::builders::{
-    FieldBuilder, FormBuilder, FormSubmitParameters, FormType,
+    FieldBuilder, FormBuilder, SubmitParameters, FormType,
 };
+use crate::components::form_input::validate_with_pattern;
 use crate::components::forms::{FormData, FormError};
 
 #[cfg(debug_assertions)]
@@ -38,7 +41,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let results_form = FormBuilder::new(
         "Search Form",
         &Uuid::new_v4().to_string(),
-        FormType::Load(None),
+        FormType::LoadElements,
     )
     //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
     .build(cx);
@@ -73,7 +76,9 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         }
     };
 
-    let submit_parameters = FormSubmitParameters::new(
+    let query_pattern = Regex::new(r"^test$").unwrap();
+
+    let submit_parameters = SubmitParameters::new(
         Box::new(handle_search),
         Some(is_submitting),
         Some(validation_error),
@@ -83,7 +88,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let query_form = FormBuilder::new(
         "Query",
         &Uuid::new_v4().to_string(),
-        FormType::Submit(submit_parameters),
+        FormType::SubmitData(submit_parameters),
     )
     .add_element(Box::new(
         FieldBuilder::new("Select")
@@ -95,7 +100,11 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         FieldBuilder::new("From")
             .with_label("From")
             .as_input_field()
-            .with_initial_value("table"),
+            .with_initial_value("table")
+            .validator(Some(Arc::new(validate_with_pattern(
+                query_pattern,
+                "Invalid key.".to_string(),
+            )))),
     ))
     .build(cx);
 

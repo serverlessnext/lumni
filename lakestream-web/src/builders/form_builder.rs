@@ -33,19 +33,27 @@ impl FormBuilder {
             self.elements.iter().map(|b| b.build()).collect();
 
         match self.form_type {
-            FormType::Submit(parameters) => {
+            FormType::SubmitData(parameters) => {
                 HtmlForm::new(cx, &self.title, &self.id, elements)
-                    .build(FormType::Submit(parameters))
+                    .build(FormType::SubmitData(parameters))
             }
-            FormType::Load(parameters) => {
+            FormType::LoadData(parameters) => {
                 HtmlForm::new(cx, &self.title, &self.id, elements)
-                    .build(FormType::Load(parameters))
+                    .build(FormType::LoadData(parameters))
+            }
+            FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
+                HtmlForm::new(cx, &self.title, &self.id, elements)
+                    .build(FormType::LoadAndSubmitData(load_parameters, submit_parameters))
+            },
+            FormType::LoadElements => {
+                HtmlForm::new(cx, &self.title, &self.id, elements)
+                    .build(FormType::LoadElements)
             }
         }
     }
 }
 
-pub struct FormSubmitParameters {
+pub struct SubmitParameters {
     // pub parameters are meant to be consumed when used in a form
     pub submit_handler: Box<dyn Fn(SubmitEvent, Option<FormData>)>,
     pub form_button: Option<FormButton>,
@@ -53,7 +61,7 @@ pub struct FormSubmitParameters {
     validation_error: Option<RwSignal<Option<String>>>,
 }
 
-impl FormSubmitParameters {
+impl SubmitParameters {
     pub fn new(
         submit_handler: Box<dyn Fn(SubmitEvent, Option<FormData>)>,
         is_submitting: Option<RwSignal<bool>>,
@@ -77,14 +85,14 @@ impl FormSubmitParameters {
     }
 }
 
-pub struct FormLoadParameters {
+pub struct LoadParameters {
     // pub parameters are meant to be consumed when used in a form
     pub load_handler: Option<Box<dyn Fn(RwSignal<Option<FormData>>)>>,
     is_loading: Option<RwSignal<bool>>,
     validation_error: Option<RwSignal<Option<String>>>,
 }
 
-impl FormLoadParameters {
+impl LoadParameters {
     pub fn new(
         load_handler: Option<Box<dyn Fn(RwSignal<Option<FormData>>)>>,
         is_loading: Option<RwSignal<bool>>,
@@ -107,6 +115,8 @@ impl FormLoadParameters {
 }
 
 pub enum FormType {
-    Submit(FormSubmitParameters),
-    Load(Option<FormLoadParameters>),
+    SubmitData(SubmitParameters),
+    LoadData(LoadParameters),
+    LoadAndSubmitData(LoadParameters, SubmitParameters),
+    LoadElements,
 }

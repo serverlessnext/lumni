@@ -42,9 +42,13 @@ impl FormBuilder {
                     .build(FormType::LoadData(parameters))
             }
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, elements)
-                    .build(FormType::LoadAndSubmitData(load_parameters, submit_parameters))
-            },
+                HtmlForm::new(cx, &self.title, &self.id, elements).build(
+                    FormType::LoadAndSubmitData(
+                        load_parameters,
+                        submit_parameters,
+                    ),
+                )
+            }
             FormType::LoadElements => {
                 HtmlForm::new(cx, &self.title, &self.id, elements)
                     .build(FormType::LoadElements)

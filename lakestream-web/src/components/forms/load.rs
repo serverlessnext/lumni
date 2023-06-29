@@ -1,7 +1,5 @@
-
-use localencrypt::ItemMetaData;
-use std::collections::HashMap;
 use std::rc::Rc;
+
 use leptos::*;
 
 use super::form_data::FormData;
@@ -11,7 +9,6 @@ use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
 use crate::builders::LoadParameters;
 
-
 pub struct LoadForm {
     form: HtmlForm,
     is_processing: RwSignal<bool>,
@@ -20,7 +17,6 @@ pub struct LoadForm {
 
 impl LoadForm {
     pub fn new(form: HtmlForm, parameters: Option<LoadParameters>) -> Self {
-
         let is_processing = create_rw_signal(form.cx(), false);
         let process_error = create_rw_signal(form.cx(), None::<String>);
 
@@ -55,7 +51,8 @@ impl LoadForm {
             load_error: self.process_error,
             form_data: self.form_data_rw(),
         };
-        ViewHandler::new(Rc::new(form_handler) as Rc<dyn FormHandlerTrait>).to_view(self.form.cx(), None)
+        ViewHandler::new(Rc::new(form_handler) as Rc<dyn FormHandlerTrait>)
+            .to_view(self.form.cx(), None)
     }
 }
 
@@ -97,6 +94,9 @@ impl FormHandlerTrait for LoadFormHandler {
     }
 
     fn on_submit(&self) -> &dyn SubmitHandler {
-        panic!("LoadFormHandler might not have a submit handler, handle this case appropriately")
+        panic!(
+            "LoadFormHandler might not have a submit handler, handle this \
+             case appropriately"
+        )
     }
 }

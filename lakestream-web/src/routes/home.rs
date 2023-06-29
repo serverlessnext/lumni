@@ -1,7 +1,7 @@
 use leptos::*;
 
+pub use crate::components::demo::{LoadAndSubmitDemo, LoadFormDemo};
 pub use crate::components::SearchForm;
-pub use crate::components::demo::{LoadFormDemo, LoadAndSubmitDemo};
 
 #[component]
 pub fn Home(cx: Scope) -> impl IntoView {

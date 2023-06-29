@@ -1,14 +1,12 @@
 use std::collections::HashMap;
-
 use std::sync::Arc;
-use regex::Regex;
+
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use regex::Regex;
 use uuid::Uuid;
 
-use crate::builders::{
-    FieldBuilder, FormBuilder, SubmitParameters, FormType,
-};
+use crate::builders::{FieldBuilder, FormBuilder, FormType, SubmitParameters};
 use crate::components::form_input::validate_with_pattern;
 use crate::components::forms::{FormData, FormError};
 

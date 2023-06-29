@@ -3,17 +3,12 @@ use std::collections::HashMap;
 use leptos::*;
 use uuid::Uuid;
 
-use crate::builders::{
-    FormBuilder, LoadParameters, FormType,
-};
-
-use crate::components::forms::{FormData, FormError};
 use super::dummy_data::make_form_data;
-
 #[cfg(debug_assertions)]
 #[cfg(feature = "debug-assertions")]
 use super::helpers::debug_sleep;
-
+use crate::builders::{FormBuilder, FormType, LoadParameters};
+use crate::components::forms::{FormData, FormError};
 
 #[component]
 pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
@@ -42,12 +37,15 @@ pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
         Some(validation_error),
     );
 
-    let load_form = FormBuilder::new("Load Form", &Uuid::new_v4().to_string(), FormType::LoadData(load_parameters))
-        .build(cx);
+    let load_form = FormBuilder::new(
+        "Load Form",
+        &Uuid::new_v4().to_string(),
+        FormType::LoadData(load_parameters),
+    )
+    .build(cx);
 
     load_form.to_view()
 }
-
 
 async fn load_data() -> Result<HashMap<String, String>, FormError> {
     #[cfg(feature = "debug-assertions")]
@@ -55,4 +53,3 @@ async fn load_data() -> Result<HashMap<String, String>, FormError> {
 
     Ok(HashMap::new())
 }
-

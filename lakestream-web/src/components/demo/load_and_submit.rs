@@ -1,19 +1,19 @@
-
 use std::collections::HashMap;
-use regex::Regex;
 use std::sync::Arc;
+
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use regex::Regex;
 use uuid::Uuid;
 
-
+use super::dummy_data::make_form_data;
 use crate::builders::{
-    FieldBuilder, FormBuilder, LoadParameters, SubmitParameters, FormType,
+    FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
+};
+use crate::components::form_input::{
+    validate_with_pattern, DisplayValue, ElementDataType, FormState,
 };
 use crate::components::forms::{FormData, FormError};
-use crate::components::form_input::{FormState, ElementDataType, DisplayValue, validate_with_pattern};
-use super::dummy_data::make_form_data;
-
 
 #[component]
 pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
@@ -42,36 +42,33 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     };
 
     // define a function to handle form submission
-    let handle_submit =
-        move |ev: SubmitEvent, form_data: Option<FormData>| {
-            ev.prevent_default();
+    let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
+        ev.prevent_default();
 
-            spawn_local(async move {
-                if let Some(form_data) = form_data {
-                    let form_state = form_data.form_state().clone();
-                    let validation_errors =
-                        perform_validation(&form_state);
+        spawn_local(async move {
+            if let Some(form_data) = form_data {
+                let form_state = form_data.form_state().clone();
+                let validation_errors = perform_validation(&form_state);
 
-                    if validation_errors.is_empty() {
-                        log!("Form data is valid");
-                    } else {
-                        log!("Form data is invalid");
-                        log!("Validation errors: {:?}", validation_errors);
-                        is_submitting.set(false);
-                        return;
-                    }
-
-                    let result = submit_data(form_data).await;
-                    match result {
-                        Ok(_) => log!("Data submitted successfully"),
-                        Err(e) => log!("Data submission failed: {:?}", e),
-                    }
-
+                if validation_errors.is_empty() {
+                    log!("Form data is valid");
                 } else {
-                    log!("Form data is empty");
+                    log!("Form data is invalid");
+                    log!("Validation errors: {:?}", validation_errors);
+                    is_submitting.set(false);
+                    return;
                 }
-                is_submitting.set(false);
-            });
+
+                let result = submit_data(form_data).await;
+                match result {
+                    Ok(_) => log!("Data submitted successfully"),
+                    Err(e) => log!("Data submission failed: {:?}", e),
+                }
+            } else {
+                log!("Form data is empty");
+            }
+            is_submitting.set(false);
+        });
     };
 
     let load_parameters = LoadParameters::new(
@@ -96,7 +93,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     let load_and_submit_form = FormBuilder::new(
         "Load and Submit Form",
         &Uuid::new_v4().to_string(),
-        FormType::LoadAndSubmitData(load_parameters, submit_parameters)
+        FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .add_element(Box::new(
         FieldBuilder::new("Select")
@@ -119,22 +116,17 @@ async fn load_data(cx: Scope) -> Result<FormData, FormError> {
     Ok(make_form_data(cx))
 }
 
-async fn submit_data(
-    _form_data: FormData,
-) -> Result<(), FormError> {
+async fn submit_data(_form_data: FormData) -> Result<(), FormError> {
     log!("Submitting data...");
     Ok(())
 }
-
 
 fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
     for (key, element_state) in form_state {
         let value = element_state.read_display_value();
         let validator = match &element_state.schema.element_type {
-            ElementDataType::TextData(text_data) => {
-                text_data.validator.clone()
-            }
+            ElementDataType::TextData(text_data) => text_data.validator.clone(),
             // Add other ElementDataType cases if they have a validator
             _ => None,
         };
@@ -144,14 +136,12 @@ fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
                 DisplayValue::Text(text) => {
                     if let Err(e) = validator(text) {
                         log::error!("Validation failed: {}", e);
-                        validation_errors
-                            .insert(key.clone(), e.to_string());
+                        validation_errors.insert(key.clone(), e.to_string());
                     }
                 }
                 DisplayValue::Binary(_) => {
                     log::error!(
-                        "Validation failed: Binary data cannot be \
-                         validated."
+                        "Validation failed: Binary data cannot be validated."
                     );
                     validation_errors.insert(
                         key.clone(),

@@ -16,7 +16,6 @@ pub trait LoadHandler {
     fn form_data(&self) -> RwSignal<Option<FormData>>;
 }
 
-
 pub struct LoadVaultHandler {
     form_data: RwSignal<Option<FormData>>,
     is_loading: RwSignal<bool>,
@@ -84,17 +83,18 @@ pub async fn get_form_data_from_vault(
     match load_config_from_vault(form_id, vault).await {
         Ok(Some(config)) => {
             form_data.update_with_config(config);
-        },
+        }
         Ok(None) => {
             log::info!(
-                "No data found for the given form id: {}. Using default configuration.",
+                "No data found for the given form id: {}. Using default \
+                 configuration.",
                 form_id
             );
-        },
+        }
         Err(e) => {
             log::error!("error: {:?}", e);
             return Err(e);
-        },
+        }
     };
     Ok(form_data)
 }
@@ -103,7 +103,6 @@ async fn load_config_from_vault(
     form_id: &str,
     vault: &LocalEncrypt,
 ) -> Result<Option<HashMap<String, String>>, String> {
-
     let local_storage = match vault.backend() {
         localencrypt::StorageBackend::Browser(browser_storage) => {
             browser_storage
@@ -124,11 +123,8 @@ async fn load_config_from_vault(
                     Err(e.to_string())
                 }
             }
-        },
+        }
         Ok(None) => Ok(None),
         Err(e) => Err(e.to_string()),
     }
 }
-
-
-

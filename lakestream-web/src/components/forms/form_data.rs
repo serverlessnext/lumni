@@ -50,25 +50,33 @@ impl FormData {
         }
     }
 
-
     pub fn update_with_config(&mut self, config: HashMap<String, String>) {
         for (element_name, buffer_data) in config.into_iter() {
-            if let Some(form_element_state) = self.form_state.get_mut(&element_name) {
+            if let Some(form_element_state) =
+                self.form_state.get_mut(&element_name)
+            {
                 // clone the existing schema to mutate it
                 let mut new_schema = (*form_element_state.schema).clone();
                 match &mut new_schema.element_type {
                     ElementDataType::TextData(text_data) => {
                         text_data.buffer_data = buffer_data.clone();
-                        form_element_state.display_value.set(DisplayValue::Text(buffer_data));
+                        form_element_state
+                            .display_value
+                            .set(DisplayValue::Text(buffer_data));
                     }
                     ElementDataType::BinaryData(binary_data) => {
-                        let binary_buffer_data = buffer_data.as_bytes().to_vec();
+                        let binary_buffer_data =
+                            buffer_data.as_bytes().to_vec();
                         binary_data.buffer_data = binary_buffer_data.clone();
-                        form_element_state.display_value.set(DisplayValue::Binary(binary_buffer_data));
+                        form_element_state
+                            .display_value
+                            .set(DisplayValue::Binary(binary_buffer_data));
                     }
                     ElementDataType::DocumentData(document_data) => {
                         document_data.buffer_data = buffer_data.clone();
-                        form_element_state.display_value.set(DisplayValue::Text(buffer_data));
+                        form_element_state
+                            .display_value
+                            .set(DisplayValue::Text(buffer_data));
                     }
                 }
                 // replace old Arc with new one

@@ -4,6 +4,6 @@ mod text_box_builder;
 
 pub use field_builder::{build_all, FieldBuilder, FieldBuilderTrait};
 pub use form_builder::{
-    FormBuilder, LoadParameters, SubmitParameters, FormType,
+    FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 pub use text_box_builder::{InputFieldPattern, TextBoxBuilder};

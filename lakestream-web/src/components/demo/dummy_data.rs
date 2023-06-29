@@ -1,12 +1,12 @@
-use std::sync::Arc;
 use std::collections::HashMap;
-use regex::Regex;
+use std::sync::Arc;
+
 use leptos::*;
 use localencrypt::ItemMetaData;
+use regex::Regex;
 
 use crate::components::form_input::*;
 use crate::components::forms::FormData;
-
 
 pub fn make_form_elements() -> Vec<FormElement> {
     // textbox with validation
@@ -30,7 +30,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
     };
 
     // textarea
-   let text_data_any = TextData {
+    let text_data_any = TextData {
         field_type: FieldType::Text,
         field_label: Some(FieldLabel::new("Text Area")),
         validator: None,
@@ -47,7 +47,6 @@ pub fn make_form_elements() -> Vec<FormElement> {
         FormElement::TextArea(element_data_textarea),
     ];
     elements
-
 }
 
 pub fn make_form_data(cx: Scope) -> FormData {
@@ -73,8 +72,3 @@ pub fn validate_with_pattern_local(
     Arc::new(func)
 }
 
-pub fn make_config() -> HashMap<String, String> {
-    let mut config = HashMap::new();
-    config.insert("Select".to_string(), "Test Form".to_string());
-    config
-}

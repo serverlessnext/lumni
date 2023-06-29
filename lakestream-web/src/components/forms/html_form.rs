@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-use leptos::*;
 
+use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::builders::FormType;
 use crate::components::form_input::FormElement;
-use crate::components::forms::{FormData, LoadForm, SubmitForm, LoadAndSubmitForm};
-
+use crate::components::forms::{
+    FormData, LoadAndSubmitForm, LoadForm, SubmitForm,
+};
 
 pub struct HtmlForm {
     cx: Scope,
@@ -45,10 +46,9 @@ impl HtmlForm {
 
     pub fn build(self, form_type: FormType) -> Box<dyn Form> {
         match form_type {
-            FormType::SubmitData(submit_parameters) => Box::new(SubmitForm::new(
-                self,
-                submit_parameters,
-            )),
+            FormType::SubmitData(submit_parameters) => {
+                Box::new(SubmitForm::new(self, submit_parameters))
+            }
             FormType::LoadData(load_parameters) => {
                 Box::new(LoadForm::new(self, Some(load_parameters)))
             }

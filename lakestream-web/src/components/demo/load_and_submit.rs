@@ -32,12 +32,14 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
             //   and then update elements with data
             // - may use FormData::build_with_config() instead of ::build(),
             //   or create new method
+            log!("FormdataPre={:?}", form_data_rw.get_untracked());
 
             spawn_local(async move {
                 // run data loading on the background
                 // overwrite all form-data
                 let form_data = load_data(cx).await.unwrap();
                 form_data_rw.set(Some(form_data));
+                log!("FormdataPost={:?}", form_data_rw.get_untracked());
                 is_loading.set(false);
             });
         }

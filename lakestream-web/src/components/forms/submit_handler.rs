@@ -7,12 +7,11 @@ use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
-use super::html_form::{Form, HtmlForm, HtmlFormMeta};
+use super::html_form::{Form, HtmlForm};
 use super::load_handler::{LoadHandler, LoadVaultHandler};
 use super::view_handler::ViewHandler;
 use crate::builders::SubmitParameters;
 use crate::components::buttons::{ButtonType, FormButton};
-use crate::components::form_input::FormElement;
 
 type BoxedSubmitHandler = Box<
     dyn Fn(
@@ -155,13 +154,12 @@ impl SubmitFormClassic {
         submit_error: RwSignal<Option<String>>,
         form_button: Option<FormButton>,
     ) -> Self {
-        let form_elements = form.elements.clone();
 
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::build(cx, meta_data, &form_elements);
+        let form_data_default = FormData::build(cx, meta_data, &form.elements);
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 

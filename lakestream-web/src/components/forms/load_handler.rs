@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use leptos::*;
-use localencrypt::{ItemMetaData, LocalEncrypt, SecureStringError};
+use localencrypt::{ItemMetaData, LocalEncrypt};
 
 use super::form_data::FormData;
 use super::handler::FormHandlerTrait;
@@ -10,12 +10,9 @@ use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
 use crate::builders::LoadParameters;
-use crate::components::form_input::FormElement;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
-const CANT_LOAD_CONFIG: &str =
-    "Can't load existing configuration. Creating new.";
 
 pub trait LoadHandler {
     fn is_loading(&self) -> RwSignal<bool>;
@@ -149,78 +146,43 @@ impl LoadVaultHandler {
     }
 }
 
-fn handle_loaded_content(
-    cx: Scope,
-    form_name: &str,
-    form_elements: &[FormElement],
-    meta_data: ItemMetaData,
-    content: Result<Option<Vec<u8>>, SecureStringError>,
-) -> Result<FormData, String> {
-    match content {
-        Ok(data) => match data {
-            Some(data) => {
-                match serde_json::from_slice::<HashMap<String, String>>(&data) {
-                    Ok(new_config) => {
-                        let form_submit_data = FormData::build_with_config(
-                            cx,
-                            meta_data,
-                            &new_config,
-                            form_elements,
-                        );
-                        Ok(form_submit_data)
-                    }
-                    Err(e) => {
-                        log::error!("error deserializing config: {:?}", e);
-                        Err(e.to_string())
-                    }
-                }
-            }
-            None => {
-                log::info!(
-                    "No data found for the given form id: {}. Creating new.",
-                    form_name
-                );
-                let form_submit_data =
-                    FormData::build(cx, meta_data, form_elements);
-                Ok(form_submit_data)
-            }
-        },
-        Err(e) => match e {
-            SecureStringError::PasswordNotFound(_)
-            | SecureStringError::NoLocalStorageData => {
-                log::info!("{} Creating new.", CANT_LOAD_CONFIG);
-                let form_submit_data =
-                    FormData::build(cx, meta_data, form_elements);
-                Ok(form_submit_data)
-            }
-            _ => {
-                log::error!("error loading config: {:?}", e);
-                Err(e.to_string())
-            }
-        },
-    }
-}
-
 pub async fn get_form_data_from_vault(
     cx: Scope,
     form: &HtmlForm,
     vault: &LocalEncrypt,
 ) -> Result<FormData, String> {
     let form_elements = form.elements.clone();
-    let form_name = form.id(); // use id as name
+    let form_id = form.id();
 
     let mut tags = HashMap::new();
     tags.insert("Name".to_string(), form.name().to_string());
-    let meta_data = ItemMetaData::new_with_tags(form_name, tags);
+    let meta_data = ItemMetaData::new_with_tags(form_id, tags);
 
-    let content = load_form_data_from_vault(form_name, vault).await;
-    handle_loaded_content(cx, form_name, &form_elements, meta_data, content)
+    let mut form_data = FormData::build(cx, meta_data, &form_elements);
+
+    match load_config_from_vault(form_id, vault).await {
+        Ok(Some(config)) => {
+            form_data.update_with_config(config);
+        },
+        Ok(None) => {
+            log::info!(
+                "No data found for the given form id: {}. Using default configuration.",
+                form_id
+            );
+        },
+        Err(e) => {
+            log::error!("error: {:?}", e);
+            return Err(e);
+        },
+    };
+    Ok(form_data)
 }
 
-async fn load_form_data_from_vault(
-    form_name: &str,
+async fn load_config_from_vault(
+    form_id: &str,
     vault: &LocalEncrypt,
-) -> Result<Option<Vec<u8>>, SecureStringError> {
+) -> Result<Option<HashMap<String, String>>, String> {
+
     let local_storage = match vault.backend() {
         localencrypt::StorageBackend::Browser(browser_storage) => {
             browser_storage
@@ -230,7 +192,21 @@ async fn load_form_data_from_vault(
         _ => panic!("{}", INVALID_STORAGE_BACKEND),
     };
 
-    local_storage.load_content(form_name).await
+    let content_result = local_storage.load_content(form_id).await;
+
+    match content_result {
+        Ok(Some(data)) => {
+            match serde_json::from_slice::<HashMap<String, String>>(&data) {
+                Ok(config) => Ok(Some(config)),
+                Err(e) => {
+                    log::error!("error deserializing config: {:?}", e);
+                    Err(e.to_string())
+                }
+            }
+        },
+        Ok(None) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 pub struct DirectLoadHandler {

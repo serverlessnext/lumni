@@ -50,32 +50,6 @@ impl FormData {
         }
     }
 
-    pub fn build_with_config(
-        cx: Scope,
-        meta_data: ItemMetaData,
-        config: &HashMap<String, String>,
-        elements: &[FormElement],
-    ) -> FormData {
-        let form_state: FormState = config
-            .iter()
-            .filter_map(|(key, value)| {
-                elements.iter().find_map(|element| match element {
-                    FormElement::TextBox(field_data)
-                    | FormElement::TextArea(field_data)
-                    | FormElement::NestedForm(field_data) => {
-                        if field_data.name == *key {
-                            let initial_value =
-                                DisplayValue::Text(value.clone());
-                            Some(element.build_form_state(cx, initial_value))
-                        } else {
-                            None
-                        }
-                    }
-                })
-            })
-            .collect();
-        Self::new(form_state, meta_data)
-    }
 
     pub fn update_with_config(&mut self, config: HashMap<String, String>) {
         for (element_name, buffer_data) in config.into_iter() {

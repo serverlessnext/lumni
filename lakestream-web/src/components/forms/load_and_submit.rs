@@ -1,8 +1,11 @@
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
+
+use localencrypt::ItemMetaData;
 
 use super::form_data::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};
@@ -15,12 +18,11 @@ use crate::components::buttons::{ButtonType, FormButton};
 
 
 pub struct LoadAndSubmitForm {
-    cx: Scope,
+    form: HtmlForm,
     view_handler: ViewHandler,
     form_button: Option<FormButton>,
     is_processing: RwSignal<bool>,
     process_error: RwSignal<Option<String>>,
-    form_data: RwSignal<Option<FormData>>,
 }
 
 impl LoadAndSubmitForm {
@@ -31,17 +33,17 @@ impl LoadAndSubmitForm {
     ) -> Self {
         let cx = form.cx();
 
-        if let Some(load_handler) = load_parameters.load_handler {
-            // load handler writes to form_data_rw
-            load_handler(form.form_data_rw());
-        }
-
         let is_processing = submit_parameters
             .is_submitting()
             .unwrap_or_else(|| create_rw_signal(cx, false));
         let process_error = submit_parameters
             .validation_error()
             .unwrap_or_else(|| create_rw_signal(cx, None));
+
+        if let Some(load_handler) = load_parameters.load_handler {
+            // load handler writes to form_data_rw
+            load_handler(form.form_data_rw());
+        }
 
         let form_button = submit_parameters.form_button;
 
@@ -63,12 +65,11 @@ impl LoadAndSubmitForm {
         let view_handler = ViewHandler::new(form_handler);
 
         Self {
-            cx,
+            form,
             view_handler,
             form_button,
             is_processing,
             process_error,
-            form_data: form_data_rw,
         }
     }
 
@@ -77,7 +78,7 @@ impl LoadAndSubmitForm {
             .form_button
             .clone()
             .unwrap_or(FormButton::new(ButtonType::Submit, None));
-        self.view_handler.to_view(self.cx, Some(form_button))
+        self.view_handler.to_view(self.form.cx(), Some(form_button))
     }
 }
 
@@ -91,7 +92,7 @@ impl Form for LoadAndSubmitForm {
     }
 
     fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
-        self.form_data
+        self.form.form_data_rw()
     }
 
     fn to_view(&self) -> View {

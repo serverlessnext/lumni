@@ -72,3 +72,9 @@ pub fn validate_with_pattern_local(
     };
     Arc::new(func)
 }
+
+pub fn make_config() -> HashMap<String, String> {
+    let mut config = HashMap::new();
+    config.insert("Select".to_string(), "Test Form".to_string());
+    config
+}

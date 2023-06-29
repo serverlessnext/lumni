@@ -1,6 +1,7 @@
 
 use std::collections::HashMap;
-
+use regex::Regex;
+use std::sync::Arc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
@@ -10,7 +11,7 @@ use crate::builders::{
     FieldBuilder, FormBuilder, LoadParameters, SubmitParameters, FormType,
 };
 use crate::components::forms::{FormData, FormError};
-use crate::components::form_input::{FormState, ElementDataType, DisplayValue};
+use crate::components::form_input::{FormState, ElementDataType, DisplayValue, validate_with_pattern};
 use super::dummy_data::make_form_data;
 
 
@@ -25,21 +26,16 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     // define a function that fetches the data
     let handle_load = {
         move |form_data_rw: RwSignal<Option<FormData>>| {
-            // TODO:
-            // - load elements instead of form_data
-            // - filter out elements that are not in the form, copy attributes
-            //   like validator or other non-data attributes from form elements,
-            //   and then update elements with data
-            // - may use FormData::build_with_config() instead of ::build(),
-            //   or create new method
             log!("FormdataPre={:?}", form_data_rw.get_untracked());
 
             spawn_local(async move {
                 // run data loading on the background
-                // overwrite all form-data
-                let form_data = load_data(cx).await.unwrap();
+                let mut form_data = form_data_rw.get_untracked().unwrap();
+
+                let config = make_update_config();
+                form_data.update_with_config(config);
+
                 form_data_rw.set(Some(form_data));
-                log!("FormdataPost={:?}", form_data_rw.get_untracked());
                 is_loading.set(false);
             });
         }
@@ -61,6 +57,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
                     } else {
                         log!("Form data is invalid");
                         log!("Validation errors: {:?}", validation_errors);
+                        is_submitting.set(false);
                         return;
                     }
 
@@ -90,6 +87,12 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         None,
     );
 
+    let foo_pattern = Regex::new(r"^foo$").unwrap();
+    let validate_foo = Arc::new(validate_with_pattern(
+        foo_pattern,
+        "Input can only be foo".to_string(),
+    ));
+
     let load_and_submit_form = FormBuilder::new(
         "Load and Submit Form",
         &Uuid::new_v4().to_string(),
@@ -99,7 +102,8 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         FieldBuilder::new("Select")
             .with_label("Select")
             .as_input_field()
-            .with_initial_value("*"),
+            .with_initial_value("*")
+            .validator(Some(validate_foo)),
     ))
     .build(cx);
 
@@ -167,4 +171,10 @@ fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
         }
     }
     validation_errors
+}
+
+fn make_update_config() -> HashMap<String, String> {
+    let mut config = HashMap::new();
+    config.insert("Select".to_string(), "Test update".to_string());
+    config
 }

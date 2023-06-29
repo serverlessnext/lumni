@@ -71,4 +71,3 @@ pub fn validate_with_pattern_local(
     };
     Arc::new(func)
 }
-

@@ -8,30 +8,28 @@ use crate::builders::{
     FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
-use crate::components::forms::{
-    load_config_from_vault, save_config_to_vault, FormData,
-};
+use crate::components::forms::{FormData, ConfigurationFormMeta, load_config_from_vault, save_config_to_vault};
 
 #[component]
 pub fn ConfigurationView(
     cx: Scope,
     vault: LocalEncrypt,
-    form_id: String,
+    form_meta: ConfigurationFormMeta,
 ) -> impl IntoView {
-    let config_type = "ObjectStoreS3".to_string(); // TODO: get this from vault
-
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
 
     let vault_clone = vault.clone();
-    let form_id_clone = form_id.clone();
+    let form_id_clone = form_meta.form_id.clone();
+
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
-        let vault = vault_clone.clone();
-        let form_id = form_id_clone.clone();
+        let vault = vault_clone.to_owned();
+        let form_id = form_id_clone.to_owned();
         is_loading.set(true);
         spawn_local(async move {
             match load_config_from_vault(&vault, &form_id).await {
                 Ok(Some(config)) => {
+                    log!("Data loaded for form_id: {}", form_id);
                     let mut form_data = form_data_rw.get_untracked().unwrap();
                     form_data.update_with_config(config);
                     form_data_rw.set(Some(form_data));
@@ -60,11 +58,11 @@ pub fn ConfigurationView(
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
         ev.prevent_default();
         is_submitting.set(true);
-        let vault = vault.clone();
+        let vault = vault.to_owned();
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state().clone();
+                let form_state = form_data.form_state().to_owned();
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
                     let result = save_config_to_vault(&vault, &form_data).await;
@@ -103,16 +101,19 @@ pub fn ConfigurationView(
     );
 
     // Use predefined form elements based on config_type
-    let form_elements = match config_type.as_str() {
+    let template_name = form_meta.template_name;
+    let config_name = form_meta.config_name;
+    let form_elements = match template_name.as_str() {
         "ObjectStoreS3" => {
-            Config::ObjectStoreS3(ObjectStoreS3::new(&config_type))
+            Config::ObjectStoreS3(ObjectStoreS3::new(&config_name))
         }
-        _ => Config::Environment(Environment::new(&config_type)),
+        _ => Config::Environment(Environment::new(&config_name)),
     }
-    .form_elements(&config_type);
+    .form_elements(&template_name);
 
+    let form_id = form_meta.form_id;
     let form = FormBuilder::new(
-        &config_type,
+        &config_name,
         &form_id,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )

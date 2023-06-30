@@ -6,8 +6,9 @@ use crate::builders::{
     FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
+use crate::components::forms::FormData;
 use crate::components::forms::{
-    load_config_from_vault, save_config_to_vault, FormData,
+    load_config_from_vault, save_config_to_vault,
 };
 use crate::GlobalState;
 

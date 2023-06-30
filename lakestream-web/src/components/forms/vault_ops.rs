@@ -9,6 +9,69 @@ use crate::components::forms::{FormData, FormError};
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
 
+const TEMPLATE_DEFAULT: &str = "Environment";
+
+#[derive(Clone, Debug)]
+pub struct ConfigurationFormMeta {
+    pub form_id: String,
+    pub config_name: String,
+    pub template_name: String,
+}
+
+
+pub async fn get_form_info_from_vault(
+    vault: &LocalEncrypt,
+    form_id: &str,
+) -> Result<ConfigurationFormMeta, String> {
+    let local_storage = match vault.backend() {
+        localencrypt::StorageBackend::Browser(browser_storage) => {
+            browser_storage
+                .local_storage()
+                .unwrap_or_else(|| panic!("{}", INVALID_BROWSER_STORAGE_TYPE))
+        }
+        _ => panic!("{}", INVALID_STORAGE_BACKEND),
+    };
+
+    let configurations = local_storage
+        .list_items()
+        .await
+        .unwrap_or_else(|_| vec![]);
+
+    let form_data_option = configurations.iter().find(|form_data| {
+        form_data.id() == form_id
+    });
+
+    match form_data_option {
+        Some(form_data) => {
+            let config_name = form_data.tags().and_then(|tags| {
+                tags.get("Name")
+                    .cloned()
+                    .or_else(|| Some("Untitled".to_string()))
+            });
+
+            // defaults to "Environment"
+            let template_name = form_data
+                .tags()
+                .and_then(|tags| {
+                    tags.get("__TEMPLATE_NAME__").cloned()
+                })
+                .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
+
+            if let Some(config_name) = config_name {
+                Ok(ConfigurationFormMeta {
+                    form_id: form_id.to_string(),
+                    config_name,
+                    template_name
+                })
+            } else {
+                Err("Form name not found".to_string())
+            }
+        }
+        None => Err("Form data not found".to_string()),
+    }
+}
+
+
 pub async fn load_config_from_vault(
     vault: &LocalEncrypt,
     form_id: &str,

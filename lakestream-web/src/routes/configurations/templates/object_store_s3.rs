@@ -3,10 +3,10 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::builders::{
-    build_all, FieldBuilder, FieldBuilderTrait, TextBoxBuilder,
+    FieldBuilder, FieldBuilderTrait, TextBoxBuilder,
 };
 use crate::components::form_input::{
-    validate_with_pattern, FieldType, FormElement,
+    validate_with_pattern, FieldType,
 };
 
 pub fn form_elements<S: Into<String>>(

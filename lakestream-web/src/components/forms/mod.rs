@@ -18,4 +18,5 @@ pub use load::LoadForm;
 pub use load_and_submit::LoadAndSubmitForm;
 pub use submit::{SubmitForm, SubmitFormClassic};
 pub use submit_handler::SubmitHandler;
-pub use vault_ops::{load_config_from_vault, save_config_to_vault};
+
+pub use vault_ops::{ConfigurationFormMeta, get_form_info_from_vault, load_config_from_vault, save_config_to_vault};

@@ -10,12 +10,22 @@ use crate::components::form_input::{
 
 type ValidateFn = Arc<dyn Fn(&str) -> Result<(), String>>;
 
-#[derive(Clone)]
 pub struct TextBoxBuilder {
     base: FieldBuilder,
     initial_value: String,
     field_type: FieldType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+}
+
+impl Clone for TextBoxBuilder {
+    fn clone(&self) -> Self {
+        Self {
+            base: self.base.clone(),
+            initial_value: self.initial_value.clone(),
+            field_type: self.field_type.clone(),
+            validate_fn: self.validate_fn.clone(),
+        }
+    }
 }
 
 impl From<FieldBuilder> for TextBoxBuilder {
@@ -101,6 +111,10 @@ impl TextBoxBuilder {
 impl FieldBuilderTrait for TextBoxBuilder {
     fn build(&self) -> FormElement {
         self.clone().build()
+    }
+
+    fn box_clone(&self) -> Box<dyn FieldBuilderTrait> {
+        Box::new(self.clone())
     }
 }
 

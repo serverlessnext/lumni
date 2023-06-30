@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::components::form_input::FormElement;
+use crate::builders::FieldBuilderTrait;
 
 mod environment;
 mod object_store_s3;
@@ -10,7 +10,10 @@ pub trait ConfigTemplate {
     fn new_with_id<S: Into<String>>(name: S, id: S) -> Self;
     fn name(&self) -> String;
     fn id(&self) -> String;
-    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<FormElement>;
+    fn form_elements<S: Into<String>>(
+        &self,
+        name: S,
+    ) -> Vec<Box<dyn FieldBuilderTrait>>;
 }
 
 macro_rules! impl_config_template {
@@ -47,7 +50,7 @@ macro_rules! impl_config_template {
             fn form_elements<S: Into<String>>(
                 &self,
                 name: S,
-            ) -> Vec<FormElement> {
+            ) -> Vec<Box<dyn FieldBuilderTrait>> {
                 $default_fields_fn(name)
             }
         }

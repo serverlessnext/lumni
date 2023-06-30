@@ -9,6 +9,6 @@ pub use form_element::{
     DisplayValue, ElementData, ElementDataType, FieldLabel, FormElement,
     FormElementState, FormState, TextData,
 };
-pub use helpers::validate_with_pattern;
+pub use helpers::{perform_validation, validate_with_pattern};
 pub use text_area_view::TextAreaView;
 pub use text_box_view::TextBoxView;

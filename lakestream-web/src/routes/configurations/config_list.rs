@@ -1,10 +1,13 @@
 use super::templates::*;
-use crate::components::form_input::FormElement;
+use crate::builders::FieldBuilderTrait;
 
 pub trait ConfigList {
     fn name(&self) -> String;
     fn id(&self) -> String;
-    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<FormElement>;
+    fn form_elements<S: Into<String>>(
+        &self,
+        name: S,
+    ) -> Vec<Box<dyn FieldBuilderTrait>>;
 }
 
 pub enum Config {
@@ -27,7 +30,10 @@ impl ConfigList for Config {
         }
     }
 
-    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<FormElement> {
+    fn form_elements<S: Into<String>>(
+        &self,
+        name: S,
+    ) -> Vec<Box<dyn FieldBuilderTrait>> {
         match self {
             Config::ObjectStoreS3(c) => c.form_elements(name),
             Config::Environment(c) => c.form_elements(name),

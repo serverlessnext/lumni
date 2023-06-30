@@ -2,20 +2,10 @@ use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::LocalEncrypt;
 
 use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
-use super::html_form::HtmlForm;
-use super::load_handler::{LoadHandler, LoadVaultHandler};
-
-type BoxedSubmitHandler = Box<
-    dyn Fn(
-        Scope,
-        Option<&LocalEncrypt>,
-        RwSignal<Option<FormData>>,
-    ) -> Box<dyn SubmitHandler>,
->;
+use super::load_handler::LoadHandler;
 
 pub trait SubmitHandler {
     fn data(&self) -> RwSignal<Option<FormData>>;
@@ -80,21 +70,6 @@ impl SubmitFormHandler {
         on_load: Option<Box<dyn LoadHandler>>,
         on_submit: Box<dyn SubmitHandler>,
     ) -> Self {
-        Self { on_load, on_submit }
-    }
-
-    pub fn new_with_vault(
-        cx: Scope,
-        form: HtmlForm,
-        vault: &LocalEncrypt,
-        submit_handler: BoxedSubmitHandler,
-    ) -> Self {
-        let vault_handler = LoadVaultHandler::new(cx, form, vault);
-        let form_data = vault_handler.form_data();
-        let on_load: Option<Box<dyn LoadHandler>> = Some(vault_handler);
-
-        let on_submit = submit_handler(cx, Some(vault), form_data);
-
         Self { on_load, on_submit }
     }
 

@@ -23,6 +23,14 @@ impl FormBuilder {
         }
     }
 
+    pub fn with_form_elements(
+        mut self,
+        form_elements: Vec<Box<dyn FieldBuilderTrait>>,
+    ) -> Self {
+        self.elements = form_elements;
+        self
+    }
+
     pub fn add_element(mut self, element: Box<dyn FieldBuilderTrait>) -> Self {
         self.elements.push(element);
         self

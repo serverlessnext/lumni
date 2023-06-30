@@ -1,43 +1,36 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use uuid::Uuid;
+use localencrypt::LocalEncrypt;
 
+use super::config_list::{Config, ConfigList};
+use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use crate::builders::{
-    FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
+    FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
 use crate::components::forms::{
     load_config_from_vault, save_config_to_vault, FormData,
 };
-use crate::GlobalState;
-
-const FORM_ID: &str = "user_settings";
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct RouteParams {
-    id: String,
-}
 
 #[component]
-pub fn UserSettings(cx: Scope) -> impl IntoView {
-    let vault = use_context::<RwSignal<GlobalState>>(cx)
-        .expect("state to have been provided")
-        .with(|state| state.vault.clone())
-        .expect("vault to have been initialized");
-
-    let username = "admin".to_string(); // TODO: get this from vault
-
-    let form_id = FORM_ID;
+pub fn ConfigurationView(
+    cx: Scope,
+    vault: LocalEncrypt,
+    form_id: String,
+) -> impl IntoView {
+    let config_type = "ObjectStoreS3".to_string(); // TODO: get this from vault
 
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
 
     let vault_clone = vault.clone();
+    let form_id_clone = form_id.clone();
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
         let vault = vault_clone.clone();
+        let form_id = form_id_clone.clone();
         is_loading.set(true);
         spawn_local(async move {
-            match load_config_from_vault(&vault, form_id).await {
+            match load_config_from_vault(&vault, &form_id).await {
                 Ok(Some(config)) => {
                     let mut form_data = form_data_rw.get_untracked().unwrap();
                     form_data.update_with_config(config);
@@ -74,7 +67,6 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
                 let form_state = form_data.form_state().clone();
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
-                    log!("Form data is valid: {:?}", form_data);
                     let result = save_config_to_vault(&vault, &form_data).await;
                     match result {
                         Ok(_) => {
@@ -110,17 +102,21 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         None,
     );
 
+    // Use predefined form elements based on config_type
+    let form_elements = match config_type.as_str() {
+        "ObjectStoreS3" => {
+            Config::ObjectStoreS3(ObjectStoreS3::new(&config_type))
+        }
+        _ => Config::Environment(Environment::new(&config_type)),
+    }
+    .form_elements(&config_type);
+
     let form = FormBuilder::new(
-        &username,
-        &Uuid::new_v4().to_string(),
+        &config_type,
+        &form_id,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
-    .add_element(Box::new(
-        FieldBuilder::new("field1").with_label("a").as_input_field(),
-    ))
-    .add_element(Box::new(
-        FieldBuilder::new("field2").with_label("b").as_input_field(),
-    ))
+    .with_form_elements(form_elements)
     .build(cx);
 
     form.to_view()

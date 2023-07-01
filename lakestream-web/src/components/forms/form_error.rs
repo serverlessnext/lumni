@@ -26,3 +26,9 @@ impl From<SecureStringError> for FormError {
         FormError::LocalEncryptError(err)
     }
 }
+
+impl From<String> for FormError {
+    fn from(s: String) -> Self {
+        FormError::SubmitError(s)
+    }
+}

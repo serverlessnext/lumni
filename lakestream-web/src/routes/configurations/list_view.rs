@@ -102,28 +102,28 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                         placeholder="Bucket URI"
                         on:keydown=move |ev: web_sys::KeyboardEvent| {
                             if ev.key() == "Enter" {
-                                if let Some(name) = get_input_value(input_ref.clone()) {
+                                if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
                                     let item = match template.as_str() {
                                         "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
                                         "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
                                          _ => panic!("Invalid template selected"),
                                     };
-                                    set_item_list.update(|item_list| item_list.add(item, set_is_loading.clone(), set_submit_error.clone()));
+                                    set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                                 }
                             }
                         }
                         node_ref=input_ref
                     />
                     <button class="px-4 py-2" on:click=move |_| {
-                        if let Some(name) = get_input_value(input_ref.clone()) {
+                        if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
                             let item = match template.as_str() {
                                 "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
                                 "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
                                  _ => panic!("Invalid template selected"),
                             };
-                            set_item_list.update(|item_list| item_list.add(item, set_is_loading.clone(), set_submit_error.clone()));
+                            set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
                 </div>
@@ -210,7 +210,11 @@ impl ConfigurationList {
                     .and_then(|tags| tags.get("TemplateName").cloned())
                     .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
 
-                log!("Loaded name {} with template {}", config_name.clone().unwrap(), template_name);
+                log!(
+                    "Loaded name {} with template {}",
+                    config_name.clone().unwrap(),
+                    template_name
+                );
 
                 match template_name.as_str() {
                     "ObjectStoreS3" => config_name.map(|name| {

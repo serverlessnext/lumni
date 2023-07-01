@@ -1,6 +1,5 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::LocalEncrypt;
 
 use super::config_list::{Config, ConfigList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
@@ -9,28 +8,27 @@ use crate::builders::{
 };
 use crate::components::form_input::perform_validation;
 use crate::components::forms::{
-    load_config_from_vault, save_config_to_vault, ConfigurationFormMeta,
-    FormData,
+    ConfigurationFormMeta, FormData, FormStorageHandler,
 };
 
 #[component]
 pub fn ConfigurationView(
     cx: Scope,
-    vault: LocalEncrypt,
+    storage_handler: FormStorageHandler,
     form_meta: ConfigurationFormMeta,
 ) -> impl IntoView {
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
 
-    let vault_clone = vault.clone();
     let form_id_clone = form_meta.form_id.clone();
+    let storage_handler_clone = storage_handler.clone();
 
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
-        let vault = vault_clone.to_owned();
         let form_id = form_id_clone.to_owned();
+        let storage_handler = storage_handler_clone.to_owned();
         is_loading.set(true);
         spawn_local(async move {
-            match load_config_from_vault(&vault, &form_id).await {
+            match storage_handler.load_config(&form_id).await {
                 Ok(Some(config)) => {
                     log!("Data loaded for form_id: {}", form_id);
                     let mut form_data = form_data_rw.get_untracked().unwrap();
@@ -55,20 +53,19 @@ pub fn ConfigurationView(
         });
     };
 
-    // Handle form submit
     let is_submitting = create_rw_signal(cx, false);
     let submit_error = create_rw_signal(cx, None::<String>);
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
         ev.prevent_default();
         is_submitting.set(true);
-        let vault = vault.to_owned();
+        let storage_handler = storage_handler.clone();
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
                 let form_state = form_data.form_state().to_owned();
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
-                    let result = save_config_to_vault(&vault, &form_data).await;
+                    let result = storage_handler.save_config(&form_data).await;
                     match result {
                         Ok(_) => {
                             log!("Data submitted successfully");

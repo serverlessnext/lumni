@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
@@ -16,7 +17,12 @@ pub struct FormBuilder {
 }
 
 impl FormBuilder {
-    pub fn new<S: Into<String>>(title: S, id: S, tags: Option<HashMap<String, String>>, form_type: FormType) -> Self {
+    pub fn new<S: Into<String>>(
+        title: S,
+        id: S,
+        tags: Option<HashMap<String, String>>,
+        form_type: FormType,
+    ) -> Self {
         Self {
             title: title.into(),
             id: id.into(),
@@ -53,12 +59,11 @@ impl FormBuilder {
                     .build(FormType::LoadData(parameters))
             }
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements).build(
-                    FormType::LoadAndSubmitData(
+                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements)
+                    .build(FormType::LoadAndSubmitData(
                         load_parameters,
                         submit_parameters,
-                    ),
-                )
+                    ))
             }
             FormType::LoadElements => {
                 HtmlForm::new(cx, &self.title, &self.id, self.tags, elements)

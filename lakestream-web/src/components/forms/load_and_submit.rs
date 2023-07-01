@@ -54,7 +54,7 @@ impl LoadAndSubmitForm {
         ));
 
         let form_handler =
-            Rc::new(SubmitFormHandler::new(None, custom_submit_handler));
+            Rc::new(SubmitFormHandler::new(custom_submit_handler));
         let view_handler = ViewHandler::new(form_handler);
 
         Self {

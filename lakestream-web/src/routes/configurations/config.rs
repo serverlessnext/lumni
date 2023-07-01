@@ -2,9 +2,7 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::configuration_view::ConfigurationView;
-use crate::components::forms::{
-    get_form_info_from_vault, ConfigurationFormMeta,
-};
+use crate::components::forms::{ConfigurationFormMeta, FormStorageHandler};
 use crate::GlobalState;
 
 #[component]
@@ -24,9 +22,10 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
 
     let error_signal = create_rw_signal(cx, None::<String>);
 
-    let vault_clone = vault.clone();
+    let storage_handler = FormStorageHandler::new(vault);
+    let storage_handler_clone = storage_handler.clone();
     spawn_local(async move {
-        match get_form_info_from_vault(&vault_clone, &form_id).await {
+        match storage_handler_clone.get_form_info(&form_id).await {
             Ok(form_meta) => {
                 form_meta_signal.set(Some(form_meta));
             }
@@ -42,7 +41,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
         { move || if let Some(form_meta) = form_meta_signal.get() {
             view! {
                 cx,
-                <ConfigurationView vault=vault.to_owned() form_meta/>
+                <ConfigurationView storage_handler=storage_handler.clone() form_meta/>
             }.into_view(cx)
         } else if error_signal.get().is_some() {
             view! {

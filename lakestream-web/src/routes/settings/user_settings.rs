@@ -1,14 +1,11 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use uuid::Uuid;
 
 use crate::builders::{
     FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
-use crate::components::forms::{
-    load_config_from_vault, save_config_to_vault, FormData,
-};
+use crate::components::forms::{FormData, FormStorageHandler};
 use crate::GlobalState;
 
 const FORM_ID: &str = "user_settings";
@@ -34,10 +31,11 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
     let vault_clone = vault.clone();
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
-        let vault = vault_clone.clone();
+        let storage_handler = FormStorageHandler::new(vault_clone.clone());
         is_loading.set(true);
         spawn_local(async move {
-            match load_config_from_vault(&vault, form_id).await {
+            // match load_config_from_vault(&vault, form_id).await {
+            match storage_handler.load_config(form_id).await {
                 Ok(Some(config)) => {
                     let mut form_data = form_data_rw.get_untracked().unwrap();
                     form_data.update_with_config(config);
@@ -66,7 +64,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
         ev.prevent_default();
         is_submitting.set(true);
-        let vault = vault.clone();
+
+        let storage_handler = FormStorageHandler::new(vault.clone());
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
@@ -74,7 +73,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
                     log!("Form data is valid: {:?}", form_data);
-                    let result = save_config_to_vault(&vault, &form_data).await;
+                    // let result = save_config_to_vault(&vault, &form_data).await;
+                    let result = storage_handler.save_config(&form_data).await;
                     match result {
                         Ok(_) => {
                             log!("Data submitted successfully");

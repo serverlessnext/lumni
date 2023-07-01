@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
@@ -9,15 +10,17 @@ use crate::components::forms::{Form, FormData, HtmlForm};
 pub struct FormBuilder {
     title: String,
     id: String,
+    tags: Option<HashMap<String, String>>,
     elements: Vec<Box<dyn FieldBuilderTrait>>,
     form_type: FormType,
 }
 
 impl FormBuilder {
-    pub fn new<S: Into<String>>(title: S, id: S, form_type: FormType) -> Self {
+    pub fn new<S: Into<String>>(title: S, id: S, tags: Option<HashMap<String, String>>, form_type: FormType) -> Self {
         Self {
             title: title.into(),
             id: id.into(),
+            tags,
             elements: Vec::new(),
             form_type,
         }
@@ -42,15 +45,15 @@ impl FormBuilder {
 
         match self.form_type {
             FormType::SubmitData(parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, elements)
+                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements)
                     .build(FormType::SubmitData(parameters))
             }
             FormType::LoadData(parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, elements)
+                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements)
                     .build(FormType::LoadData(parameters))
             }
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, elements).build(
+                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements).build(
                     FormType::LoadAndSubmitData(
                         load_parameters,
                         submit_parameters,
@@ -58,7 +61,7 @@ impl FormBuilder {
                 )
             }
             FormType::LoadElements => {
-                HtmlForm::new(cx, &self.title, &self.id, elements)
+                HtmlForm::new(cx, &self.title, &self.id, self.tags, elements)
                     .build(FormType::LoadElements)
             }
         }

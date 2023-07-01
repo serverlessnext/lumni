@@ -6,9 +6,8 @@ use crate::builders::{
     FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
-use crate::components::forms::FormData;
 use crate::components::forms::{
-    load_config_from_vault, save_config_to_vault,
+    load_config_from_vault, save_config_to_vault, FormData,
 };
 use crate::GlobalState;
 
@@ -62,7 +61,6 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         });
     };
 
-    // Handle form submit
     let is_submitting = create_rw_signal(cx, false);
     let submit_error = create_rw_signal(cx, None::<String>);
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -111,9 +109,11 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         None,
     );
 
+    let tags = None;
     let form = FormBuilder::new(
         &username,
-        &Uuid::new_v4().to_string(),
+        &form_id.to_string(),
+        tags,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .add_element(Box::new(

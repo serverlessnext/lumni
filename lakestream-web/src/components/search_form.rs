@@ -39,6 +39,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let results_form = FormBuilder::new(
         "Search Form",
         &Uuid::new_v4().to_string(),
+        None,
         FormType::LoadElements,
     )
     //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
@@ -86,6 +87,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let query_form = FormBuilder::new(
         "Query",
         &Uuid::new_v4().to_string(),
+        None,
         FormType::SubmitData(submit_parameters),
     )
     .add_element(Box::new(

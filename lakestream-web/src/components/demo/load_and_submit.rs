@@ -93,6 +93,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     let load_and_submit_form = FormBuilder::new(
         "Load and Submit Form",
         &Uuid::new_v4().to_string(),
+        None,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .add_element(Box::new(

@@ -21,12 +21,13 @@ impl HtmlForm {
         cx: Scope,
         name: &str,
         id: &str,
+        tags: Option<HashMap<String, String>>,
         elements: Vec<FormElement>,
     ) -> Self {
         let html_form_meta = HtmlFormMeta::new(name, id);
 
         let form_data_rw = if !elements.is_empty() {
-            let mut tags = HashMap::new();
+            let mut tags = tags.unwrap_or_default();
             tags.insert("Name".to_string(), name.to_string());
             let meta_data = ItemMetaData::new_with_tags(id, tags);
 

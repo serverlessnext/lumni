@@ -2,12 +2,8 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use crate::builders::{
-    FieldBuilder, FieldBuilderTrait, TextBoxBuilder,
-};
-use crate::components::form_input::{
-    validate_with_pattern, FieldType,
-};
+use crate::builders::{FieldBuilder, FieldBuilderTrait, TextBoxBuilder};
+use crate::components::form_input::{validate_with_pattern, FieldType};
 
 pub fn form_elements<S: Into<String>>(
     name: S,

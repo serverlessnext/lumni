@@ -2,7 +2,9 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::configuration_view::ConfigurationView;
-use crate::components::forms::{ConfigurationFormMeta, get_form_info_from_vault};
+use crate::components::forms::{
+    get_form_info_from_vault, ConfigurationFormMeta,
+};
 use crate::GlobalState;
 
 #[component]
@@ -32,7 +34,8 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
                 log!("Error loading form_meta: {:?}", e);
                 error_signal.set(Some(format!("{:?}", e)));
             }
-        }});
+        }
+    });
 
     view! {
         cx,

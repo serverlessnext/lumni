@@ -2,10 +2,13 @@ use std::collections::HashMap;
 
 use leptos::html::Input;
 use leptos::*;
-use localencrypt::{ItemMetaData, LocalStorage, SecureStringResult};
+use localencrypt::{ItemMetaData, LocalStorage};
 
-use super::templates::{ConfigTemplate, ObjectStoreS3};
+use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
+use crate::components::forms::FormError;
 use crate::GlobalState;
+
+const TEMPLATE_DEFAULT: &str = "Environment";
 
 #[component]
 pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
@@ -23,6 +26,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
         _ => panic!("Invalid storage backend"),
     };
 
+    let selected_template = create_rw_signal(cx, "ObjectStoreS3".to_string());
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
         create_signal(cx, ConfigurationList::new(local_storage));
@@ -90,20 +94,36 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                 cx,
                 <div>
                 <div>
+                    <select on:change=move |ev| selected_template.set(event_target_value(&ev)) >
+                        <option value="ObjectStoreS3">"ObjectStoreS3"</option>
+                        <option value="Environment">"Environment"</option>
+                    </select>
                     <input class="px-4 py-2"
                         placeholder="Bucket URI"
                         on:keydown=move |ev: web_sys::KeyboardEvent| {
                             if ev.key() == "Enter" {
-                                if let Some(name) = get_input_value(input_ref) {
-                                    set_item_list.update(|item_list| item_list.add(name, set_is_loading, set_submit_error));
+                                if let Some(name) = get_input_value(input_ref.clone()) {
+                                    let template = selected_template.get();
+                                    let item = match template.as_str() {
+                                        "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
+                                        "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
+                                         _ => panic!("Invalid template selected"),
+                                    };
+                                    set_item_list.update(|item_list| item_list.add(item, set_is_loading.clone(), set_submit_error.clone()));
                                 }
                             }
                         }
                         node_ref=input_ref
                     />
                     <button class="px-4 py-2" on:click=move |_| {
-                        if let Some(name) = get_input_value(input_ref) {
-                            set_item_list.update(|item_list| item_list.add(name, set_is_loading, set_submit_error));
+                        if let Some(name) = get_input_value(input_ref.clone()) {
+                            let template = selected_template.get();
+                            let item = match template.as_str() {
+                                "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
+                                "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
+                                 _ => panic!("Invalid template selected"),
+                            };
+                            set_item_list.update(|item_list| item_list.add(item, set_is_loading.clone(), set_submit_error.clone()));
                         }
                     }> "Add Item" </button>
                 </div>
@@ -111,8 +131,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <ul>
                         <For
                             each={move || item_list.get().items}
-                            key=|item| item.name()
-                            view=move |cx, item: ObjectStoreS3| view! { cx, <ListItem item set_is_loading/> }
+                            key=|item| item.id()
+                            view=move |cx, item| view! { cx, <ListItem item set_is_loading/> }
                         />
                     </ul>
                 </div>
@@ -125,7 +145,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
 #[component]
 fn ListItem(
     cx: Scope,
-    item: ObjectStoreS3,
+    item: Box<dyn ConfigTemplate>,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ConfigurationList>>(cx).unwrap();
@@ -145,10 +165,18 @@ fn ListItem(
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct ConfigurationList {
-    pub items: Vec<ObjectStoreS3>,
+    pub items: Vec<Box<dyn ConfigTemplate>>,
     pub local_storage: LocalStorage,
+}
+
+impl Clone for ConfigurationList {
+    fn clone(&self) -> Self {
+        ConfigurationList {
+            items: self.items.iter().map(|item| item.clone_box()).collect(),
+            local_storage: self.local_storage.clone(),
+        }
+    }
 }
 
 impl ConfigurationList {
@@ -161,38 +189,67 @@ impl ConfigurationList {
 
     pub async fn load_from_vault(
         &self,
-    ) -> SecureStringResult<Vec<ObjectStoreS3>> {
-        let configs = self.local_storage.list_items().await?;
-        let items = configs
+    ) -> Result<Vec<Box<dyn ConfigTemplate>>, FormError> {
+        let configs = self
+            .local_storage
+            .list_items()
+            .await
+            .map_err(FormError::from)?;
+
+        let items: Result<Vec<_>, _> = configs
             .into_iter()
             .map(|form_data| {
-                ObjectStoreS3::new_with_id(
-                    form_data
-                        .tags()
-                        .unwrap()
-                        .get("Name")
-                        .unwrap_or(&"Untitled".to_string())
-                        .clone(),
-                    form_data.id(),
-                )
+                let config_name = form_data.tags().and_then(|tags| {
+                    tags.get("ConfigName")
+                        .cloned()
+                        .or_else(|| Some("Untitled".to_string()))
+                });
+
+                let template_name = form_data
+                    .tags()
+                    .and_then(|tags| tags.get("TemplateName").cloned())
+                    .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
+
+                log!("Loaded name {} with template {}", config_name.clone().unwrap(), template_name);
+
+                match template_name.as_str() {
+                    "ObjectStoreS3" => config_name.map(|name| {
+                        Box::new(ObjectStoreS3::new_with_id(
+                            name,
+                            form_data.id(),
+                        )) as Box<dyn ConfigTemplate>
+                    }),
+                    "Environment" => config_name.map(|name| {
+                        Box::new(Environment::new_with_id(name, form_data.id()))
+                            as Box<dyn ConfigTemplate>
+                    }),
+                    _ => None,
+                }
+                .ok_or_else(|| {
+                    FormError::SubmitError("Form name not found".to_string())
+                })
             })
             .collect();
-        Ok(items)
+
+        items
     }
 
     pub fn add(
         &mut self,
-        name: String,
+        item: Box<dyn ConfigTemplate>,
         set_is_submitting: WriteSignal<bool>,
         _set_submit_error: WriteSignal<Option<String>>,
     ) {
         set_is_submitting.set(true);
 
-        let object_store = ObjectStoreS3::new(name.clone());
+        let name = item.name();
+        let id = item.id();
+        let template_name = item.template_name();
 
         let mut tags = HashMap::new();
-        tags.insert("Name".to_string(), name);
-        let meta_data = ItemMetaData::new_with_tags(&object_store.id(), tags);
+        tags.insert("ConfigName".to_string(), name);
+        tags.insert("TemplateName".to_string(), template_name);
+        let meta_data = ItemMetaData::new_with_tags(&id, tags);
 
         spawn_local({
             let mut local_storage = self.local_storage.clone();
@@ -201,7 +258,7 @@ impl ConfigurationList {
                 set_is_submitting.set(false);
             }
         });
-        self.items.push(object_store);
+        self.items.push(item);
     }
 
     pub fn remove(

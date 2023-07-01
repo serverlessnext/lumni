@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::ItemMetaData;
 
 use super::form_data::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};

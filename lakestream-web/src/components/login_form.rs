@@ -185,7 +185,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         )]);
 
     let form_login =
-        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), elements);
+        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), None, elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -218,6 +218,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         cx,
         "Create Password",
         &Uuid::new_v4().to_string(),
+        None,
         elements,
     );
 

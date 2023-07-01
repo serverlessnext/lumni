@@ -8,7 +8,10 @@ use crate::builders::{
     FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
-use crate::components::forms::{FormData, ConfigurationFormMeta, load_config_from_vault, save_config_to_vault};
+use crate::components::forms::{
+    load_config_from_vault, save_config_to_vault, ConfigurationFormMeta,
+    FormData,
+};
 
 #[component]
 pub fn ConfigurationView(
@@ -111,10 +114,13 @@ pub fn ConfigurationView(
     }
     .form_elements(&template_name);
 
+    let form_tags = form_meta.tags;
+
     let form_id = form_meta.form_id;
     let form = FormBuilder::new(
         &config_name,
         &form_id,
+        form_tags,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .with_form_elements(form_elements)

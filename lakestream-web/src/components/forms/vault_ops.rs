@@ -16,8 +16,8 @@ pub struct ConfigurationFormMeta {
     pub form_id: String,
     pub config_name: String,
     pub template_name: String,
+    pub tags: Option<HashMap<String, String>>, // original tags
 }
-
 
 pub async fn get_form_info_from_vault(
     vault: &LocalEncrypt,
@@ -32,36 +32,37 @@ pub async fn get_form_info_from_vault(
         _ => panic!("{}", INVALID_STORAGE_BACKEND),
     };
 
-    let configurations = local_storage
-        .list_items()
-        .await
-        .unwrap_or_else(|_| vec![]);
+    let configurations =
+        local_storage.list_items().await.unwrap_or_else(|_| vec![]);
 
-    let form_data_option = configurations.iter().find(|form_data| {
-        form_data.id() == form_id
-    });
+    let form_data_option = configurations
+        .iter()
+        .find(|form_data| form_data.id() == form_id);
 
     match form_data_option {
         Some(form_data) => {
+
+            let tags = form_data.tags();
+
             let config_name = form_data.tags().and_then(|tags| {
-                tags.get("Name")
+                tags.get("ConfigName")
                     .cloned()
                     .or_else(|| Some("Untitled".to_string()))
             });
 
+            log!("FormData found: {:?}", form_data);
             // defaults to "Environment"
             let template_name = form_data
                 .tags()
-                .and_then(|tags| {
-                    tags.get("__TEMPLATE_NAME__").cloned()
-                })
+                .and_then(|tags| tags.get("TemplateName").cloned())
                 .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
 
             if let Some(config_name) = config_name {
                 Ok(ConfigurationFormMeta {
                     form_id: form_id.to_string(),
                     config_name,
-                    template_name
+                    template_name,
+                    tags,
                 })
             } else {
                 Err("Form name not found".to_string())
@@ -70,7 +71,6 @@ pub async fn get_form_info_from_vault(
         None => Err("Form data not found".to_string()),
     }
 }
-
 
 pub async fn load_config_from_vault(
     vault: &LocalEncrypt,
@@ -139,6 +139,7 @@ pub async fn save_config_to_vault(
 
     // Save the serialized form data to the local storage
     let meta_data = form_data.meta_data().clone();
+    log!("Saving with form data: {:?}", meta_data);
     match local_storage
         .save_content(meta_data, &document_content)
         .await

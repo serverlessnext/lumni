@@ -37,12 +37,14 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
         cx,
         "Validate Password",
         &Uuid::new_v4().to_string(),
+        None,
         elements_validation,
     );
     let form_change = HtmlForm::new(
         cx,
         "Change Password",
         &Uuid::new_v4().to_string(),
+        None,
         elements_change,
     );
 

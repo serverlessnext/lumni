@@ -40,6 +40,7 @@ pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
     let load_form = FormBuilder::new(
         "Load Form",
         &Uuid::new_v4().to_string(),
+        None,
         FormType::LoadData(load_parameters),
     )
     .build(cx);

@@ -116,12 +116,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         tags,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
-    .add_element(Box::new(
-        FieldBuilder::new("field1").with_label("a").as_input_field(),
-    ))
-    .add_element(Box::new(
-        FieldBuilder::new("field2").with_label("b").as_input_field(),
-    ))
+    .add_element(FieldBuilder::new("field1").with_label("a").as_input_field())
+    .add_element(FieldBuilder::new("field2").with_label("b").as_input_field())
     .build(cx);
 
     form.to_view()

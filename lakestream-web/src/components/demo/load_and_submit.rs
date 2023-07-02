@@ -96,13 +96,13 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         None,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
-    .add_element(Box::new(
+    .add_element(
         FieldBuilder::new("Select")
             .with_label("Select")
             .as_input_field()
             .with_initial_value("*")
             .validator(Some(validate_foo)),
-    ))
+    )
     .build(cx);
 
     load_and_submit_form.to_view()

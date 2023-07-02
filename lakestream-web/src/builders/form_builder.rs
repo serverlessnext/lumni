@@ -3,16 +3,18 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::field_builder::FieldBuilderTrait;
 use crate::components::buttons::FormButton;
 use crate::components::form_input::FormElement;
 use crate::components::forms::{Form, FormData, HtmlForm};
+use super::field_builder::FieldBuilderTrait;
+use super::form_element::ElementBuilder;
+
 
 pub struct FormBuilder {
     title: String,
     id: String,
     tags: Option<HashMap<String, String>>,
-    elements: Vec<Box<dyn FieldBuilderTrait>>,
+    elements: Vec<ElementBuilder>,
     form_type: FormType,
 }
 
@@ -32,18 +34,20 @@ impl FormBuilder {
         }
     }
 
-    pub fn with_form_elements(
-        mut self,
-        form_elements: Vec<Box<dyn FieldBuilderTrait>>,
-    ) -> Self {
-        self.elements = form_elements;
+    pub fn with_elements<I, T>(mut self, form_elements: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<ElementBuilder>,
+    {
+        self.elements = form_elements.into_iter().map(Into::into).collect();
         self
     }
 
-    pub fn add_element(mut self, element: Box<dyn FieldBuilderTrait>) -> Self {
-        self.elements.push(element);
+    pub fn add_element<T: Into<ElementBuilder>>(mut self, element: T) -> Self {
+        self.elements.push(element.into());
         self
     }
+
 
     pub fn build(self, cx: Scope) -> Box<dyn Form> {
         let elements: Vec<FormElement> =

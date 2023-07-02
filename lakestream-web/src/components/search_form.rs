@@ -90,13 +90,13 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         None,
         FormType::SubmitData(submit_parameters),
     )
-    .add_element(Box::new(
+    .add_element(
         FieldBuilder::new("Select")
             .with_label("Select")
             .as_input_field()
             .with_initial_value("*"),
-    ))
-    .add_element(Box::new(
+    )
+    .add_element(
         FieldBuilder::new("From")
             .with_label("From")
             .as_input_field()
@@ -105,7 +105,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 query_pattern,
                 "Invalid key.".to_string(),
             )))),
-    ))
+    )
     .build(cx);
 
     view! { cx,

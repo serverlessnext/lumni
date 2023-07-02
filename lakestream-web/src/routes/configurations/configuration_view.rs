@@ -120,7 +120,7 @@ pub fn ConfigurationView(
         form_tags,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
-    .with_form_elements(form_elements)
+    .with_elements(form_elements)
     .build(cx);
 
     form.to_view()

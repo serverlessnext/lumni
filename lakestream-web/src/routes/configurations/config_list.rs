@@ -1,5 +1,5 @@
 use super::templates::*;
-use crate::builders::FieldBuilderTrait;
+use crate::builders::ElementBuilder;
 
 pub trait ConfigList {
     fn name(&self) -> String;
@@ -7,7 +7,7 @@ pub trait ConfigList {
     fn form_elements<S: Into<String>>(
         &self,
         name: S,
-    ) -> Vec<Box<dyn FieldBuilderTrait>>;
+    ) -> Vec<ElementBuilder>;
 }
 
 pub enum Config {
@@ -33,7 +33,7 @@ impl ConfigList for Config {
     fn form_elements<S: Into<String>>(
         &self,
         name: S,
-    ) -> Vec<Box<dyn FieldBuilderTrait>> {
+    ) -> Vec<ElementBuilder> {
         match self {
             Config::ObjectStoreS3(c) => c.form_elements(name),
             Config::Environment(c) => c.form_elements(name),

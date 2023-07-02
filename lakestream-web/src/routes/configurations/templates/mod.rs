@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::builders::FieldBuilderTrait;
+use crate::builders::ElementBuilder;
 
 mod environment;
 mod object_store_s3;
@@ -46,11 +46,9 @@ where
 }
 
 pub trait FormElements {
-    fn form_elements<S: Into<String>>(
-        &self,
-        name: S,
-    ) -> Vec<Box<dyn FieldBuilderTrait>>;
+    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
+
 
 macro_rules! impl_config_template {
     ($struct_name:ident, $default_fields_fn:expr) => {
@@ -89,10 +87,7 @@ macro_rules! impl_config_template {
         }
 
         impl FormElements for $struct_name {
-            fn form_elements<S: Into<String>>(
-                &self,
-                name: S,
-            ) -> Vec<Box<dyn FieldBuilderTrait>> {
+            fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder> {
                 $default_fields_fn(name)
             }
         }

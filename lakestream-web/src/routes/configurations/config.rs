@@ -5,6 +5,7 @@ use super::configuration_view::ConfigurationView;
 use crate::components::forms::{ConfigurationFormMeta, FormStorageHandler};
 use crate::GlobalState;
 
+
 #[component]
 pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
@@ -25,7 +26,7 @@ pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let storage_handler = FormStorageHandler::new(vault);
     let storage_handler_clone = storage_handler.clone();
     spawn_local(async move {
-        match storage_handler_clone.get_form_info(&form_id).await {
+        match storage_handler_clone.get_configuration_meta(&form_id).await {
             Ok(form_meta) => {
                 form_meta_signal.set(Some(form_meta));
             }

@@ -9,8 +9,6 @@ use crate::components::forms::{FormData, FormError};
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
 
-const TEMPLATE_DEFAULT: &str = "Environment";
-
 #[derive(Clone, Debug)]
 pub struct ConfigurationFormMeta {
     pub form_id: String,
@@ -43,7 +41,7 @@ impl FormStorageHandler {
     pub async fn get_form_info(
         &self,
         form_id: &str,
-    ) -> Result<ConfigurationFormMeta, String> {
+    ) -> Result<Option<HashMap<String, String>>, String> {
         let local_storage = self.get_local_storage()?;
 
         let configurations =
@@ -55,30 +53,35 @@ impl FormStorageHandler {
 
         match form_data_option {
             Some(form_data) => {
-                let config_name = form_data.tags().and_then(|tags| {
-                    tags.get("ConfigName")
-                        .cloned()
-                        .or_else(|| Some("Untitled".to_string()))
-                });
-
-                // defaults to "Environment"
-                let template_name = form_data
-                    .tags()
-                    .and_then(|tags| tags.get("TemplateName").cloned())
-                    .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
-
-                if let Some(config_name) = config_name {
-                    Ok(ConfigurationFormMeta {
-                        form_id: form_id.to_string(),
-                        config_name,
-                        template_name,
-                        tags: form_data.tags(),
-                    })
-                } else {
-                    Err("Form name not found".to_string())
-                }
+                Ok(form_data.tags())
             }
             None => Err("Form data not found".to_string()),
+        }
+    }
+
+    pub async fn get_configuration_meta(
+        &self,
+        form_id: &str,
+    ) -> Result<ConfigurationFormMeta, String> {
+        let tags_opt = self.get_form_info(form_id).await?;
+
+        if let Some(tags) = tags_opt {
+            let config_name = tags.get("ConfigName")
+                .cloned()
+                .ok_or_else(|| "ConfigName not found".to_string())?;
+
+            let template_name = tags.get("TemplateName")
+                .cloned()
+                .ok_or_else(|| "TemplateName not found".to_string())?;
+
+            Ok(ConfigurationFormMeta {
+                form_id: form_id.to_string(),
+                config_name,
+                template_name,
+                tags: Some(tags),
+            })
+        } else {
+            Err("Form data not found".to_string())
         }
     }
 

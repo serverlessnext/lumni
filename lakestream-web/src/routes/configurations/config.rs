@@ -5,7 +5,6 @@ use super::configuration_view::ConfigurationView;
 use crate::components::forms::{ConfigurationFormMeta, FormStorageHandler};
 use crate::GlobalState;
 
-
 #[component]
 pub fn ConfigurationId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)

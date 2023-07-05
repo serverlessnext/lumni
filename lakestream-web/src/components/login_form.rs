@@ -13,9 +13,9 @@ use crate::components::form_input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };
+use crate::vars::{ENVIRONMENT, ROOT_USERNAME};
 use crate::GlobalState;
 
-const ROOT_USERNAME: &str = "admin";
 const PASSWORD_FIELD: &str = "PASSWORD";
 const FORM_DATA_MISSING: &str = "form_data does not exist";
 const PASSWORD_MISSING: &str = "password does not exist";
@@ -65,6 +65,7 @@ impl AppLogin {
     ) {
         let navigate = use_navigate(self.cx);
         match StorageBackend::initiate_with_local_storage(
+            Some(ENVIRONMENT),
             ROOT_USERNAME,
             Some(&password),
         )
@@ -144,7 +145,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let is_loading = create_rw_signal(cx, true);
     spawn_local({
         async move {
-            let user_exists = LocalStorage::user_exists(ROOT_USERNAME).await;
+            let user_exists =
+                LocalStorage::user_exists(ENVIRONMENT, ROOT_USERNAME).await;
             is_user_defined.set(user_exists);
             is_loading.set(false);
         }
@@ -269,6 +271,7 @@ fn debug_login(cx: Scope) {
     // generate both unique user and password for each session
     // in the event confidential data is stored during development
     // its at least encrypted with a unique password
+    let debug_environment = "DEBUG";
     let debug_username = format!("debug-user-{}", Uuid::new_v4());
     let debug_password = format!("debug-password-{}", Uuid::new_v4());
 
@@ -287,6 +290,7 @@ fn debug_login(cx: Scope) {
 
     spawn_local(async move {
         match StorageBackend::initiate_with_local_storage(
+            Some(debug_environment),
             &debug_username,
             Some(&debug_password),
         )
@@ -313,8 +317,12 @@ fn debug_login(cx: Scope) {
 }
 
 async fn reset_vault_action() -> Result<(), FormError> {
-    let storage_backend =
-        StorageBackend::initiate_with_local_storage(ROOT_USERNAME, None).await;
+    let storage_backend = StorageBackend::initiate_with_local_storage(
+        Some(ENVIRONMENT),
+        ROOT_USERNAME,
+        None,
+    )
+    .await;
     match storage_backend {
         Ok(backend) => match backend.hard_reset().await {
             Ok(_) => {

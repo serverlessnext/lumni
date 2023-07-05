@@ -5,9 +5,7 @@ use regex::Regex;
 use crate::builders::{ElementBuilder, FieldBuilder, TextBoxBuilder};
 use crate::components::form_input::{validate_with_pattern, FieldType};
 
-pub fn form_elements<S: Into<String>>(
-    name: S,
-) -> Vec<ElementBuilder> {
+pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
     let uri_pattern = Regex::new(r"^s3://").unwrap();
     let aws_key_pattern = Regex::new(r"^.+$").unwrap();
     let aws_secret_pattern = Regex::new(r"^.+$").unwrap();

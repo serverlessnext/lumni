@@ -3,12 +3,11 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
+use super::field_builder::FieldBuilderTrait;
+use super::form_element::ElementBuilder;
 use crate::components::buttons::FormButton;
 use crate::components::form_input::FormElement;
 use crate::components::forms::{Form, FormData, HtmlForm};
-use super::field_builder::FieldBuilderTrait;
-use super::form_element::ElementBuilder;
-
 
 pub struct FormBuilder {
     title: String,
@@ -47,7 +46,6 @@ impl FormBuilder {
         self.elements.push(element.into());
         self
     }
-
 
     pub fn build(self, cx: Scope) -> Box<dyn Form> {
         let elements: Vec<FormElement> =

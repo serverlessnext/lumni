@@ -4,10 +4,7 @@ use crate::builders::ElementBuilder;
 pub trait ConfigList {
     fn name(&self) -> String;
     fn id(&self) -> String;
-    fn form_elements<S: Into<String>>(
-        &self,
-        name: S,
-    ) -> Vec<ElementBuilder>;
+    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
 
 pub enum Config {
@@ -30,10 +27,7 @@ impl ConfigList for Config {
         }
     }
 
-    fn form_elements<S: Into<String>>(
-        &self,
-        name: S,
-    ) -> Vec<ElementBuilder> {
+    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder> {
         match self {
             Config::ObjectStoreS3(c) => c.form_elements(name),
             Config::Environment(c) => c.form_elements(name),

@@ -1,8 +1,6 @@
-
-
-use crate::components::form_input::FormElement;
 use super::field_builder::FieldBuilderTrait;
 use super::text_box_builder::TextBoxBuilder;
+use crate::components::form_input::FormElement;
 
 pub enum ElementBuilder {
     TextBox(TextBoxBuilder),

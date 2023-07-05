@@ -10,8 +10,8 @@ use crate::components::form_input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };
+use crate::vars::{ENVIRONMENT, ROOT_USERNAME};
 
-const ROOT_USERNAME: &str = "admin";
 const INTERNAL_ERROR: &str = "An internal error occurred: ";
 const INVALID_PASSWORD: &str = "Invalid password. Please try again.";
 const FORM_DATA_MISSING: &str = "form_data does not exist";
@@ -116,7 +116,11 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
                     handle_internal_error(backend_result, validation_error)
                 {
                     let password_change_result = backend
-                        .change_password(&password, &new_password)
+                        .change_password(
+                            Some(ENVIRONMENT),
+                            &password,
+                            &new_password,
+                        )
                         .await
                         .map_err(FormError::LocalEncryptError);
                     if handle_internal_error(
@@ -173,9 +177,13 @@ async fn initiate_storage_backend(
     username: &str,
     password: &str,
 ) -> Result<StorageBackend, FormError> {
-    StorageBackend::initiate_with_local_storage(username, Some(password))
-        .await
-        .map_err(FormError::from)
+    StorageBackend::initiate_with_local_storage(
+        Some(ENVIRONMENT),
+        username,
+        Some(password),
+    )
+    .await
+    .map_err(FormError::from)
 }
 
 fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {

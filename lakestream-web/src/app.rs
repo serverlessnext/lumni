@@ -26,7 +26,6 @@ pub fn RedirectTo(cx: Scope, path: &'static str) -> impl IntoView {
     }
 }
 
-
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
     let state = create_rw_signal(cx, GlobalState::default());

@@ -49,7 +49,6 @@ pub trait FormElements {
     fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
 
-
 macro_rules! impl_config_template {
     ($struct_name:ident, $default_fields_fn:expr) => {
         #[derive(Debug, Clone)]
@@ -87,7 +86,10 @@ macro_rules! impl_config_template {
         }
 
         impl FormElements for $struct_name {
-            fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder> {
+            fn form_elements<S: Into<String>>(
+                &self,
+                name: S,
+            ) -> Vec<ElementBuilder> {
                 $default_fields_fn(name)
             }
         }

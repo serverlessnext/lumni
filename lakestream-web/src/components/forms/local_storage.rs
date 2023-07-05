@@ -52,9 +52,7 @@ impl FormStorageHandler {
             .find(|form_data| form_data.id() == form_id);
 
         match form_data_option {
-            Some(form_data) => {
-                Ok(form_data.tags())
-            }
+            Some(form_data) => Ok(form_data.tags()),
             None => Err("Form data not found".to_string()),
         }
     }
@@ -66,11 +64,13 @@ impl FormStorageHandler {
         let tags_opt = self.get_form_info(form_id).await?;
 
         if let Some(tags) = tags_opt {
-            let config_name = tags.get("ConfigName")
+            let config_name = tags
+                .get("ConfigName")
                 .cloned()
                 .ok_or_else(|| "ConfigName not found".to_string())?;
 
-            let template_name = tags.get("TemplateName")
+            let template_name = tags
+                .get("TemplateName")
                 .cloned()
                 .ok_or_else(|| "TemplateName not found".to_string())?;
 

@@ -10,7 +10,7 @@ use crate::components::form_input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };
-use crate::vars::{ENVIRONMENT, ROOT_USERNAME};
+use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
 
 const INTERNAL_ERROR: &str = "An internal error occurred: ";
 const INVALID_PASSWORD: &str = "Invalid password. Please try again.";
@@ -117,7 +117,7 @@ pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
                 {
                     let password_change_result = backend
                         .change_password(
-                            Some(ENVIRONMENT),
+                            Some(LOCALSTORAGE_PREFIX),
                             &password,
                             &new_password,
                         )
@@ -178,7 +178,7 @@ async fn initiate_storage_backend(
     password: &str,
 ) -> Result<StorageBackend, FormError> {
     StorageBackend::initiate_with_local_storage(
-        Some(ENVIRONMENT),
+        Some(LOCALSTORAGE_PREFIX),
         username,
         Some(password),
     )

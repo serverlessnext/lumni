@@ -13,7 +13,8 @@ use crate::components::form_input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };
-use crate::vars::{ENVIRONMENT, ROOT_USERNAME};
+use crate::helpers::local_storage::delete_keys_not_matching_prefix;
+use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
 use crate::GlobalState;
 
 const PASSWORD_FIELD: &str = "PASSWORD";
@@ -63,9 +64,21 @@ impl AppLogin {
         is_submitting: RwSignal<bool>,
         validation_error: RwSignal<Option<String>>,
     ) {
+        if let Err(err) = delete_keys_not_matching_prefix(
+            format!("{}:", LOCALSTORAGE_PREFIX).as_str(),
+        )
+        .await
+        {
+            log!(
+                "Error deleting keys: {}",
+                err.as_string()
+                    .unwrap_or_else(|| String::from("Unknown error"))
+            );
+        }
+
         let navigate = use_navigate(self.cx);
         match StorageBackend::initiate_with_local_storage(
-            Some(ENVIRONMENT),
+            Some(LOCALSTORAGE_PREFIX),
             ROOT_USERNAME,
             Some(&password),
         )
@@ -146,7 +159,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     spawn_local({
         async move {
             let user_exists =
-                LocalStorage::user_exists(ENVIRONMENT, ROOT_USERNAME).await;
+                LocalStorage::user_exists(LOCALSTORAGE_PREFIX, ROOT_USERNAME)
+                    .await;
             is_user_defined.set(user_exists);
             is_loading.set(false);
         }
@@ -289,6 +303,18 @@ fn debug_login(cx: Scope) {
         });
 
     spawn_local(async move {
+        if let Err(err) = delete_keys_not_matching_prefix(
+            format!("{}:", LOCALSTORAGE_PREFIX).as_str(),
+        )
+        .await
+        {
+            log!(
+                "Error deleting keys: {}",
+                err.as_string()
+                    .unwrap_or_else(|| String::from("Unknown error"))
+            );
+        }
+
         match StorageBackend::initiate_with_local_storage(
             Some(debug_environment),
             &debug_username,
@@ -318,7 +344,7 @@ fn debug_login(cx: Scope) {
 
 async fn reset_vault_action() -> Result<(), FormError> {
     let storage_backend = StorageBackend::initiate_with_local_storage(
-        Some(ENVIRONMENT),
+        Some(LOCALSTORAGE_PREFIX),
         ROOT_USERNAME,
         None,
     )

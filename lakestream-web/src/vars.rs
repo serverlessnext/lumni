@@ -1,2 +1,2 @@
-pub const ENVIRONMENT: &str = "Default";
+pub const LOCALSTORAGE_PREFIX: &str = "DB";
 pub const ROOT_USERNAME: &str = "admin";

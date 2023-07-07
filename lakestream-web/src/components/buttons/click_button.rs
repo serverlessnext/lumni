@@ -19,7 +19,7 @@ where
         cx,
         <button
             class={move || {
-                form_button.clone().set_enabled(!enabled.get()).button_class()
+                form_button.clone().set_enabled(enabled.get()).button_class()
             }}
             on:click=on_click
             disabled={!enabled.get()}

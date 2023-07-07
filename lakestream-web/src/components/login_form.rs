@@ -177,10 +177,20 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                     <div>"Loading..."</div>
                 }.into_view(cx)
             } else if is_user_defined.get() {
-                view! {
-                    cx,
-                    <LoginUser app_login=app_login.clone()/>
-                }.into_view(cx)
+                let app_login = app_login.clone();
+                let validation_error = app_login.validation_error();
+                if app_login.validation_error.get().is_some() {
+                    view! {
+                        cx,
+                        <LoginUser app_login/>
+                        { reset_password_view(cx, is_user_defined, validation_error) }
+                    }.into_view(cx)
+                } else {
+                    view! {
+                        cx,
+                        <LoginUser app_login/>
+                    }.into_view(cx)
+                }
             } else {
                 view! {
                     cx,
@@ -373,14 +383,16 @@ async fn reset_vault_action() -> Result<(), FormError> {
     }
 }
 
+
 fn reset_password_view(
     cx: Scope,
     is_user_defined: RwSignal<bool>,
-    error_signal: RwSignal<Option<String>>,
+    validation_error: RwSignal<Option<String>>,
 ) -> View {
     let action = Arc::new(move || async move {
         match reset_vault_action().await {
             Ok(_) => {
+                validation_error.set(None);
                 is_user_defined.set(false);
                 Ok(())
             }
@@ -396,9 +408,6 @@ fn reset_password_view(
         cx,
         <div class="bg-white rounded shadow p-4">
         <div class="flex flex-col mb-4">
-            <div class="text-red-500">
-                { move || error_signal.get().unwrap_or("".to_string()) }
-            </div>
             <p class="text-gray-700 text-lg">
                 "You have the option to reset the password. Please be aware, the configuration database is encrypted and can't be restored without the correct password. If you choose to proceed with the password reset, the database stored in this application will be permanently erased. This irreversible action should be carefully considered."
             </p>

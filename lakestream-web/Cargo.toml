@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 lakestream = { path = "../lakestream" }
-localencrypt = { git = "https://github.com/serverlessnext/localencrypt.git", branch = "main" }
+localencrypt = { version = "0.0.4" }
 leptos = { version = "0.3"}
 leptos_meta = { version = "0.3", features = ["csr"] }
 leptos_router = { version = "0.3", features = ["csr"]  }

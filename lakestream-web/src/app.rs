@@ -5,7 +5,7 @@ use leptos_router::*;
 use crate::components::{ChangePasswordForm, Redirect};
 use crate::routes::api::Login;
 use crate::routes::configurations::{ConfigurationId, Configurations};
-use crate::routes::{About, Home, Logout, Settings, UserSettings};
+use crate::routes::{About, Home, Logout, User, UserSettings};
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -60,7 +60,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     //<div class="mb-4 text-4xl font-sans tracking-widest font-bold text-white">"Goaiio"</div>
                     <div class="flex items-end text-white">
                         <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Console"</a>
-                        <a href="/user/user" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
+                        <a href="/user/settings" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
                         <a href="/about" class="hover:text-green-500 mr-4 font-mono font-bold">"About"</a>
                     </div>
                 </nav>
@@ -72,31 +72,26 @@ pub fn App(cx: Scope) -> impl IntoView {
                             view=|cx| view! { cx, <Home/> }
                         />
                         <ProtectedRoute
-                            path="/user/profiles"
-                            redirect_path=redirect_path!("user:profiles")
-                            condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <Configurations/> }
-                        />
-                        <ProtectedRoute
-                            path="/user/profiles/:id"
-                            redirect_path=redirect_path!("user:profiles")
-                            condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <ConfigurationId/> }
-                        />
-                        <ProtectedRoute
                             path="/user"
-                            redirect_path=redirect_path!("user:user")
+                            redirect_path=redirect_path!("user:settings")
                             condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <Settings/> }
+                            view=|cx| view! { cx, <User/> }
                         >
                             // catch /user, else fallback kicks in
-                            <Route path="" view=|cx| view! { cx, <RedirectTo path="/user/user"/> }/>
-
-                            <Route path="user" view=|cx| view! { cx,
+                            <Route path="" view=|cx| view! { cx, <RedirectTo path="/user/settings"/> }/>
+                           <Route path="settings" view=|cx| view! { cx,
                                 <UserSettings />
                             }/>
+
+                           <Route path="profiles" view=|cx| view! { cx,
+                                <Configurations />
+                            }/>
+
+                            <Route path="profiles/:id" view=|cx| view! { cx,
+                                <ConfigurationId />
+                            }/>
+
                             <Route path="change-password" view=|cx| view! { cx,
-                                <p>"Change Password Screen"</p>
                                 <ChangePasswordForm />
                             }/>
                         </ProtectedRoute>

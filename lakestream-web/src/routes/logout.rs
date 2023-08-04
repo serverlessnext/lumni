@@ -5,7 +5,7 @@ use web_sys::window;
 pub fn Logout(cx: Scope) -> impl IntoView {
     const ERROR_MESSAGE: &str = "Failed to log out. Try to refresh the page.";
 
-    let redirect_url = "/home";
+    let redirect_url = "/";
     let logout_success = create_rw_signal(cx, None::<String>);
 
     if let Some(window) = window() {

@@ -1,4 +1,4 @@
 mod page;
 mod user_settings;
-pub use page::Settings;
+pub use page::User;
 pub use user_settings::UserSettings;

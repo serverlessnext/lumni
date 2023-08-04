@@ -1,10 +1,10 @@
-mod about;
 mod home;
+mod user;
+mod about;
 mod logout;
-mod settings;
 pub use about::About;
 pub use home::Home;
 pub use logout::Logout;
-pub use settings::{Settings, UserSettings};
+pub use user::{User, UserSettings};
 pub mod api;
 pub mod configurations;

@@ -2,7 +2,7 @@ use leptos::*;
 use leptos_router::{use_location, Outlet};
 
 #[component]
-pub fn Settings(cx: Scope) -> impl IntoView {
+pub fn User(cx: Scope) -> impl IntoView {
     let page_path = use_location(cx).pathname;
     view! {
         cx,
@@ -10,7 +10,15 @@ pub fn Settings(cx: Scope) -> impl IntoView {
             <div class="flex">
                 {move ||
                     view! { cx,
-                        <a href="./profiles"
+                        <a href="/user/settings"
+                            class={
+                                if page_path.get().ends_with("/user") {
+                                    "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
+                                } else {
+                                    "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
+                                }
+                            }>"Settings"</a>
+                       <a href="/user/profiles"
                             class={
                                 if page_path.get().ends_with("/profiles") {
                                     "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
@@ -18,15 +26,7 @@ pub fn Settings(cx: Scope) -> impl IntoView {
                                     "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
                                 }
                             }>"Profiles"</a>
-                        <a href="./user"
-                            class={
-                                if page_path.get().ends_with("/user") {
-                                    "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
-                                } else {
-                                    "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
-                                }
-                            }>"Other Settings"</a>
-                        <a href="./change-password"
+                       <a href="/user/change-password"
                             class={
                                 if page_path.get().ends_with("/change-password") {
                                     "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
@@ -34,7 +34,7 @@ pub fn Settings(cx: Scope) -> impl IntoView {
                                     "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
                                 }
                             }>"Change Password"</a>
-                        <a href="./logout"
+                        <a href="/user/logout"
                             class={
                                 if page_path.get().ends_with("/logout") {
                                     "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"

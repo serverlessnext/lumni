@@ -155,7 +155,7 @@ fn ListItem(
     view! { cx,
         <li>
             <div class="px-4 py-2">
-                <a href={format!("/configurations/{}", item_id)}>
+                <a href={format!("/user/profiles/{}", item_id)}>
                     {item_name}
                 </a>
                 " | "

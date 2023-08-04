@@ -1,5 +1,5 @@
 [package]
-name = "lakestream-web"
+name = "lakestream_web"
 # version is auto-updated via lakestream/build.rs
 version = "0.0.4-alpha"
 edition = "2021"

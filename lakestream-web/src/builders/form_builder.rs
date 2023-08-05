@@ -42,7 +42,19 @@ impl FormBuilder {
         self
     }
 
-    pub fn add_element<T: Into<ElementBuilder>>(mut self, element: T) -> Self {
+    pub fn get_elements(&self) -> &Vec<ElementBuilder> {
+        &self.elements
+    }
+
+    pub fn clear_elements(&mut self) {
+        self.elements.clear();
+    }
+
+//    pub fn add_element<T: Into<ElementBuilder>>(mut self, element: T) -> Self {
+//        self.elements.push(element.into());
+//        self
+//    }
+    pub fn add_element<T: Into<ElementBuilder>>(&mut self, element: T) -> &mut Self {
         self.elements.push(element.into());
         self
     }

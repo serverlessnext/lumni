@@ -1,10 +1,10 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::config_list::{Config, ConfigList};
+use super::{Profile, ProfileList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use crate::builders::{
-    FormBuilder, FormType, LoadParameters, SubmitParameters,
+    ProfileFormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::perform_validation;
 use crate::components::forms::{
@@ -12,7 +12,7 @@ use crate::components::forms::{
 };
 
 #[component]
-pub fn ConfigurationView(
+pub fn ProfileView(
     cx: Scope,
     storage_handler: FormStorageHandler,
     form_meta: ConfigurationFormMeta,
@@ -105,16 +105,16 @@ pub fn ConfigurationView(
     let config_name = form_meta.config_name;
     let form_elements = match template_name.as_str() {
         "ObjectStoreS3" => {
-            Config::ObjectStoreS3(ObjectStoreS3::new(&config_name))
+            Profile::ObjectStoreS3(ObjectStoreS3::new(&config_name))
         }
-        _ => Config::Environment(Environment::new(&config_name)),
+        _ => Profile::Environment(Environment::new(&config_name)),
     }
     .form_elements(&template_name);
 
     let form_tags = form_meta.tags;
 
     let form_id = form_meta.form_id;
-    let form = FormBuilder::new(
+    let form = ProfileFormBuilder::new(
         &config_name,
         &form_id,
         form_tags,

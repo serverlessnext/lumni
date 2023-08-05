@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum FieldType {
     Text,
+    TextArea,
     Secret,
     Password,
 }
@@ -12,6 +13,14 @@ impl FieldType {
 
     pub fn is_password(&self) -> bool {
         matches!(self, Self::Password)
+    }
+
+    pub fn is_text(&self) -> bool {
+        matches!(self, Self::Text)
+    }
+
+    pub fn is_text_area(&self) -> bool {
+        matches!(self, Self::TextArea)
     }
 }
 

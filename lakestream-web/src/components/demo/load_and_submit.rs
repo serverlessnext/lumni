@@ -90,20 +90,23 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         "Input can only be foo".to_string(),
     ));
 
-    let load_and_submit_form = FormBuilder::new(
+    let mut load_and_submit_form = FormBuilder::new(
         "Load and Submit Form",
         &Uuid::new_v4().to_string(),
         None,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
-    )
-    .add_element(
-        FieldBuilder::new("Select")
-            .with_label("Select")
-            .as_input_field()
-            .with_initial_value("*")
-            .validator(Some(validate_foo)),
-    )
-    .build(cx);
+    );
+
+    load_and_submit_form
+        .add_element(
+            FieldBuilder::new("Select")
+                .with_label("Select")
+                .as_input_field()
+                .with_initial_value("*")
+                .validator(Some(validate_foo)),
+        );
+
+    let load_and_submit_form = load_and_submit_form.build(cx);
 
     load_and_submit_form.to_view()
 }

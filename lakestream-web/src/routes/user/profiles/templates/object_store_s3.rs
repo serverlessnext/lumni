@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use crate::builders::{ElementBuilder, FieldBuilder, TextBoxBuilder};
+use crate::builders::{ElementBuilder, FieldBuilder, TextFieldBuilder};
 use crate::components::form_input::{validate_with_pattern, FieldType};
 
 pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
@@ -13,15 +13,15 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
     let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
     let builders: Vec<ElementBuilder> = vec![
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("__NAME__").with_label("Name"),
             )
             .with_initial_value(name)
             .validator(None),
         ),
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("BUCKET_URI").with_label("Bucket URI"),
             )
             .with_initial_value("s3://")
@@ -30,8 +30,8 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
                 "Invalid URI scheme. Must start with 's3://'.".to_string(),
             )))),
         ),
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("AWS_ACCESS_KEY_ID")
                     .with_label("AWS Access Key ID"),
             )
@@ -40,8 +40,8 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
                 "Invalid AWS access key id.".to_string(),
             )))),
         ),
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("AWS_SECRET_ACCESS_KEY")
                     .with_label("AWS Secret Access Key"),
             )
@@ -51,8 +51,8 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
                 "Invalid AWS secret access key.".to_string(),
             )))),
         ),
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("AWS_REGION").with_label("AWS Region"),
             )
             .with_initial_value("auto")
@@ -61,8 +61,8 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
                 "Invalid AWS region.".to_string(),
             )))),
         ),
-        ElementBuilder::TextBox(
-            TextBoxBuilder::from(
+        ElementBuilder::TextField(
+            TextFieldBuilder::from(
                 FieldBuilder::new("S3_ENDPOINT_URL")
                     .with_label("S3 Endpoint URL"),
             )

@@ -2,10 +2,11 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::components::{ChangePasswordForm, Redirect};
+use crate::components::Redirect;
 use crate::routes::api::Login;
-use crate::routes::configurations::{ConfigurationId, Configurations};
-use crate::routes::{About, Home, Logout, User, UserSettings};
+use crate::routes::user::profiles::{UserProfiles, ProfileId};
+use crate::routes::user::{User, UserSettings, ChangePassword, Logout};
+use crate::routes::{About, Home};
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -84,15 +85,15 @@ pub fn App(cx: Scope) -> impl IntoView {
                             }/>
 
                            <Route path="profiles" view=|cx| view! { cx,
-                                <Configurations />
+                                <UserProfiles />
                             }/>
 
                             <Route path="profiles/:id" view=|cx| view! { cx,
-                                <ConfigurationId />
+                                <ProfileId />
                             }/>
 
                             <Route path="change-password" view=|cx| view! { cx,
-                                <ChangePasswordForm />
+                                <ChangePassword />
                             }/>
                         </ProtectedRoute>
                         <Route path="/about" view=|cx| view! { cx, <About/> }/>

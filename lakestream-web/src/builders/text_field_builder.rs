@@ -10,14 +10,15 @@ use crate::components::form_input::{
 
 type ValidateFn = Arc<dyn Fn(&str) -> Result<(), String>>;
 
-pub struct TextBoxBuilder {
+
+pub struct TextFieldBuilder {
     base: FieldBuilder,
     initial_value: String,
     field_type: FieldType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
-impl Clone for TextBoxBuilder {
+impl Clone for TextFieldBuilder {
     fn clone(&self) -> Self {
         Self {
             base: self.base.clone(),
@@ -28,7 +29,8 @@ impl Clone for TextBoxBuilder {
     }
 }
 
-impl From<FieldBuilder> for TextBoxBuilder {
+
+impl From<FieldBuilder> for TextFieldBuilder {
     fn from(field_builder: FieldBuilder) -> Self {
         Self {
             base: field_builder,
@@ -39,7 +41,7 @@ impl From<FieldBuilder> for TextBoxBuilder {
     }
 }
 
-impl TextBoxBuilder {
+impl TextFieldBuilder {
     pub fn new(
         base: FieldBuilder,
         initial_value: String,
@@ -52,6 +54,14 @@ impl TextBoxBuilder {
             field_type,
             validate_fn,
         }
+    }
+
+    pub fn get_base(&self) -> &FieldBuilder {
+        &self.base
+    }
+
+    pub fn get_initial_value(&self) -> &str {
+        &self.initial_value
     }
 
     pub fn with_initial_value<S: Into<String>>(mut self, value: S) -> Self {
@@ -95,20 +105,25 @@ impl TextBoxBuilder {
     pub fn build(self) -> FormElement {
         let text_data = TextData {
             field_label: self.base.field_label(),
-            field_type: self.field_type,
+            field_type: self.field_type.clone(),
             validator: self.validate_fn,
             buffer_data: self.initial_value,
         };
 
-        FormElement::TextBox(ElementData {
+        let element_data = ElementData {
             name: self.base.name(),
             element_type: ElementDataType::TextData(text_data),
             is_enabled: self.base.is_enabled(),
-        })
+        };
+
+        match self.field_type {
+            FieldType::Text | FieldType::Secret | FieldType::Password => FormElement::TextBox(element_data),
+            FieldType::TextArea => FormElement::TextArea(element_data),
+        }
     }
 }
 
-impl FieldBuilderTrait for TextBoxBuilder {
+impl FieldBuilderTrait for TextFieldBuilder {
     fn build(&self) -> FormElement {
         self.clone().build()
     }

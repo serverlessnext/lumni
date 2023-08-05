@@ -84,29 +84,32 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         None,
     );
 
-    let query_form = FormBuilder::new(
+    let mut query_form = FormBuilder::new(
         "Query",
         &Uuid::new_v4().to_string(),
         None,
         FormType::SubmitData(submit_parameters),
-    )
-    .add_element(
-        FieldBuilder::new("Select")
-            .with_label("Select")
-            .as_input_field()
-            .with_initial_value("*"),
-    )
-    .add_element(
-        FieldBuilder::new("From")
-            .with_label("From")
-            .as_input_field()
-            .with_initial_value("table")
-            .validator(Some(Arc::new(validate_with_pattern(
+    );
+
+    query_form
+        .add_element(
+            FieldBuilder::new("Select")
+                .with_label("Select")
+                .as_input_field()
+                .with_initial_value("*"),
+        )
+        .add_element(
+            FieldBuilder::new("From")
+                .with_label("From")
+                .as_input_field()
+                .with_initial_value("table")
+                .validator(Some(Arc::new(validate_with_pattern(
                 query_pattern,
                 "Invalid key.".to_string(),
             )))),
-    )
-    .build(cx);
+        );
+
+    let query_form = query_form.build(cx);
 
     view! { cx,
         { query_form.to_view() }

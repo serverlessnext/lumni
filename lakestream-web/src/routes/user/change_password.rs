@@ -4,7 +4,7 @@ use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::builders::{build_all, InputFieldPattern, TextBoxBuilder};
+use crate::builders::{build_all, InputFieldPattern, TextFieldBuilder};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::FormElement;
 use crate::components::forms::{
@@ -19,17 +19,17 @@ const PASSWORD_FIELD: &str = "PASSWORD";
 const PASSWORD_MISSING: &str = "password does not exist";
 
 #[component]
-pub fn ChangePasswordForm(cx: Scope) -> impl IntoView {
+pub fn ChangePassword(cx: Scope) -> impl IntoView {
     let password_validated = create_rw_signal(cx, None::<String>);
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
     let elements_validation: Vec<FormElement> =
-        build_all(vec![TextBoxBuilder::with_pattern(
+        build_all(vec![TextFieldBuilder::with_pattern(
             InputFieldPattern::PasswordCheck,
         )]);
     let elements_change: Vec<FormElement> =
-        build_all(vec![TextBoxBuilder::with_pattern(
+        build_all(vec![TextFieldBuilder::with_pattern(
             InputFieldPattern::PasswordChange,
         )]);
 

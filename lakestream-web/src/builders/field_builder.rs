@@ -1,4 +1,4 @@
-use super::text_box_builder::TextBoxBuilder;
+use super::text_field_builder::TextFieldBuilder;
 use crate::components::form_input::{FieldLabel, FieldType, FormElement};
 
 #[derive(Clone)]
@@ -40,8 +40,8 @@ impl FieldBuilder {
     }
 
     // transition methods for specific form elements
-    pub fn as_input_field(self) -> TextBoxBuilder {
-        TextBoxBuilder::new(self, String::new(), FieldType::Text, None)
+    pub fn as_input_field(self) -> TextFieldBuilder {
+        TextFieldBuilder::new(self, String::new(), FieldType::Text, None)
     }
 }
 

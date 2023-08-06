@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use super::dummy_data::make_form_data;
 use crate::builders::{
-    FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
+    ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::{
-    validate_with_pattern, DisplayValue, ElementDataType, FormState,
+    validate_with_pattern, DisplayValue, ElementDataType, FormState, FieldType,
 };
 use crate::components::forms::{FormData, FormError};
 
@@ -99,9 +99,8 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
 
     load_and_submit_form
         .add_element(
-            FieldBuilder::new("Select")
+            ElementBuilder::new("Select", FieldType::Text)
                 .with_label("Select")
-                .as_input_field()
                 .with_initial_value("*")
                 .validator(Some(validate_foo)),
         );

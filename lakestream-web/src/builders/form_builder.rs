@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::field_builder::FieldBuilderTrait;
-use super::form_element::ElementBuilder;
+use super::ElementBuilder;
 use crate::components::buttons::FormButton;
 use crate::components::form_input::FormElement;
 use crate::components::forms::{Form, FormData, HtmlForm};
@@ -50,10 +49,6 @@ impl FormBuilder {
         self.elements.clear();
     }
 
-//    pub fn add_element<T: Into<ElementBuilder>>(mut self, element: T) -> Self {
-//        self.elements.push(element.into());
-//        self
-//    }
     pub fn add_element<T: Into<ElementBuilder>>(&mut self, element: T) -> &mut Self {
         self.elements.push(element.into());
         self
@@ -61,7 +56,7 @@ impl FormBuilder {
 
     pub fn build(self, cx: Scope) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
-            self.elements.iter().map(|b| b.build()).collect();
+            self.elements.iter().map(|b| b.clone().build()).collect();
 
         match self.form_type {
             FormType::SubmitData(parameters) => {

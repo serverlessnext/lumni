@@ -2,9 +2,9 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use crate::builders::{
-    FieldBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
+    ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::form_input::perform_validation;
+use crate::components::form_input::{FieldType, perform_validation};
 use crate::components::forms::{FormData, FormStorageHandler};
 use crate::GlobalState;
 
@@ -118,8 +118,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
     );
 
     form
-        .add_element(FieldBuilder::new("field1").with_label("a").as_input_field())
-        .add_element(FieldBuilder::new("field2").with_label("b").as_input_field());
+        .add_element(ElementBuilder::new("field1", FieldType::Text).with_label("a"))
+        .add_element(ElementBuilder::new("field2", FieldType::Text).with_label("b"));
 
     let form = form.build(cx);
 

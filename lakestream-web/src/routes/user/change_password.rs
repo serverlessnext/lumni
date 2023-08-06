@@ -4,7 +4,7 @@ use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::builders::{build_all, InputFieldPattern, TextFieldBuilder};
+use crate::builders::{build_all, InputFieldPattern, ElementBuilder};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::form_input::FormElement;
 use crate::components::forms::{
@@ -25,11 +25,11 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
     let validation_error = create_rw_signal(cx, None::<String>);
 
     let elements_validation: Vec<FormElement> =
-        build_all(vec![TextFieldBuilder::with_pattern(
+        build_all(vec![ElementBuilder::with_pattern(
             InputFieldPattern::PasswordCheck,
         )]);
     let elements_change: Vec<FormElement> =
-        build_all(vec![TextFieldBuilder::with_pattern(
+        build_all(vec![ElementBuilder::with_pattern(
             InputFieldPattern::PasswordChange,
         )]);
 

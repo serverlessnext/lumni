@@ -121,6 +121,7 @@ pub fn ProfileView(
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .with_elements(form_elements)
+    .to_text_area()
     .build(cx);
 
     form.to_view()

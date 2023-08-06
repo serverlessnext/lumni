@@ -6,9 +6,8 @@ use leptos::*;
 use crate::components::form_input::FieldType;
 use crate::components::forms::Form;
 
-use super::form_element::ElementBuilder;
 use super::form_builder::{FormBuilder, FormType};
-use super::{FieldBuilder, TextFieldBuilder};
+use super::ElementBuilder;
 
 
 pub struct ProfileFormBuilder {
@@ -44,19 +43,16 @@ impl ProfileFormBuilder {
         let mut text_area_content = String::new();
 
         for element in self.inner.get_elements() {
-            let ElementBuilder::TextField(builder) = element;
-            let key = builder.get_base().name();
-            let value = builder.get_initial_value();
+            let key = element.name();
+            let value = element.get_initial_value();
             text_area_content.push_str(&format!("{}={}\n", key, value));
         }
 
         self.inner.clear_elements();
         self.inner.add_element(
-            TextFieldBuilder::from(
-                FieldBuilder::new("FORM_CONTENT").with_label("Form Content"),
-            )
-            .with_initial_value(text_area_content)
-            .field_type(FieldType::TextArea),
+            ElementBuilder::new("FORM_CONTENT", FieldType::TextArea)
+                .with_label("Form Content")
+                .with_initial_value(text_area_content),
         );
 
         self.inner

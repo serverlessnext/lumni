@@ -7,7 +7,8 @@ use super::form_data::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
 use crate::components::buttons::{FormButton, FormButtonGroup};
 use crate::components::form_helpers::SubmissionStatusView;
-use crate::components::form_input::{FormState, TextAreaView, TextBoxView};
+use crate::components::input::{FormState, TextBoxView};
+use crate::components::output::TextDisplayView;
 
 pub struct ViewHandler {
     handler: Rc<dyn FormHandlerTrait>,
@@ -140,6 +141,7 @@ fn LoadFormView(
     handler: Rc<dyn FormHandlerTrait>,
     form_data: FormData,
 ) -> impl IntoView {
+    // ReadOnly Form
     let is_loading = handler.is_processing();
     let load_error = handler.process_error();
 
@@ -155,7 +157,7 @@ fn LoadFormView(
                     view= move |cx, (_, (_, form_element_state))| {
                         view! {
                             cx,
-                            <TextAreaView
+                            <TextDisplayView
                                 form_element_state
                             />
                         }

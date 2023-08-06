@@ -1,8 +1,9 @@
 #[derive(Debug, Clone)]
 pub enum FieldContentType {
     PlainText,
-    Secret,
-    Password,
+    Secret,     // can be hidden and un-hidden
+    Password,   // can not be unhidden
+    TextArea,   // TextArea is PlainText but with larger buffer/ field
 }
 
 impl FieldContentType {
@@ -16,6 +17,10 @@ impl FieldContentType {
 
     pub fn is_plain_text(&self) -> bool {
         matches!(self, Self::PlainText)
+    }
+
+    pub fn is_text_area(&self) -> bool {
+        matches!(self, Self::TextArea)
     }
 }
 

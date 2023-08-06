@@ -3,7 +3,7 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::builders::ElementBuilder;
-use crate::components::form_input::{validate_with_pattern, FieldContentType};
+use crate::components::input::{validate_with_pattern, FieldContentType};
 
 pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
     let uri_pattern = Regex::new(r"^s3://").unwrap();

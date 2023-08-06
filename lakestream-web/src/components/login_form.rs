@@ -9,7 +9,7 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::builders::{build_all, InputFieldPattern, ElementBuilder};
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
-use crate::components::form_input::FormElement;
+use crate::components::input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };

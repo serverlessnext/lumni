@@ -11,14 +11,14 @@ pub fn TextBoxView(
     form_element_state: FormElementState,
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
-    // shows Label, InputField and Error
+    // show Label, InputField and Error
     let value_signal = form_element_state.display_value;
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
 
     let element_type = &input_field_data.element_type;
     let initial_enabled = input_field_data.is_enabled;
-    let (label_text, is_secret, is_password) =
+    let (label_text, is_secret, is_password, is_text_area) =
         if let ElementDataType::TextData(text_data) = element_type {
             let label_text = text_data
                 .field_label
@@ -26,7 +26,8 @@ pub fn TextBoxView(
                 .map_or_else(String::new, |label| label.text());
             let is_secret = text_data.field_content_type.is_secret();
             let is_password = text_data.field_content_type.is_password();
-            (label_text, is_secret, is_password)
+            let is_text_area = text_data.field_content_type.is_text_area();
+            (label_text, is_secret, is_password, is_text_area)
         } else {
             // Handle other cases for BinaryData, DocumentData, etc. or panic
             panic!("Not yet implemented");
@@ -110,13 +111,29 @@ pub fn TextBoxView(
                 label_text
                 icon_view=icon_view
             />
-            <InputFieldView
-                is_password
-                is_enabled
-                value_signal
-                display_value_signal
-                input_changed
-            />
+
+            {if is_text_area {
+                view! {
+                    cx,
+                    <TextAreaFieldView
+                        is_enabled
+                        value_signal
+                        display_value_signal
+                        input_changed
+                    />
+                }.into_view(cx)
+            } else {
+                view! {
+                    cx,
+                    <InputFieldView
+                        is_password
+                        is_enabled
+                        value_signal
+                        display_value_signal
+                        input_changed
+                    />
+                }.into_view(cx)
+            }}
             <InputFieldErrorView error_signal/>
         </div>
     }
@@ -159,8 +176,33 @@ pub fn InputFieldView(
                 }
             }
             placeholder="none".to_string()
-            class=move || {format!("{} w-full", get_input_class(is_enabled.get()))}
+            class={ get_input_class(is_enabled.get() ) }
             disabled=move || { !is_enabled.get() }
+        />
+    }
+}
+
+#[component]
+pub fn TextAreaFieldView(
+    cx: Scope,
+    is_enabled: Signal<bool>,
+    value_signal: RwSignal<DisplayValue>,
+    display_value_signal: RwSignal<String>,
+    input_changed: RwSignal<bool>,
+) -> impl IntoView {
+    view! { cx,
+        <textarea
+            prop:value= { display_value_signal }
+            on:input=move |ev| {
+                if is_enabled.get() {
+                    let value = event_target_value(&ev);
+                    value_signal.set(DisplayValue::Text(value));
+                    input_changed.set(true);    // enable submit button
+                }
+            }
+            placeholder="none".to_string()
+            class={ get_input_class(is_enabled.get()) }
+            disabled=move || { !is_enabled .get()}
         />
     }
 }

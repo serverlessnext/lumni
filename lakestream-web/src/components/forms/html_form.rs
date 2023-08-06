@@ -4,7 +4,7 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::builders::FormType;
-use crate::components::form_input::FormElement;
+use crate::components::input::FormElement;
 use crate::components::forms::{
     FormData, LoadAndSubmitForm, LoadForm, SubmitForm,
 };

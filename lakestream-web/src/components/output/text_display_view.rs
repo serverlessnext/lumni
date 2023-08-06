@@ -1,16 +1,15 @@
 use leptos::*;
 
-use super::{DisplayValue, ElementDataType, FormElementState};
+use crate::components::input::{DisplayValue, ElementDataType, FormElementState};
 
 #[component]
-pub fn TextAreaView(
+pub fn TextDisplayView(
     cx: Scope,
     form_element_state: FormElementState,
 ) -> impl IntoView {
     let value_signal = form_element_state.display_value;
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
-    let initial_enabled = input_field_data.is_enabled;
 
     let label_text = match &input_field_data.element_type {
         ElementDataType::TextData(text_data) => text_data
@@ -34,9 +33,7 @@ pub fn TextAreaView(
             <InputFieldLabelView
                 label_text
             />
-            <TextAreaFieldView
-                is_enabled=initial_enabled
-                value_signal
+            <TextAreaView
                 display_value_signal
             />
             <InputFieldErrorView error_signal/>
@@ -65,24 +62,16 @@ fn get_input_class(is_enabled: bool) -> &'static str {
 }
 
 #[component]
-pub fn TextAreaFieldView(
+pub fn TextAreaView(
     cx: Scope,
-    is_enabled: bool,
-    value_signal: RwSignal<DisplayValue>,
     display_value_signal: RwSignal<String>,
 ) -> impl IntoView {
     view! { cx,
         <textarea
             prop:value= { display_value_signal }
-            on:input=move |ev| {
-                if is_enabled {
-                    let value = event_target_value(&ev);
-                    value_signal.set(DisplayValue::Text(value));
-                }
-            }
             placeholder="none".to_string()
-            class={ get_input_class(is_enabled) }
-            disabled=move || { !is_enabled }
+            class={ get_input_class(false) }
+            disabled=true
         />
     }
 }

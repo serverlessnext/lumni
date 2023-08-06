@@ -1,8 +1,7 @@
 mod field_content_type;
 mod form_element;
 mod helpers;
-mod text_area_view;
-mod text_box_view;
+mod text_box;
 
 pub use field_content_type::{DocumentType, FieldContentType};
 pub use form_element::{
@@ -10,5 +9,4 @@ pub use form_element::{
     FormElementState, FormState, TextData,
 };
 pub use helpers::{perform_validation, validate_with_pattern};
-pub use text_area_view::TextAreaView;
-pub use text_box_view::TextBoxView;
+pub use text_box::TextBoxView;

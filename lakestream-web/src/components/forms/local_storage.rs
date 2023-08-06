@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::log;
 use localencrypt::{LocalEncrypt, LocalStorage};
 
-use crate::components::form_input::DisplayValue;
+use crate::components::input::DisplayValue;
 use crate::components::forms::{FormData, FormError};
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";

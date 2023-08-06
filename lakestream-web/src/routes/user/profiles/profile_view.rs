@@ -6,7 +6,7 @@ use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use crate::builders::{
     ProfileFormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::form_input::perform_validation;
+use crate::components::input::perform_validation;
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormStorageHandler,
 };

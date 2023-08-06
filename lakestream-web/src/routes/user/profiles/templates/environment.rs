@@ -1,5 +1,5 @@
 use crate::builders::ElementBuilder;
-use crate::components::form_input::FieldContentType;
+use crate::components::input::FieldContentType;
 
 pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
     let builders: Vec<ElementBuilder> = vec![

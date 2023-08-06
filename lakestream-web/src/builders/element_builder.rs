@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use regex::Regex;
 
-use crate::components::form_input::{
+use crate::components::input::{
     validate_with_pattern, ElementData, ElementDataType, FieldContentType,
     FieldLabel, FormElement, TextData,
 };
@@ -84,11 +84,7 @@ impl ElementBuilder {
             element_type: ElementDataType::TextData(text_data),
             is_enabled: self.is_enabled,
         };
-
-        match self.field_content_type {
-            FieldContentType::PlainText | FieldContentType::Secret | FieldContentType::Password => FormElement::TextBox(element_data),
-            // FieldType::TextArea => FormElement::TextArea(element_data),
-        }
+        FormElement::TextBox(element_data)
     }
 }
 

@@ -4,7 +4,7 @@ use leptos::*;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::form_input::{FieldContentType, perform_validation};
+use crate::components::input::{FieldContentType, perform_validation};
 use crate::components::forms::{FormData, FormStorageHandler};
 use crate::GlobalState;
 

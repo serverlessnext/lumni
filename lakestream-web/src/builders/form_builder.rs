@@ -5,7 +5,7 @@ use leptos::*;
 
 use super::ElementBuilder;
 use crate::components::buttons::FormButton;
-use crate::components::form_input::FormElement;
+use crate::components::input::FormElement;
 use crate::components::forms::{Form, FormData, HtmlForm};
 
 pub struct FormBuilder {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::*;
 use regex::Regex;
 
-use crate::components::form_input::{DisplayValue, ElementDataType, FormState};
+use super::{DisplayValue, ElementDataType, FormState};
 
 pub fn validate_with_pattern(
     pattern: Regex,

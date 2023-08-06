@@ -5,7 +5,7 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 use regex::Regex;
 
-use crate::components::form_input::*;
+use crate::components::input::*;
 use crate::components::forms::FormData;
 
 pub fn make_form_elements() -> Vec<FormElement> {
@@ -44,7 +44,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
 
     let elements = vec![
         FormElement::TextBox(element_data_textbox),
-        FormElement::TextArea(element_data_textarea),
+        FormElement::TextBox(element_data_textarea),
     ];
     elements
 }

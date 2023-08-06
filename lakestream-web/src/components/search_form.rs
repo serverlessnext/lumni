@@ -7,7 +7,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use crate::builders::{FormBuilder, ElementBuilder, FormType, SubmitParameters};
-use crate::components::form_input::{validate_with_pattern, FieldContentType};
+use crate::components::input::{validate_with_pattern, FieldContentType};
 use crate::components::forms::{FormData, FormError};
 
 #[cfg(debug_assertions)]

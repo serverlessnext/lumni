@@ -7,7 +7,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use crate::builders::{FormBuilder, ElementBuilder, FormType, SubmitParameters};
-use crate::components::form_input::{validate_with_pattern, FieldType};
+use crate::components::form_input::{validate_with_pattern, FieldContentType};
 use crate::components::forms::{FormData, FormError};
 
 #[cfg(debug_assertions)]
@@ -93,12 +93,12 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
 
     query_form
         .add_element(
-            ElementBuilder::new("Select", FieldType::Text)
+            ElementBuilder::new("Select", FieldContentType::PlainText)
                 .with_label("Select")
                 .with_initial_value("*"),
         )
         .add_element(
-            ElementBuilder::new("From", FieldType::Text)
+            ElementBuilder::new("From", FieldContentType::PlainText)
                 .with_label("From")
                 .with_initial_value("table")
                 .validator(Some(Arc::new(validate_with_pattern(

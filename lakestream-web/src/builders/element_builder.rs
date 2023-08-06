@@ -2,7 +2,7 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::components::form_input::{
-    validate_with_pattern, ElementData, ElementDataType, FieldType,
+    validate_with_pattern, ElementData, ElementDataType, FieldContentType,
     FieldLabel, FormElement, TextData,
 };
 
@@ -12,18 +12,18 @@ pub struct ElementBuilder {
     field_label: Option<FieldLabel>,
     is_enabled: bool,
     initial_value: String,
-    field_type: FieldType,
+    field_content_type: FieldContentType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
 
 impl ElementBuilder {
-    pub fn new<S: Into<String>>(name: S, field_type: FieldType) -> Self {
+    pub fn new<S: Into<String>>(name: S, field_content_type: FieldContentType) -> Self {
         Self {
             name: name.into(),
             field_label: None,
             is_enabled: true,
             initial_value: String::new(),
-            field_type,
+            field_content_type,
             validate_fn: None,
         }
     }
@@ -37,22 +37,12 @@ impl ElementBuilder {
         self
     }
 
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.is_enabled = enabled;
-        self
-    }
-
     pub fn get_initial_value(&self) -> &str {
         &self.initial_value
     }
 
     pub fn with_initial_value<S: Into<String>>(mut self, value: S) -> Self {
         self.initial_value = value.into();
-        self
-    }
-
-    pub fn field_type(mut self, field_type: FieldType) -> Self {
-        self.field_type = field_type;
         self
     }
 
@@ -68,7 +58,7 @@ impl ElementBuilder {
         match pattern {
             InputFieldPattern::PasswordChange => {
                 let password_pattern = Regex::new(r"^.{8,}$").unwrap();
-                ElementBuilder::new("PASSWORD", FieldType::Password)
+                ElementBuilder::new("PASSWORD", FieldContentType::Password)
                     .with_label("Password")
                     .validator(Some(Arc::new(validate_with_pattern(
                         password_pattern,
@@ -76,7 +66,7 @@ impl ElementBuilder {
                             .to_string(),
                     ))))
             }
-            InputFieldPattern::PasswordCheck => ElementBuilder::new("PASSWORD", FieldType::Password)
+            InputFieldPattern::PasswordCheck => ElementBuilder::new("PASSWORD", FieldContentType::Password)
                 .with_label("Password")
         }
     }
@@ -84,7 +74,7 @@ impl ElementBuilder {
     pub fn build(self) -> FormElement {
         let text_data = TextData {
             field_label: self.field_label,
-            field_type: self.field_type.clone(),
+            field_content_type: self.field_content_type.clone(),
             validator: self.validate_fn,
             buffer_data: self.initial_value,
         };
@@ -95,9 +85,9 @@ impl ElementBuilder {
             is_enabled: self.is_enabled,
         };
 
-        match self.field_type {
-            FieldType::Text | FieldType::Secret | FieldType::Password => FormElement::TextBox(element_data),
-            FieldType::TextArea => FormElement::TextArea(element_data),
+        match self.field_content_type {
+            FieldContentType::PlainText | FieldContentType::Secret | FieldContentType::Password => FormElement::TextBox(element_data),
+            // FieldType::TextArea => FormElement::TextArea(element_data),
         }
     }
 }

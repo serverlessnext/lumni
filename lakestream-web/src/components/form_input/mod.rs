@@ -1,10 +1,10 @@
-mod field_type;
+mod field_content_type;
 mod form_element;
 mod helpers;
 mod text_area_view;
 mod text_box_view;
 
-pub use field_type::FieldType;
+pub use field_content_type::{DocumentType, FieldContentType};
 pub use form_element::{
     DisplayValue, ElementData, ElementDataType, FieldLabel, FormElement,
     FormElementState, FormState, TextData,

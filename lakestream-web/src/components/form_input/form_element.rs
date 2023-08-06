@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use leptos::*;
 
-use super::field_type::{DocumentType, FieldType};
+use super::{DocumentType, FieldContentType};
 
 #[derive(Clone, Default, Debug)]
 pub struct FieldLabel {
@@ -46,7 +46,7 @@ pub enum ElementDataType {
 
 #[derive(Clone)]
 pub struct TextData {
-    pub field_type: FieldType,
+    pub field_content_type: FieldContentType,
     pub field_label: Option<FieldLabel>,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     pub buffer_data: String, // data always gets loaded in here first
@@ -55,7 +55,7 @@ pub struct TextData {
 impl fmt::Debug for TextData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TextData")
-            .field("field_type", &self.field_type)
+            .field("field_content_type", &self.field_content_type)
             .field("field_label", &self.field_label)
             .field("validator", &self.validator.is_some())
             .field("buffer_data", &self.buffer_data)

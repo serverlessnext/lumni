@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use leptos::*;
 
-use crate::components::form_input::FieldType;
+use crate::components::form_input::FieldContentType;
 use crate::components::forms::Form;
 
 use super::form_builder::{FormBuilder, FormType};
@@ -50,7 +50,7 @@ impl ProfileFormBuilder {
 
         self.inner.clear_elements();
         self.inner.add_element(
-            ElementBuilder::new("FORM_CONTENT", FieldType::TextArea)
+            ElementBuilder::new("FORM_CONTENT", FieldContentType::PlainText)
                 .with_label("Form Content")
                 .with_initial_value(text_area_content),
         );

@@ -11,7 +11,7 @@ use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::form_input::{
-    validate_with_pattern, DisplayValue, ElementDataType, FormState, FieldType,
+    validate_with_pattern, DisplayValue, ElementDataType, FormState, FieldContentType,
 };
 use crate::components::forms::{FormData, FormError};
 
@@ -99,7 +99,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
 
     load_and_submit_form
         .add_element(
-            ElementBuilder::new("Select", FieldType::Text)
+            ElementBuilder::new("Select", FieldContentType::PlainText)
                 .with_label("Select")
                 .with_initial_value("*")
                 .validator(Some(validate_foo)),

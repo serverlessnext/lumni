@@ -17,7 +17,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
     ));
 
     let text_data_foo = TextData {
-        field_type: FieldType::Text,
+        field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Foo")),
         validator: validate_foo,
         buffer_data: "foo".to_string(),
@@ -31,7 +31,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
 
     // textarea
     let text_data_any = TextData {
-        field_type: FieldType::Text,
+        field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Text Area")),
         validator: None,
         buffer_data: "type anything".to_string(),

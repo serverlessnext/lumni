@@ -24,8 +24,8 @@ pub fn TextBoxView(
                 .field_label
                 .as_ref()
                 .map_or_else(String::new, |label| label.text());
-            let is_secret = text_data.field_type.is_secret();
-            let is_password = text_data.field_type.is_password();
+            let is_secret = text_data.field_content_type.is_secret();
+            let is_password = text_data.field_content_type.is_password();
             (label_text, is_secret, is_password)
         } else {
             // Handle other cases for BinaryData, DocumentData, etc. or panic

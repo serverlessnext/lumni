@@ -1,6 +1,7 @@
 
 
-use std::collections::HashMap;
+use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
 use leptos::*;
 
 use crate::components::input::FieldContentType;
@@ -41,23 +42,61 @@ impl ProfileFormBuilder {
 
     pub fn to_text_area(mut self) -> FormBuilder {
         let mut text_area_content = String::new();
+        let mut original_validators = HashMap::new();
+        let mut expected_keys: HashSet<String> = HashSet::new();
 
+        // Extract the original validators and build the text area content
         for element in self.inner.get_elements() {
             let key = element.name();
             let value = element.get_initial_value();
             text_area_content.push_str(&format!("{}={}\n", key, value));
+
+            if let Some(validator) = element.validate_fn() {
+                original_validators.insert(key.to_string(), validator);
+            }
+
+            expected_keys.insert(key.to_string());
         }
 
-        // TODO:
-        // create new validation function that checks for valid key=value pairs
+        // Create a new validation function
+        let new_validator = Arc::new(move |text_area_content: &str| -> Result<(), String> {
+            let mut found_keys: HashSet<String> = HashSet::new();
+            for line in text_area_content.lines() {
+                let parts: Vec<&str> = line.splitn(2, '=').collect();
+                if parts.len() != 2 {
+                    return Err(format!("Invalid line: {}", line));
+                }
+                let key = parts[0].trim().to_string();
+                let value = parts[1].trim();
+
+                if let Some(validator) = original_validators.get(&key) {
+                    validator(value)?;
+                }
+
+                found_keys.insert(key);
+            }
+
+            // Check if there are any missing keys
+            let missing_keys: HashSet<_> = expected_keys.difference(&found_keys).collect();
+            if !missing_keys.is_empty() {
+                return Err(format!("Missing keys: {:?}", missing_keys));
+            }
+
+            Ok(())
+        });
+
+        // Clear the existing elements and add the new text area element
         self.inner.clear_elements();
         self.inner.add_element(
             ElementBuilder::new("FORM_CONTENT", FieldContentType::TextArea)
                 .with_label("Form Content")
-                .with_initial_value(text_area_content),
+                .with_initial_value(text_area_content)
+                .validator(Some(new_validator)),
         );
 
         self.inner
     }
+
+
 }
 

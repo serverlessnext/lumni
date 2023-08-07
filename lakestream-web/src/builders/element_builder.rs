@@ -32,6 +32,10 @@ impl ElementBuilder {
         &self.name
     }
 
+    pub fn validate_fn(&self) -> Option<Arc<dyn Fn(&str) -> Result<(), String>>> {
+        self.validate_fn.clone()
+    }
+
     pub fn with_label<S: Into<String>>(mut self, label: S) -> Self {
         self.field_label = Some(FieldLabel::new(label.into()));
         self

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use regex::Regex;
 
 use crate::components::input::{
@@ -17,7 +18,10 @@ pub struct ElementBuilder {
 }
 
 impl ElementBuilder {
-    pub fn new<S: Into<String>>(name: S, field_content_type: FieldContentType) -> Self {
+    pub fn new<S: Into<String>>(
+        name: S,
+        field_content_type: FieldContentType,
+    ) -> Self {
         Self {
             name: name.into(),
             field_label: None,
@@ -32,7 +36,9 @@ impl ElementBuilder {
         &self.name
     }
 
-    pub fn validate_fn(&self) -> Option<Arc<dyn Fn(&str) -> Result<(), String>>> {
+    pub fn validate_fn(
+        &self,
+    ) -> Option<Arc<dyn Fn(&str) -> Result<(), String>>> {
         self.validate_fn.clone()
     }
 
@@ -70,8 +76,10 @@ impl ElementBuilder {
                             .to_string(),
                     ))))
             }
-            InputFieldPattern::PasswordCheck => ElementBuilder::new("PASSWORD", FieldContentType::Password)
-                .with_label("Password")
+            InputFieldPattern::PasswordCheck => {
+                ElementBuilder::new("PASSWORD", FieldContentType::Password)
+                    .with_label("Password")
+            }
         }
     }
 

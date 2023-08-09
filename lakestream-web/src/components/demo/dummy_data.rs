@@ -5,8 +5,8 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 use regex::Regex;
 
-use crate::components::input::*;
 use crate::components::forms::FormData;
+use crate::components::input::*;
 
 pub fn make_form_elements() -> Vec<FormElement> {
     // textbox with validation

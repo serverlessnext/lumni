@@ -20,7 +20,7 @@ pub fn validate_with_pattern(
 
 pub fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
-    for (key, element_state) in form_state {
+    for (key, element_state) in form_state.elements() {
         let value = element_state.read_display_value();
         let validator = match &element_state.schema.element_type {
             ElementDataType::TextData(text_data) => text_data.validator.clone(),
@@ -50,7 +50,7 @@ pub fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     }
 
     // Write validation errors to corresponding WriteSignals
-    for (key, element_state) in form_state {
+    for (key, element_state) in form_state.elements() {
         if let Some(error) = validation_errors.get(key) {
             element_state.display_error.set(Some(error.clone()));
         } else {

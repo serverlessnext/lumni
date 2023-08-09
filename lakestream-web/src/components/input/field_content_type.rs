@@ -1,9 +1,9 @@
 #[derive(Debug, Clone)]
 pub enum FieldContentType {
     PlainText,
-    Secret,     // can be hidden and un-hidden
-    Password,   // can not be unhidden
-    TextArea,   // TextArea is PlainText but with larger buffer/ field
+    Secret,   // can be hidden and un-hidden
+    Password, // can not be unhidden
+    TextArea, // TextArea is PlainText but with larger buffer/ field
 }
 
 impl FieldContentType {

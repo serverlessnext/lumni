@@ -152,7 +152,7 @@ fn LoadFormView(
         <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
         >
             <For
-                each= move || {form_state.clone().into_iter().enumerate()}
+                each= move || {form_state.elements().clone().into_iter().enumerate()}
                     key=|(index, _)| *index
                     view= move |cx, (_, (_, form_element_state))| {
                         view! {
@@ -187,7 +187,7 @@ pub fn FormContentView(
             }
         >
             <For
-                each= move || {form_state_clone.clone().into_iter().enumerate()}
+                each= move || {form_state_clone.elements().clone().into_iter().enumerate()}
                     key=|(index, _)| *index
                     view= move |cx, (_, (_, form_element_state))| {
                         view! {

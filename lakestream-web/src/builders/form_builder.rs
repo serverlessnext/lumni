@@ -5,8 +5,8 @@ use leptos::*;
 
 use super::ElementBuilder;
 use crate::components::buttons::FormButton;
-use crate::components::input::FormElement;
 use crate::components::forms::{Form, FormData, HtmlForm};
+use crate::components::input::FormElement;
 
 pub struct FormBuilder {
     title: String,
@@ -49,7 +49,22 @@ impl FormBuilder {
         self.elements.clear();
     }
 
-    pub fn add_element<T: Into<ElementBuilder>>(&mut self, element: T) -> &mut Self {
+    pub fn add_tag(&mut self, key: &str, value: &str) {
+        self.tags.get_or_insert_with(HashMap::new).insert(key.to_string(), value.to_string());
+    }
+
+    pub fn update_tag(&mut self, key: &str, value: &str) {
+        self.add_tag(key, value);
+    }
+
+    pub fn get_tag(&self, key: &str) -> Option<&String> {
+        self.tags.as_ref()?.get(key)
+    }
+
+    pub fn add_element<T: Into<ElementBuilder>>(
+        &mut self,
+        element: T,
+    ) -> &mut Self {
         self.elements.push(element.into());
         self
     }

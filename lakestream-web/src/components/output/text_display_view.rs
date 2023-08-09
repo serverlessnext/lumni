@@ -1,6 +1,8 @@
 use leptos::*;
 
-use crate::components::input::{DisplayValue, ElementDataType, FormElementState};
+use crate::components::input::{
+    DisplayValue, ElementDataType, FormElementState,
+};
 
 #[component]
 pub fn TextDisplayView(

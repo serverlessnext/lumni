@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use leptos::log;
 use localencrypt::{LocalEncrypt, LocalStorage};
 
-use crate::components::input::DisplayValue;
 use crate::components::forms::{FormData, FormError};
+use crate::components::input::DisplayValue;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
@@ -111,8 +111,10 @@ impl FormStorageHandler {
         &self,
         form_data: &FormData,
     ) -> Result<(), FormError> {
-        let form_state = form_data.form_state().clone();
+        let form_state = form_data.form_state();
         let form_config: HashMap<String, String> = form_state
+            .clone()
+            .elements()
             .iter()
             .map(|(key, element_state)| {
                 (

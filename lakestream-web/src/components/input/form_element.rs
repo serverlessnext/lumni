@@ -88,7 +88,26 @@ impl fmt::Debug for DocumentData {
     }
 }
 
-pub type FormState = HashMap<String, FormElementState>;
+#[derive(Clone, Debug)]
+pub struct FormState {
+    elements: HashMap<String, FormElementState>,
+}
+
+impl FormState {
+    pub fn new(elements: HashMap<String, FormElementState>) -> Self {
+        Self {
+            elements,
+        }
+    }
+
+    pub fn elements(&self) -> &HashMap<String, FormElementState> {
+        &self.elements
+    }
+
+    pub fn elements_mut(&mut self) -> &mut HashMap<String, FormElementState> {
+        &mut self.elements
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct FormElementState {

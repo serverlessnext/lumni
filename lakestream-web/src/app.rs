@@ -4,8 +4,8 @@ use leptos_router::*;
 
 use crate::components::Redirect;
 use crate::routes::api::Login;
-use crate::routes::user::profiles::{UserProfiles, ProfileId};
-use crate::routes::user::{User, UserSettings, ChangePassword, Logout};
+use crate::routes::user::profiles::{ProfileId, UserProfiles};
+use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
 use crate::routes::{About, Home};
 use crate::{GlobalState, RunTime};
 

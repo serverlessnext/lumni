@@ -6,9 +6,11 @@ use leptos::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use crate::builders::{FormBuilder, ElementBuilder, FormType, SubmitParameters};
-use crate::components::input::{validate_with_pattern, FieldContentType};
+use crate::builders::{
+    ElementBuilder, FormBuilder, FormType, SubmitParameters,
+};
 use crate::components::forms::{FormData, FormError};
+use crate::components::input::{validate_with_pattern, FieldContentType};
 
 #[cfg(debug_assertions)]
 #[cfg(feature = "debug-assertions")]
@@ -102,9 +104,9 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 .with_label("From")
                 .with_initial_value("table")
                 .validator(Some(Arc::new(validate_with_pattern(
-                query_pattern,
-                "Invalid key.".to_string(),
-            )))),
+                    query_pattern,
+                    "Invalid key.".to_string(),
+                )))),
         );
 
     let query_form = query_form.build(cx);

@@ -1,14 +1,14 @@
-mod profile;
-mod profile_view;
 mod list_view;
 mod page;
+mod profile;
+mod profile_view;
 mod templates;
 
-pub use profile_view::ProfileView;
 pub use page::UserProfiles;
 pub use profile::ProfileId;
-
+pub use profile_view::ProfileView;
 use templates::*;
+
 use crate::builders::ElementBuilder;
 
 pub trait ProfileList {

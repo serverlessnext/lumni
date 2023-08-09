@@ -7,12 +7,12 @@ use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::builders::{build_all, InputFieldPattern, ElementBuilder};
+use crate::builders::{build_all, ElementBuilder, InputFieldPattern};
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
-use crate::components::input::FormElement;
 use crate::components::forms::{
     FormData, FormError, HtmlForm, SubmitFormClassic,
 };
+use crate::components::input::FormElement;
 use crate::helpers::local_storage::delete_keys_not_matching_prefix;
 use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
 use crate::GlobalState;
@@ -382,7 +382,6 @@ async fn reset_vault_action() -> Result<(), FormError> {
         }
     }
 }
-
 
 fn reset_password_view(
     cx: Scope,

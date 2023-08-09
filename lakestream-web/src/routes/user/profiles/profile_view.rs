@@ -1,15 +1,15 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::{Profile, ProfileList};
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
+use super::{Profile, ProfileList};
 use crate::builders::{
-    ProfileFormBuilder, FormType, LoadParameters, SubmitParameters,
+    FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
-use crate::components::input::perform_validation;
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormStorageHandler,
 };
+use crate::components::input::perform_validation;
 
 #[component]
 pub fn ProfileView(
@@ -112,7 +112,6 @@ pub fn ProfileView(
     .form_elements(&template_name);
 
     let form_tags = form_meta.tags;
-
     let form_id = form_meta.form_id;
     let form = ProfileFormBuilder::new(
         &config_name,

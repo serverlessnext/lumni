@@ -1,15 +1,12 @@
-
-
-use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
-use leptos::*;
+use std::sync::Arc;
 
-use crate::components::input::FieldContentType;
-use crate::components::forms::Form;
+use leptos::*;
 
 use super::form_builder::{FormBuilder, FormType};
 use super::ElementBuilder;
-
+use crate::components::forms::Form;
+use crate::components::input::FieldContentType;
 
 pub struct ProfileFormBuilder {
     inner: FormBuilder,
@@ -59,31 +56,33 @@ impl ProfileFormBuilder {
         }
 
         // Create a new validation function
-        let new_validator = Arc::new(move |text_area_content: &str| -> Result<(), String> {
-            let mut found_keys: HashSet<String> = HashSet::new();
-            for line in text_area_content.lines() {
-                let parts: Vec<&str> = line.splitn(2, '=').collect();
-                if parts.len() != 2 {
-                    return Err(format!("Invalid line: {}", line));
+        let new_validator =
+            Arc::new(move |text_area_content: &str| -> Result<(), String> {
+                let mut found_keys: HashSet<String> = HashSet::new();
+                for line in text_area_content.lines() {
+                    let parts: Vec<&str> = line.splitn(2, '=').collect();
+                    if parts.len() != 2 {
+                        return Err(format!("Invalid line: {}", line));
+                    }
+                    let key = parts[0].trim().to_string();
+                    let value = parts[1].trim();
+
+                    if let Some(validator) = original_validators.get(&key) {
+                        validator(value)?;
+                    }
+
+                    found_keys.insert(key);
                 }
-                let key = parts[0].trim().to_string();
-                let value = parts[1].trim();
 
-                if let Some(validator) = original_validators.get(&key) {
-                    validator(value)?;
+                // Check if there are any missing keys
+                let missing_keys: HashSet<_> =
+                    expected_keys.difference(&found_keys).collect();
+                if !missing_keys.is_empty() {
+                    return Err(format!("Missing keys: {:?}", missing_keys));
                 }
 
-                found_keys.insert(key);
-            }
-
-            // Check if there are any missing keys
-            let missing_keys: HashSet<_> = expected_keys.difference(&found_keys).collect();
-            if !missing_keys.is_empty() {
-                return Err(format!("Missing keys: {:?}", missing_keys));
-            }
-
-            Ok(())
-        });
+                Ok(())
+            });
 
         // Clear the existing elements and add the new text area element
         self.inner.clear_elements();
@@ -94,9 +93,15 @@ impl ProfileFormBuilder {
                 .validator(Some(new_validator)),
         );
 
+        // Add the ViewOptions tag to the form,
+        // this ensures the form is rendered as a single text area
+        if let Some(existing_value) = self.inner.get_tag("ViewOptions") {
+            let new_value = format!("{},{}", existing_value, "AsTextArea");
+            self.inner.update_tag("ViewOptions", &new_value);
+        } else {
+            self.inner.add_tag("ViewOptions", "AsTextArea");
+        }
+
         self.inner
     }
-
-
 }
-

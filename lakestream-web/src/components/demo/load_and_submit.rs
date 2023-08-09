@@ -10,10 +10,11 @@ use super::dummy_data::make_form_data;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::input::{
-    validate_with_pattern, DisplayValue, ElementDataType, FormState, FieldContentType,
-};
 use crate::components::forms::{FormData, FormError};
+use crate::components::input::{
+    validate_with_pattern, DisplayValue, ElementDataType, FieldContentType,
+    FormState,
+};
 
 #[component]
 pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
@@ -26,8 +27,6 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     // define a function that fetches the data
     let handle_load = {
         move |form_data_rw: RwSignal<Option<FormData>>| {
-            log!("FormdataPre={:?}", form_data_rw.get_untracked());
-
             spawn_local(async move {
                 // run data loading on the background
                 let mut form_data = form_data_rw.get_untracked().unwrap();
@@ -97,13 +96,12 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     );
 
-    load_and_submit_form
-        .add_element(
-            ElementBuilder::new("Select", FieldContentType::PlainText)
-                .with_label("Select")
-                .with_initial_value("*")
-                .validator(Some(validate_foo)),
-        );
+    load_and_submit_form.add_element(
+        ElementBuilder::new("Select", FieldContentType::PlainText)
+            .with_label("Select")
+            .with_initial_value("*")
+            .validator(Some(validate_foo)),
+    );
 
     let load_and_submit_form = load_and_submit_form.build(cx);
 
@@ -126,7 +124,7 @@ async fn submit_data(_form_data: FormData) -> Result<(), FormError> {
 
 fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
-    for (key, element_state) in form_state {
+    for (key, element_state) in form_state.elements() {
         let value = element_state.read_display_value();
         let validator = match &element_state.schema.element_type {
             ElementDataType::TextData(text_data) => text_data.validator.clone(),
@@ -156,7 +154,7 @@ fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     }
 
     // Write validation errors to corresponding WriteSignals
-    for (key, element_state) in form_state {
+    for (key, element_state) in form_state.elements() {
         if let Some(error) = validation_errors.get(key) {
             element_state.display_error.set(Some(error.clone()));
         } else {

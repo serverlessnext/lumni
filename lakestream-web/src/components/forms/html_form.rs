@@ -4,10 +4,10 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::builders::FormType;
-use crate::components::input::FormElement;
 use crate::components::forms::{
     FormData, LoadAndSubmitForm, LoadForm, SubmitForm,
 };
+use crate::components::input::FormElement;
 
 pub struct HtmlForm {
     cx: Scope,

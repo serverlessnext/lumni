@@ -22,7 +22,7 @@ pub fn TextDisplayView(
         _ => panic!("Not yet implemented"),
     };
 
-    let initial_value = match value_signal.get() {
+    let initial_value = match value_signal.get_untracked() {
         DisplayValue::Text(text) => text,
         DisplayValue::Binary(_) => "".to_string(),
     };

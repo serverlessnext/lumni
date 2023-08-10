@@ -37,7 +37,7 @@ pub fn TextBoxView(
     let show_lock_icon = is_secret && initial_enabled && !is_password;
 
     // signals
-    let initial_value = value_signal.get();
+    let initial_value = value_signal.get_untracked();
     let is_locked = create_rw_signal(
         cx,
         if initial_value.is_empty() {
@@ -46,16 +46,17 @@ pub fn TextBoxView(
             is_secret || is_password
         },
     );
-    let is_enabled = (move || {
+
+    let is_enabled = (move ||
         if is_locked.get() {
             false
         } else {
             initial_enabled
         }
-    })
+    )
     .derive_signal(cx);
 
-    let initial_value = if is_locked.get() {
+    let initial_value = if is_locked.get_untracked() {
         match initial_value {
             DisplayValue::Text(text) => {
                 if text.is_empty() {
@@ -202,7 +203,7 @@ pub fn TextAreaFieldView(
             }
             placeholder="none".to_string()
             class={ get_input_class(is_enabled.get()) }
-            disabled=move || { !is_enabled .get()}
+            disabled=move || { !is_enabled.get()}
         />
     }
 }

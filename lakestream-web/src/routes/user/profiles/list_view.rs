@@ -155,8 +155,13 @@ fn ListItem(
     view! { cx,
         <li>
             <div class="px-4 py-2">
+                {item_name.clone()} " | "
                 <a href={format!("/user/profiles/{}", item_id)}>
-                    {item_name}
+                    "Form"
+                </a>
+                " | "
+                <a href={format!("/user/profiles/{}?view=TextArea", item_id)}>
+                    "TextArea"
                 </a>
                 " | "
                 <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id.clone(), set_is_loading))> "delete" </button>

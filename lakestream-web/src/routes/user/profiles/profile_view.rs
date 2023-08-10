@@ -1,6 +1,8 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
+use leptos_router::{use_query_map};
+
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use super::{Profile, ProfileList};
 use crate::builders::{
@@ -22,6 +24,12 @@ pub fn ProfileView(
 
     let form_id_clone = form_meta.form_id.clone();
     let storage_handler_clone = storage_handler.clone();
+
+    let param_view = use_query_map(cx).get().get("view").cloned();
+    let is_text_area = param_view
+        .as_ref()
+        .map(|v| v.as_str() == "TextArea")
+        .unwrap_or(false);
 
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
         let form_id = form_id_clone.to_owned();
@@ -113,15 +121,19 @@ pub fn ProfileView(
 
     let form_tags = form_meta.tags;
     let form_id = form_meta.form_id;
-    let form = ProfileFormBuilder::new(
+    let form_builder = ProfileFormBuilder::new(
         &config_name,
         &form_id,
         form_tags,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
-    .with_elements(form_elements)
-    .to_text_area()
-    .build(cx);
+    .with_elements(form_elements);
+
+    let form = if is_text_area {
+        form_builder.to_text_area().build(cx)
+    } else {
+        form_builder.build(cx)
+    };
 
     form.to_view()
 }

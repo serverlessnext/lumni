@@ -29,25 +29,3 @@ impl Default for FieldContentType {
         Self::PlainText
     }
 }
-
-#[derive(Debug, Clone)]
-pub enum DocumentType {
-    Text,
-    Html,
-}
-
-impl DocumentType {
-    pub fn is_html(&self) -> bool {
-        matches!(self, Self::Html)
-    }
-
-    pub fn is_text(&self) -> bool {
-        matches!(self, Self::Text)
-    }
-}
-
-impl Default for DocumentType {
-    fn default() -> Self {
-        Self::Html
-    }
-}

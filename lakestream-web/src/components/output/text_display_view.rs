@@ -18,13 +18,10 @@ pub fn TextDisplayView(
             .field_label
             .as_ref()
             .map_or_else(String::new, |label| label.text()),
-        // Handle other cases for BinaryData, DocumentData, etc. or panic
-        _ => panic!("Not yet implemented"),
     };
 
     let initial_value = match value_signal.get_untracked() {
         DisplayValue::Text(text) => text,
-        DisplayValue::Binary(_) => "".to_string(),
     };
 
     let display_value_signal = create_rw_signal(cx, initial_value);

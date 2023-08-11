@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::components::input::{
     validate_with_pattern, ElementData, ElementDataType, FieldContentType,
-    FieldLabel, FormElement, TextData,
+    FieldLabel, FormElement, FormElementData,
 };
 
 #[derive(Clone)]
@@ -84,7 +84,7 @@ impl ElementBuilder {
     }
 
     pub fn build(self) -> FormElement {
-        let text_data = TextData {
+        let text_data = FormElementData {
             field_label: self.field_label,
             field_content_type: self.field_content_type.clone(),
             validator: self.validate_fn,

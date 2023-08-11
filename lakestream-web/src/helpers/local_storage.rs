@@ -21,16 +21,16 @@ pub async fn list_all_keys() -> Result<Vec<String>, JsValue> {
                 }
             }
 
-            return Ok(result);
+            Ok(result)
         } else {
-            return Err(JsValue::from_str(
+            Err(JsValue::from_str(
                 "Error: localStorage is not available.",
-            ));
+            ))
         }
     } else {
-        return Err(JsValue::from_str(
+        Err(JsValue::from_str(
             "Error: Unable to access window object.",
-        ));
+        ))
     }
 }
 

@@ -16,7 +16,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
         "Input can only be foo".to_string(),
     ));
 
-    let text_data_foo = TextData {
+    let text_data_foo = FormElementData {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Foo")),
         validator: validate_foo,
@@ -30,7 +30,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
     };
 
     // textarea
-    let text_data_any = TextData {
+    let text_data_any = FormElementData {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Text Area")),
         validator: None,

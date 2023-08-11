@@ -50,9 +50,6 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
 
     create_effect(cx, move |_| {
         spawn_local({
-            let set_item_list = set_item_list;
-            let set_is_loading = set_is_loading;
-
             let local_storage = match vault.backend() {
                 localencrypt::StorageBackend::Browser(browser_storage) => {
                     browser_storage.local_storage().unwrap_or_else(|| {

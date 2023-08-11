@@ -65,12 +65,10 @@ pub fn TextBoxView(
                     MASKED_VALUE.to_string()
                 }
             }
-            DisplayValue::Binary(_) => MASKED_VALUE.to_string(),
         }
     } else {
         match initial_value {
             DisplayValue::Text(text) => text,
-            DisplayValue::Binary(_) => "".to_string(),
         }
     };
 
@@ -85,7 +83,6 @@ pub fn TextBoxView(
         } else {
             match current_value {
                 DisplayValue::Text(t) => t,
-                DisplayValue::Binary(_) => "".to_string(),
             }
         });
     });

@@ -50,14 +50,18 @@ impl FormData {
         }
     }
 
-    pub fn update_with_config(&mut self, config: HashMap<String, String>) {
+    pub fn is_text_area(&self) -> bool {
         let is_text_area = self.meta_data()
             .tags()
             .as_ref()
             .and_then(|tags| tags.get("ViewOptions"))
             .map_or(false, |value| value.contains("AsTextArea"));
 
-        if is_text_area {
+        is_text_area
+    }
+
+    pub fn update_with_config(&mut self, config: HashMap<String, String>) {
+        if self.is_text_area() {
             // if form is a (single) text area, export config into a set of
             // key=value lines
             let element_name =
@@ -114,7 +118,6 @@ impl FormData {
         } else {
             // else plot each config item into its own form element
             for (element_name, buffer_data) in config.into_iter() {
-                log!("Updating element: {}", element_name);
                 if let Some(form_element_state) =
                     self.form_state.elements().clone().get_mut(&element_name)
                 {
@@ -123,21 +126,6 @@ impl FormData {
                     match &mut new_schema.element_type {
                         ElementDataType::TextData(text_data) => {
                             text_data.buffer_data = buffer_data.clone();
-                            form_element_state
-                                .display_value
-                                .set(DisplayValue::Text(buffer_data));
-                        }
-                        ElementDataType::BinaryData(binary_data) => {
-                            let binary_buffer_data =
-                                buffer_data.as_bytes().to_vec();
-                            binary_data.buffer_data =
-                                binary_buffer_data.clone();
-                            form_element_state
-                                .display_value
-                                .set(DisplayValue::Binary(binary_buffer_data));
-                        }
-                        ElementDataType::DocumentData(document_data) => {
-                            document_data.buffer_data = buffer_data.clone();
                             form_element_state
                                 .display_value
                                 .set(DisplayValue::Text(buffer_data));
@@ -159,24 +147,12 @@ impl FormData {
             .iter()
             .map(|element| {
                 let (_name, initial_value) = match element {
-                    FormElement::TextBox(data)
-                    | FormElement::TextArea(data)
-                    | FormElement::NestedForm(data) => {
+                    FormElement::TextBox(data) => {
                         let name = data.name.clone();
                         let initial_value = match &data.element_type {
                             ElementDataType::TextData(text_data) => {
                                 DisplayValue::Text(
                                     text_data.buffer_data.clone(),
-                                )
-                            }
-                            ElementDataType::BinaryData(binary_data) => {
-                                DisplayValue::Binary(
-                                    binary_data.buffer_data.clone(),
-                                )
-                            }
-                            ElementDataType::DocumentData(document_data) => {
-                                DisplayValue::Text(
-                                    document_data.buffer_data.clone(),
                                 )
                             }
                         };
@@ -197,7 +173,6 @@ impl FormData {
             .filter_map(|(key, element_state)| {
                 match element_state.read_display_value() {
                     DisplayValue::Text(text) => Some((key.clone(), text)),
-                    DisplayValue::Binary(_) => None,
                 }
             })
             .collect()
@@ -219,9 +194,7 @@ impl FormElementBuilder for FormElement {
         initial_value: DisplayValue,
     ) -> (String, FormElementState) {
         match self {
-            FormElement::TextBox(data)
-            | FormElement::TextArea(data)
-            | FormElement::NestedForm(data) => {
+            FormElement::TextBox(data) => {
                 let element_state = FormData::create_element_state(
                     cx,
                     initial_value,

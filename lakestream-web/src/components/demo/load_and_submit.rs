@@ -140,15 +140,6 @@ fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
                         validation_errors.insert(key.clone(), e.to_string());
                     }
                 }
-                DisplayValue::Binary(_) => {
-                    log::error!(
-                        "Validation failed: Binary data cannot be validated."
-                    );
-                    validation_errors.insert(
-                        key.clone(),
-                        "Binary data cannot be validated.".to_string(),
-                    );
-                }
             }
         }
     }

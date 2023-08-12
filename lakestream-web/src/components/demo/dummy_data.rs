@@ -16,37 +16,27 @@ pub fn make_form_elements() -> Vec<FormElement> {
         "Input can only be foo".to_string(),
     ));
 
-    let text_data_foo = FormElementData {
+    let foo_element = FormElement {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Foo")),
         validator: validate_foo,
         buffer_data: "foo".to_string(),
-    };
-
-    let element_data_textbox = ElementData {
         name: "TextBoxElement".to_string(),
-        element_type: ElementDataType::TextData(text_data_foo),
         is_enabled: true,
     };
 
-    // textarea
-    let text_data_any = FormElementData {
+    let text_area_element = FormElement {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Text Area")),
         validator: None,
         buffer_data: "type anything".to_string(),
-    };
-    let element_data_textarea = ElementData {
         name: "TextAreaElement".to_string(),
-        element_type: ElementDataType::TextData(text_data_any),
         is_enabled: true,
     };
 
-    let elements = vec![
-        FormElement::TextBox(element_data_textbox),
-        FormElement::TextBox(element_data_textarea),
-    ];
-    elements
+let elements = vec![foo_element, text_area_element];
+elements
+
 }
 
 pub fn make_form_data(cx: Scope) -> FormData {

@@ -1,6 +1,6 @@
 use leptos::*;
 
-use super::{DisplayValue, ElementDataType, FormElementState};
+use super::{DisplayValue, FormElementState};
 use crate::components::icons::LockIconView;
 
 const MASKED_VALUE: &str = "*****";
@@ -16,22 +16,14 @@ pub fn TextBoxView(
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
 
-    let element_type = &input_field_data.element_type;
+    let label_text = input_field_data
+        .field_label
+        .as_ref()
+        .map_or_else(String::new, |label| label.text());
+    let is_secret = input_field_data.field_content_type.is_secret();
+    let is_password = input_field_data.field_content_type.is_password();
+    let is_text_area = input_field_data.field_content_type.is_text_area();
     let initial_enabled = input_field_data.is_enabled;
-    let (label_text, is_secret, is_password, is_text_area) =
-        if let ElementDataType::TextData(text_data) = element_type {
-            let label_text = text_data
-                .field_label
-                .as_ref()
-                .map_or_else(String::new, |label| label.text());
-            let is_secret = text_data.field_content_type.is_secret();
-            let is_password = text_data.field_content_type.is_password();
-            let is_text_area = text_data.field_content_type.is_text_area();
-            (label_text, is_secret, is_password, is_text_area)
-        } else {
-            // Handle other cases for BinaryData, DocumentData, etc. or panic
-            panic!("Not yet implemented");
-        };
 
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;

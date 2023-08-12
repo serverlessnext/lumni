@@ -1,7 +1,7 @@
 use leptos::*;
 
 use crate::components::input::{
-    DisplayValue, ElementDataType, FormElementState,
+    DisplayValue, FormElementState,
 };
 
 #[component]
@@ -13,12 +13,10 @@ pub fn TextDisplayView(
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
 
-    let label_text = match &input_field_data.element_type {
-        ElementDataType::TextData(text_data) => text_data
-            .field_label
-            .as_ref()
-            .map_or_else(String::new, |label| label.text()),
-    };
+    let label_text = input_field_data
+        .field_label
+        .as_ref()
+        .map_or_else(String::new, |label| label.text());
 
     let initial_value = match value_signal.get_untracked() {
         DisplayValue::Text(text) => text,

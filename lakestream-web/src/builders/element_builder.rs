@@ -3,8 +3,8 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::components::input::{
-    validate_with_pattern, ElementData, ElementDataType, FieldContentType,
-    FieldLabel, FormElement, FormElementData,
+    validate_with_pattern, FieldContentType,
+    FieldLabel, FormElement,
 };
 
 #[derive(Clone)]
@@ -84,19 +84,14 @@ impl ElementBuilder {
     }
 
     pub fn build(self) -> FormElement {
-        let text_data = FormElementData {
-            field_label: self.field_label,
+        FormElement {
+            name: self.name,
             field_content_type: self.field_content_type.clone(),
+            field_label: self.field_label,
             validator: self.validate_fn,
             buffer_data: self.initial_value,
-        };
-
-        let element_data = ElementData {
-            name: self.name,
-            element_type: ElementDataType::TextData(text_data),
             is_enabled: self.is_enabled,
-        };
-        FormElement::TextBox(element_data)
+        }
     }
 }
 

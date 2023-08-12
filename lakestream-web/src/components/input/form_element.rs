@@ -21,38 +21,25 @@ impl FieldLabel {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum FormElement {
-    TextBox(ElementData),
-}
-
-#[derive(Clone, Debug)]
-pub struct ElementData {
-    pub name: String,
-    pub element_type: ElementDataType,
-    pub is_enabled: bool,
-}
-
-#[derive(Debug, Clone)]
-pub enum ElementDataType {
-    TextData(FormElementData),
-}
-
 #[derive(Clone)]
-pub struct FormElementData {
+pub struct FormElement {
+    pub name: String,
     pub field_content_type: FieldContentType,
     pub field_label: Option<FieldLabel>,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     pub buffer_data: String, // data always gets loaded in here first
+    pub is_enabled: bool,
 }
 
-impl fmt::Debug for FormElementData {
+impl fmt::Debug for FormElement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FormElementData")
+        f.debug_struct("FormElement")
+            .field("name", &self.name)
             .field("field_content_type", &self.field_content_type)
             .field("field_label", &self.field_label)
             .field("validator", &self.validator.is_some())
             .field("buffer_data", &self.buffer_data)
+            .field("is_enabled", &self.is_enabled)
             .finish()
     }
 }
@@ -78,7 +65,7 @@ impl FormState {
 pub struct FormElementState {
     pub display_error: RwSignal<Option<String>>,
     pub display_value: RwSignal<DisplayValue>,
-    pub schema: Arc<ElementData>,
+    pub schema: Arc<FormElement>,
 }
 
 impl FormElementState {

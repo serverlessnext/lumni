@@ -5,7 +5,7 @@ use leptos::*;
 use localencrypt::ItemMetaData;
 
 use crate::components::input::{
-    DisplayValue, ElementData, ElementDataType, FormElement, FormElementState,
+    DisplayValue, FormElement, FormElementState,
     FormState,
 };
 
@@ -35,21 +35,6 @@ impl FormData {
         self.form_state.clone()
     }
 
-    fn create_element_state(
-        cx: Scope,
-        initial_value: DisplayValue,
-        element_data: Arc<ElementData>,
-    ) -> FormElementState {
-        let error_signal = create_rw_signal(cx, None);
-        let value_signal = create_rw_signal(cx, initial_value);
-
-        FormElementState {
-            schema: element_data,
-            display_value: value_signal,
-            display_error: error_signal,
-        }
-    }
-
     pub fn is_text_area(&self) -> bool {
         let is_text_area = self.meta_data()
             .tags()
@@ -72,44 +57,36 @@ impl FormData {
                 // Clone the existing schema to mutate it
                 let mut new_schema = (*form_element_state.schema).clone();
 
-                if let ElementDataType::TextData(text_data) =
-                    &mut new_schema.element_type
-                {
-                    if text_data.field_content_type.is_text_area() {
-                        // Convert existing TextData to HashMap
-                        let mut existing_config: HashMap<String, String> =
-                            text_data
-                                .buffer_data
-                                .lines()
-                                .filter_map(|line| {
-                                    let parts: Vec<&str> =
-                                        line.splitn(2, '=').collect();
-                                    if parts.len() == 2 {
-                                        Some((
-                                            parts[0].trim().to_string(),
-                                            parts[1].trim().to_string(),
-                                        ))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect();
-
-                        // Update the HashMap with the provided config
-                        existing_config.extend(config);
-
-                        // Convert updated HashMap to String
-                        let updated_text_data: String = existing_config
-                            .into_iter()
-                            .map(|(key, value)| format!("{}={}\n", key, value))
+                if new_schema.field_content_type.is_text_area() {
+                    // Convert existing TextData to HashMap
+                    let mut existing_config: HashMap<String, String> =
+                        new_schema
+                            .buffer_data
+                            .lines()
+                            .filter_map(|line| {
+                                let parts: Vec<&str> = line.splitn(2, '=').collect();
+                                if parts.len() == 2 {
+                                    Some((parts[0].trim().to_string(), parts[1].trim().to_string()))
+                                } else {
+                                    None
+                                }
+                            })
                             .collect();
 
-                        // Update the TextArea with the new string
-                        text_data.buffer_data = updated_text_data.clone();
-                        form_element_state
-                            .display_value
-                            .set(DisplayValue::Text(updated_text_data));
-                    }
+                    // Update the HashMap with the provided config
+                    existing_config.extend(config);
+
+                    // Convert updated HashMap to String
+                    let updated_text_data: String = existing_config
+                        .into_iter()
+                        .map(|(key, value)| format!("{}={}\n", key, value))
+                        .collect();
+
+                    // Update the TextArea with the new string
+                    new_schema.buffer_data = updated_text_data.clone();
+                    form_element_state
+                        .display_value
+                        .set(DisplayValue::Text(updated_text_data));
                 }
 
                 // Replace old Arc with new one
@@ -118,20 +95,17 @@ impl FormData {
         } else {
             // else plot each config item into its own form element
             for (element_name, buffer_data) in config.into_iter() {
-                if let Some(form_element_state) =
-                    self.form_state.elements().clone().get_mut(&element_name)
-                {
-                    // clone the existing schema to mutate it
+                if let Some(form_element_state) = self.form_state.elements().clone().get_mut(&element_name) {
+                    // Clone the existing schema to mutate it
                     let mut new_schema = (*form_element_state.schema).clone();
-                    match &mut new_schema.element_type {
-                        ElementDataType::TextData(text_data) => {
-                            text_data.buffer_data = buffer_data.clone();
-                            form_element_state
-                                .display_value
-                                .set(DisplayValue::Text(buffer_data));
-                        }
-                    }
-                    // replace old Arc with new one
+
+                    // Update the buffer_data field directly
+                    new_schema.buffer_data = buffer_data.clone();
+
+                    // Update the display value
+                    form_element_state.display_value.set(DisplayValue::Text(buffer_data));
+
+                    // Replace old Arc with new one
                     form_element_state.schema = Arc::new(new_schema);
                 }
             }
@@ -146,20 +120,18 @@ impl FormData {
         let elements: HashMap<String, FormElementState> = elements
             .iter()
             .map(|element| {
-                let (_name, initial_value) = match element {
-                    FormElement::TextBox(data) => {
-                        let name = data.name.clone();
-                        let initial_value = match &data.element_type {
-                            ElementDataType::TextData(text_data) => {
-                                DisplayValue::Text(
-                                    text_data.buffer_data.clone(),
-                                )
-                            }
-                        };
-                        (name, initial_value)
-                    }
+                let name = element.name.clone();
+                let initial_value = DisplayValue::Text(element.buffer_data.clone());
+                let error_signal = create_rw_signal(cx, None);
+                let value_signal = create_rw_signal(cx, initial_value);
+
+                let element_state = FormElementState {
+                    schema: Arc::new(element.clone()),
+                    display_value: value_signal,
+                    display_error: error_signal,
                 };
-                element.build_form_state(cx, initial_value)
+
+                (name, element_state)
             })
             .collect();
         let form_state = FormState::new(elements);
@@ -185,23 +157,4 @@ pub trait FormElementBuilder {
         cx: Scope,
         initial_value: DisplayValue,
     ) -> (String, FormElementState);
-}
-
-impl FormElementBuilder for FormElement {
-    fn build_form_state(
-        &self,
-        cx: Scope,
-        initial_value: DisplayValue,
-    ) -> (String, FormElementState) {
-        match self {
-            FormElement::TextBox(data) => {
-                let element_state = FormData::create_element_state(
-                    cx,
-                    initial_value,
-                    Arc::new(data.clone()),
-                );
-                (data.name.clone(), element_state)
-            }
-        }
-    }
 }

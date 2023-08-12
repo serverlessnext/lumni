@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::*;
 use regex::Regex;
 
-use super::{DisplayValue, ElementDataType, FormState};
+use super::{DisplayValue, FormState};
 
 pub fn validate_with_pattern(
     pattern: Regex,
@@ -22,11 +22,7 @@ pub fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
     for (key, element_state) in form_state.elements() {
         let value = element_state.read_display_value();
-        let validator = match &element_state.schema.element_type {
-            ElementDataType::TextData(text_data) => text_data.validator.clone(),
-            // Add other ElementDataType cases if they have a validator
-            _ => None,
-        };
+        let validator = element_state.schema.validator.clone();
 
         if let Some(validator) = validator {
             match &value {

@@ -10,7 +10,7 @@ mod load;
 mod load_and_submit;
 mod submit;
 
-pub use form_data::{FormData, SubmitInput};
+pub use form_data::{FormData, FormViewOptions, SubmitInput};
 pub use form_error::FormError;
 pub use html_form::{Form, HtmlForm, HtmlFormMeta};
 pub use load::LoadForm;

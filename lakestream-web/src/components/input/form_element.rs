@@ -80,6 +80,11 @@ pub enum DisplayValue {
 }
 
 impl DisplayValue {
+    pub fn as_text(&self) -> String {
+        match self {
+            DisplayValue::Text(text) => text.clone(),
+        }
+    }
     pub fn is_empty(&self) -> bool {
         match self {
             DisplayValue::Text(text) => text.is_empty(),

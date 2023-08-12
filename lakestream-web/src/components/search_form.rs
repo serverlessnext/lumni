@@ -45,7 +45,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         FormType::LoadElements,
     )
     //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
-    .build(cx);
+    .build(cx, None);
 
     // allows to overwrite the form
     let results_rw = results_form.form_data_rw();
@@ -109,7 +109,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 )))),
         );
 
-    let query_form = query_form.build(cx);
+    let query_form = query_form.build(cx, None);
 
     view! { cx,
         { query_form.to_view() }
@@ -138,6 +138,6 @@ fn extract_form_data(
 ) -> Result<HashMap<String, String>, FormError> {
     let data = form_data
         .ok_or_else(|| FormError::SubmitError("FORM_DATA_MISSING".to_string()))
-        .map(|data| data.to_hash_map())?;
+        .map(|form_data| form_data.export_config())?;
     Ok(data)
 }

@@ -17,13 +17,15 @@ pub enum SubmitInput {
 pub struct FormData {
     form_state: FormState,
     meta_data: ItemMetaData,
+    view_options: FormViewOptions,
 }
 
 impl FormData {
-    pub fn new(form_state: FormState, meta_data: ItemMetaData) -> Self {
+    pub fn new(form_state: FormState, meta_data: ItemMetaData, view_options: Option<FormViewOptions>) -> Self {
         Self {
             form_state,
             meta_data,
+            view_options: view_options.unwrap_or_default(),
         }
     }
 
@@ -35,18 +37,8 @@ impl FormData {
         self.form_state.clone()
     }
 
-    pub fn is_text_area(&self) -> bool {
-        let is_text_area = self.meta_data()
-            .tags()
-            .as_ref()
-            .and_then(|tags| tags.get("ViewOptions"))
-            .map_or(false, |value| value.contains("AsTextArea"));
-
-        is_text_area
-    }
-
     pub fn update_with_config(&mut self, config: HashMap<String, String>) {
-        if self.is_text_area() {
+        if self.view_options.text_area() {
             // if form is a (single) text area, export config into a set of
             // key=value lines
             let element_name =
@@ -112,10 +104,44 @@ impl FormData {
         }
     }
 
+    pub fn export_config(&self) -> HashMap<String, String> {
+        if self.view_options.text_area() {
+            self.form_state.elements()
+                .values()
+                .next()
+                .unwrap()
+                .read_display_value()
+                .as_text()
+                .lines()
+                .filter_map(|line| {
+                    let parts: Vec<&str> = line.splitn(2, '=').collect();
+                    if parts.len() == 2 {
+                        Some((parts[0].trim().to_string(), parts[1].trim().to_string()))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            self.form_state.elements()
+            .iter()
+            .map(|(key, element_state)| {
+                (
+                    key.clone(),
+                    match element_state.read_display_value() {
+                        DisplayValue::Text(text) => text,
+                    },
+                )
+            })
+            .collect()
+        }
+    }
+
     pub fn build(
         cx: Scope,
         meta_data: ItemMetaData,
         elements: &[FormElement],
+        view_options: Option<FormViewOptions>,
     ) -> FormData {
         let elements: HashMap<String, FormElementState> = elements
             .iter()
@@ -135,19 +161,7 @@ impl FormData {
             })
             .collect();
         let form_state = FormState::new(elements);
-        Self::new(form_state, meta_data)
-    }
-
-    pub fn to_hash_map(&self) -> HashMap<String, String> {
-        self.form_state
-            .elements()
-            .iter()
-            .filter_map(|(key, element_state)| {
-                match element_state.read_display_value() {
-                    DisplayValue::Text(text) => Some((key.clone(), text)),
-                }
-            })
-            .collect()
+        Self::new(form_state, meta_data, view_options)
     }
 }
 
@@ -157,4 +171,25 @@ pub trait FormElementBuilder {
         cx: Scope,
         initial_value: DisplayValue,
     ) -> (String, FormElementState);
+}
+
+#[derive(Clone, Debug)]
+pub struct FormViewOptions {
+    text_area: bool,
+}
+
+impl Default for FormViewOptions {
+    fn default() -> Self {
+        Self { text_area: false }
+    }
+}
+
+impl FormViewOptions {
+    pub fn text_area(&self) -> bool {
+        self.text_area
+    }
+
+    pub fn set_text_area(&mut self, text_area: bool) {
+        self.text_area = text_area;
+    }
 }

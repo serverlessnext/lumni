@@ -106,7 +106,7 @@ impl SubmitFormClassic {
         tags.insert("Name".to_string(), form.name().to_string());
         let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::build(cx, meta_data, &form.elements);
+        let form_data_default = FormData::build(cx, meta_data, &form.elements, None);
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 

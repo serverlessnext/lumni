@@ -5,9 +5,11 @@ use localencrypt::ItemMetaData;
 
 use crate::builders::FormType;
 use crate::components::forms::{
-    FormData, LoadAndSubmitForm, LoadForm, SubmitForm,
+    FormData, LoadAndSubmitForm, LoadForm, SubmitForm, FormViewOptions,
 };
 use crate::components::input::FormElement;
+
+
 
 pub struct HtmlForm {
     cx: Scope,
@@ -22,6 +24,7 @@ impl HtmlForm {
         name: &str,
         id: &str,
         tags: Option<HashMap<String, String>>,
+        view_options: Option<FormViewOptions>,
         elements: Vec<FormElement>,
     ) -> Self {
         let html_form_meta = HtmlFormMeta::new(name, id);
@@ -31,7 +34,7 @@ impl HtmlForm {
             tags.insert("Name".to_string(), name.to_string());
             let meta_data = ItemMetaData::new_with_tags(id, tags);
 
-            let form_data = FormData::build(cx, meta_data, &elements);
+            let form_data = FormData::build(cx, meta_data, &elements, view_options);
             create_rw_signal(cx, Some(form_data))
         } else {
             create_rw_signal(cx, None)
@@ -102,3 +105,5 @@ impl HtmlFormMeta {
         }
     }
 }
+
+

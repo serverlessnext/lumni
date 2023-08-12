@@ -69,11 +69,9 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state().clone();
+                let form_state = form_data.form_state();
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
-                    log!("Form data is valid: {:?}", form_data);
-                    // let result = save_config_to_vault(&vault, &form_data).await;
                     let result = storage_handler.save_config(&form_data).await;
                     match result {
                         Ok(_) => {
@@ -126,7 +124,7 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
             .with_label("b"),
     );
 
-    let form = form.build(cx);
+    let form = form.build(cx, None);
 
     form.to_view()
 }

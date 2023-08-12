@@ -103,7 +103,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
             .validator(Some(validate_foo)),
     );
 
-    let load_and_submit_form = load_and_submit_form.build(cx);
+    let load_and_submit_form = load_and_submit_form.build(cx, None);
 
     load_and_submit_form.to_view()
 }

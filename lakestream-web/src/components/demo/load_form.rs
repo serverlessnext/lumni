@@ -43,7 +43,7 @@ pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
         None,
         FormType::LoadData(load_parameters),
     )
-    .build(cx);
+    .build(cx, None);
 
     load_form.to_view()
 }

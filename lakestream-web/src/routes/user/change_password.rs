@@ -38,12 +38,14 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
         "Validate Password",
         &Uuid::new_v4().to_string(),
         None,
+        None,
         elements_validation,
     );
     let form_change = HtmlForm::new(
         cx,
         "Change Password",
         &Uuid::new_v4().to_string(),
+        None,
         None,
         elements_change,
     );
@@ -190,7 +192,7 @@ fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
     form_data
         .ok_or_else(|| FormError::SubmitError(FORM_DATA_MISSING.to_string()))
         .and_then(|data| {
-            data.to_hash_map()
+            data.export_config()
                 .get(PASSWORD_FIELD)
                 .cloned()
                 .ok_or_else(|| FormError::ValidationError {

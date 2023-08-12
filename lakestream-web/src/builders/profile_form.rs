@@ -5,11 +5,12 @@ use leptos::*;
 
 use super::form_builder::{FormBuilder, FormType};
 use super::ElementBuilder;
-use crate::components::forms::Form;
+use crate::components::forms::{Form, FormViewOptions};
 use crate::components::input::FieldContentType;
 
 pub struct ProfileFormBuilder {
     inner: FormBuilder,
+    view_options: FormViewOptions,
 }
 
 impl ProfileFormBuilder {
@@ -21,6 +22,7 @@ impl ProfileFormBuilder {
     ) -> Self {
         Self {
             inner: FormBuilder::new(title, id, tags, form_type),
+            view_options: FormViewOptions::default(),
         }
     }
 
@@ -34,10 +36,10 @@ impl ProfileFormBuilder {
     }
 
     pub fn build(self, cx: Scope) -> Box<dyn Form> {
-        self.inner.build(cx)
+        self.inner.build(cx, Some(self.view_options))
     }
 
-    pub fn to_text_area(mut self) -> FormBuilder {
+    pub fn to_text_area(mut self) -> ProfileFormBuilder {
         let mut text_area_content = String::new();
         let mut original_validators = HashMap::new();
         let mut expected_keys: HashSet<String> = HashSet::new();
@@ -93,15 +95,8 @@ impl ProfileFormBuilder {
                 .validator(Some(new_validator)),
         );
 
-        // Add the ViewOptions tag to the form,
-        // this ensures the form is rendered as a single text area
-        if let Some(existing_value) = self.inner.get_tag("ViewOptions") {
-            let new_value = format!("{},{}", existing_value, "AsTextArea");
-            self.inner.update_tag("ViewOptions", &new_value);
-        } else {
-            self.inner.add_tag("ViewOptions", "AsTextArea");
-        }
-
-        self.inner
+        self.view_options.set_text_area(true);
+        self
     }
 }
+

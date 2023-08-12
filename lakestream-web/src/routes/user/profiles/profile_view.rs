@@ -70,7 +70,7 @@ pub fn ProfileView(
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state().to_owned();
+                let form_state = form_data.form_state();
                 let validation_errors = perform_validation(&form_state);
                 if validation_errors.is_empty() {
                     let result = storage_handler.save_config(&form_data).await;

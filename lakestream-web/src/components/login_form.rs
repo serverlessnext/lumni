@@ -211,7 +211,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         )]);
 
     let form_login =
-        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), None, elements);
+        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), None, None, elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -245,6 +245,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         "Create Password",
         &Uuid::new_v4().to_string(),
         None,
+        None,
         elements,
     );
 
@@ -269,8 +270,8 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
 fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
     form_data
         .ok_or_else(|| FormError::SubmitError(FORM_DATA_MISSING.to_string()))
-        .and_then(|data| {
-            data.to_hash_map()
+        .and_then(|form_data| {
+            form_data.export_config()
                 .get(PASSWORD_FIELD)
                 .cloned()
                 .ok_or_else(|| FormError::ValidationError {

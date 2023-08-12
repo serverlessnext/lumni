@@ -95,7 +95,9 @@ impl FormStorageHandler {
         match content_result {
             Ok(Some(data)) => {
                 match serde_json::from_slice::<HashMap<String, String>>(&data) {
-                    Ok(config) => Ok(Some(config)),
+                    Ok(config) => {
+                        Ok(Some(config))
+                    }
                     Err(e) => {
                         log::error!("error deserializing config: {:?}", e);
                         Err(e.to_string())
@@ -111,21 +113,7 @@ impl FormStorageHandler {
         &self,
         form_data: &FormData,
     ) -> Result<(), FormError> {
-        let form_state = form_data.form_state();
-        let form_config: HashMap<String, String> = form_state
-            .clone()
-            .elements()
-            .iter()
-            .map(|(key, element_state)| {
-                (
-                    key.clone(),
-                    match element_state.read_display_value() {
-                        DisplayValue::Text(text) => text,
-                        _ => unreachable!(),
-                    },
-                )
-            })
-            .collect();
+        let form_config = form_data.export_config();
 
         // Serialize form data into JSON
         let document_content = match serde_json::to_vec(&form_config) {
@@ -140,7 +128,6 @@ impl FormStorageHandler {
 
         // Save the serialized form data to the local storage
         let meta_data = form_data.meta_data().clone();
-        log!("Saving with form data: {:?}", meta_data);
         match local_storage
             .save_content(meta_data, &document_content)
             .await

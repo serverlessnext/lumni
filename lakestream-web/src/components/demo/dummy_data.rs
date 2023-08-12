@@ -44,7 +44,7 @@ pub fn make_form_data(cx: Scope) -> FormData {
     let mut tags = HashMap::new();
     tags.insert("Name".to_string(), "Test Form".to_string());
     let meta_data = ItemMetaData::new_with_tags("Form1", tags);
-    let form_data = FormData::build(cx, meta_data, &elements);
+    let form_data = FormData::build(cx, meta_data, &elements, None);
     form_data
 }
 

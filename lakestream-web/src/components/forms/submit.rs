@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use localencrypt::ItemMetaData;
 
+use super::ConfigurationFormMeta;
 use super::form_data::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::{CustomSubmitHandler, SubmitFormHandler};
@@ -104,9 +104,9 @@ impl SubmitFormClassic {
     ) -> Self {
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
-        let meta_data = ItemMetaData::new_with_tags(form.id(), tags);
 
-        let form_data_default = FormData::build(cx, meta_data, &form.elements, None);
+        let form_meta = ConfigurationFormMeta::with_id(form.id()).with_tags(tags);
+        let form_data_default = FormData::build(cx, form_meta, &form.elements, None);
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 

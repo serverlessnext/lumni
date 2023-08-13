@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use leptos::*;
-use localencrypt::ItemMetaData;
 
 use crate::builders::FormType;
 use crate::components::forms::{
-    FormData, LoadAndSubmitForm, LoadForm, SubmitForm, FormViewOptions,
+    FormData, ConfigurationFormMeta,
+    LoadAndSubmitForm, LoadForm, SubmitForm, FormViewOptions,
 };
 use crate::components::input::FormElement;
 
@@ -22,19 +20,14 @@ impl HtmlForm {
     pub fn new(
         cx: Scope,
         name: &str,
-        id: &str,
-        tags: Option<HashMap<String, String>>,
+        form_meta: ConfigurationFormMeta,
         view_options: Option<FormViewOptions>,
         elements: Vec<FormElement>,
     ) -> Self {
-        let html_form_meta = HtmlFormMeta::new(name, id);
+        let html_form_meta = HtmlFormMeta::new(name, &form_meta.id());
 
         let form_data_rw = if !elements.is_empty() {
-            let mut tags = tags.unwrap_or_default();
-            tags.insert("Name".to_string(), name.to_string());
-            let meta_data = ItemMetaData::new_with_tags(id, tags);
-
-            let form_data = FormData::build(cx, meta_data, &elements, view_options);
+            let form_data = FormData::build(cx, form_meta, &elements, view_options);
             create_rw_signal(cx, Some(form_data))
         } else {
             create_rw_signal(cx, None)

@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use leptos::*;
-use localencrypt::ItemMetaData;
 use regex::Regex;
 
-use crate::components::forms::FormData;
+use crate::components::forms::{FormData, ConfigurationFormMeta};
 use crate::components::input::*;
 
 pub fn make_form_elements() -> Vec<FormElement> {
@@ -43,8 +42,9 @@ pub fn make_form_data(cx: Scope) -> FormData {
     let elements = make_form_elements();
     let mut tags = HashMap::new();
     tags.insert("Name".to_string(), "Test Form".to_string());
-    let meta_data = ItemMetaData::new_with_tags("Form1", tags);
-    let form_data = FormData::build(cx, meta_data, &elements, None);
+
+    let form_meta = ConfigurationFormMeta::with_id("Form1").with_tags(tags);
+    let form_data = FormData::build(cx, form_meta, &elements, None);
     form_data
 }
 

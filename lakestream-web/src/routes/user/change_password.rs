@@ -7,7 +7,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::builders::{build_all, ElementBuilder, InputFieldPattern};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{
-    FormData, FormError, HtmlForm, SubmitFormClassic,
+    FormData, ConfigurationFormMeta, FormError, HtmlForm, SubmitFormClassic,
 };
 use crate::components::input::FormElement;
 use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
@@ -33,19 +33,18 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
             InputFieldPattern::PasswordChange,
         )]);
 
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let form_validation = HtmlForm::new(
         cx,
         "Validate Password",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta.clone(),
         None,
         elements_validation,
     );
     let form_change = HtmlForm::new(
         cx,
         "Change Password",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta,
         None,
         elements_change,
     );

@@ -181,8 +181,8 @@ pub fn TextAreaFieldView(
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
     view! { cx,
-        <textarea
-            prop:value= { display_value_signal }
+        <textarea rows={ display_value_signal.get().lines().count() + 2 }
+            prop:value={ display_value_signal }
             on:input=move |ev| {
                 if is_enabled.get() {
                     let value = event_target_value(&ev);

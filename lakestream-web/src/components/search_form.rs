@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-use crate::components::forms::{FormData, FormError};
+use crate::components::forms::{FormData, ConfigurationFormMeta, FormError};
 use crate::components::input::{validate_with_pattern, FieldContentType};
 
 #[cfg(debug_assertions)]
@@ -38,10 +38,10 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let validation_error = create_rw_signal(cx, None::<String>);
 
     // define results_form first as its the target for handle_search
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let results_form = FormBuilder::new(
         "Search Form",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta,
         FormType::LoadElements,
     )
     //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
@@ -86,10 +86,10 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         None,
     );
 
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let mut query_form = FormBuilder::new(
         "Query",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta,
         FormType::SubmitData(submit_parameters),
     );
 

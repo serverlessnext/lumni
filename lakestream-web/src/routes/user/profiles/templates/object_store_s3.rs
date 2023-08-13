@@ -13,10 +13,6 @@ pub fn form_elements<S: Into<String>>(name: S) -> Vec<ElementBuilder> {
     let endpoint_url_pattern = Regex::new(r"^https?://[^/]+/$|^$").unwrap();
 
     let builders: Vec<ElementBuilder> = vec![
-        ElementBuilder::new("__NAME__", FieldContentType::PlainText)
-            .with_label("Name")
-            .with_initial_value(name)
-            .validator(None),
         ElementBuilder::new("BUCKET_URI", FieldContentType::PlainText)
             .with_label("Bucket URI")
             .with_initial_value("s3://")

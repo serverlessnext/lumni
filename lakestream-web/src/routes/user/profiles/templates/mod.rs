@@ -45,7 +45,7 @@ where
     }
 }
 
-pub trait FormElements {
+pub trait FormElementList {
     fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
 
@@ -85,7 +85,7 @@ macro_rules! impl_config_template {
             }
         }
 
-        impl FormElements for $struct_name {
+        impl FormElementList for $struct_name {
             fn form_elements<S: Into<String>>(
                 &self,
                 name: S,

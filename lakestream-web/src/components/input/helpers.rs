@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use leptos::*;
 use regex::Regex;
 
-use super::{DisplayValue, FormState};
+use crate::components::forms::FormElements;
+use super::DisplayValue;
 
 pub fn validate_with_pattern(
     pattern: Regex,
@@ -18,9 +19,9 @@ pub fn validate_with_pattern(
     })
 }
 
-pub fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
+pub fn perform_validation(form_elements: &FormElements) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
-    for (key, element_state) in form_state.elements() {
+    for (key, element_state) in form_elements {
         let value = element_state.read_display_value();
         let validator = element_state.schema.validator.clone();
 
@@ -37,7 +38,7 @@ pub fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     }
 
     // Write validation errors to corresponding WriteSignals
-    for (key, element_state) in form_state.elements() {
+    for (key, element_state) in form_elements {
         if let Some(error) = validation_errors.get(key) {
             element_state.display_error.set(Some(error.clone()));
         } else {

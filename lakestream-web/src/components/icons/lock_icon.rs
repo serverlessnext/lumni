@@ -11,7 +11,6 @@ pub fn LockIconView(
             on:click=move |_| click_handler()
         >
             {move || if is_locked.get() {
-                log!("is_locked");
                 view! {cx, <LockIcon is_locked=true /> }
             } else {
                 view! {cx, <LockIcon is_locked=false /> }

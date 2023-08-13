@@ -10,10 +10,9 @@ use super::dummy_data::make_form_data;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::forms::{FormData, FormError};
+use crate::components::forms::{FormData, ConfigurationFormMeta, FormElements, FormError};
 use crate::components::input::{
     validate_with_pattern, DisplayValue, FieldContentType,
-    FormState,
 };
 
 #[component]
@@ -46,8 +45,8 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state().clone();
-                let validation_errors = perform_validation(&form_state);
+                let form_elements = form_data.elements();
+                let validation_errors = perform_validation(form_elements);
 
                 if validation_errors.is_empty() {
                     log!("Form data is valid");
@@ -89,10 +88,10 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         "Input can only be foo".to_string(),
     ));
 
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let mut load_and_submit_form = FormBuilder::new(
         "Load and Submit Form",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     );
 
@@ -122,9 +121,9 @@ async fn submit_data(_form_data: FormData) -> Result<(), FormError> {
     Ok(())
 }
 
-fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
+fn perform_validation(form_elements: &FormElements) -> HashMap<String, String> {
     let mut validation_errors = HashMap::new();
-    for (key, element_state) in form_state.elements() {
+    for (key, element_state) in form_elements {
         let value = element_state.read_display_value();
         let validator = element_state.schema.validator.clone();
 
@@ -141,7 +140,7 @@ fn perform_validation(form_state: &FormState) -> HashMap<String, String> {
     }
 
     // Write validation errors to corresponding WriteSignals
-    for (key, element_state) in form_state.elements() {
+    for (key, element_state) in form_elements {
         if let Some(error) = validation_errors.get(key) {
             element_state.display_error.set(Some(error.clone()));
         } else {

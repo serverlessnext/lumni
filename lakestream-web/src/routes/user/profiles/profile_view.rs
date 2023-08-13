@@ -22,7 +22,7 @@ pub fn ProfileView(
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
 
-    let form_id_clone = form_meta.form_id.clone();
+    let form_id_clone = form_meta.id();
     let storage_handler_clone = storage_handler.clone();
 
     let param_view = use_query_map(cx).get().get("view").cloned();
@@ -70,8 +70,8 @@ pub fn ProfileView(
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state();
-                let validation_errors = perform_validation(&form_state);
+                let form_elements = form_data.elements();
+                let validation_errors = perform_validation(&form_elements);
                 if validation_errors.is_empty() {
                     let result = storage_handler.save_config(&form_data).await;
                     match result {
@@ -109,22 +109,20 @@ pub fn ProfileView(
     );
 
     // Use predefined form elements based on config_type
-    let template_name = form_meta.template_name;
-    let config_name = form_meta.config_name;
+    let template_name = form_meta.template().unwrap_or("".to_string());
+    let profile_name = form_meta.name().unwrap_or("".to_string());
+
     let form_elements = match template_name.as_str() {
         "ObjectStoreS3" => {
-            Profile::ObjectStoreS3(ObjectStoreS3::new(&config_name))
+            Profile::ObjectStoreS3(ObjectStoreS3::new(&profile_name))
         }
-        _ => Profile::Environment(Environment::new(&config_name)),
+        _ => Profile::Environment(Environment::new(&profile_name)),
     }
     .form_elements(&template_name);
 
-    let form_tags = form_meta.tags;
-    let form_id = form_meta.form_id;
     let form_builder = ProfileFormBuilder::new(
-        &config_name,
-        &form_id,
-        form_tags,
+        &profile_name,
+        form_meta,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .with_elements(form_elements);

@@ -10,7 +10,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::builders::{build_all, ElementBuilder, InputFieldPattern};
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
 use crate::components::forms::{
-    FormData, FormError, HtmlForm, SubmitFormClassic,
+    FormData, ConfigurationFormMeta, FormError, HtmlForm, SubmitFormClassic,
 };
 use crate::components::input::FormElement;
 use crate::helpers::local_storage::delete_keys_not_matching_prefix;
@@ -210,8 +210,9 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             InputFieldPattern::PasswordCheck,
         )]);
 
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let form_login =
-        HtmlForm::new(cx, "Login", &Uuid::new_v4().to_string(), None, None, elements);
+        HtmlForm::new(cx, "Login", form_meta, None, elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -240,11 +241,11 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
             InputFieldPattern::PasswordCheck,
         )]);
 
+    let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let form_create = HtmlForm::new(
         cx,
         "Create Password",
-        &Uuid::new_v4().to_string(),
-        None,
+        form_meta,
         None,
         elements,
     );

@@ -3,11 +3,11 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::form_data::{FormData, SubmitInput};
+use super::form_data::{FormData, FormElements, SubmitInput};
 use super::handler::FormHandlerTrait;
 use crate::components::buttons::{FormButton, FormButtonGroup};
 use crate::components::form_helpers::SubmissionStatusView;
-use crate::components::input::{FormState, TextBoxView};
+use crate::components::input::TextBoxView;
 use crate::components::output::TextDisplayView;
 
 pub struct ViewHandler {
@@ -109,11 +109,9 @@ fn SubmitFormView<'a>(
     let is_submitting = handler.is_processing();
     let submit_error = handler.process_error();
 
-    let form_state = form_data.form_state();
-
     let rc_on_submit = handler.on_submit().on_submit();
-    let box_on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)> =
-        Box::new(move |ev: SubmitEvent, elements: Option<FormState>| {
+    let box_on_submit: Box<dyn Fn(SubmitEvent, Option<FormElements>)> =
+        Box::new(move |ev: SubmitEvent, elements: Option<FormElements>| {
             let elements = elements.map(SubmitInput::Elements);
             rc_on_submit(ev, elements);
         });
@@ -125,7 +123,7 @@ fn SubmitFormView<'a>(
         cx,
         <div>
             <FormContentView
-                form_state
+                form_data
                 on_submit=box_on_submit
                 is_submitting
                 buttons=button_group
@@ -145,14 +143,14 @@ fn LoadFormView(
     let is_loading = handler.is_processing();
     let load_error = handler.process_error();
 
-    let form_state = form_data.form_state();
+    let form_elements = form_data.elements().clone();
 
     view! {
         cx,
         <form class="flex flex-wrap w-full max-w-2xl text-white border p-4 font-mono"
         >
             <For
-                each= move || {form_state.elements().clone().into_iter().enumerate()}
+                each= move || {form_elements.clone().into_iter().enumerate()}
                     key=|(index, _)| *index
                     view= move |cx, (_, (_, form_element_state))| {
                         view! {
@@ -171,23 +169,36 @@ fn LoadFormView(
 #[component]
 pub fn FormContentView(
     cx: Scope,
-    form_state: FormState,
-    on_submit: Box<dyn Fn(SubmitEvent, Option<FormState>)>,
+    form_data: FormData,
+    on_submit: Box<dyn Fn(SubmitEvent, Option<FormElements>)>,
     is_submitting: RwSignal<bool>,
     buttons: FormButtonGroup,
 ) -> impl IntoView {
-    let form_state_clone = form_state.clone();
+    let form_name = form_data.meta_data().name();
+    let form_data_clone = form_data.clone();
     let form_changed = create_rw_signal(cx, false);
     view! {
         cx,
         <form class="flex flex-wrap w-full max-w-2xl text-black border p-4 font-mono"
             on:submit=move |ev| {
                 is_submitting.set(true);
-                on_submit(ev, Some(form_state.clone()))
+                on_submit(ev, Some(form_data.elements().to_owned()))
             }
         >
+            {
+                if let Some(name) = form_name {
+                    view! {
+                        cx,
+                        <div class="w-full text-2xl">
+                            {name}
+                        </div>
+                    }.into_view(cx)
+                } else {
+                    "".into_view(cx)
+                }
+            }
             <For
-                each= move || {form_state_clone.elements().clone().into_iter().enumerate()}
+                each= move || {form_data_clone.elements().clone().into_iter().enumerate()}
                     key=|(index, _)| *index
                     view= move |cx, (_, (_, form_element_state))| {
                         view! {

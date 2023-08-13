@@ -1,20 +1,61 @@
 use std::collections::HashMap;
 
 use leptos::log;
-use localencrypt::{LocalEncrypt, LocalStorage};
+use localencrypt::{LocalEncrypt, LocalStorage, ItemMetaData};
 
 use crate::components::forms::{FormData, FormError};
-use crate::components::input::DisplayValue;
 
 const INVALID_BROWSER_STORAGE_TYPE: &str = "Invalid browser storage type";
 const INVALID_STORAGE_BACKEND: &str = "Invalid storage backend";
 
 #[derive(Clone, Debug)]
 pub struct ConfigurationFormMeta {
-    pub form_id: String,
-    pub config_name: String,
-    pub template_name: String,
-    pub tags: Option<HashMap<String, String>>, // original tags
+    id: String,
+    name: Option<String>,
+    template: Option<String>,
+    tags: Option<HashMap<String, String>>, // original tags
+}
+
+#[allow(dead_code)]
+impl ConfigurationFormMeta {
+    pub fn new<S: Into<String>>(id: S, name: S, template: S) -> Self {
+        Self {
+            id: id.into(),
+            name: Some(name.into()),
+            template: Some(template.into()),
+            tags: None,
+        }
+    }
+
+    pub fn with_tags(mut self, tags: HashMap<String, String>) -> Self {
+        self.tags = Some(tags);
+        self
+    }
+
+    pub fn with_id<S: Into<String>>(id: S) -> Self {
+        Self {
+            id: id.into(),
+            name: None,
+            template: None,
+            tags: None,
+        }
+    }
+
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    pub fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    pub fn template(&self) -> Option<String> {
+        self.template.clone()
+    }
+
+    pub fn tags(&self) -> Option<HashMap<String, String>> {
+        self.tags.clone()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -62,22 +103,14 @@ impl FormStorageHandler {
         form_id: &str,
     ) -> Result<ConfigurationFormMeta, String> {
         let tags_opt = self.get_form_info(form_id).await?;
-
         if let Some(tags) = tags_opt {
-            let config_name = tags
-                .get("ConfigName")
-                .cloned()
-                .ok_or_else(|| "ConfigName not found".to_string())?;
-
-            let template_name = tags
-                .get("TemplateName")
-                .cloned()
-                .ok_or_else(|| "TemplateName not found".to_string())?;
+            let profile_name = tags.get("ConfigName").cloned();
+            let template_name = tags.get("TemplateName").cloned();
 
             Ok(ConfigurationFormMeta {
-                form_id: form_id.to_string(),
-                config_name,
-                template_name,
+                id: form_id.to_string(),
+                name: profile_name,
+                template: template_name,
                 tags: Some(tags),
             })
         } else {
@@ -127,9 +160,13 @@ impl FormStorageHandler {
         let mut local_storage = self.get_local_storage()?;
 
         // Save the serialized form data to the local storage
-        let meta_data = form_data.meta_data().clone();
+        let tags = form_data.meta_data().tags.clone();
+        let item_meta_data = ItemMetaData::new_with_tags(
+            &form_data.meta_data().id,
+            tags.unwrap_or_default(),
+        );
         match local_storage
-            .save_content(meta_data, &document_content)
+            .save_content(item_meta_data, &document_content)
             .await
         {
             Ok(_) => {

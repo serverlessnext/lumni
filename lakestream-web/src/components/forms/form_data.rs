@@ -2,39 +2,40 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use leptos::*;
-use localencrypt::ItemMetaData;
 
 use crate::components::input::{
     DisplayValue, FormElement, FormElementState,
-    FormState,
 };
+use super::ConfigurationFormMeta;
 
 pub enum SubmitInput {
-    Elements(FormState),
+    Elements(FormElements),
 }
+
+pub type FormElements = HashMap<String, FormElementState>;
 
 #[derive(Clone, Debug)]
 pub struct FormData {
-    form_state: FormState,
-    meta_data: ItemMetaData,
+    elements: FormElements,
+    meta_data: ConfigurationFormMeta,
     view_options: FormViewOptions,
 }
 
 impl FormData {
-    pub fn new(form_state: FormState, meta_data: ItemMetaData, view_options: Option<FormViewOptions>) -> Self {
+    pub fn new(elements: FormElements, meta_data: ConfigurationFormMeta, view_options: Option<FormViewOptions>) -> Self {
         Self {
-            form_state,
+            elements,
             meta_data,
             view_options: view_options.unwrap_or_default(),
         }
     }
 
-    pub fn meta_data(&self) -> &ItemMetaData {
+    pub fn meta_data(&self) -> &ConfigurationFormMeta {
         &self.meta_data
     }
 
-    pub fn form_state(&self) -> FormState {
-        self.form_state.clone()
+    pub fn elements(&self) -> &FormElements {
+        &self.elements
     }
 
     pub fn update_with_config(&mut self, config: HashMap<String, String>) {
@@ -42,9 +43,9 @@ impl FormData {
             // if form is a (single) text area, export config into a set of
             // key=value lines
             let element_name =
-                self.form_state.elements().keys().next().unwrap().clone();
+                self.elements().keys().next().unwrap().clone();
             if let Some(form_element_state) =
-                self.form_state.elements().clone().get_mut(&element_name)
+                self.elements().clone().get_mut(&element_name)
             {
                 // Clone the existing schema to mutate it
                 let mut new_schema = (*form_element_state.schema).clone();
@@ -87,7 +88,7 @@ impl FormData {
         } else {
             // else plot each config item into its own form element
             for (element_name, buffer_data) in config.into_iter() {
-                if let Some(form_element_state) = self.form_state.elements().clone().get_mut(&element_name) {
+                if let Some(form_element_state) = self.elements().clone().get_mut(&element_name) {
                     // Clone the existing schema to mutate it
                     let mut new_schema = (*form_element_state.schema).clone();
 
@@ -106,7 +107,7 @@ impl FormData {
 
     pub fn export_config(&self) -> HashMap<String, String> {
         if self.view_options.text_area() {
-            self.form_state.elements()
+            self.elements()
                 .values()
                 .next()
                 .unwrap()
@@ -123,7 +124,7 @@ impl FormData {
                 })
                 .collect()
         } else {
-            self.form_state.elements()
+            self.elements()
             .iter()
             .map(|(key, element_state)| {
                 (
@@ -139,7 +140,7 @@ impl FormData {
 
     pub fn build(
         cx: Scope,
-        meta_data: ItemMetaData,
+        meta_data: ConfigurationFormMeta,
         elements: &[FormElement],
         view_options: Option<FormViewOptions>,
     ) -> FormData {
@@ -160,8 +161,7 @@ impl FormData {
                 (name, element_state)
             })
             .collect();
-        let form_state = FormState::new(elements);
-        Self::new(form_state, meta_data, view_options)
+        Self::new(elements, meta_data, view_options)
     }
 }
 

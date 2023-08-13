@@ -4,7 +4,7 @@ use leptos::*;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::forms::{FormData, FormStorageHandler};
+use crate::components::forms::{FormData, ConfigurationFormMeta, FormStorageHandler};
 use crate::components::input::{perform_validation, FieldContentType};
 use crate::GlobalState;
 
@@ -69,8 +69,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
         spawn_local(async move {
             if let Some(form_data) = form_data {
-                let form_state = form_data.form_state();
-                let validation_errors = perform_validation(&form_state);
+                let form_elements = form_data.elements();
+                let validation_errors = perform_validation(&form_elements);
                 if validation_errors.is_empty() {
                     let result = storage_handler.save_config(&form_data).await;
                     match result {
@@ -107,11 +107,10 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         None,
     );
 
-    let tags = None;
+    let form_meta = ConfigurationFormMeta::with_id(&form_id.to_string());
     let mut form = FormBuilder::new(
         &username,
-        &form_id.to_string(),
-        tags,
+        form_meta,
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     );
 

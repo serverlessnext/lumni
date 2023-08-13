@@ -1,18 +1,15 @@
-use std::collections::HashMap;
-
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
 use super::ElementBuilder;
 use crate::components::buttons::FormButton;
-use crate::components::forms::{Form, FormViewOptions, FormData, HtmlForm};
+use crate::components::forms::{Form, ConfigurationFormMeta, FormViewOptions, FormData, HtmlForm};
 use crate::components::input::FormElement;
 
 
 pub struct FormBuilder {
     title: String,
-    id: String,
-    tags: Option<HashMap<String, String>>,
+    form_meta: ConfigurationFormMeta,
     elements: Vec<ElementBuilder>,
     form_type: FormType,
 }
@@ -20,14 +17,12 @@ pub struct FormBuilder {
 impl FormBuilder {
     pub fn new<S: Into<String>>(
         title: S,
-        id: S,
-        tags: Option<HashMap<String, String>>,
+        form_meta: ConfigurationFormMeta,
         form_type: FormType,
     ) -> Self {
         Self {
             title: title.into(),
-            id: id.into(),
-            tags,
+            form_meta,
             elements: Vec::new(),
             form_type,
         }
@@ -50,18 +45,6 @@ impl FormBuilder {
         self.elements.clear();
     }
 
-    pub fn add_tag(&mut self, key: &str, value: &str) {
-        self.tags.get_or_insert_with(HashMap::new).insert(key.to_string(), value.to_string());
-    }
-
-    pub fn update_tag(&mut self, key: &str, value: &str) {
-        self.add_tag(key, value);
-    }
-
-    pub fn get_tag(&self, key: &str) -> Option<&String> {
-        self.tags.as_ref()?.get(key)
-    }
-
     pub fn add_element<T: Into<ElementBuilder>>(
         &mut self,
         element: T,
@@ -76,22 +59,22 @@ impl FormBuilder {
 
         match self.form_type {
             FormType::SubmitData(parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, self.tags, view_options, elements)
+                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
                     .build(FormType::SubmitData(parameters))
             }
             FormType::LoadData(parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, self.tags, view_options, elements)
+                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
                     .build(FormType::LoadData(parameters))
             }
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
-                HtmlForm::new(cx, &self.title, &self.id, self.tags, view_options, elements)
+                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
                     .build(FormType::LoadAndSubmitData(
                         load_parameters,
                         submit_parameters,
                     ))
             }
             FormType::LoadElements => {
-                HtmlForm::new(cx, &self.title, &self.id, self.tags, view_options, elements)
+                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
                     .build(FormType::LoadElements)
             }
         }

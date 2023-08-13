@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -41,23 +40,6 @@ impl fmt::Debug for FormElement {
             .field("buffer_data", &self.buffer_data)
             .field("is_enabled", &self.is_enabled)
             .finish()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FormState {
-    elements: HashMap<String, FormElementState>,
-}
-
-impl FormState {
-    pub fn new(elements: HashMap<String, FormElementState>) -> Self {
-        Self {
-            elements,
-        }
-    }
-
-    pub fn elements(&self) -> &HashMap<String, FormElementState> {
-        &self.elements
     }
 }
 

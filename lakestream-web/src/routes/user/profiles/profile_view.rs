@@ -1,13 +1,14 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use leptos_router::{use_query_map};
+use leptos_router::use_query_map;
 
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use super::{Profile, ProfileList};
 use crate::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
+use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormStorageHandler,
 };
@@ -101,11 +102,12 @@ pub fn ProfileView(
         Some(load_error),
     );
 
+    let form_button = FormButton::new(ButtonType::Save, None).set_enabled(false);
     let submit_parameters = SubmitParameters::new(
         Box::new(handle_submit),
         Some(is_submitting),
         Some(submit_error),
-        None,
+        Some(form_button),
     );
 
     // Use predefined form elements based on config_type

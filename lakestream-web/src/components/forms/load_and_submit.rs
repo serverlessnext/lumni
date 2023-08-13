@@ -70,7 +70,7 @@ impl LoadAndSubmitForm {
         let form_button = self
             .form_button
             .clone()
-            .unwrap_or(FormButton::new(ButtonType::Submit, None));
+            .unwrap_or(FormButton::new(ButtonType::Submit, None).set_enabled(false));
         self.view_handler.to_view(self.form.cx(), Some(form_button))
     }
 }

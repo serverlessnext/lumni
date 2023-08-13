@@ -210,7 +210,9 @@ pub fn FormContentView(
                         }
                     }
             />
-            { move || buttons.clone().into_view(cx, Some(form_changed.get())) }
+            { move || {
+                buttons.clone().into_view(cx, Some(form_changed.get())) }
+            }
         </form>
     }.into_view(cx)
 }

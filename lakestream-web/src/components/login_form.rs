@@ -288,7 +288,7 @@ pub fn LoginFormDebug(cx: Scope) -> impl IntoView {
     view! {
         cx,
         <div>
-            <p>"Debug login"</p>
+            <p>"Debug logged in..."</p>
         </div>
     }
 }

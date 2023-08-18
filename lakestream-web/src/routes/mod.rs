@@ -1,6 +1,5 @@
 mod about;
-mod home;
 pub use about::About;
-pub use home::Home;
-pub mod api;
+pub mod home;
 pub mod user;
+pub mod api;

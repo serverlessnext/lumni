@@ -4,9 +4,10 @@ use leptos_router::*;
 
 use crate::components::Redirect;
 use crate::routes::api::Login;
+use crate::routes::home::{Home, Console, Environment};
 use crate::routes::user::profiles::{ProfileId, UserProfiles};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
-use crate::routes::{About, Home};
+use crate::routes::About;
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -55,23 +56,37 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/tailwind.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
-            <Router fallback=|cx| view! { cx, <Redirect/>}.into_view(cx)>
+            <Router fallback=|cx| view! { cx, <Home/>}.into_view(cx)>
                 <nav class="py-2 px-4 text-lg font-medium h-24 bg-black">
                     <div class="mb-4 text-4xl font-sans font-bold bg-gradient-to-r from-white via-sky-200 to-sky-300 inline-block text-transparent bg-clip-text tracking-widest">"Goaiio"</div>
-                    //<div class="mb-4 text-4xl font-sans tracking-widest font-bold text-white">"Goaiio"</div>
                     <div class="flex items-end text-white">
-                        <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Console"</a>
+                        <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Home"</a>
                         <a href="/user/settings" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
                         <a href="/about" class="hover:text-green-500 mr-4 font-mono font-bold">"About"</a>
                     </div>
                 </nav>
                 <main>
                     <Routes>
-                        <Route path="/" view=|cx| view! { cx, <Home/> }/>
                         <Route
-                            path="/console"
-                            view=|cx| view! { cx, <Home/> }
-                        />
+                            path=""
+                            view=|cx| {
+                                view! { cx, <Home/> }
+                            }
+                        >
+                            // load Console directly if no path is given
+                            // the url will be rewritten via History, saving
+                            // a redirect on first page load
+                            <Route path="/" view=|cx| view! { cx,
+                                <Console />
+                            }/>
+                            // but also accept /console
+                            <Route path="/console" view=|cx| view! { cx,
+                                <Console />
+                            }/>
+                            <Route path="/environment" view=|cx| view! { cx,
+                                <Environment />
+                            }/>
+                        </Route>
                         <ProtectedRoute
                             path="/user"
                             redirect_path=redirect_path!("user:settings")

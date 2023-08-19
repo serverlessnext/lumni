@@ -3,8 +3,7 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::components::input::{
-    validate_with_pattern, FieldContentType,
-    FieldLabel, FormElement,
+    validate_with_pattern, FieldContentType, FieldLabel, FormElement,
 };
 
 #[derive(Clone)]

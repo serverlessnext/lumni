@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-use crate::components::forms::{FormData, ConfigurationFormMeta, FormError};
+use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 use crate::components::input::{validate_with_pattern, FieldContentType};
 
 #[cfg(debug_assertions)]
@@ -39,13 +39,10 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
 
     // define results_form first as its the target for handle_search
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
-    let results_form = FormBuilder::new(
-        "Search Form",
-        form_meta,
-        FormType::LoadElements,
-    )
-    //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
-    .build(cx, None);
+    let results_form =
+        FormBuilder::new("Search Form", form_meta, FormType::LoadElements)
+            //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
+            .build(cx, None);
 
     // allows to overwrite the form
     let results_rw = results_form.form_data_rw();

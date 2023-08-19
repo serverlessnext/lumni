@@ -1,6 +1,5 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
-
 use leptos_router::use_query_map;
 
 use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
@@ -10,14 +9,14 @@ use crate::builders::{
 };
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{
-    ConfigurationFormMeta, FormData, FormStorageHandler,
+    ConfigurationFormMeta, FormData, FormStorageHandler, LocalStorageWrapper,
 };
 use crate::components::input::perform_validation;
 
 #[component]
 pub fn ProfileView(
     cx: Scope,
-    storage_handler: FormStorageHandler,
+    storage_handler: FormStorageHandler<LocalStorageWrapper>,
     form_meta: ConfigurationFormMeta,
 ) -> impl IntoView {
     let is_loading = create_rw_signal(cx, false);
@@ -102,7 +101,8 @@ pub fn ProfileView(
         Some(load_error),
     );
 
-    let form_button = FormButton::new(ButtonType::Save, None).set_enabled(false);
+    let form_button =
+        FormButton::new(ButtonType::Save, None).set_enabled(false);
     let submit_parameters = SubmitParameters::new(
         Box::new(handle_submit),
         Some(is_submitting),

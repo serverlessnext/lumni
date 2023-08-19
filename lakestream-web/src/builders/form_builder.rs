@@ -3,9 +3,10 @@ use leptos::*;
 
 use super::ElementBuilder;
 use crate::components::buttons::FormButton;
-use crate::components::forms::{Form, ConfigurationFormMeta, FormViewOptions, FormData, HtmlForm};
+use crate::components::forms::{
+    ConfigurationFormMeta, Form, FormData, FormViewOptions, HtmlForm,
+};
 use crate::components::input::FormElement;
-
 
 pub struct FormBuilder {
     title: String,
@@ -53,30 +54,52 @@ impl FormBuilder {
         self
     }
 
-    pub fn build(self, cx: Scope, view_options: Option<FormViewOptions>) -> Box<dyn Form> {
+    pub fn build(
+        self,
+        cx: Scope,
+        view_options: Option<FormViewOptions>,
+    ) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
             self.elements.iter().map(|b| b.clone().build()).collect();
 
         match self.form_type {
-            FormType::SubmitData(parameters) => {
-                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
-                    .build(FormType::SubmitData(parameters))
-            }
-            FormType::LoadData(parameters) => {
-                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
-                    .build(FormType::LoadData(parameters))
-            }
+            FormType::SubmitData(parameters) => HtmlForm::new(
+                cx,
+                &self.title,
+                self.form_meta,
+                view_options,
+                elements,
+            )
+            .build(FormType::SubmitData(parameters)),
+            FormType::LoadData(parameters) => HtmlForm::new(
+                cx,
+                &self.title,
+                self.form_meta,
+                view_options,
+                elements,
+            )
+            .build(FormType::LoadData(parameters)),
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
-                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
-                    .build(FormType::LoadAndSubmitData(
-                        load_parameters,
-                        submit_parameters,
-                    ))
+                HtmlForm::new(
+                    cx,
+                    &self.title,
+                    self.form_meta,
+                    view_options,
+                    elements,
+                )
+                .build(FormType::LoadAndSubmitData(
+                    load_parameters,
+                    submit_parameters,
+                ))
             }
-            FormType::LoadElements => {
-                HtmlForm::new(cx, &self.title, self.form_meta, view_options, elements)
-                    .build(FormType::LoadElements)
-            }
+            FormType::LoadElements => HtmlForm::new(
+                cx,
+                &self.title,
+                self.form_meta,
+                view_options,
+                elements,
+            )
+            .build(FormType::LoadElements),
         }
     }
 }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::form_data::{FormData, FormElements, SubmitInput};
+use super::{FormData, FormElements, SubmitInput};
 use super::handler::FormHandlerTrait;
 use crate::components::buttons::{FormButton, FormButtonGroup};
 use crate::components::form_helpers::SubmissionStatusView;

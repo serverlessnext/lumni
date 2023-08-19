@@ -1,7 +1,7 @@
 use leptos::*;
-use web_sys::window;
-use wasm_bindgen::JsValue;
 use leptos_router::{use_location, Outlet};
+use wasm_bindgen::JsValue;
+use web_sys::window;
 
 #[component]
 pub fn Home(cx: Scope) -> impl IntoView {
@@ -11,7 +11,11 @@ pub fn Home(cx: Scope) -> impl IntoView {
         // on first page load, rewrite url to /console
         // this avoids are more costly redirect
         if let Some(window) = window() {
-            window.history().unwrap().push_state_with_url(&JsValue::UNDEFINED, "", Some("/console")).unwrap();
+            window
+                .history()
+                .unwrap()
+                .push_state_with_url(&JsValue::UNDEFINED, "", Some("/console"))
+                .unwrap();
         }
     }
 

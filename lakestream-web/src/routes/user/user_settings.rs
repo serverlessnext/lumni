@@ -4,7 +4,9 @@ use leptos::*;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::forms::{FormData, ConfigurationFormMeta, FormStorageHandler};
+use crate::components::forms::{
+    ConfigurationFormMeta, FormData, FormStorageHandler, LocalStorageWrapper,
+};
 use crate::components::input::{perform_validation, FieldContentType};
 use crate::GlobalState;
 
@@ -31,7 +33,9 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
     let vault_clone = vault.clone();
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
-        let storage_handler = FormStorageHandler::new(vault_clone.clone());
+        let storage_wrapper = LocalStorageWrapper::new(vault_clone.clone());
+        let storage_handler = FormStorageHandler::new(storage_wrapper);
+
         is_loading.set(true);
         spawn_local(async move {
             // match load_config_from_vault(&vault, form_id).await {
@@ -65,7 +69,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         ev.prevent_default();
         is_submitting.set(true);
 
-        let storage_handler = FormStorageHandler::new(vault.clone());
+        let storage_wrapper = LocalStorageWrapper::new(vault.clone());
+        let storage_handler = FormStorageHandler::new(storage_wrapper);
 
         spawn_local(async move {
             if let Some(form_data) = form_data {

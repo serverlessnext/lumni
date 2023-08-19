@@ -5,7 +5,7 @@ use leptos::*;
 
 use super::form_builder::{FormBuilder, FormType};
 use super::ElementBuilder;
-use crate::components::forms::{Form, ConfigurationFormMeta, FormViewOptions};
+use crate::components::forms::{ConfigurationFormMeta, Form, FormViewOptions};
 use crate::components::input::FieldContentType;
 
 pub struct ProfileFormBuilder {
@@ -98,4 +98,3 @@ impl ProfileFormBuilder {
         self
     }
 }
-

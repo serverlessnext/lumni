@@ -39,13 +39,13 @@ pub fn TextBoxView(
         },
     );
 
-    let is_enabled = (move ||
+    let is_enabled = (move || {
         if is_locked.get() {
             false
         } else {
             initial_enabled
         }
-    )
+    })
     .derive_signal(cx);
 
     let initial_value = if is_locked.get_untracked() {

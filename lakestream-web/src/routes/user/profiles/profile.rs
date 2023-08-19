@@ -2,7 +2,9 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::ProfileView;
-use crate::components::forms::{ConfigurationFormMeta, FormStorageHandler};
+use crate::components::forms::{
+    ConfigurationFormMeta, FormStorageHandler, LocalStorageWrapper,
+};
 use crate::GlobalState;
 
 #[component]
@@ -22,7 +24,9 @@ pub fn ProfileId(cx: Scope) -> impl IntoView {
 
     let error_signal = create_rw_signal(cx, None::<String>);
 
-    let storage_handler = FormStorageHandler::new(vault);
+    let storage_wrapper = LocalStorageWrapper::new(vault);
+    let storage_handler = FormStorageHandler::new(storage_wrapper);
+
     let storage_handler_clone = storage_handler.clone();
     spawn_local(async move {
         match storage_handler_clone.get_configuration_meta(&form_id).await {

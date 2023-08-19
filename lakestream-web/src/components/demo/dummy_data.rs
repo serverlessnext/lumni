@@ -4,7 +4,7 @@ use std::sync::Arc;
 use leptos::*;
 use regex::Regex;
 
-use crate::components::forms::{FormData, ConfigurationFormMeta};
+use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::*;
 
 pub fn make_form_elements() -> Vec<FormElement> {
@@ -33,9 +33,8 @@ pub fn make_form_elements() -> Vec<FormElement> {
         is_enabled: true,
     };
 
-let elements = vec![foo_element, text_area_element];
-elements
-
+    let elements = vec![foo_element, text_area_element];
+    elements
 }
 
 pub fn make_form_data(cx: Scope) -> FormData {

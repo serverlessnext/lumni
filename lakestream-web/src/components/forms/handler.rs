@@ -1,6 +1,6 @@
 use leptos::*;
 
-use super::form_data::FormData;
+use super::FormData;
 use super::submit_handler::SubmitHandler;
 
 pub trait FormHandlerTrait {

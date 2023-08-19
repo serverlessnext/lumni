@@ -10,7 +10,9 @@ use super::dummy_data::make_form_data;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
-use crate::components::forms::{FormData, ConfigurationFormMeta, FormElements, FormError};
+use crate::components::forms::{
+    ConfigurationFormMeta, FormData, FormElements, FormError,
+};
 use crate::components::input::{
     validate_with_pattern, DisplayValue, FieldContentType,
 };

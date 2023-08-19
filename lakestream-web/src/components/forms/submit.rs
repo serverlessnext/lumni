@@ -4,11 +4,11 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::ConfigurationFormMeta;
-use super::form_data::{FormData, SubmitInput};
+use super::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::{CustomSubmitHandler, SubmitFormHandler};
 use super::view_handler::ViewHandler;
+use super::ConfigurationFormMeta;
 use crate::builders::SubmitParameters;
 use crate::components::buttons::{ButtonType, FormButton};
 
@@ -105,8 +105,10 @@ impl SubmitFormClassic {
         let mut tags = HashMap::new();
         tags.insert("Name".to_string(), form.name().to_string());
 
-        let form_meta = ConfigurationFormMeta::with_id(form.id()).with_tags(tags);
-        let form_data_default = FormData::build(cx, form_meta, &form.elements, None);
+        let form_meta =
+            ConfigurationFormMeta::with_id(form.id()).with_tags(tags);
+        let form_data_default =
+            FormData::build(cx, form_meta, &form.elements, None);
 
         let form_data = create_rw_signal(cx, Some(form_data_default));
 

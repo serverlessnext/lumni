@@ -8,7 +8,7 @@ use super::dummy_data::make_form_data;
 #[cfg(feature = "debug-assertions")]
 use super::helpers::debug_sleep;
 use crate::builders::{FormBuilder, FormType, LoadParameters};
-use crate::components::forms::{FormData, ConfigurationFormMeta, FormError};
+use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 
 #[component]
 pub fn LoadFormDemo(cx: Scope) -> impl IntoView {

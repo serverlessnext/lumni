@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use leptos::*;
 
-use super::form_data::FormData;
+use super::FormData;
 use super::handler::FormHandlerTrait;
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;

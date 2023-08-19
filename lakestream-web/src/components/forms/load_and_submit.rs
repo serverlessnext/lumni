@@ -3,7 +3,7 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::form_data::{FormData, SubmitInput};
+use super::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::{CustomSubmitHandler, SubmitFormHandler};
 use super::view_handler::ViewHandler;
@@ -67,10 +67,9 @@ impl LoadAndSubmitForm {
     }
 
     pub fn to_view(&self) -> View {
-        let form_button = self
-            .form_button
-            .clone()
-            .unwrap_or(FormButton::new(ButtonType::Submit, None).set_enabled(false));
+        let form_button = self.form_button.clone().unwrap_or(
+            FormButton::new(ButtonType::Submit, None).set_enabled(false),
+        );
         self.view_handler.to_view(self.form.cx(), Some(form_button))
     }
 }

@@ -2,12 +2,10 @@ use leptos::*;
 
 use crate::builders::FormType;
 use crate::components::forms::{
-    FormData, ConfigurationFormMeta,
-    LoadAndSubmitForm, LoadForm, SubmitForm, FormViewOptions,
+    ConfigurationFormMeta, FormData, FormViewOptions, LoadAndSubmitForm,
+    LoadForm, SubmitForm,
 };
 use crate::components::input::FormElement;
-
-
 
 pub struct HtmlForm {
     cx: Scope,
@@ -27,7 +25,8 @@ impl HtmlForm {
         let html_form_meta = HtmlFormMeta::new(name, &form_meta.id());
 
         let form_data_rw = if !elements.is_empty() {
-            let form_data = FormData::build(cx, form_meta, &elements, view_options);
+            let form_data =
+                FormData::build(cx, form_meta, &elements, view_options);
             create_rw_signal(cx, Some(form_data))
         } else {
             create_rw_signal(cx, None)
@@ -98,5 +97,3 @@ impl HtmlFormMeta {
         }
     }
 }
-
-

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::form_data::{FormData, SubmitInput};
+use super::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
 
 pub trait SubmitHandler {

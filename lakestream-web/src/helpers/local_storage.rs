@@ -23,14 +23,10 @@ pub async fn list_all_keys() -> Result<Vec<String>, JsValue> {
 
             Ok(result)
         } else {
-            Err(JsValue::from_str(
-                "Error: localStorage is not available.",
-            ))
+            Err(JsValue::from_str("Error: localStorage is not available."))
         }
     } else {
-        Err(JsValue::from_str(
-            "Error: Unable to access window object.",
-        ))
+        Err(JsValue::from_str("Error: Unable to access window object."))
     }
 }
 

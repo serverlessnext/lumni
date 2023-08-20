@@ -1,3 +1,4 @@
+
 use leptos::*;
 
 use super::{DisplayValue, FormElementState};
@@ -180,8 +181,13 @@ pub fn TextAreaFieldView(
     display_value_signal: RwSignal<String>,
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
+
+    let min_height = 8;
+    let line_count = display_value_signal.get().lines().count();
+
     view! { cx,
-        <textarea rows={ display_value_signal.get().lines().count() + 2 }
+        <textarea
+            rows={ if line_count > min_height { line_count + 1} else { min_height }}
             prop:value={ display_value_signal }
             on:input=move |ev| {
                 if is_enabled.get() {

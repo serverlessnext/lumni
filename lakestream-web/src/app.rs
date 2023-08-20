@@ -2,7 +2,6 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::components::Redirect;
 use crate::routes::api::Login;
 use crate::routes::home::{Console, Environment, Home};
 use crate::routes::user::profiles::{ProfileId, UserProfiles};

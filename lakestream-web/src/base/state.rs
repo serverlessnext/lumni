@@ -1,11 +1,31 @@
+use std::sync::{Arc, Mutex};
 use localencrypt::LocalEncrypt;
 
-const DEFAULT_HOME_URL: &str = "/home";
+use crate::components::forms::{FormStorageHandler, MemoryStorage};
 
-#[derive(Clone, Default)]
+const DEFAULT_HOME_URL: &str = "/console";
+
+#[derive(Clone)]
 pub struct GlobalState {
+    pub store: Arc<Mutex<FormStorageHandler<MemoryStorage>>>,
     pub vault: Option<LocalEncrypt>,
     pub runtime: Option<RunTime>,
+}
+
+impl GlobalState {
+    fn new() -> Self {
+        Self {
+            store: Arc::new(Mutex::new(FormStorageHandler::new(MemoryStorage::new()))),
+            vault: None,
+            runtime: None,
+        }
+    }
+}
+
+impl Default for GlobalState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Debug)]

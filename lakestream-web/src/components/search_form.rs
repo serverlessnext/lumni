@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
@@ -12,26 +11,6 @@ use crate::builders::{
 use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 use crate::components::input::{validate_with_pattern, FieldContentType};
 
-#[cfg(debug_assertions)]
-#[cfg(feature = "debug-assertions")]
-async fn debug_sleep() {
-    use std::time::Duration;
-
-    #[cfg(feature = "debug-assertions")]
-    use async_std::task;
-    task::sleep(Duration::from_secs(1)).await;
-}
-
-#[cfg(feature = "debug-assertions")]
-macro_rules! debug_sleep {
-    () => {
-        #[cfg(debug_assertions)]
-        {
-            debug_sleep().await;
-        }
-    };
-}
-
 #[component]
 pub fn SearchForm(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
@@ -41,7 +20,6 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let results_form =
         FormBuilder::new("Search Form", form_meta, FormType::LoadElements)
-            //.add_element(Box::new(FieldBuilder::new("Query").as_input_field()))
             .build(cx, None);
 
     // allows to overwrite the form
@@ -55,17 +33,8 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
 
             spawn_local(async move {
                 // run search on background
-                let data = extract_form_data(form_data.clone())
-                    .map_err(|e| {
-                        log!("Error: {:?}", e);
-                        validation_error
-                            .set(Some("FORM_DATA_MISSING".to_string()));
-                    })
-                    .unwrap();
-                #[cfg(feature = "debug-assertions")]
-                debug_sleep!();
 
-                log!("Form data: {:?}", data);
+                // log!("Form data: {:?}", data);
                 if form_data.is_some() {
                     results_rw.set(form_data);
                 }
@@ -94,12 +63,13 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
         .add_element(
             ElementBuilder::new("Select", FieldContentType::PlainText)
                 .with_label("Select")
+                .with_placeholder("*")
                 .with_initial_value("*"),
         )
         .add_element(
             ElementBuilder::new("From", FieldContentType::PlainText)
                 .with_label("From")
-                .with_initial_value("table")
+                .with_placeholder("s3://bucket")
                 .validator(Some(Arc::new(validate_with_pattern(
                     query_pattern,
                     "Invalid key.".to_string(),
@@ -130,11 +100,3 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
     .into_view(cx)
 }
 
-fn extract_form_data(
-    form_data: Option<FormData>,
-) -> Result<HashMap<String, String>, FormError> {
-    let data = form_data
-        .ok_or_else(|| FormError::SubmitError("FORM_DATA_MISSING".to_string()))
-        .map(|form_data| form_data.export_config())?;
-    Ok(data)
-}

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::components::input::{
-    validate_with_pattern, FieldContentType, FieldLabel, FormElement,
+    validate_with_pattern, FieldContentType, FieldLabel, FieldPlaceholder, FormElement,
 };
 
 #[derive(Clone)]
@@ -12,6 +12,7 @@ pub struct ElementBuilder {
     field_label: Option<FieldLabel>,
     is_enabled: bool,
     initial_value: String,
+    field_placeholder: Option<FieldPlaceholder>,
     field_content_type: FieldContentType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
 }
@@ -26,6 +27,7 @@ impl ElementBuilder {
             field_label: None,
             is_enabled: true,
             initial_value: String::new(),
+            field_placeholder: None,
             field_content_type,
             validate_fn: None,
         }
@@ -52,6 +54,11 @@ impl ElementBuilder {
 
     pub fn with_initial_value<S: Into<String>>(mut self, value: S) -> Self {
         self.initial_value = value.into();
+        self
+    }
+
+    pub fn with_placeholder<S: Into<String>>(mut self, placeholder: S) -> Self {
+        self.field_placeholder = Some(FieldPlaceholder::new(placeholder.into()));
         self
     }
 
@@ -87,6 +94,7 @@ impl ElementBuilder {
             name: self.name,
             field_content_type: self.field_content_type.clone(),
             field_label: self.field_label,
+            field_placeholder: self.field_placeholder,
             validator: self.validate_fn,
             buffer_data: self.initial_value,
             is_enabled: self.is_enabled,

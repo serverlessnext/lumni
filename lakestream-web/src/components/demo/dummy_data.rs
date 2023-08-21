@@ -18,6 +18,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
     let foo_element = FormElement {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Foo")),
+        field_placeholder: Some(FieldPlaceholder::new("foo")),
         validator: validate_foo,
         buffer_data: "foo".to_string(),
         name: "TextBoxElement".to_string(),
@@ -27,6 +28,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
     let text_area_element = FormElement {
         field_content_type: FieldContentType::PlainText,
         field_label: Some(FieldLabel::new("Text Area")),
+        field_placeholder: Some(FieldPlaceholder::new("key=value")),
         validator: None,
         buffer_data: "type anything".to_string(),
         name: "TextAreaElement".to_string(),

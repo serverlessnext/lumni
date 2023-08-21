@@ -29,6 +29,11 @@ pub fn TextBoxView(
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;
 
+    let placeholder_text = input_field_data
+        .field_placeholder
+        .as_ref()
+        .map_or_else(|| Some("None".to_string()), |placeholder| Some(placeholder.text()));
+
     // signals
     let initial_value = value_signal.get_untracked();
     let is_locked = create_rw_signal(
@@ -111,6 +116,7 @@ pub fn TextBoxView(
                         value_signal
                         display_value_signal
                         input_changed
+                        placeholder_text
                     />
                 }.into_view(cx)
             } else {
@@ -122,6 +128,7 @@ pub fn TextBoxView(
                         value_signal
                         display_value_signal
                         input_changed
+                        placeholder_text
                     />
                 }.into_view(cx)
             }}
@@ -154,6 +161,7 @@ pub fn InputFieldView(
     value_signal: RwSignal<DisplayValue>,
     display_value_signal: RwSignal<String>,
     input_changed: RwSignal<bool>,
+    placeholder_text: Option<String>,
 ) -> impl IntoView {
     view! { cx,
         <input
@@ -166,7 +174,7 @@ pub fn InputFieldView(
                     input_changed.set(true);    // enable submit button
                 }
             }
-            placeholder="none".to_string()
+            placeholder=placeholder_text.unwrap_or_else(|| "none".to_string())
             class={ get_input_class(is_enabled.get() ) }
             disabled=move || { !is_enabled.get() }
         />
@@ -180,6 +188,7 @@ pub fn TextAreaFieldView(
     value_signal: RwSignal<DisplayValue>,
     display_value_signal: RwSignal<String>,
     input_changed: RwSignal<bool>,
+    placeholder_text: Option<String>,
 ) -> impl IntoView {
 
     let min_height = 8;
@@ -196,7 +205,7 @@ pub fn TextAreaFieldView(
                     input_changed.set(true);    // enable submit button
                 }
             }
-            placeholder="none".to_string()
+            placeholder=placeholder_text.unwrap_or_else(|| "none".to_string())
             class={ get_input_class(is_enabled.get()) }
             disabled=move || { !is_enabled.get()}
         />

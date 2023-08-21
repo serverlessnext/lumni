@@ -126,21 +126,3 @@ pub fn Environment(cx: Scope) -> impl IntoView {
     form.to_view()
 }
 
-pub fn make_form_data(cx: Scope) -> FormData {
-    let text_area_element = FormElement {
-        field_content_type: FieldContentType::PlainText,
-        field_label: Some(FieldLabel::new("Text Area")),
-        validator: None,
-        buffer_data: "type anything".to_string(),
-        name: "TextAreaElement".to_string(),
-        is_enabled: true,
-    };
-
-    let elements = vec![text_area_element];
-    let mut tags = HashMap::new();
-    tags.insert("Name".to_string(), "Test Form".to_string());
-
-    let form_meta = ConfigurationFormMeta::with_id("Form1").with_tags(tags);
-    let form_data = FormData::build(cx, form_meta, &elements, None);
-    form_data
-}

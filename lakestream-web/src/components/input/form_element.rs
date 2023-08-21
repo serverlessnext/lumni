@@ -20,11 +20,28 @@ impl FieldLabel {
     }
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct FieldPlaceholder {
+    text: String,
+}
+
+impl FieldPlaceholder {
+    pub fn new<S: Into<String>>(text: S) -> Self {
+        Self { text: text.into() }
+    }
+
+    pub fn text(&self) -> String {
+        self.text.clone()
+    }
+}
+
+
 #[derive(Clone)]
 pub struct FormElement {
     pub name: String,
     pub field_content_type: FieldContentType,
     pub field_label: Option<FieldLabel>,
+    pub field_placeholder: Option<FieldPlaceholder>,
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     pub buffer_data: String, // data always gets loaded in here first
     pub is_enabled: bool,
@@ -36,6 +53,7 @@ impl fmt::Debug for FormElement {
             .field("name", &self.name)
             .field("field_content_type", &self.field_content_type)
             .field("field_label", &self.field_label)
+            .field("field_placeholder", &self.field_placeholder)
             .field("validator", &self.validator.is_some())
             .field("buffer_data", &self.buffer_data)
             .field("is_enabled", &self.is_enabled)

@@ -7,7 +7,7 @@ use crate::api::object_store_handler::ObjectStoreBackend;
 use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
 use crate::{
-    CallbackWrapper, Config, LakestreamError, ObjectStore, ObjectStoreVec,
+    CallbackWrapper, EnvironmentConfig, LakestreamError, ObjectStore, ObjectStoreVec,
 };
 
 pub type BoxedAsyncCallbackForObjectStore = Box<
@@ -18,7 +18,7 @@ pub type BoxedAsyncCallbackForObjectStore = Box<
 >;
 
 pub async fn object_stores_from_config(
-    config: Config,
+    config: EnvironmentConfig,
     callback: &Option<CallbackWrapper<ObjectStore>>,
 ) -> Result<ObjectStoreVec, LakestreamError> {
     let uri = config.get("uri").unwrap_or(&"".to_string()).clone();

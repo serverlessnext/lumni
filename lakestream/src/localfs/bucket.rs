@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use super::get::get_object;
 use super::list::list_files;
-use crate::base::config::Config;
+use crate::base::config::EnvironmentConfig;
 use crate::{
     FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
 };
@@ -27,13 +27,13 @@ impl FileSystem for LocalFileSystem {
 pub struct LocalFsBucket {
     name: String,
     #[allow(dead_code)]
-    config: Config,
+    config: EnvironmentConfig,
 }
 
 impl LocalFsBucket {
     pub fn new(
         name: &str,
-        config: Config,
+        config: EnvironmentConfig,
     ) -> Result<LocalFsBucket, &'static str> {
         Ok(LocalFsBucket {
             name: name.to_string(),
@@ -48,7 +48,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         &self.name
     }
 
-    fn config(&self) -> &Config {
+    fn config(&self) -> &EnvironmentConfig {
         &self.config
     }
 

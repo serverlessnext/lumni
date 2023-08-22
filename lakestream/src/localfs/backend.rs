@@ -1,18 +1,18 @@
 use async_trait::async_trait;
 
 pub use super::bucket::{FileSystem, LocalFsBucket};
-use crate::{Config, LakestreamError, ObjectStoreBackend, ObjectStoreVec};
+use crate::{EnvironmentConfig, LakestreamError, ObjectStoreBackend, ObjectStoreVec};
 
 pub struct LocalFsBackend;
 
 #[async_trait(?Send)]
 impl ObjectStoreBackend for LocalFsBackend {
-    fn new(_config: Config) -> Result<Self, LakestreamError> {
+    fn new(_config: EnvironmentConfig) -> Result<Self, LakestreamError> {
         Ok(Self)
     }
 
     async fn list_buckets(
-        _config: Config,
+        _config: EnvironmentConfig,
         _object_stores: &mut ObjectStoreVec,
     ) -> Result<(), LakestreamError> {
         Ok(())

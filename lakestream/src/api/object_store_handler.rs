@@ -4,7 +4,7 @@ use log::info;
 use crate::base::object_store::object_stores_from_config;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
-    BinaryCallbackWrapper, CallbackWrapper, Config, FileObject,
+    BinaryCallbackWrapper, CallbackWrapper, EnvironmentConfig, FileObject,
     FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore,
     ObjectStoreVec,
 };
@@ -13,7 +13,7 @@ use crate::{
 pub struct ObjectStoreHandler {}
 
 impl ObjectStoreHandler {
-    pub fn new(_configs: Option<Vec<Config>>) -> Self {
+    pub fn new(_configs: Option<Vec<EnvironmentConfig>>) -> Self {
         // creating with config will be used in future
         ObjectStoreHandler {}
     }
@@ -21,7 +21,7 @@ impl ObjectStoreHandler {
     pub async fn list_objects(
         &self,
         uri: &str,
-        config: &Config,
+        config: &EnvironmentConfig,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -49,7 +49,7 @@ impl ObjectStoreHandler {
     pub async fn list_buckets(
         &self,
         uri: &str,
-        config: &Config,
+        config: &EnvironmentConfig,
         callback: Option<CallbackWrapper<ObjectStore>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
@@ -82,7 +82,7 @@ impl ObjectStoreHandler {
     pub async fn get_object(
         &self,
         uri: &str,
-        config: &Config,
+        config: &EnvironmentConfig,
         callback: Option<BinaryCallbackWrapper>,
     ) -> Result<Option<Vec<u8>>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, false);
@@ -121,7 +121,7 @@ impl ObjectStoreHandler {
     async fn list_files_in_bucket(
         &self,
         parsed_uri: ParsedUri,
-        config: Config,
+        config: EnvironmentConfig,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -161,12 +161,12 @@ impl ObjectStoreHandler {
 
 #[async_trait(?Send)]
 pub trait ObjectStoreBackend {
-    fn new(config: Config) -> Result<Self, LakestreamError>
+    fn new(config: EnvironmentConfig) -> Result<Self, LakestreamError>
     where
         Self: Sized;
 
     async fn list_buckets(
-        config: Config,
+        config: EnvironmentConfig,
         object_stores: &mut ObjectStoreVec,
     ) -> Result<(), LakestreamError>;
 }

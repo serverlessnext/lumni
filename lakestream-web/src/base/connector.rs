@@ -1,34 +1,27 @@
-use std::collections::HashMap;
-
 use ::lakestream::{
-    Config, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
+    EnvironmentConfig, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
 };
 use leptos::log;
 
-#[allow(unused)]
+
 #[derive(Clone)]
 pub struct LakestreamHandler {
     handler: ObjectStoreHandler,
-    config: Config,
+    config: EnvironmentConfig,
 }
 
-#[allow(unused)]
 impl LakestreamHandler {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: EnvironmentConfig) -> Self {
         Self {
             handler: ObjectStoreHandler::new(None),
             config,
         }
     }
 
-    pub async fn list_objects_demo(&self, _count: i32) -> Vec<String> {
+    pub async fn list_objects(&self, uri: String, count: u32) -> Vec<String> {
         let recursive = false;
-        let max_files = Some(20);
+        let max_files = Some(count);
         let filter: Option<FileObjectFilter> = None;
-
-        // TODO: get from user input
-        let uri = "s3://abc".to_string();
-
         let callback = None;
 
         let result = self
@@ -66,26 +59,3 @@ impl LakestreamHandler {
     }
 }
 
-#[allow(unused)]
-pub fn get_config() -> Config {
-    let mut config_hashmap = HashMap::new();
-
-    let default_values = vec![
-        ("AWS_ACCESS_KEY_ID", ""),
-        ("AWS_SECRET_ACCESS_KEY", ""),
-        ("AWS_REGION", "auto"),
-        ("S3_ENDPOINT_URL", "https://localhost:8443"),
-    ];
-
-    for (key, default_value) in default_values.into_iter() {
-        let key = key.to_string();
-        // let value = load_data(&key).unwrap_or(default_value.to_string());
-        // config_hashmap.insert(key, value);
-        config_hashmap.insert(key, default_value.to_string());
-    }
-
-    // Create a Config instance
-    Config {
-        settings: config_hashmap,
-    }
-}

@@ -4,22 +4,22 @@ use log::error;
 pub use super::bucket::S3Bucket;
 pub use super::config::validate_config;
 pub use super::list::list_buckets;
-use crate::{Config, LakestreamError, ObjectStoreBackend, ObjectStoreVec};
+use crate::{EnvironmentConfig, LakestreamError, ObjectStoreBackend, ObjectStoreVec};
 
 pub struct S3Backend;
 
 #[async_trait(?Send)]
 impl ObjectStoreBackend for S3Backend {
-    fn new(_config: Config) -> Result<Self, LakestreamError> {
+    fn new(_config: EnvironmentConfig) -> Result<Self, LakestreamError> {
         Ok(Self)
     }
 
     async fn list_buckets(
-        config: Config,
+        config: EnvironmentConfig,
         object_stores: &mut ObjectStoreVec,
     ) -> Result<(), LakestreamError> {
         let config_map = config.settings.clone();
-        let mut config_instance = Config {
+        let mut config_instance = EnvironmentConfig {
             settings: config_map,
         };
         if let Err(e) = validate_config(&mut config_instance) {

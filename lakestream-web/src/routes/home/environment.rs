@@ -11,7 +11,7 @@ use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::*;
 
-const ENVIROMENT_FORM_ID: &str = "EnvironmentForm";
+const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
 pub fn Environment(cx: Scope) -> impl IntoView {
@@ -34,23 +34,23 @@ pub fn Environment(cx: Scope) -> impl IntoView {
             is_loading.set(true);
             spawn_local(async move {
                 let store = memory_store.lock().unwrap();
-                match store.load_config(ENVIROMENT_FORM_ID).await {
+                match store.load_config(ENVIRONMENT_FORM_ID).await {
                     Ok(Some(config)) => {
-                        log!("Data loaded for form_id: {}", ENVIROMENT_FORM_ID);
+                        log!("Data loaded for form_id: {}", ENVIRONMENT_FORM_ID);
                         let mut form_data = form_data_rw.get_untracked().unwrap();
                         form_data.update_with_config(config);
                         form_data_rw.set(Some(form_data));
                         is_loading.set(false);
                     }
                     Ok(None) => {
-                        log!("No data found for form_id: {}", ENVIROMENT_FORM_ID);
+                        log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
                         is_loading.set(false);
                     }
                     Err(e) => {
                         log!(
                             "Error loading data: {:?} for form_id: {}",
                             e,
-                            ENVIROMENT_FORM_ID
+                            ENVIRONMENT_FORM_ID
                         );
                         load_error.set(Some(e));
                         is_loading.set(false);
@@ -114,7 +114,7 @@ pub fn Environment(cx: Scope) -> impl IntoView {
         Some(save_button),
     );
 
-    let form_meta = ConfigurationFormMeta::with_id(ENVIROMENT_FORM_ID);
+    let form_meta = ConfigurationFormMeta::with_id(ENVIRONMENT_FORM_ID);
     let form = ProfileFormBuilder::new(
         "Load Form",
         form_meta,

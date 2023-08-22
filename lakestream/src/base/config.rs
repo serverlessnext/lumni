@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
 #[derive(Clone, Default, Debug)]
-pub struct Config {
+pub struct EnvironmentConfig {
     pub settings: HashMap<String, String>,
 }
 
-impl Config {
-    pub fn new(settings: HashMap<String, String>) -> Config {
-        Config { settings }
+impl EnvironmentConfig {
+    pub fn new(settings: HashMap<String, String>) -> EnvironmentConfig {
+        EnvironmentConfig { settings }
     }
 
     // shortcut method to create a Config with a single key-value pair
-    pub fn with_setting(key: String, value: String) -> Config {
+    pub fn with_setting(key: String, value: String) -> EnvironmentConfig {
         let mut settings = HashMap::new();
         settings.insert(key, value);
-        Config { settings }
+        EnvironmentConfig { settings }
     }
 
     pub fn get(&self, key: &str) -> Option<&String> {

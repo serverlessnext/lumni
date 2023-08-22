@@ -10,7 +10,7 @@ use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, Config, FileObject, FileObjectFilter, FileObjectVec,
+    CallbackWrapper, EnvironmentConfig, FileObject, FileObjectFilter, FileObjectVec,
     LakestreamError,
 };
 
@@ -68,7 +68,7 @@ pub enum ObjectStore {
 }
 
 impl ObjectStore {
-    pub fn new(name: &str, config: Config) -> Result<ObjectStore, String> {
+    pub fn new(name: &str, config: EnvironmentConfig) -> Result<ObjectStore, String> {
         if name.starts_with("s3://") {
             let name = name.trim_start_matches("s3://");
             let bucket =
@@ -91,7 +91,7 @@ impl ObjectStore {
         }
     }
 
-    pub fn config(&self) -> &Config {
+    pub fn config(&self) -> &EnvironmentConfig {
         match self {
             ObjectStore::S3Bucket(bucket) => bucket.config(),
             ObjectStore::LocalFsBucket(local_fs) => local_fs.config(),
@@ -234,7 +234,7 @@ impl CallbackItem for ObjectStore {
 #[async_trait(?Send)]
 pub trait ObjectStoreTrait {
     fn name(&self) -> &str;
-    fn config(&self) -> &Config;
+    fn config(&self) -> &EnvironmentConfig;
     async fn list_files(
         &self,
         prefix: Option<&str>,

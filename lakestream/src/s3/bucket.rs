@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use super::get::get_object;
 use super::list::list_files;
-use crate::base::config::Config;
+use crate::base::config::EnvironmentConfig;
 use crate::s3::config::validate_config;
 use crate::{
     FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
@@ -34,13 +34,13 @@ impl S3Credentials {
 #[derive(Clone)]
 pub struct S3Bucket {
     name: String,
-    config: Config,
+    config: EnvironmentConfig,
 }
 
 impl S3Bucket {
     pub fn new(
         name: &str,
-        mut config: Config,
+        mut config: EnvironmentConfig,
     ) -> Result<S3Bucket, LakestreamError> {
         validate_config(&mut config)?;
 
@@ -50,7 +50,7 @@ impl S3Bucket {
         })
     }
 
-    pub fn config(&self) -> &Config {
+    pub fn config(&self) -> &EnvironmentConfig {
         &self.config
     }
 
@@ -73,7 +73,7 @@ impl ObjectStoreTrait for S3Bucket {
         &self.name
     }
 
-    fn config(&self) -> &Config {
+    fn config(&self) -> &EnvironmentConfig {
         &self.config
     }
     async fn list_files(

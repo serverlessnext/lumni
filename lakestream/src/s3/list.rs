@@ -9,7 +9,7 @@ use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
 };
 use super::request_handler::http_get_with_redirect_handling;
-use crate::base::config::Config;
+use crate::base::config::EnvironmentConfig;
 use crate::http::requests::http_get_request;
 use crate::{
     FileObject, FileObjectFilter, FileObjectVec, LakestreamError,
@@ -171,7 +171,7 @@ fn process_response_body(
 }
 
 pub async fn list_buckets(
-    config: &Config,
+    config: &EnvironmentConfig,
     object_stores: &mut ObjectStoreVec,
 ) -> Result<(), LakestreamError> {
     let s3_client = create_s3_client(config, None);
@@ -202,7 +202,7 @@ pub async fn list_buckets(
 }
 
 pub fn create_s3_client(
-    config: &Config,
+    config: &EnvironmentConfig,
     bucket_name: Option<&str>,
 ) -> S3Client {
     let region = config

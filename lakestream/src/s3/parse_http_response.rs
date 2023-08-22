@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::utils::time::rfc3339_to_epoch;
-use crate::{Config, FileObject, ObjectStore};
+use crate::{EnvironmentConfig, FileObject, ObjectStore};
 
 // allow non snake case for the XML response
 #[allow(non_snake_case)]
@@ -54,7 +54,7 @@ pub struct CommonPrefix {
 
 pub fn parse_bucket_objects(
     body: &str,
-    config: Option<Config>,
+    config: Option<EnvironmentConfig>,
 ) -> Result<Vec<ObjectStore>, Box<dyn std::error::Error>> {
     let list_all_my_buckets_result: ListAllMyBucketsResult =
         serde_xml_rs::from_str(body)?;

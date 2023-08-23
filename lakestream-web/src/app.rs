@@ -3,9 +3,10 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::routes::api::Login;
-use crate::routes::home::{Console, Environment, Home};
-use crate::routes::user::profiles::{ProfileId, UserProfiles};
+use crate::routes::home::{Console, Home};
+use crate::routes::home::profiles::{ProfileId, UserProfiles};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
+use crate::components::Redirect;
 use crate::routes::About;
 use crate::{GlobalState, RunTime};
 
@@ -55,9 +56,10 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/tailwind.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
-            <Router fallback=|cx| view! { cx, <Home/>}.into_view(cx)>
+            <Router fallback=|cx| view! { cx, <Redirect/>}.into_view(cx)>
                 <nav class="py-2 px-4 text-lg font-medium h-24 bg-black">
                     <div class="mb-4 text-4xl font-sans font-bold bg-gradient-to-r from-white via-sky-200 to-sky-300 inline-block text-transparent bg-clip-text tracking-widest">"Goaiio"</div>
+                ://colordesigner.io/gradient-generatorp>SetEnvironment is enabled</p>
                     <div class="flex items-end text-white">
                         <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Home"</a>
                         <a href="/user/settings" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
@@ -68,9 +70,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <Routes>
                         <Route
                             path=""
-                            view=|cx| {
-                                view! { cx, <Home/> }
-                            }
+                            view=|cx| { view! { cx, <Home/>}}
                         >
                             // load Console directly if no path is given
                             // the url will be rewritten via History, saving
@@ -82,8 +82,20 @@ pub fn App(cx: Scope) -> impl IntoView {
                             <Route path="/console" view=|cx| view! { cx,
                                 <Console />
                             }/>
-                            <Route path="/environment" view=|cx| view! { cx,
-                                <Environment />
+
+                            <ProtectedRoute
+                                path="/profiles"
+                                redirect_path=redirect_path!("profiles")
+                                condition=move |_| vault_initialized.get()
+                                view=|cx| view! { cx, <UserProfiles /> }
+                            >
+                                // catch /user, else fallback kicks in
+                               <Route path="" view=|cx| view! { cx,
+                                    <UserProfiles />
+                                }/>
+                            </ProtectedRoute>
+                            <Route path="/profiles/:id" view=|cx| view! { cx,
+                                <ProfileId />
                             }/>
                         </Route>
                         <ProtectedRoute
@@ -98,13 +110,6 @@ pub fn App(cx: Scope) -> impl IntoView {
                                 <UserSettings />
                             }/>
 
-                           <Route path="profiles" view=|cx| view! { cx,
-                                <UserProfiles />
-                            }/>
-
-                            <Route path="profiles/:id" view=|cx| view! { cx,
-                                <ProfileId />
-                            }/>
 
                             <Route path="change-password" view=|cx| view! { cx,
                                 <ChangePassword />

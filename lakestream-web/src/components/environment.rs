@@ -1,20 +1,57 @@
-use std::collections::HashMap;
-
-use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::ev::MouseEvent;
+use leptos::ev::SubmitEvent;
+
 
 use crate::GlobalState;
 use crate::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
-use crate::components::buttons::{ButtonType, FormButton};
+use crate::components::buttons::{TextLink, ButtonType, FormButton};
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::*;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
+
 #[component]
 pub fn Environment(cx: Scope) -> impl IntoView {
+
+    let is_enabled = create_rw_signal(cx, false);
+
+    let form_button = FormButton::new(ButtonType::Submit, Some("Set Environment"));
+    let on_click = move |event: MouseEvent| {
+        event.prevent_default();
+
+        is_enabled.set(!is_enabled.get());
+
+        log!("SetEnvironment clicked");
+    };
+
+    view! {
+        cx,
+        <TextLink
+            form_button={form_button}
+            enabled=is_enabled.into()
+            on_click={on_click}
+        />
+        // if enabled
+        { move || if is_enabled.get() {
+            view! {
+                cx,
+                <SetEnvironment />
+            }.into_view(cx)
+        } else {
+            view! { cx, "" }.into_view(cx)
+         }}
+    }
+
+}
+
+
+
+#[component]
+pub fn SetEnvironment(cx: Scope) -> impl IntoView {
 
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);

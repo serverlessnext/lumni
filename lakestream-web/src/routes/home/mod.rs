@@ -1,6 +1,5 @@
 mod console;
-mod environment;
+pub mod profiles;
 mod page;
 pub use console::Console;
-pub use environment::Environment;
 pub use page::Home;

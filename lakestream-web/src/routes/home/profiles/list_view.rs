@@ -153,11 +153,11 @@ fn ListItem(
         <li>
             <div class="px-4 py-2">
                 {item_name.clone()} " | "
-                <a href={format!("/user/profiles/{}", item_id)}>
+                <a href={format!("/profiles/{}", item_id)}>
                     "Form"
                 </a>
                 " | "
-                <a href={format!("/user/profiles/{}?view=TextArea", item_id)}>
+                <a href={format!("/profiles/{}?view=TextArea", item_id)}>
                     "TextArea"
                 </a>
                 " | "

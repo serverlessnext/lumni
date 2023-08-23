@@ -33,14 +33,14 @@ pub fn Home(cx: Scope) -> impl IntoView {
                                     "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
                                 }
                             }>"Console"</a>
-                       <a href="/environment"
+                       <a href="/profiles"
                             class={
-                                if page_path.get().ends_with("/environment") {
+                                if page_path.get().ends_with("/profiles") {
                                     "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
                                 } else {
                                     "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
                                 }
-                            }>"Environment"</a>
+                            }>"Profiles"</a>
 
                     }
                 }

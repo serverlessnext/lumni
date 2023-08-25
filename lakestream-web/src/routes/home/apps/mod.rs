@@ -1,12 +1,12 @@
 mod list_view;
 mod page;
-mod profile;
-mod profile_view;
+mod app;
+mod app_view;
 mod templates;
 
-pub use page::UserProfiles;
-pub use profile::ProfileId;
-pub use profile_view::ProfileView;
+pub use page::{Apps, AppConfiguration};
+pub use app::AppId;
+pub use app_view::AppView;
 use templates::*;
 
 use crate::builders::ElementBuilder;

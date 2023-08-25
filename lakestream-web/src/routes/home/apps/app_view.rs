@@ -14,7 +14,7 @@ use crate::components::forms::{
 use crate::components::input::perform_validation;
 
 #[component]
-pub fn ProfileView(
+pub fn AppView(
     cx: Scope,
     storage_handler: FormStorageHandler<LocalStorageWrapper>,
     form_meta: ConfigurationFormMeta,

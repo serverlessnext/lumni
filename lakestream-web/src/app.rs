@@ -4,7 +4,7 @@ use leptos_router::*;
 
 use crate::routes::api::Login;
 use crate::routes::home::{Console, Home};
-use crate::routes::home::profiles::{ProfileId, UserProfiles};
+use crate::routes::home::apps::{Apps, AppId, AppConfiguration};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
 use crate::components::Redirect;
 use crate::routes::About;
@@ -53,13 +53,12 @@ pub fn App(cx: Scope) -> impl IntoView {
 
     view! {
         cx,
-        <Stylesheet id="leptos" href="/pkg/tailwind.css"/>
+        <Stylesheet id="goaiio" href="/pkg/tailwind.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
-            <Router fallback=|cx| view! { cx, <Redirect/>}.into_view(cx)>
+            <Router fallback=|cx| view! { cx, <Redirect redirect_url=None/>}.into_view(cx)>
                 <nav class="py-2 px-4 text-lg font-medium h-24 bg-black">
                     <div class="mb-4 text-4xl font-sans font-bold bg-gradient-to-r from-white via-sky-200 to-sky-300 inline-block text-transparent bg-clip-text tracking-widest">"Goaiio"</div>
-                ://colordesigner.io/gradient-generatorp>SetEnvironment is enabled</p>
                     <div class="flex items-end text-white">
                         <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Home"</a>
                         <a href="/user/settings" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
@@ -83,20 +82,57 @@ pub fn App(cx: Scope) -> impl IntoView {
                                 <Console />
                             }/>
 
-                            <ProtectedRoute
-                                path="/profiles"
-                                redirect_path=redirect_path!("profiles")
-                                condition=move |_| vault_initialized.get()
-                                view=|cx| view! { cx, <UserProfiles /> }
-                            >
-                                // catch /user, else fallback kicks in
-                               <Route path="" view=|cx| view! { cx,
-                                    <UserProfiles />
-                                }/>
-                            </ProtectedRoute>
-                            <Route path="/profiles/:id" view=|cx| view! { cx,
-                                <ProfileId />
+                            <Route path="/apps" view=|cx| view! { cx,
+                                <Apps />
                             }/>
+
+                            <Route
+                                path="/apps/:id"
+                                view=move |cx| {
+                                    if vault_initialized.get() == false {
+                                        // not yet logged in
+                                        let location = use_location(cx);
+                                        let pathname = location.pathname.get();
+                                        let redirect_url =
+                                            format!("{}{}", redirect_path!(""),
+                                            pathname.strip_prefix("/").unwrap_or_default().replace("/", ":")
+                                        );
+                                        view! {
+                                            cx,
+                                            <Redirect redirect_url=redirect_url.into()/>
+                                        }.into_view(cx)
+                                    }else {
+                                        view! {
+                                            cx,
+                                            <AppConfiguration />
+                                        }.into_view(cx)
+                                    }
+                                }
+
+                            />
+                            <Route
+                                path="/apps/:_id/:id"
+                                view=move |cx| {
+                                    if vault_initialized.get() == false {
+                                        // not yet logged in
+                                        let location = use_location(cx);
+                                        let pathname = location.pathname.get();
+                                        let redirect_url =
+                                            format!("{}{}", redirect_path!(""),
+                                            pathname.strip_prefix("/").unwrap_or_default().replace("/", ":")
+                                        );
+                                        view! {
+                                            cx,
+                                            <Redirect redirect_url=redirect_url.into()/>
+                                        }.into_view(cx)
+                                    }else {
+                                        view! {
+                                            cx,
+                                            <AppId />
+                                        }.into_view(cx)
+                                    }
+                                }
+                            />
                         </Route>
                         <ProtectedRoute
                             path="/user"

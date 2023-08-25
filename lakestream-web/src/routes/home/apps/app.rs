@@ -1,14 +1,14 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::ProfileView;
+use super::AppView;
 use crate::components::forms::{
     ConfigurationFormMeta, FormStorageHandler, LocalStorageWrapper,
 };
 use crate::GlobalState;
 
 #[component]
-pub fn ProfileId(cx: Scope) -> impl IntoView {
+pub fn AppId(cx: Scope) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -20,6 +20,7 @@ pub fn ProfileId(cx: Scope) -> impl IntoView {
         .and_then(|result| result.ok())
         .map(|route_params| route_params.id);
     let form_id = form_id.expect("form_id to be present");
+    log!("form_id: {:?}", form_id);
     let form_meta_signal = create_rw_signal(cx, None::<ConfigurationFormMeta>);
 
     let error_signal = create_rw_signal(cx, None::<String>);
@@ -45,7 +46,7 @@ pub fn ProfileId(cx: Scope) -> impl IntoView {
         { move || if let Some(form_meta) = form_meta_signal.get() {
             view! {
                 cx,
-                <ProfileView storage_handler=storage_handler.clone() form_meta/>
+                <AppView storage_handler=storage_handler.clone() form_meta/>
             }.into_view(cx)
         } else if error_signal.get().is_some() {
             view! {

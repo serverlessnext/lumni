@@ -147,6 +147,7 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
                 runtime.set_vault_initialized(initialized);
             }
         });
+
     let previous_url = create_read_slice(cx, state, |state| {
         state.runtime.as_ref().map(|r| r.previous_url().clone())
     });

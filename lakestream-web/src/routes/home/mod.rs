@@ -1,5 +1,5 @@
 mod console;
-pub mod profiles;
+pub mod apps;
 mod page;
 pub use console::Console;
 pub use page::Home;

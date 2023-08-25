@@ -8,6 +8,8 @@ use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
 use crate::components::forms::FormError;
 use crate::GlobalState;
 
+// note - should be dynamic
+const APP_NAME : &str = "objectstore-s3";
 const TEMPLATE_DEFAULT: &str = "Environment";
 
 #[component]
@@ -153,11 +155,11 @@ fn ListItem(
         <li>
             <div class="px-4 py-2">
                 {item_name.clone()} " | "
-                <a href={format!("/profiles/{}", item_id)}>
+                <a href={format!("/apps/{}/{}", APP_NAME, item_id)}>
                     "Form"
                 </a>
                 " | "
-                <a href={format!("/profiles/{}?view=TextArea", item_id)}>
+                <a href={format!("/apps/{}/{}?view=TextArea", APP_NAME, item_id)}>
                     "TextArea"
                 </a>
                 " | "

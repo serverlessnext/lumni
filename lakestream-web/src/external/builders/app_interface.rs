@@ -18,8 +18,7 @@ use crate::GlobalState;
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
-//pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
-pub fn SearchForm(cx: Scope) -> impl IntoView {
+pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 

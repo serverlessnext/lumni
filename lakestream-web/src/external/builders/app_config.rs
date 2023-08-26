@@ -55,7 +55,6 @@ pub struct Config {
     name: String,
     id: String,
     app_name: String,
-    yaml_string: &'static str,
 }
 
 impl ConfigTemplate for Config {
@@ -74,7 +73,10 @@ impl ConfigTemplate for Config {
 
 impl FormElementList for Config {
     fn form_elements<S: Into<String>>(&self, _name: S) -> Vec<ElementBuilder> {
-        form_elements_from_yaml(self.yaml_string)
+        // TODO: load yaml_string from app config file:
+        // - apps/{app_name}/config/environment.yaml
+        let yaml_string = OBJECT_STORE_S3_YAML;
+        form_elements_from_yaml(yaml_string)
     }
 }
 
@@ -82,9 +84,9 @@ pub trait FormElementList {
     fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
 
-fn form_elements_from_yaml<S: Into<String>>(_name: S) -> Vec<ElementBuilder> {
+fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
     let parsed_yaml: YamlStructure =
-        serde_yaml::from_str(OBJECT_STORE_S3_YAML).unwrap();
+        serde_yaml::from_str(yaml_string).unwrap();
     let form_elements = parsed_yaml.elements;
 
     form_elements
@@ -144,13 +146,9 @@ pub fn load_app_config(
     profile_name: String,
     id: Option<String>,
 ) -> Config {
-    // TODO: load from App configuration file
-    let yaml_string = OBJECT_STORE_S3_YAML;
-
     Config {
         name: profile_name,
         id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         app_name: app_name.to_string(),
-        yaml_string,
     }
 }

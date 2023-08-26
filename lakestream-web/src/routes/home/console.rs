@@ -1,7 +1,6 @@
 use leptos::*;
 
-pub use crate::components::Environment;
-pub use crate::components::SearchForm;
+pub use crate::components::{Environment, SearchForm};
 
 #[component]
 pub fn Console(cx: Scope) -> impl IntoView {

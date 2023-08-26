@@ -2,11 +2,11 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::routes::api::Login;
-use crate::routes::home::{Console, Home};
-use crate::routes::home::apps::{Apps, AppId, AppConfiguration};
-use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
 use crate::components::Redirect;
+use crate::routes::api::Login;
+use crate::routes::home::apps::{AppConfiguration, AppId, Apps};
+use crate::routes::home::{Console, Home};
+use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
 use crate::routes::About;
 use crate::{GlobalState, RunTime};
 

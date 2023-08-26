@@ -20,7 +20,6 @@ pub fn AppId(cx: Scope) -> impl IntoView {
         .and_then(|result| result.ok())
         .map(|route_params| route_params.id);
     let form_id = form_id.expect("form_id to be present");
-    log!("form_id: {:?}", form_id);
     let form_meta_signal = create_rw_signal(cx, None::<ConfigurationFormMeta>);
 
     let error_signal = create_rw_signal(cx, None::<String>);

@@ -3,10 +3,10 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::{FormData, SubmitInput};
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::{CustomSubmitHandler, SubmitFormHandler};
 use super::view_handler::ViewHandler;
+use super::{FormData, SubmitInput};
 use crate::builders::{LoadParameters, SubmitParameters};
 use crate::components::buttons::{ButtonType, FormButton};
 

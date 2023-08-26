@@ -32,4 +32,3 @@ pub fn Redirect(cx: Scope, redirect_url: Option<String>) -> impl IntoView {
         }
     }
 }
-

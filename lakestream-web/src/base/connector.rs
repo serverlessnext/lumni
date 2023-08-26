@@ -3,7 +3,6 @@ use ::lakestream::{
 };
 use leptos::log;
 
-
 #[derive(Clone)]
 pub struct LakestreamHandler {
     handler: ObjectStoreHandler,
@@ -58,4 +57,3 @@ impl LakestreamHandler {
         }
     }
 }
-

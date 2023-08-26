@@ -2,10 +2,11 @@ use std::fmt;
 use std::sync::Arc;
 
 use leptos::*;
+use serde::{Deserialize, Serialize};
 
 use super::FieldContentType;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct FieldLabel {
     text: String,
 }
@@ -20,7 +21,7 @@ impl FieldLabel {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct FieldPlaceholder {
     text: String,
 }
@@ -35,13 +36,13 @@ impl FieldPlaceholder {
     }
 }
 
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FormElement {
     pub name: String,
     pub field_content_type: FieldContentType,
     pub field_label: Option<FieldLabel>,
     pub field_placeholder: Option<FieldPlaceholder>,
+    #[serde(skip)]
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
     pub buffer_data: String, // data always gets loaded in here first
     pub is_enabled: bool,

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use super::{FormData, SubmitInput};
 use super::handler::FormHandlerTrait;
+use super::{FormData, SubmitInput};
 
 pub trait SubmitHandler {
     fn data(&self) -> RwSignal<Option<FormData>>;

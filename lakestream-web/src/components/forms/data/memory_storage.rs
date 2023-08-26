@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
 use super::form_storage::{ConfigurationFormMeta, FormStorage};
-
 
 #[derive(Clone, Debug)]
 pub struct MemoryStorage {
@@ -43,8 +42,12 @@ impl FormStorage for MemoryStorage {
         form_meta: &ConfigurationFormMeta,
         content: &[u8],
     ) -> Pin<Box<dyn Future<Output = Result<(), String>>>> {
-        self.items.borrow_mut().insert(form_meta.id(), form_meta.clone());
-        self.content.borrow_mut().insert(form_meta.id(), content.to_vec());
+        self.items
+            .borrow_mut()
+            .insert(form_meta.id(), form_meta.clone());
+        self.content
+            .borrow_mut()
+            .insert(form_meta.id(), content.to_vec());
         Box::pin(async { Ok(()) })
     }
 }

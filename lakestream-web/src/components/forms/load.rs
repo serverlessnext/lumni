@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use leptos::*;
 
-use super::FormData;
 use super::handler::FormHandlerTrait;
 use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
+use super::FormData;
 use crate::builders::LoadParameters;
 
 pub struct LoadForm {

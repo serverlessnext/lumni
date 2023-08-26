@@ -2,7 +2,6 @@ use leptos::*;
 
 use super::list_view::ConfigurationListView;
 
-
 #[component]
 pub fn Apps(cx: Scope) -> impl IntoView {
     view! {

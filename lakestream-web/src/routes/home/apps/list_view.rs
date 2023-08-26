@@ -4,13 +4,14 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
+use super::config_template::ConfigTemplate;
+use super::load::load_config;
 use crate::components::forms::FormError;
 use crate::GlobalState;
 
-// note - should be dynamic
-const APP_NAME : &str = "objectstore-s3";
-const TEMPLATE_DEFAULT: &str = "Environment";
+// TODO: currently we have only 1 App, in future updates we need to
+// make this dynamic
+const APP_NAME: &str = "objectstore-s3";
 
 #[component]
 pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
@@ -28,7 +29,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
         _ => panic!("Invalid storage backend"),
     };
 
-    let selected_template = create_rw_signal(cx, "ObjectStoreS3".to_string());
+    let selected_template = create_rw_signal(cx, APP_NAME.to_string());
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
         create_signal(cx, ConfigurationList::new(local_storage));
@@ -94,8 +95,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                 <div>
                 <div>
                     <select on:change=move |ev| selected_template.set(event_target_value(&ev)) >
-                        <option value="ObjectStoreS3">"ObjectStoreS3"</option>
-                        <option value="Environment">"Environment"</option>
+                        <option value=APP_NAME>{APP_NAME}</option>
                     </select>
                     <input class="px-4 py-2"
                         placeholder="Bucket URI"
@@ -103,11 +103,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
-                                    let item = match template.as_str() {
-                                        "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
-                                        "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
-                                         _ => panic!("Invalid template selected"),
-                                    };
+                                    let config = load_config(&template, name, None);
+                                    let item = Box::new(config) as Box<dyn ConfigTemplate>;
                                     set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                                 }
                             }
@@ -117,11 +114,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
-                            let item = match template.as_str() {
-                                "ObjectStoreS3" => Box::new(ObjectStoreS3::new(name)) as Box<dyn ConfigTemplate>,
-                                "Environment" => Box::new(Environment::new(name)) as Box<dyn ConfigTemplate>,
-                                 _ => panic!("Invalid template selected"),
-                            };
+                            let config =  load_config(&template, name, None);
+                            let item = Box::new(config) as Box<dyn ConfigTemplate>;
                             set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
@@ -209,36 +203,23 @@ impl ConfigurationList {
                         .or_else(|| Some("Untitled".to_string()))
                 });
 
-                let template_name = form_data
-                    .tags()
-                    .and_then(|tags| tags.get("TemplateName").cloned())
-                    .unwrap_or_else(|| TEMPLATE_DEFAULT.to_string());
+                let app_name = form_data.tags().and_then(|tags| tags.get("AppName").cloned());
 
-                log!(
-                    "Loaded name {} with template {}",
-                    config_name.clone().unwrap(),
-                    template_name
-                );
-
-                match template_name.as_str() {
-                    "ObjectStoreS3" => config_name.map(|name| {
-                        Box::new(ObjectStoreS3::new_with_id(
-                            name,
-                            form_data.id(),
-                        )) as Box<dyn ConfigTemplate>
-                    }),
-                    "Environment" => config_name.map(|name| {
-                        Box::new(Environment::new_with_id(name, form_data.id()))
-                            as Box<dyn ConfigTemplate>
-                    }),
-                    _ => None,
-                }
+                app_name.and_then(|app_name| {
+                    config_name.map(|name| {
+                        log!("Loaded name {} with template {}", name, app_name);
+                        let config =
+                            load_config(&app_name, name, Some(form_data.id()));
+                        Box::new(config) as Box<dyn ConfigTemplate>
+                    })
+                })
                 .ok_or_else(|| {
-                    FormError::SubmitError("Form name not found".to_string())
+                    FormError::SubmitError(
+                        "Form name not found".to_string(),
+                    )
                 })
             })
             .collect();
-
         items
     }
 
@@ -252,11 +233,11 @@ impl ConfigurationList {
 
         let name = item.name();
         let id = item.id();
-        let template_name = item.template_name();
+        let app_name = item.app_name();
 
         let mut tags = HashMap::new();
         tags.insert("ConfigName".to_string(), name);
-        tags.insert("TemplateName".to_string(), template_name);
+        tags.insert("AppName".to_string(), app_name);
         let meta_data = ItemMetaData::new_with_tags(&id, tags);
 
         spawn_local({

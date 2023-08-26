@@ -1,25 +1,21 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use std::collections::HashMap;
-
+use lakestream::EnvironmentConfig;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use lakestream::EnvironmentConfig;
 use crate::base::connector::LakestreamHandler;
-
-use crate::GlobalState;
 use crate::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
-use crate::components::input::{validate_with_pattern, FieldContentType};
-use crate::components::input::*;
+use crate::components::input::{validate_with_pattern, FieldContentType, *};
+use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
-
 
 #[component]
 pub fn SearchForm(cx: Scope) -> impl IntoView {
@@ -64,20 +60,24 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                     let store = memory_store.lock().unwrap();
                     match store.load_config(ENVIRONMENT_FORM_ID).await {
                         Ok(Some(environment)) => {
-
                             let config = EnvironmentConfig {
                                 settings: environment,
                             };
 
                             let handler = LakestreamHandler::new(config);
-                            let uri = query_params.get("From").unwrap().to_string();
+                            let uri =
+                                query_params.get("From").unwrap().to_string();
                             let max_files = 20; // TODO: get from User config
 
-                            let results = handler.list_objects(uri, max_files).await;
+                            let results =
+                                handler.list_objects(uri, max_files).await;
                             log!("Results: {:?}", results);
                         }
                         Ok(None) => {
-                            log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
+                            log!(
+                                "No data found for form_id: {}",
+                                ENVIRONMENT_FORM_ID
+                            );
                         }
                         Err(e) => {
                             log!(
@@ -87,7 +87,6 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                             );
                         }
                     }
-
                 } else {
                     log!("Form data is empty");
                 }

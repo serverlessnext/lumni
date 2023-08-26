@@ -1,7 +1,7 @@
 use leptos::*;
 
-use super::FormData;
 use super::submit_handler::SubmitHandler;
+use super::FormData;
 
 pub trait FormHandlerTrait {
     fn is_processing(&self) -> RwSignal<bool>;

@@ -2,8 +2,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use leptos_router::use_query_map;
 
-use super::templates::{ConfigTemplate, Environment, ObjectStoreS3};
-use super::{Profile, ProfileList};
+use super::load::{load_config, FormElementList};
 use crate::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
@@ -114,13 +113,8 @@ pub fn AppView(
     let template_name = form_meta.template().unwrap_or("".to_string());
     let profile_name = form_meta.name().unwrap_or("".to_string());
 
-    let form_elements = match template_name.as_str() {
-        "ObjectStoreS3" => {
-            Profile::ObjectStoreS3(ObjectStoreS3::new(&profile_name))
-        }
-        _ => Profile::Environment(Environment::new(&profile_name)),
-    }
-    .form_elements(&template_name);
+    let app_config = load_config(&template_name, profile_name.clone(), None);
+    let form_elements = app_config.form_elements(&template_name);
 
     let form_builder = ProfileFormBuilder::new(
         &profile_name,

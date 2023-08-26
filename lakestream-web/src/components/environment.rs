@@ -1,25 +1,22 @@
+use leptos::ev::{MouseEvent, SubmitEvent};
 use leptos::*;
-use leptos::ev::MouseEvent;
-use leptos::ev::SubmitEvent;
 
-
-use crate::GlobalState;
 use crate::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
-use crate::components::buttons::{TextLink, ButtonType, FormButton};
+use crate::components::buttons::{ButtonType, FormButton, TextLink};
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::*;
+use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
-
 #[component]
 pub fn Environment(cx: Scope) -> impl IntoView {
-
     let is_enabled = create_rw_signal(cx, false);
 
-    let form_button = FormButton::new(ButtonType::Submit, Some("Set Environment"));
+    let form_button =
+        FormButton::new(ButtonType::Submit, Some("Set Environment"));
     let on_click = move |event: MouseEvent| {
         event.prevent_default();
 
@@ -45,14 +42,10 @@ pub fn Environment(cx: Scope) -> impl IntoView {
             view! { cx, "" }.into_view(cx)
          }}
     }
-
 }
-
-
 
 #[component]
 pub fn SetEnvironment(cx: Scope) -> impl IntoView {
-
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
     let validation_error = create_rw_signal(cx, None::<String>);
@@ -61,7 +54,6 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
     let submit_error = create_rw_signal(cx, None::<String>);
 
     let handle_load = {
-
         let memory_store = use_context::<RwSignal<GlobalState>>(cx)
             .expect("state to have been provided")
             .with(|state| state.store.clone());
@@ -73,14 +65,21 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
                 let store = memory_store.lock().unwrap();
                 match store.load_config(ENVIRONMENT_FORM_ID).await {
                     Ok(Some(config)) => {
-                        log!("Data loaded for form_id: {}", ENVIRONMENT_FORM_ID);
-                        let mut form_data = form_data_rw.get_untracked().unwrap();
+                        log!(
+                            "Data loaded for form_id: {}",
+                            ENVIRONMENT_FORM_ID
+                        );
+                        let mut form_data =
+                            form_data_rw.get_untracked().unwrap();
                         form_data.update_with_config(config);
                         form_data_rw.set(Some(form_data));
                         is_loading.set(false);
                     }
                     Ok(None) => {
-                        log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
+                        log!(
+                            "No data found for form_id: {}",
+                            ENVIRONMENT_FORM_ID
+                        );
                         is_loading.set(false);
                     }
                     Err(e) => {
@@ -162,4 +161,3 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
 
     form.to_view()
 }
-

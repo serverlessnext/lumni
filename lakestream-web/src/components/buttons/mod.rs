@@ -1,8 +1,8 @@
 mod actions;
 mod button_type;
-mod text_link;
 mod click_button;
 mod form_button;
+mod text_link;
 
 pub use actions::ActionTrigger;
 pub use button_type::ButtonType;

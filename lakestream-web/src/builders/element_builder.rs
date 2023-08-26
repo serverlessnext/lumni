@@ -1,9 +1,11 @@
+use std::fmt;
 use std::sync::Arc;
 
 use regex::Regex;
 
 use crate::components::input::{
-    validate_with_pattern, FieldContentType, FieldLabel, FieldPlaceholder, FormElement,
+    validate_with_pattern, FieldContentType, FieldLabel, FieldPlaceholder,
+    FormElement,
 };
 
 #[derive(Clone)]
@@ -15,6 +17,20 @@ pub struct ElementBuilder {
     field_placeholder: Option<FieldPlaceholder>,
     field_content_type: FieldContentType,
     validate_fn: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
+}
+
+impl fmt::Debug for ElementBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ElementBuilder")
+            .field("name", &self.name)
+            .field("field_label", &self.field_label)
+            .field("is_enabled", &self.is_enabled)
+            .field("initial_value", &self.initial_value)
+            .field("field_placeholder", &self.field_placeholder)
+            .field("field_content_type", &self.field_content_type)
+            .field("validate_fn", &self.validate_fn.is_some()) // Displaying only if the function exists
+            .finish()
+    }
 }
 
 impl ElementBuilder {
@@ -58,7 +74,8 @@ impl ElementBuilder {
     }
 
     pub fn with_placeholder<S: Into<String>>(mut self, placeholder: S) -> Self {
-        self.field_placeholder = Some(FieldPlaceholder::new(placeholder.into()));
+        self.field_placeholder =
+            Some(FieldPlaceholder::new(placeholder.into()));
         self
     }
 

@@ -109,12 +109,12 @@ impl<S: FormStorage> FormStorageHandler<S> {
         let tags_opt = self.get_form_info(form_id).await?;
         if let Some(tags) = tags_opt {
             let profile_name = tags.get("ConfigName").cloned();
-            let template_name = tags.get("TemplateName").cloned();
+            let app_name = tags.get("AppName").cloned();
 
             Ok(ConfigurationFormMeta {
                 id: form_id.to_string(),
                 name: profile_name,
-                template: template_name,
+                template: app_name,
                 tags: Some(tags),
             })
         } else {

@@ -1,4 +1,8 @@
-#[derive(Debug, Clone)]
+use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum FieldContentType {
     PlainText,
     Secret,   // can be hidden and un-hidden
@@ -27,5 +31,19 @@ impl FieldContentType {
 impl Default for FieldContentType {
     fn default() -> Self {
         Self::PlainText
+    }
+}
+
+impl FromStr for FieldContentType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "PlainText" => Ok(FieldContentType::PlainText),
+            "Secret" => Ok(FieldContentType::Secret),
+            "Password" => Ok(FieldContentType::Password),
+            "TextArea" => Ok(FieldContentType::TextArea),
+            _ => Err(()),
+        }
     }
 }

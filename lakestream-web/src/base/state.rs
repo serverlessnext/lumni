@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+
 use localencrypt::LocalEncrypt;
 
 use crate::components::forms::{FormStorageHandler, MemoryStorage};
@@ -15,7 +16,9 @@ pub struct GlobalState {
 impl GlobalState {
     fn new() -> Self {
         Self {
-            store: Arc::new(Mutex::new(FormStorageHandler::new(MemoryStorage::new()))),
+            store: Arc::new(Mutex::new(FormStorageHandler::new(
+                MemoryStorage::new(),
+            ))),
             vault: None,
             runtime: None,
         }

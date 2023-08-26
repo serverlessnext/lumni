@@ -1,4 +1,3 @@
-
 use leptos::*;
 
 use super::{DisplayValue, FormElementState};
@@ -29,10 +28,11 @@ pub fn TextBoxView(
     // show lock icon if secret and not password (passwords cant be unlocked)
     let show_lock_icon = is_secret && initial_enabled && !is_password;
 
-    let placeholder_text = input_field_data
-        .field_placeholder
-        .as_ref()
-        .map_or_else(|| Some("None".to_string()), |placeholder| Some(placeholder.text()));
+    let placeholder_text =
+        input_field_data.field_placeholder.as_ref().map_or_else(
+            || Some("None".to_string()),
+            |placeholder| Some(placeholder.text()),
+        );
 
     // signals
     let initial_value = value_signal.get_untracked();
@@ -190,7 +190,6 @@ pub fn TextAreaFieldView(
     input_changed: RwSignal<bool>,
     placeholder_text: Option<String>,
 ) -> impl IntoView {
-
     let min_height = 8;
     let line_count = display_value_signal.get().lines().count();
 

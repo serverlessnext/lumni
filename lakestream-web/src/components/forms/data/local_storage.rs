@@ -48,12 +48,12 @@ impl FormStorage for LocalStorageWrapper {
                 .map(|item| {
                     let tags = item.tags().unwrap_or_default();
                     let profile_name = tags.get("ConfigName").cloned();
-                    let template_name = tags.get("TemplateName").cloned();
+                    let app_name = tags.get("AppName").cloned();
 
                     ConfigurationFormMeta::new(
                         item.id(),
                         profile_name.unwrap_or_default(),
-                        template_name.unwrap_or_default(),
+                        app_name.unwrap_or_default(),
                     )
                     .with_tags(tags)
                 })

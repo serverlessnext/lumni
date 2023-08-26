@@ -7,7 +7,7 @@ use regex::Regex;
 use uuid::Uuid;
 
 use super::dummy_data::make_form_data;
-use crate::builders::{
+use crate::components::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::forms::{

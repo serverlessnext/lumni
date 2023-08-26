@@ -2,8 +2,8 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use leptos_router::use_query_map;
 
-use super::load::{load_config, FormElementList};
-use crate::builders::{
+use crate::external::builders::{load_app_config, FormElementList};
+use crate::components::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
 use crate::components::buttons::{ButtonType, FormButton};
@@ -13,7 +13,7 @@ use crate::components::forms::{
 use crate::components::input::perform_validation;
 
 #[component]
-pub fn AppView(
+pub fn AppConfigView(
     cx: Scope,
     storage_handler: FormStorageHandler<LocalStorageWrapper>,
     form_meta: ConfigurationFormMeta,
@@ -113,7 +113,7 @@ pub fn AppView(
     let template_name = form_meta.template().unwrap_or("".to_string());
     let profile_name = form_meta.name().unwrap_or("".to_string());
 
-    let app_config = load_config(&template_name, profile_name.clone(), None);
+    let app_config = load_app_config(&template_name, profile_name.clone(), None);
     let form_elements = app_config.form_elements(&template_name);
 
     let form_builder = ProfileFormBuilder::new(

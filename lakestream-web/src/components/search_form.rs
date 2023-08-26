@@ -8,36 +8,37 @@ use regex::Regex;
 use uuid::Uuid;
 
 use crate::base::connector::LakestreamHandler;
-use crate::builders::{
+use crate::components::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
-use crate::components::input::{validate_with_pattern, FieldContentType, *};
+use crate::components::forms::{ConfigurationFormMeta, FormData};
+use crate::components::input::{FormElement, validate_with_pattern, FieldContentType, perform_validation};
 use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
+//pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
 pub fn SearchForm(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
-    // define results_form first as its the target for handle_search
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let results_form =
         FormBuilder::new("Search Form", form_meta, FormType::LoadElements)
             .build(cx, None);
 
-    // allows to overwrite the form
     let results_rw = results_form.form_data_rw();
 
-    let handle_search = {
+    let handle_submit = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             ev.prevent_default();
             results_rw.set(None);
             is_submitting.set(true);
 
             spawn_local(async move {
+
+
                 // run search on background
                 if let Some(form_data) = form_data {
                     let form_elements = form_data.elements();
@@ -92,17 +93,14 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 }
 
                 let form_data = make_form_data(cx);
-                log!("Form data: {:?}", form_data);
                 results_rw.set(Some(form_data));
                 is_submitting.set(false);
             });
         }
     };
 
-    let uri_pattern = Regex::new(r"^s3://").unwrap();
-
     let submit_parameters = SubmitParameters::new(
-        Box::new(handle_search),
+        Box::new(handle_submit),
         Some(is_submitting),
         Some(validation_error),
         None,
@@ -127,7 +125,7 @@ pub fn SearchForm(cx: Scope) -> impl IntoView {
                 .with_label("From")
                 .with_placeholder("s3://bucket")
                 .validator(Some(Arc::new(validate_with_pattern(
-                    uri_pattern,
+                    Regex::new(r"^s3://").unwrap(),
                     "Unsupported source".to_string(),
                 )))),
         );

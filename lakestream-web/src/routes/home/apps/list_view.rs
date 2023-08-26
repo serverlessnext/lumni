@@ -4,8 +4,7 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use super::config_template::ConfigTemplate;
-use super::load::load_config;
+use crate::external::builders::{ConfigTemplate, load_app_config};
 use crate::components::forms::FormError;
 use crate::GlobalState;
 
@@ -103,7 +102,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
-                                    let config = load_config(&template, name, None);
+                                    let config = load_app_config(&template, name, None);
                                     let item = Box::new(config) as Box<dyn ConfigTemplate>;
                                     set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                                 }
@@ -114,7 +113,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
-                            let config =  load_config(&template, name, None);
+                            let config =  load_app_config(&template, name, None);
                             let item = Box::new(config) as Box<dyn ConfigTemplate>;
                             set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
                         }
@@ -209,7 +208,7 @@ impl ConfigurationList {
                     config_name.map(|name| {
                         log!("Loaded name {} with template {}", name, app_name);
                         let config =
-                            load_config(&app_name, name, Some(form_data.id()));
+                            load_app_config(&app_name, name, Some(form_data.id()));
                         Box::new(config) as Box<dyn ConfigTemplate>
                     })
                 })

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::builders::ElementBuilder;
+use crate::components::builders::ElementBuilder;
 
 pub trait ConfigTemplate: CloneConfigTemplate + DebugConfigTemplate {
     fn name(&self) -> String;

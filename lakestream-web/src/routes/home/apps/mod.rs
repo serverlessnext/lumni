@@ -1,10 +1,8 @@
 mod app;
-mod app_view;
-mod config_template;
+mod config_view;
 mod list_view;
-mod load;
 mod page;
 
 pub use app::AppId;
-pub use app_view::AppView;
+pub use config_view::AppConfigView;
 pub use page::{AppConfiguration, Apps};

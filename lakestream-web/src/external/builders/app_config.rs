@@ -7,7 +7,7 @@ use serde_yaml;
 use uuid::Uuid;
 
 use super::config_template::ConfigTemplate;
-use crate::builders::ElementBuilder;
+use crate::components::builders::ElementBuilder;
 
 // TODO: config will be dynamically loaded from a file in future update
 const OBJECT_STORE_S3_YAML: &str = r#"
@@ -139,7 +139,7 @@ struct YamlValidation {
     error_message: String,
 }
 
-pub fn load_config(
+pub fn load_app_config(
     app_name: &str,
     profile_name: String,
     id: Option<String>,

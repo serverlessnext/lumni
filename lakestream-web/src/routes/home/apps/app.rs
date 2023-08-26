@@ -1,7 +1,7 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use super::AppView;
+use super::AppConfigView;
 use crate::components::forms::{
     ConfigurationFormMeta, FormStorageHandler, LocalStorageWrapper,
 };
@@ -45,7 +45,7 @@ pub fn AppId(cx: Scope) -> impl IntoView {
         { move || if let Some(form_meta) = form_meta_signal.get() {
             view! {
                 cx,
-                <AppView storage_handler=storage_handler.clone() form_meta/>
+                <AppConfigView storage_handler=storage_handler.clone() form_meta/>
             }.into_view(cx)
         } else if error_signal.get().is_some() {
             view! {

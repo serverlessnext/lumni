@@ -1,6 +1,6 @@
 use leptos::*;
 
-use crate::builders::FormType;
+use crate::components::builders::FormType;
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormViewOptions, LoadAndSubmitForm,
     LoadForm, SubmitForm,

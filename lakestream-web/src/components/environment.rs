@@ -1,7 +1,7 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
 use leptos::*;
 
-use crate::builders::{
+use crate::components::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
 use crate::components::buttons::{ButtonType, FormButton, TextLink};

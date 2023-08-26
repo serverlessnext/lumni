@@ -4,7 +4,7 @@ use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::builders::{build_all, ElementBuilder, InputFieldPattern};
+use crate::components::builders::{build_all, ElementBuilder, InputFieldPattern};
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormError, HtmlForm, SubmitFormClassic,

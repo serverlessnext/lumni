@@ -47,7 +47,7 @@ impl FormStorage for LocalStorageWrapper {
                 .into_iter()
                 .map(|item| {
                     let tags = item.tags().unwrap_or_default();
-                    let profile_name = tags.get("ConfigName").cloned();
+                    let profile_name = tags.get("ProfileName").cloned();
                     let app_name = tags.get("AppName").cloned();
 
                     ConfigurationFormMeta::new(

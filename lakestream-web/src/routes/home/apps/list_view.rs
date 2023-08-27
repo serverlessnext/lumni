@@ -4,8 +4,8 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use crate::external::builders::{AppConfig, load_app_config};
 use crate::components::forms::FormError;
+use crate::external::builders::AppConfig;
 use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to
@@ -102,7 +102,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
-                                    let app_config = load_app_config(&template, name, None);
+                                    let app_config = AppConfig::new(template, name, None);
                                     set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                                 }
                             }
@@ -112,7 +112,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
-                            let app_config =  load_app_config(&template, name, None);
+                            let app_config =  AppConfig::new(template, name, None);
                             set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
@@ -121,7 +121,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <ul>
                         <For
                             each={move || item_list.get().items}
-                            key=|item| item.id()
+                            key=|item| item.profile_id()
                             view=move |cx, item| view! { cx, <ListItem item set_is_loading/> }
                         />
                     </ul>
@@ -139,22 +139,22 @@ fn ListItem(
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ConfigurationList>>(cx).unwrap();
-    let item_id = item.id();
-    let item_name = item.name();
+    let profile_id = item.profile_id();
+    let profile_name = item.profile_name();
 
     view! { cx,
         <li>
             <div class="px-4 py-2">
-                {item_name.clone()} " | "
-                <a href={format!("/apps/{}/{}", APP_NAME, item_id)}>
+                {profile_name.clone()} " | "
+                <a href={format!("/apps/{}/{}", APP_NAME, profile_id)}>
                     "Form"
                 </a>
                 " | "
-                <a href={format!("/apps/{}/{}?view=TextArea", APP_NAME, item_id)}>
+                <a href={format!("/apps/{}/{}?view=TextArea", APP_NAME, profile_id)}>
                     "TextArea"
                 </a>
                 " | "
-                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(item_id.clone(), set_is_loading))> "delete" </button>
+                <button class="text-red-500 hover:text-red-700" on:click=move |_| set_item.update(|t| t.remove(profile_id.clone(), set_is_loading))> "delete" </button>
             </div>
         </li>
     }
@@ -182,9 +182,7 @@ impl ConfigurationList {
         }
     }
 
-    pub async fn load_from_vault(
-        &self,
-    ) -> Result<Vec<AppConfig>, FormError> {
+    pub async fn load_from_vault(&self) -> Result<Vec<AppConfig>, FormError> {
         let configs = self
             .local_storage
             .list_items()
@@ -195,24 +193,35 @@ impl ConfigurationList {
             .into_iter()
             .map(|form_data| {
                 let config_name = form_data.tags().and_then(|tags| {
-                    tags.get("ConfigName")
+                    tags.get("ProfileName")
                         .cloned()
                         .or_else(|| Some("Untitled".to_string()))
                 });
 
-                let app_name = form_data.tags().and_then(|tags| tags.get("AppName").cloned());
+                let app_name = form_data
+                    .tags()
+                    .and_then(|tags| tags.get("AppName").cloned());
 
-                app_name.and_then(|app_name| {
-                    config_name.map(|name| {
-                        log!("Loaded name {} with template {}", name, app_name);
-                        load_app_config(&app_name, name, Some(form_data.id()))
+                app_name
+                    .and_then(|app_name| {
+                        config_name.map(|name| {
+                            log!(
+                                "Loaded name {} with template {}",
+                                name,
+                                app_name
+                            );
+                            AppConfig::new(
+                                app_name,
+                                name,
+                                Some(form_data.id()),
+                            )
+                        })
                     })
-                })
-                .ok_or_else(|| {
-                    FormError::SubmitError(
-                        "Form name not found".to_string(),
-                    )
-                })
+                    .ok_or_else(|| {
+                        FormError::SubmitError(
+                            "Form name not found".to_string(),
+                        )
+                    })
             })
             .collect();
         items
@@ -226,14 +235,16 @@ impl ConfigurationList {
     ) {
         set_is_submitting.set(true);
 
-        let name = item.name();
-        let id = item.id();
+        let profile_name = item.profile_name();
+        let profile_id = item.profile_id();
         let app_name = item.app_name();
 
         let mut tags = HashMap::new();
-        tags.insert("ConfigName".to_string(), name);
+        log!("ProfileName: {}", profile_name.clone());
+        log!("AppName: {}", app_name);
+        tags.insert("ProfileName".to_string(), profile_name);
         tags.insert("AppName".to_string(), app_name);
-        let meta_data = ItemMetaData::new_with_tags(&id, tags);
+        let meta_data = ItemMetaData::new_with_tags(&profile_id, tags);
 
         spawn_local({
             let mut local_storage = self.local_storage.clone();
@@ -247,19 +258,19 @@ impl ConfigurationList {
 
     pub fn remove(
         &mut self,
-        item_id: String,
+        profile_id: String,
         set_is_loading: WriteSignal<bool>,
     ) {
         set_is_loading.set(true);
         spawn_local({
-            let item_id = item_id.clone();
+            let profile_id = profile_id.clone();
             let mut local_storage = self.local_storage.clone();
             async move {
-                let _ = local_storage.delete_item(&item_id).await;
+                let _ = local_storage.delete_item(&profile_id).await;
                 set_is_loading.set(false);
             }
         });
 
-        self.items.retain(|item| item.id() != item_id);
+        self.items.retain(|item| item.profile_id() != profile_id);
     }
 }

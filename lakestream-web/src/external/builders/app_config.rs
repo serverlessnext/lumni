@@ -8,79 +8,64 @@ use uuid::Uuid;
 
 use crate::components::builders::ElementBuilder;
 
-// TODO: config will be dynamically loaded from a file in future update
-const OBJECT_STORE_S3_YAML: &str = r#"
-elements:
-  - id: "BUCKET_URI"
-    type: "PlainText"
-    label: "Bucket URI"
-    initial_value: "s3://"
-    validation:
-      pattern: "^s3://"
-      error_message: "Invalid URI scheme. Must start with 's3://'."
-
-  - id: "AWS_ACCESS_KEY_ID"
-    type: "PlainText"
-    label: "AWS Access Key ID"
-    validation:
-      pattern: "^.+$"
-      error_message: "Invalid AWS access key id."
-
-  - id: "AWS_SECRET_ACCESS_KEY"
-    type: "Secret"
-    label: "AWS Secret Access Key"
-    validation:
-      pattern: "^.+$"
-      error_message: "Invalid AWS secret access key."
-
-  - id: "AWS_REGION"
-    type: "PlainText"
-    label: "AWS Region"
-    initial_value: "auto"
-    validation:
-      pattern: "^[-a-zA-Z0-9]*$"
-      error_message: "Invalid AWS region."
-
-  - id: "S3_ENDPOINT_URL"
-    type: "PlainText"
-    label: "S3 Endpoint URL"
-    validation:
-      pattern: "^https?://[^/]+/$|^$"
-      error_message: "Invalid S3 endpoint URL."
-"#;
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
-    name: String,
-    id: String,
     app_name: String,
+    profile_name: String,
+    profile_id: String,
+    form_elements: Vec<ElementBuilder>,
 }
 
 impl AppConfig {
-    pub fn name(&self) -> String {
-        self.name.clone()
+    pub fn new<S: Into<String>>(
+        app_name: S,
+        profile_name: S,
+        profile_id: Option<S>,
+    ) -> AppConfig {
+        // let yaml_str = include_str!("../../config/object_store_s3.yaml");
+        let app_name = app_name.into();
+        let yaml_str = AppConfig::load_yaml_str(&app_name);
+        let form_elements = form_elements_from_yaml(yaml_str);
+
+        AppConfig {
+            app_name,
+            profile_name: profile_name.into(),
+            profile_id: profile_id.map_or_else(
+                || Uuid::new_v4().to_string(),
+                |id| id.into(),
+            ),
+            form_elements,
+        }
     }
 
-    pub fn id(&self) -> String {
-        self.id.clone()
+    fn load_yaml_str(_app_name: &str) -> &str {
+        // TODO: in future update app will be loaded in memory
+        // and not from the filesystem
+        // the environment config should then be loaded from the app
+        include_str!("../objectstore_s3/spec.yaml")
+    }
+
+    pub fn profile_name(&self) -> String {
+        self.profile_name.clone()
+    }
+
+    pub fn profile_id(&self) -> String {
+        self.profile_id.clone()
     }
 
     pub fn app_name(&self) -> String {
         self.app_name.clone()
     }
 
-    pub fn form_elements<S: Into<String>>(&self, _name: S) -> Vec<ElementBuilder> {
-        // TODO: load yaml_string from app config file:
-        // - apps/{app_name}/config/environment.yaml
-        let yaml_string = OBJECT_STORE_S3_YAML;
-        form_elements_from_yaml(yaml_string)
+    pub fn form_elements(&self) -> Vec<ElementBuilder> {
+        self.form_elements.clone()
     }
 }
 
 fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
-    let parsed_yaml: YamlStructure =
-        serde_yaml::from_str(yaml_string).unwrap();
-    let form_elements = parsed_yaml.elements;
+    let parsed_yaml: Root = serde_yaml::from_str(yaml_string).unwrap();
+    let form_elements = parsed_yaml.Configuration.Environment;
 
     form_elements
         .into_iter()
@@ -113,9 +98,17 @@ fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
         .collect()
 }
 
+
+#[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
-struct YamlStructure {
-    elements: Vec<YamlElement>,
+struct Root {
+    Configuration: Configuration,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+struct Configuration {
+    Environment: Vec<YamlElement>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,14 +127,3 @@ struct YamlValidation {
     error_message: String,
 }
 
-pub fn load_app_config(
-    app_name: &str,
-    profile_name: String,
-    id: Option<String>,
-) -> AppConfig {
-    AppConfig {
-        name: profile_name,
-        id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
-        app_name: app_name.to_string(),
-    }
-}

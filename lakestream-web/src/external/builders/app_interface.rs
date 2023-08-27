@@ -12,7 +12,9 @@ use crate::components::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData};
-use crate::components::input::{FormElement, validate_with_pattern, FieldContentType, perform_validation};
+use crate::components::input::{
+    perform_validation, validate_with_pattern, FieldContentType, FormElement,
+};
 use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
@@ -36,8 +38,6 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
             is_submitting.set(true);
 
             spawn_local(async move {
-
-
                 // run search on background
                 if let Some(form_data) = form_data {
                     let form_elements = form_data.elements();

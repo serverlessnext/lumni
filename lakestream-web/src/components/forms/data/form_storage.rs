@@ -108,7 +108,7 @@ impl<S: FormStorage> FormStorageHandler<S> {
     ) -> Result<ConfigurationFormMeta, String> {
         let tags_opt = self.get_form_info(form_id).await?;
         if let Some(tags) = tags_opt {
-            let profile_name = tags.get("ConfigName").cloned();
+            let profile_name = tags.get("ProfileName").cloned();
             let app_name = tags.get("AppName").cloned();
 
             Ok(ConfigurationFormMeta {

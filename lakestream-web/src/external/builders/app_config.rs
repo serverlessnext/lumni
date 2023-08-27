@@ -23,7 +23,6 @@ impl AppConfig {
         profile_name: S,
         profile_id: Option<S>,
     ) -> AppConfig {
-        // let yaml_str = include_str!("../../config/object_store_s3.yaml");
         let app_name = app_name.into();
         let yaml_str = AppConfig::load_yaml_str(&app_name);
         let form_elements = form_elements_from_yaml(yaml_str);

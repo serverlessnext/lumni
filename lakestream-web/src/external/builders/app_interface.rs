@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use futures::channel::mpsc;
+use futures::stream::StreamExt;
+
 use lakestream::EnvironmentConfig;
 use leptos::ev::SubmitEvent;
 use leptos::*;
@@ -19,6 +22,12 @@ use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
+
+enum Message {
+    Submitting(bool),
+    Results(Option<FormData>),
+}
+
 #[component]
 pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
@@ -31,70 +40,86 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
 
     let results_rw = results_form.form_data_rw();
 
+    let memory_store = use_context::<RwSignal<GlobalState>>(cx)
+        .expect("state to have been provided")
+        .with(|state| state.store.clone());
+
+
+    let (tx, mut rx) = mpsc::unbounded::<Message>();
+
+    spawn_local(async move {
+        while let Some(message) = rx.next().await {
+            match message {
+                Message::Submitting(submitting) => {
+                    is_submitting.set(submitting);
+                }
+                Message::Results(data) => {
+                    results_rw.set(data);
+                }
+            }
+        }
+    });
+
     let handle_submit = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
+            let memory_store = memory_store.clone();
             ev.prevent_default();
             results_rw.set(None);
             is_submitting.set(true);
 
-            spawn_local(async move {
-                // run search on background
+            let form_elements_valid = if let Some(form_data) = &form_data {
+                let form_elements = form_data.elements();
+                let validation_errors = perform_validation(form_elements);
+
+                if validation_errors.is_empty() {
+                    log!("Form data is valid");
+                    true
+                } else {
+                    log!("Form data is invalid");
+                    log!("Validation errors: {:?}", validation_errors);
+                    is_submitting.set(false);
+                    false
+                }
+            } else {
+                log!("Form data is empty");
+                false
+            };
+
+            if form_elements_valid {
                 if let Some(form_data) = form_data {
-                    let form_elements = form_data.elements();
-                    let validation_errors = perform_validation(form_elements);
-
-                    if validation_errors.is_empty() {
-                        log!("Form data is valid");
-                    } else {
-                        log!("Form data is invalid");
-                        log!("Validation errors: {:?}", validation_errors);
-                        is_submitting.set(false);
-                        return;
-                    }
-
                     let query_params = form_data.export_config();
 
-                    let memory_store = use_context::<RwSignal<GlobalState>>(cx)
-                        .expect("state to have been provided")
-                        .with(|state| state.store.clone());
-                    let store = memory_store.lock().unwrap();
-                    match store.load_config(ENVIRONMENT_FORM_ID).await {
-                        Ok(Some(environment)) => {
-                            let config = EnvironmentConfig {
-                                settings: environment,
-                            };
+                    let tx_clone = tx.clone();
 
-                            let handler = LakestreamHandler::new(config);
-                            let uri =
-                                query_params.get("From").unwrap().to_string();
-                            let max_files = 20; // TODO: get from User config
+                    spawn_local(async move {
+                        let store = memory_store.lock().unwrap();
+                        match store.load_config(ENVIRONMENT_FORM_ID).await {
+                            Ok(Some(environment)) => {
+                                let config = EnvironmentConfig {
+                                    settings: environment,
+                                };
 
-                            let results =
-                                handler.list_objects(uri, max_files).await;
-                            log!("Results: {:?}", results);
+                                let handler = LakestreamHandler::new(config);
+                                let uri = query_params.get("From").unwrap().to_string();
+                                let max_files = 20; // TODO: get from User config
+
+                                let results = handler.list_objects(uri, max_files).await;
+                                log!("Results: {:?}", results);
+                            }
+                            Ok(None) => {
+                                log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
+                            }
+                            Err(e) => {
+                                log!("Error loading data: {:?} for form_id: {}", e, ENVIRONMENT_FORM_ID);
+                            }
                         }
-                        Ok(None) => {
-                            log!(
-                                "No data found for form_id: {}",
-                                ENVIRONMENT_FORM_ID
-                            );
-                        }
-                        Err(e) => {
-                            log!(
-                                "Error loading data: {:?} for form_id: {}",
-                                e,
-                                ENVIRONMENT_FORM_ID
-                            );
-                        }
-                    }
-                } else {
-                    log!("Form data is empty");
+
+                        let form_data = make_form_data(cx);
+                        tx_clone.unbounded_send(Message::Results(Some(form_data))).unwrap();
+                        tx_clone.unbounded_send(Message::Submitting(false)).unwrap();
+                    });
                 }
-
-                let form_data = make_form_data(cx);
-                results_rw.set(Some(form_data));
-                is_submitting.set(false);
-            });
+            }
         }
     };
 
@@ -106,30 +131,26 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     );
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
-    let mut query_form = FormBuilder::new(
+    let query_form = FormBuilder::new(
         "Query",
         form_meta,
         FormType::SubmitData(submit_parameters),
     );
 
-    query_form
-        .add_element(
-            ElementBuilder::new("Select", FieldContentType::PlainText)
-                .with_label("Select")
-                .with_placeholder("*")
-                .with_initial_value("*"),
-        )
-        .add_element(
-            ElementBuilder::new("From", FieldContentType::PlainText)
-                .with_label("From")
-                .with_placeholder("s3://bucket")
-                .validator(Some(Arc::new(validate_with_pattern(
-                    Regex::new(r"^s3://").unwrap(),
-                    "Unsupported source".to_string(),
-                )))),
-        );
-
-    let query_form = query_form.build(cx, None);
+    let builders = vec![
+        ElementBuilder::new("Select", FieldContentType::PlainText)
+            .with_label("Select")
+            .with_placeholder("*")
+            .with_initial_value("*"),
+        ElementBuilder::new("From", FieldContentType::PlainText)
+            .with_label("From")
+            .with_placeholder("s3://bucket")
+            .validator(Some(Arc::new(validate_with_pattern(
+                Regex::new(r"^s3://").unwrap(),
+                "Unsupported source".to_string(),
+            ))))
+    ];
+    let query_form = query_form.with_elements(builders).build(cx, None);
 
     view! { cx,
         { query_form.to_view() }

@@ -4,7 +4,7 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use crate::external::builders::{ConfigTemplate, load_app_config};
+use crate::external::builders::{AppConfig, load_app_config};
 use crate::components::forms::FormError;
 use crate::GlobalState;
 
@@ -102,9 +102,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
-                                    let config = load_app_config(&template, name, None);
-                                    let item = Box::new(config) as Box<dyn ConfigTemplate>;
-                                    set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
+                                    let app_config = load_app_config(&template, name, None);
+                                    set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                                 }
                             }
                         }
@@ -113,9 +112,8 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
-                            let config =  load_app_config(&template, name, None);
-                            let item = Box::new(config) as Box<dyn ConfigTemplate>;
-                            set_item_list.update(|item_list| item_list.add(item, set_is_loading, set_submit_error));
+                            let app_config =  load_app_config(&template, name, None);
+                            set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
                 </div>
@@ -137,7 +135,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
 #[component]
 fn ListItem(
     cx: Scope,
-    item: Box<dyn ConfigTemplate>,
+    item: AppConfig,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
     let set_item = use_context::<WriteSignal<ConfigurationList>>(cx).unwrap();
@@ -163,14 +161,14 @@ fn ListItem(
 }
 
 pub struct ConfigurationList {
-    pub items: Vec<Box<dyn ConfigTemplate>>,
+    pub items: Vec<AppConfig>,
     pub local_storage: LocalStorage,
 }
 
 impl Clone for ConfigurationList {
     fn clone(&self) -> Self {
         ConfigurationList {
-            items: self.items.iter().map(|item| item.clone_box()).collect(),
+            items: self.items.iter().map(|item| item.clone()).collect(),
             local_storage: self.local_storage.clone(),
         }
     }
@@ -186,7 +184,7 @@ impl ConfigurationList {
 
     pub async fn load_from_vault(
         &self,
-    ) -> Result<Vec<Box<dyn ConfigTemplate>>, FormError> {
+    ) -> Result<Vec<AppConfig>, FormError> {
         let configs = self
             .local_storage
             .list_items()
@@ -207,9 +205,7 @@ impl ConfigurationList {
                 app_name.and_then(|app_name| {
                     config_name.map(|name| {
                         log!("Loaded name {} with template {}", name, app_name);
-                        let config =
-                            load_app_config(&app_name, name, Some(form_data.id()));
-                        Box::new(config) as Box<dyn ConfigTemplate>
+                        load_app_config(&app_name, name, Some(form_data.id()))
                     })
                 })
                 .ok_or_else(|| {
@@ -224,7 +220,7 @@ impl ConfigurationList {
 
     pub fn add(
         &mut self,
-        item: Box<dyn ConfigTemplate>,
+        item: AppConfig,
         set_is_submitting: WriteSignal<bool>,
         _set_submit_error: WriteSignal<Option<String>>,
     ) {

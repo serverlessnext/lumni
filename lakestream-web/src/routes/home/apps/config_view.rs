@@ -2,7 +2,7 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use leptos_router::use_query_map;
 
-use crate::external::builders::{load_app_config, FormElementList};
+use crate::external::builders::load_app_config;
 use crate::components::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };

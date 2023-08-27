@@ -6,7 +6,6 @@ use serde::Deserialize;
 use serde_yaml;
 use uuid::Uuid;
 
-use super::config_template::ConfigTemplate;
 use crate::components::builders::ElementBuilder;
 
 // TODO: config will be dynamically loaded from a file in future update
@@ -51,37 +50,31 @@ elements:
 "#;
 
 #[derive(Debug, Clone)]
-pub struct Config {
+pub struct AppConfig {
     name: String,
     id: String,
     app_name: String,
 }
 
-impl ConfigTemplate for Config {
-    fn name(&self) -> String {
+impl AppConfig {
+    pub fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn id(&self) -> String {
+    pub fn id(&self) -> String {
         self.id.clone()
     }
 
-    fn app_name(&self) -> String {
+    pub fn app_name(&self) -> String {
         self.app_name.clone()
     }
-}
 
-impl FormElementList for Config {
-    fn form_elements<S: Into<String>>(&self, _name: S) -> Vec<ElementBuilder> {
+    pub fn form_elements<S: Into<String>>(&self, _name: S) -> Vec<ElementBuilder> {
         // TODO: load yaml_string from app config file:
         // - apps/{app_name}/config/environment.yaml
         let yaml_string = OBJECT_STORE_S3_YAML;
         form_elements_from_yaml(yaml_string)
     }
-}
-
-pub trait FormElementList {
-    fn form_elements<S: Into<String>>(&self, name: S) -> Vec<ElementBuilder>;
 }
 
 fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
@@ -145,8 +138,8 @@ pub fn load_app_config(
     app_name: &str,
     profile_name: String,
     id: Option<String>,
-) -> Config {
-    Config {
+) -> AppConfig {
+    AppConfig {
         name: profile_name,
         id: id.unwrap_or_else(|| Uuid::new_v4().to_string()),
         app_name: app_name.to_string(),

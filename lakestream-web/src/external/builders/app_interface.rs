@@ -16,17 +16,40 @@ use crate::components::builders::{
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::{
-    perform_validation, validate_with_pattern, FieldContentType, FormElement,
+    perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
+#[derive(Debug)]
+enum DataType {
+    String(String),
+    Integer(i32),
+    Float(f64),
+}
+
+#[derive(Debug)]
+struct Column {
+    name: String,
+    data_type: DataType,
+}
+
+type Row = Vec<DataType>;
 
 enum Message {
-    Submitting(bool),
-    Results(Option<FormData>),
+    Results {
+        columns: Vec<Column>,
+        rows: Vec<Row>,
+    },
 }
+
+struct HandlerMessage {
+    query_params: HashMap<String, String>,
+    config: Option<EnvironmentConfig>,
+    tx: mpsc::UnboundedSender<Message>,
+}
+
 
 #[component]
 pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
@@ -50,11 +73,11 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     spawn_local(async move {
         while let Some(message) = rx.next().await {
             match message {
-                Message::Submitting(submitting) => {
-                    is_submitting.set(submitting);
-                }
-                Message::Results(data) => {
-                    results_rw.set(data);
+                Message::Results { columns, rows } => {
+                    // results_rw.set(data);
+                    log!("Received results");
+                    log!("Columns: {:?}", columns);
+                    log!("Rows: {:?}", rows);
                 }
             }
         }
@@ -90,34 +113,39 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
                     let query_params = form_data.export_config();
 
                     let tx_clone = tx.clone();
+                    let (tx_handler, rx_handler) = mpsc::unbounded::<HandlerMessage>();
 
                     spawn_local(async move {
                         let store = memory_store.lock().unwrap();
-                        match store.load_config(ENVIRONMENT_FORM_ID).await {
+                        let config = match store.load_config(ENVIRONMENT_FORM_ID).await {
                             Ok(Some(environment)) => {
-                                let config = EnvironmentConfig {
+                                Some(EnvironmentConfig {
                                     settings: environment,
-                                };
-
-                                let handler = LakestreamHandler::new(config);
-                                let uri = query_params.get("From").unwrap().to_string();
-                                let max_files = 20; // TODO: get from User config
-
-                                let results = handler.list_objects(uri, max_files).await;
-                                log!("Results: {:?}", results);
+                                })
                             }
                             Ok(None) => {
                                 log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
+                                None
                             }
                             Err(e) => {
                                 log!("Error loading data: {:?} for form_id: {}", e, ENVIRONMENT_FORM_ID);
+                                is_submitting.set(false);
+                                return; // Exit early if there's an error
                             }
-                        }
+                        };
 
-                        let form_data = make_form_data(cx);
-                        tx_clone.unbounded_send(Message::Results(Some(form_data))).unwrap();
-                        tx_clone.unbounded_send(Message::Submitting(false)).unwrap();
+                        tx_handler.unbounded_send(HandlerMessage {
+                            config,
+                            query_params: query_params.clone(),
+                            tx: tx_clone,
+                        }).unwrap();
+
+                        handle_query(rx_handler).await;
+
+                        // query is done
+                        is_submitting.set(false);
                     });
+
                 }
             }
         }
@@ -174,28 +202,29 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     .into_view(cx)
 }
 
-pub fn make_form_elements() -> Vec<FormElement> {
-    // textbox with validation
-    let text_area_element = FormElement {
-        field_content_type: FieldContentType::PlainText,
-        field_label: None,
-        field_placeholder: None,
-        validator: None,
-        buffer_data: "".to_string(),
-        name: "TextAreaElement".to_string(),
-        is_enabled: true,
-    };
+async fn handle_query(mut rx: mpsc::UnboundedReceiver<HandlerMessage>) {
+    if let Some(message) = rx.next().await {
+        log!("Received query");
+        let HandlerMessage { config, query_params, tx } = message;
 
-    let elements = vec![text_area_element];
-    elements
+        let message = Message::Results {
+            columns: Vec::new(),
+            rows: Vec::new(),
+        };
+
+        if let Some(conf) = config {
+            let handler = LakestreamHandler::new(conf);
+            let uri = query_params.get("From").unwrap().to_string();
+            let max_files = 20; // TODO: get from User config
+
+            let results = handler.list_objects(uri, max_files).await;
+            log!("Results: {:?}", results);
+
+            // TODO: wrap results into rows and columns
+        } else {
+            log!("No config provided. Skipping query handling.");
+        }
+        tx.unbounded_send(message).unwrap();
+    }
 }
 
-pub fn make_form_data(cx: Scope) -> FormData {
-    let elements = make_form_elements();
-    let mut tags = HashMap::new();
-    tags.insert("Name".to_string(), "Test Form".to_string());
-
-    let form_meta = ConfigurationFormMeta::with_id("Form1").with_tags(tags);
-    let form_data = FormData::build(cx, form_meta, &elements, None);
-    form_data
-}

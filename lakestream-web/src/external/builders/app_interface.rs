@@ -19,35 +19,15 @@ use crate::components::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::GlobalState;
+use super::message::*;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
-#[derive(Debug)]
-enum DataType {
-    String(String),
-    Integer(i32),
-    Float(f64),
-}
 
-#[derive(Debug)]
-struct Column {
-    name: String,
-    data_type: DataType,
-}
-
-type Row = Vec<DataType>;
-
-enum Message {
-    Results {
-        columns: Vec<Column>,
-        rows: Vec<Row>,
-    },
-}
-
-struct HandlerMessage {
+struct Payload {
     query_params: HashMap<String, String>,
     config: Option<EnvironmentConfig>,
-    tx: mpsc::UnboundedSender<Message>,
+    tx: mpsc::UnboundedSender<Response>,
 }
 
 
@@ -68,16 +48,38 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
         .with(|state| state.store.clone());
 
 
-    let (tx, mut rx) = mpsc::unbounded::<Message>();
+    let (tx, mut rx) = mpsc::unbounded::<Response>();
 
     spawn_local(async move {
-        while let Some(message) = rx.next().await {
-            match message {
-                Message::Results { columns, rows } => {
-                    // results_rw.set(data);
-                    log!("Received results");
-                    log!("Columns: {:?}", columns);
-                    log!("Rows: {:?}", rows);
+        while let Some(response) = rx.next().await {
+            match response {
+                Response::Empty => {
+                    log!("Received an empty message");
+                }
+                Response::Table(table_type) => {
+                    match table_type {
+                        TableType::Row(row_table) => {
+                            log!("Received row-based table");
+                            log!("Columns: {:?}", row_table.columns);
+                            log!("Rows: {:?}", row_table.rows);
+                        },
+                        TableType::Columnar(columnar_table) => {
+                            log!("Received columnar table");
+                            for (column_name, column_data) in &columnar_table.columns {
+                                log!("Column Name: {}", column_name);
+                                log!("Column Data Type: {:?}", column_data.data_type);
+                                log!("Column Data: {:?}", column_data.data);
+                            }
+                        }
+                    }
+                }
+                Response::Binary { data, metadata } => {
+                    log!("Received binary data of length: {}", data.len());
+                    if let Some(meta) = &metadata {
+                        log!("Metadata: {:?}", meta);
+                    } else {
+                        log!("No metadata provided");
+                    }
                 }
             }
         }
@@ -113,7 +115,7 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
                     let query_params = form_data.export_config();
 
                     let tx_clone = tx.clone();
-                    let (tx_handler, rx_handler) = mpsc::unbounded::<HandlerMessage>();
+                    let (tx_handler, rx_handler) = mpsc::unbounded::<Payload>();
 
                     spawn_local(async move {
                         let store = memory_store.lock().unwrap();
@@ -134,7 +136,7 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
                             }
                         };
 
-                        tx_handler.unbounded_send(HandlerMessage {
+                        tx_handler.unbounded_send(Payload {
                             config,
                             query_params: query_params.clone(),
                             tx: tx_clone,
@@ -202,15 +204,12 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
     .into_view(cx)
 }
 
-async fn handle_query(mut rx: mpsc::UnboundedReceiver<HandlerMessage>) {
-    if let Some(message) = rx.next().await {
+async fn handle_query(mut rx: mpsc::UnboundedReceiver<Payload>) {
+    if let Some(payload) = rx.next().await {
         log!("Received query");
-        let HandlerMessage { config, query_params, tx } = message;
+        let Payload { config, query_params, tx } = payload;
 
-        let message = Message::Results {
-            columns: Vec::new(),
-            rows: Vec::new(),
-        };
+        let mut response = Response::Empty;
 
         if let Some(conf) = config {
             let handler = LakestreamHandler::new(conf);
@@ -221,10 +220,87 @@ async fn handle_query(mut rx: mpsc::UnboundedReceiver<HandlerMessage>) {
             log!("Results: {:?}", results);
 
             // TODO: wrap results into rows and columns
+            // message = generate_test_data_columnar();
+            response = generate_test_data_row();
         } else {
             log!("No config provided. Skipping query handling.");
         }
-        tx.unbounded_send(message).unwrap();
+        tx.unbounded_send(response).unwrap();
     }
 }
 
+fn generate_test_data_columnar() -> Response {
+
+    // Define column data
+    let names_column_data = ColumnarData {
+        data_type: DataType::String(String::new()),
+        data: vec![
+            Some(DataType::String("Jane Smith".to_string())),
+            Some(DataType::String("Robert Brown".to_string())),
+        ],
+    };
+
+    let age_column_data = ColumnarData {
+        data_type: DataType::Integer32(0),
+        data: vec![
+            Some(DataType::Integer32(25)),
+            None, // Null value
+        ],
+    };
+
+    let verified_column_data = ColumnarData {
+        data_type: DataType::Boolean(true),
+        data: vec![
+            None, // Null value
+            Some(DataType::Boolean(true)),
+        ],
+    };
+
+    // Create a hashmap for the columns
+    let mut columns = HashMap::new();
+    columns.insert("Name".to_string(), names_column_data);
+    columns.insert("Age".to_string(), age_column_data);
+    columns.insert("Verified".to_string(), verified_column_data);
+
+    // Create the ColumnarTable
+    let table = ColumnarTable {
+        columns,
+    };
+
+    let response = Response::Table(TableType::Columnar(Arc::new(table)));
+    response
+}
+
+
+fn generate_test_data_row() ->Response {
+
+    let columns = vec![
+        Column {
+            name: "Name".to_string(),
+            data_type: DataType::String("".to_string()),
+        },
+        Column {
+            name: "Age".to_string(),
+            data_type: DataType::Integer32(0),
+        },
+    ];
+
+    // Define rows
+    let rows = vec![
+        vec![
+            Some(DataType::String("Alice".to_string())),
+            Some(DataType::Integer32(30)),
+        ],
+        vec![
+            Some(DataType::String("Bob".to_string())),
+            Some(DataType::Integer32(25)),
+        ],
+        vec![None, Some(DataType::Integer32(22))], // Note the None value for the "Name" field
+    ];
+
+    // Create row-oriented table
+    let row_table = RowTable { columns, rows };
+
+    let response = Response::Table(TableType::Row(Arc::new(row_table)));
+    response
+}

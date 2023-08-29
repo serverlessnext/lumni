@@ -55,7 +55,7 @@ impl FormData {
                     // Convert existing TextData to HashMap
                     let mut existing_config: HashMap<String, String> =
                         new_schema
-                            .buffer_data
+                            .buffer_data_as_string()
                             .lines()
                             .filter_map(|line| {
                                 let parts: Vec<&str> =
@@ -81,7 +81,7 @@ impl FormData {
                         .collect();
 
                     // Update the TextArea with the new string
-                    new_schema.buffer_data = updated_text_data.clone();
+                    new_schema.buffer_data = updated_text_data.clone().into_bytes();
                     form_element_state
                         .display_value
                         .set(DisplayValue::Text(updated_text_data));
@@ -100,7 +100,7 @@ impl FormData {
                     let mut new_schema = (*form_element_state.schema).clone();
 
                     // Update the buffer_data field directly
-                    new_schema.buffer_data = buffer_data.clone();
+                    new_schema.buffer_data = buffer_data.clone().into_bytes();
 
                     // Update the display value
                     form_element_state
@@ -161,7 +161,7 @@ impl FormData {
             .map(|element| {
                 let name = element.name.clone();
                 let initial_value =
-                    DisplayValue::Text(element.buffer_data.clone());
+                    DisplayValue::Text(element.buffer_data_as_string());
                 let error_signal = create_rw_signal(cx, None);
                 let value_signal = create_rw_signal(cx, initial_value);
 

@@ -44,8 +44,15 @@ pub struct FormElement {
     pub field_placeholder: Option<FieldPlaceholder>,
     #[serde(skip)]
     pub validator: Option<Arc<dyn Fn(&str) -> Result<(), String>>>,
-    pub buffer_data: String, // data always gets loaded in here first
+    // pub buffer_data: String, // data always gets loaded in here first
+    pub buffer_data: Vec<u8>,
     pub is_enabled: bool,
+}
+
+impl FormElement {
+    pub fn buffer_data_as_string(&self) -> String {
+        String::from_utf8_lossy(&self.buffer_data).to_string()
+    }
 }
 
 impl fmt::Debug for FormElement {

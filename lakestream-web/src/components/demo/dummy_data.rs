@@ -20,7 +20,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
         field_label: Some(FieldLabel::new("Foo")),
         field_placeholder: Some(FieldPlaceholder::new("foo")),
         validator: validate_foo,
-        buffer_data: "foo".to_string(),
+        buffer_data: "foo".as_bytes().to_vec(),
         name: "TextBoxElement".to_string(),
         is_enabled: true,
     };
@@ -30,7 +30,7 @@ pub fn make_form_elements() -> Vec<FormElement> {
         field_label: Some(FieldLabel::new("Text Area")),
         field_placeholder: Some(FieldPlaceholder::new("key=value")),
         validator: None,
-        buffer_data: "type anything".to_string(),
+        buffer_data: "type anything".as_bytes().to_vec(),
         name: "TextAreaElement".to_string(),
         is_enabled: true,
     };

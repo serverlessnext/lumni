@@ -1,3 +1,4 @@
+mod message;
 mod app_config;
 mod app_interface;
 

@@ -113,7 +113,7 @@ impl ElementBuilder {
             field_label: self.field_label,
             field_placeholder: self.field_placeholder,
             validator: self.validate_fn,
-            buffer_data: self.initial_value,
+            buffer_data: self.initial_value.into_bytes(),
             is_enabled: self.is_enabled,
         }
     }

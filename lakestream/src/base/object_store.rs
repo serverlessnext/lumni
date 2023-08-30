@@ -10,8 +10,8 @@ use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, EnvironmentConfig, FileObject, FileObjectFilter, FileObjectVec,
-    LakestreamError,
+    CallbackWrapper, EnvironmentConfig, FileObject, FileObjectFilter,
+    FileObjectVec, LakestreamError,
 };
 
 pub struct ObjectStoreVec {
@@ -68,7 +68,10 @@ pub enum ObjectStore {
 }
 
 impl ObjectStore {
-    pub fn new(name: &str, config: EnvironmentConfig) -> Result<ObjectStore, String> {
+    pub fn new(
+        name: &str,
+        config: EnvironmentConfig,
+    ) -> Result<ObjectStore, String> {
         if name.starts_with("s3://") {
             let name = name.trim_start_matches("s3://");
             let bucket =

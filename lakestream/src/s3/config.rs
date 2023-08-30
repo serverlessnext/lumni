@@ -4,7 +4,9 @@ use crate::{EnvironmentConfig, LakestreamError};
 
 const AWS_DEFAULT_REGION: &str = "us-east-1";
 
-pub fn validate_config(config: &mut EnvironmentConfig) -> Result<(), LakestreamError> {
+pub fn validate_config(
+    config: &mut EnvironmentConfig,
+) -> Result<(), LakestreamError> {
     // Set AWS_REGION
     if !config.contains_key("AWS_REGION") {
         if let Some(region) = config.get("region").cloned() {

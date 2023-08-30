@@ -7,7 +7,8 @@ use crate::api::object_store_handler::ObjectStoreBackend;
 use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
 use crate::{
-    CallbackWrapper, EnvironmentConfig, LakestreamError, ObjectStore, ObjectStoreVec,
+    CallbackWrapper, EnvironmentConfig, LakestreamError, ObjectStore,
+    ObjectStoreVec,
 };
 
 pub type BoxedAsyncCallbackForObjectStore = Box<

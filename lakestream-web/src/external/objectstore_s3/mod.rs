@@ -1,3 +1,1 @@
-mod interface;
-
-pub use interface::App;
+pub mod handler;

@@ -3,34 +3,29 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-
+use lakestream::EnvironmentConfig;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use lakestream::EnvironmentConfig;
-
+use crate::api::error::*;
+use crate::api::invoke::{Request, Response};
+use crate::api::types::{
+    Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
+    TableType,
+};
 use crate::base::connector::LakestreamHandler;
 use crate::components::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::GlobalState;
-use crate::api::error::*;
-use crate::api::invoke::{Request, Response};
-use crate::api::types::{
-    Data, DataType,
-    Table, TableType,
-    RowTable, ColumnarTable, ColumnarData, Column,
-};
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
-
 
 #[component]
 pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
@@ -48,64 +43,62 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
         .expect("state to have been provided")
         .with(|state| state.store.clone());
 
-
     let (tx, mut rx) = mpsc::unbounded::<Result<Response, Error>>();
 
     spawn_local(async move {
         while let Some(result) = rx.next().await {
             match result {
-                Ok(response) => {
-                    match response.content() {
-                        Data::Empty => {
-                            log!("Received an empty message");
+                Ok(response) => match response.content() {
+                    Data::Empty => {
+                        log!("Received an empty message");
+                    }
+                    Data::Table(table) => match table.table_type() {
+                        TableType::Row => {
+                            if let Some(row_table) = table.as_row() {
+                                log!("Received row-based table");
+                                log!("Columns: {:?}", row_table.columns);
+                                log!("Rows: {:?}", row_table.rows);
+                            }
                         }
-                        Data::Table(table) => {
-                            match table.table_type() {
-                                TableType::Row => {
-                                    if let Some(row_table) = table.as_row() {
-                                        log!("Received row-based table");
-                                        log!("Columns: {:?}", row_table.columns);
-                                        log!("Rows: {:?}", row_table.rows);
-                                    }
-                                },
-                                TableType::Columnar => {
-                                    if let Some(columnar_table) = table.as_columnar() {
-                                        log!("Received columnar table");
-                                        for (column_name, column_data) in &columnar_table.columns {
-                                            log!("Column Name: {}", column_name);
-                                            log!("Column Data Type: {:?}", column_data.data_type);
-                                            log!("Column Data: {:?}", column_data.data);
-                                        }
-                                    }
+                        TableType::Columnar => {
+                            if let Some(columnar_table) = table.as_columnar() {
+                                log!("Received columnar table");
+                                for (column_name, column_data) in
+                                    &columnar_table.columns
+                                {
+                                    log!("Column Name: {}", column_name);
+                                    log!(
+                                        "Column Data Type: {:?}",
+                                        column_data.data_type
+                                    );
+                                    log!("Column Data: {:?}", column_data.data);
                                 }
                             }
                         }
-                        Data::Binary { data, metadata } => {
-                            log!("Received binary data of length: {}", data.len());
-                            if let Some(meta) = metadata {
-                                log!("Metadata: {:?}", meta);
-                            } else {
-                                log!("No metadata provided");
-                            }
+                    },
+                    Data::Binary { data, metadata } => {
+                        log!("Received binary data of length: {}", data.len());
+                        if let Some(meta) = metadata {
+                            log!("Metadata: {:?}", meta);
+                        } else {
+                            log!("No metadata provided");
                         }
-                        Data::KeyValue(_key_value_type) => {
-                            log!("Received key-value data");
-                        }
+                    }
+                    Data::KeyValue(_key_value_type) => {
+                        log!("Received key-value data");
                     }
                 },
-                Err(error) => {
-                    match error {
-                        Error::Request(RequestError::ConfigInvalid(e)) => {
-                            log::error!("Request Error - Invalid Config: {}", e);
-                        },
-                        Error::Request(RequestError::QueryInvalid(e)) => {
-                            log::error!("Request Error - Invalid Query: {}", e);
-                        },
-                        Error::Runtime(RuntimeError::Unexpected(e)) => {
-                            log::error!("Runtime Error - Unexpected: {}", e);
-                        },
+                Err(error) => match error {
+                    Error::Request(RequestError::ConfigInvalid(e)) => {
+                        log::error!("Request Error - Invalid Config: {}", e);
                     }
-                }
+                    Error::Request(RequestError::QueryInvalid(e)) => {
+                        log::error!("Request Error - Invalid Query: {}", e);
+                    }
+                    Error::Runtime(RuntimeError::Unexpected(e)) => {
+                        log::error!("Runtime Error - Unexpected: {}", e);
+                    }
+                },
             }
         }
     });
@@ -144,35 +137,44 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
 
                     spawn_local(async move {
                         let store = memory_store.lock().unwrap();
-                        let config = match store.load_config(ENVIRONMENT_FORM_ID).await {
-                            Ok(Some(environment)) => {
-                                Some(EnvironmentConfig {
-                                    settings: environment,
-                                })
-                            }
+                        let config = match store
+                            .load_config(ENVIRONMENT_FORM_ID)
+                            .await
+                        {
+                            Ok(Some(environment)) => Some(EnvironmentConfig {
+                                settings: environment,
+                            }),
                             Ok(None) => {
-                                log!("No data found for form_id: {}", ENVIRONMENT_FORM_ID);
+                                log!(
+                                    "No data found for form_id: {}",
+                                    ENVIRONMENT_FORM_ID
+                                );
                                 None
                             }
                             Err(e) => {
-                                log!("Error loading data: {:?} for form_id: {}", e, ENVIRONMENT_FORM_ID);
+                                log!(
+                                    "Error loading data: {:?} for form_id: {}",
+                                    e,
+                                    ENVIRONMENT_FORM_ID
+                                );
                                 is_submitting.set(false);
                                 return; // Exit early if there's an error
                             }
                         };
 
-                        tx_handler.unbounded_send(Request::new(
-                            Data::KeyValue(Arc::new(query_params)),
-                            config,
-                            tx_clone,
-                        )).unwrap();
+                        tx_handler
+                            .unbounded_send(Request::new(
+                                Data::KeyValue(Arc::new(query_params)),
+                                config,
+                                tx_clone,
+                            ))
+                            .unwrap();
 
                         handle_query(rx_handler).await;
 
                         // query is done
                         is_submitting.set(false);
                     });
-
                 }
             }
         }
@@ -203,7 +205,7 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
             .validator(Some(Arc::new(validate_with_pattern(
                 Regex::new(r"^s3://").unwrap(),
                 "Unsupported source".to_string(),
-            ))))
+            )))),
     ];
     let query_form = query_form.with_elements(builders).build(cx, None);
 
@@ -250,19 +252,24 @@ async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
                     log!("Select {} From {}", select_string, query_uri);
 
                     let max_files = 20; // TODO: get query
-                    let results = handler.list_objects(query_uri, max_files).await;
+                    let results =
+                        handler.list_objects(query_uri, max_files).await;
                     log!("Results: {:?}", results);
 
                     // TODO: wrap results into rows and columns
                     response = Ok(generate_test_data_row());
-                },
+                }
                 _ => {
-                    let err = Error::Request(RequestError::QueryInvalid("Invalid data type".into()));
+                    let err = Error::Request(RequestError::QueryInvalid(
+                        "Invalid data type".into(),
+                    ));
                     response = Err(err);
                 }
             }
         } else {
-            let err = Error::Request(RequestError::ConfigInvalid("No config provided".into()));
+            let err = Error::Request(RequestError::ConfigInvalid(
+                "No config provided".into(),
+            ));
             response = Err(err);
         }
 
@@ -303,11 +310,10 @@ fn generate_test_data_columnar() -> Response {
     columns.insert("Verified".to_string(), verified_column_data);
 
     // Create the ColumnarTable
-    let table = ColumnarTable {
-        columns,
-    };
+    let table = ColumnarTable { columns };
 
-    let response = Response::new(Data::Table(Arc::new(table) as Arc<dyn Table>));
+    let response =
+        Response::new(Data::Table(Arc::new(table) as Arc<dyn Table>));
     response
 }
 
@@ -333,13 +339,13 @@ fn generate_test_data_row() -> Response {
             Some(DataType::String("Bob".to_string())),
             Some(DataType::Integer32(25)),
         ],
-        vec![None, Some(DataType::Integer32(22))], // Note the None value for the "Name" field
+        vec![None, Some(DataType::Integer32(22))], /* Note the None value for the "Name" field */
     ];
 
     // Create row-oriented table
     let row_table = RowTable { columns, rows };
 
-    let response = Response::new(Data::Table(Arc::new(row_table) as Arc<dyn Table>));
+    let response =
+        Response::new(Data::Table(Arc::new(row_table) as Arc<dyn Table>));
     response
 }
-

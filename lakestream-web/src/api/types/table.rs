@@ -1,9 +1,7 @@
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 
 use super::DataType;
-
 
 pub enum TableType {
     Row,
@@ -75,5 +73,3 @@ impl Table for ColumnarTable {
         Some(self)
     }
 }
-
-

@@ -1,7 +1,9 @@
 mod data;
-mod table;
 mod keyvalue;
+mod table;
 
 pub use data::{Data, DataType};
-pub use table::{Table, TableType, RowTable, ColumnarTable, ColumnarData, Row, Column};
-pub use keyvalue::{KeyValue, AnyKeyValue};
+pub use keyvalue::{AnyKeyValue, KeyValue};
+pub use table::{
+    Column, ColumnarData, ColumnarTable, Row, RowTable, Table, TableType,
+};

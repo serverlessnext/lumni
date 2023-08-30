@@ -113,8 +113,7 @@ pub fn AppConfigView(
     let template_name = form_meta.template().unwrap_or("".to_string());
     let profile_name = form_meta.name().unwrap_or("".to_string());
 
-    let app_config =
-        AppConfig::new(template_name, profile_name.clone(), None);
+    let app_config = AppConfig::new(template_name, profile_name.clone(), None);
     let form_elements = app_config.form_elements();
 
     let form_builder = ProfileFormBuilder::new(

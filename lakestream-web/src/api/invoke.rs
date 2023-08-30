@@ -1,11 +1,8 @@
 use futures::channel::mpsc;
-
 use lakestream::EnvironmentConfig;
 
-use crate::api::types::Data;
 use super::error::*;
-
-
+use crate::api::types::Data;
 
 #[derive(Debug)]
 pub struct Request {
@@ -20,7 +17,11 @@ impl Request {
         config: Option<EnvironmentConfig>,
         tx: mpsc::UnboundedSender<Result<Response, Error>>,
     ) -> Self {
-        Self { content, config, tx }
+        Self {
+            content,
+            config,
+            tx,
+        }
     }
 
     pub fn content(&self) -> &Data {
@@ -57,5 +58,3 @@ impl Response {
         &self.content
     }
 }
-
-

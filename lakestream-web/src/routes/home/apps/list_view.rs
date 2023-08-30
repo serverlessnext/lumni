@@ -210,11 +210,7 @@ impl ConfigurationList {
                                 name,
                                 app_name
                             );
-                            AppConfig::new(
-                                app_name,
-                                name,
-                                Some(form_data.id()),
-                            )
+                            AppConfig::new(app_name, name, Some(form_data.id()))
                         })
                     })
                     .ok_or_else(|| {

@@ -81,7 +81,8 @@ impl FormData {
                         .collect();
 
                     // Update the TextArea with the new string
-                    new_schema.buffer_data = updated_text_data.clone().into_bytes();
+                    new_schema.buffer_data =
+                        updated_text_data.clone().into_bytes();
                     form_element_state
                         .display_value
                         .set(DisplayValue::Text(updated_text_data));

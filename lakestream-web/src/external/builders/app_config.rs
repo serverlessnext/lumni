@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::components::builders::ElementBuilder;
 
-
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     app_name: String,
@@ -30,10 +29,8 @@ impl AppConfig {
         AppConfig {
             app_name,
             profile_name: profile_name.into(),
-            profile_id: profile_id.map_or_else(
-                || Uuid::new_v4().to_string(),
-                |id| id.into(),
-            ),
+            profile_id: profile_id
+                .map_or_else(|| Uuid::new_v4().to_string(), |id| id.into()),
             form_elements,
         }
     }
@@ -97,7 +94,6 @@ fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
         .collect()
 }
 
-
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct Root {
@@ -125,4 +121,3 @@ struct YamlValidation {
     pattern: String,
     error_message: String,
 }
-

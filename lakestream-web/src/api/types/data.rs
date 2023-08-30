@@ -1,9 +1,7 @@
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::Table;
-use super::AnyKeyValue;
+use super::{AnyKeyValue, Table};
 
 #[derive(Debug)]
 pub enum Data {

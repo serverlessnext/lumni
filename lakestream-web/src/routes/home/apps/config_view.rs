@@ -2,15 +2,15 @@ use leptos::ev::SubmitEvent;
 use leptos::*;
 use leptos_router::use_query_map;
 
-use crate::components::builders::{
+use crate::components::forms::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
 use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormStorageHandler, LocalStorageWrapper,
 };
-use crate::components::input::perform_validation;
-use crate::external::builders::AppConfig;
+use crate::components::forms::input::perform_validation;
+use super::AppConfig;
 
 #[component]
 pub fn AppConfigView(

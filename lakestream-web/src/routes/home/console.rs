@@ -1,14 +1,15 @@
 use leptos::*;
 
 pub use crate::components::Environment;
-pub use crate::external::builders::App;
+
+pub use crate::components::apps::AppFormSubmit;
 
 #[component]
 pub fn Console(cx: Scope) -> impl IntoView {
     view! {
         cx,
         <Environment />
-        <App />
+        <AppFormSubmit />
         <br />
     }
 }

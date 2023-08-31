@@ -1,11 +1,11 @@
 use leptos::*;
 
-use crate::components::builders::FormType;
+use crate::components::forms::builders::FormType;
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormViewOptions, LoadAndSubmitForm,
     LoadForm, SubmitForm,
 };
-use crate::components::input::FormElement;
+use crate::components::forms::input::FormElement;
 
 pub struct HtmlForm {
     cx: Scope,

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_yaml;
 use uuid::Uuid;
 
-use crate::components::builders::ElementBuilder;
+use crate::components::forms::builders::ElementBuilder;
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -39,7 +39,7 @@ impl AppConfig {
         // TODO: in future update app will be loaded in memory
         // and not from the filesystem
         // the environment config should then be loaded from the app
-        include_str!("../objectstore_s3/spec.yaml")
+        include_str!("../../../apps/builtin/storage/s3/objectstore_s3/spec.yaml")
     }
 
     pub fn profile_name(&self) -> String {

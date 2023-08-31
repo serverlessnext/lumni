@@ -5,7 +5,7 @@ use leptos::*;
 use regex::Regex;
 
 use crate::components::forms::{ConfigurationFormMeta, FormData};
-use crate::components::input::*;
+use crate::components::forms::input::*;
 
 pub fn make_form_elements() -> Vec<FormElement> {
     // textbox with validation

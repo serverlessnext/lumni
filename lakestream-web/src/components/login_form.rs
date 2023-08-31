@@ -7,14 +7,14 @@ use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::builders::{
+use crate::components::forms::builders::{
     build_all, ElementBuilder, InputFieldPattern,
 };
 use crate::components::buttons::{ActionTrigger, ButtonType, FormButton};
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormError, HtmlForm, SubmitFormClassic,
 };
-use crate::components::input::FormElement;
+use crate::components::forms::input::FormElement;
 use crate::helpers::local_storage::delete_keys_not_matching_prefix;
 use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
 use crate::GlobalState;

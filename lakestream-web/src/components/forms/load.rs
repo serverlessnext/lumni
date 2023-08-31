@@ -7,7 +7,7 @@ use super::html_form::{Form, HtmlForm};
 use super::submit_handler::SubmitHandler;
 use super::view_handler::ViewHandler;
 use super::FormData;
-use crate::components::builders::LoadParameters;
+use crate::components::forms::builders::LoadParameters;
 
 pub struct LoadForm {
     form: HtmlForm,

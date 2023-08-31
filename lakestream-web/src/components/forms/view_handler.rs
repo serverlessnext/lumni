@@ -6,9 +6,9 @@ use leptos::*;
 use super::handler::FormHandlerTrait;
 use super::{FormData, FormElements, SubmitInput};
 use crate::components::buttons::{FormButton, FormButtonGroup};
-use crate::components::form_helpers::SubmissionStatusView;
-use crate::components::input::TextBoxView;
-use crate::components::output::TextDisplayView;
+use crate::components::forms::helpers::SubmissionStatusView;
+use crate::components::forms::input::TextBoxView;
+use crate::components::forms::output::TextDisplayView;
 
 pub struct ViewHandler {
     handler: Rc<dyn FormHandlerTrait>,

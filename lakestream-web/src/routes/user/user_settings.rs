@@ -1,13 +1,13 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
 
-use crate::components::builders::{
+use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
 };
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormStorageHandler, LocalStorageWrapper,
 };
-use crate::components::input::{perform_validation, FieldContentType};
+use crate::components::forms::input::{perform_validation, FieldContentType};
 use crate::GlobalState;
 
 const FORM_ID: &str = "user_settings";

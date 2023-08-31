@@ -5,7 +5,7 @@ use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
 use crate::components::forms::FormError;
-use crate::external::builders::AppConfig;
+use super::AppConfig;
 use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to

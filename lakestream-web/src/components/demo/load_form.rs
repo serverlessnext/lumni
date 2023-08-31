@@ -7,7 +7,7 @@ use super::dummy_data::make_form_data;
 #[cfg(debug_assertions)]
 #[cfg(feature = "debug-assertions")]
 use super::helpers::debug_sleep;
-use crate::components::builders::{FormBuilder, FormType, LoadParameters};
+use crate::components::forms::builders::{FormBuilder, FormType, LoadParameters};
 use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 
 #[component]

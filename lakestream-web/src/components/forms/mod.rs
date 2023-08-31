@@ -7,6 +7,11 @@ mod load_and_submit;
 mod submit;
 mod submit_handler;
 mod view_handler;
+mod helpers;
+
+pub mod input;
+pub mod output;
+pub mod builders;
 
 pub use data::form_data::{
     FormData, FormElements, FormViewOptions, SubmitInput,

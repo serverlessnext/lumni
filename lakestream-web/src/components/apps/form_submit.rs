@@ -13,27 +13,20 @@ use crate::api::invoke::{Request, Response};
 use crate::api::types::{
     Data, TableType,
 };
-use crate::components::builders::{
+use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData};
-use crate::components::input::{
+use crate::components::forms::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::GlobalState;
 
-use crate::external::objectstore_s3::handler::handle_query;
+use crate::apps::builtin::storage::s3::objectstore_s3::handler::handle_query;
 
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
-#[component]
-pub fn App(cx: Scope) -> impl IntoView {
-    view! {
-        cx,
-        <AppFormSubmit />
-    }
-}
 
 #[component]
 pub fn AppFormSubmit(cx: Scope) -> impl IntoView {

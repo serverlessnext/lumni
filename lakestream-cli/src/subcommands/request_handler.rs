@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use lakestream::{BinaryCallbackWrapper, Config, ObjectStoreHandler};
+use lakestream::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
 
-pub async fn handle_request(matches: &clap::ArgMatches, config: &mut Config) {
+pub async fn handle_request(matches: &clap::ArgMatches, config: &mut EnvironmentConfig) {
     let method = matches.get_one::<String>("method").unwrap();
     let uri = matches.get_one::<String>("uri").unwrap();
 
@@ -37,7 +37,7 @@ pub async fn handle_request(matches: &clap::ArgMatches, config: &mut Config) {
 
 async fn handle_get_request(
     uri: &str,
-    config: &Config,
+    config: &EnvironmentConfig,
     output_path: Option<&str>,
 ) {
     let handler = ObjectStoreHandler::new(None);

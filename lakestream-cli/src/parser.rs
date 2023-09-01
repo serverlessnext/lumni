@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::env;
 
 use clap::{Arg, Command};
-use lakestream::Config;
+use lakestream::EnvironmentConfig;
 use tokio::runtime::Builder;
 
 use crate::subcommands::cp::*;
@@ -54,14 +54,14 @@ pub fn run_cli(args: Vec<String>) {
     }
 }
 
-fn create_initial_config(matches: &clap::ArgMatches) -> Config {
+fn create_initial_config(matches: &clap::ArgMatches) -> EnvironmentConfig {
     let mut config_hashmap = HashMap::new();
     if let Some(region) = matches.get_one::<String>("region") {
         config_hashmap.insert("region".to_string(), region.to_string());
     }
 
     // Create a Config instance
-    Config {
+    EnvironmentConfig {
         settings: config_hashmap,
     }
 }

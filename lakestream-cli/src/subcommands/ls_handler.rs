@@ -1,10 +1,10 @@
 use lakestream::{
-    CallbackItem, CallbackWrapper, Config, FileObjectFilter, LakestreamError,
+    CallbackItem, CallbackWrapper, EnvironmentConfig, FileObjectFilter, LakestreamError,
     ListObjectsResult, ObjectStoreHandler,
 };
 use log::info;
 
-pub async fn handle_ls(ls_matches: &clap::ArgMatches, config: &mut Config) {
+pub async fn handle_ls(ls_matches: &clap::ArgMatches, config: &mut EnvironmentConfig) {
     let (uri, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches);
 
@@ -58,7 +58,7 @@ async fn handle_list_objects_result(list_objects_result: ListObjectsResult) {
     }
 }
 
-async fn handle_list_buckets(uri: &str, config: &Config) {
+async fn handle_list_buckets(uri: &str, config: &EnvironmentConfig) {
     log::info!("Calling list_buckets");
     let handler = ObjectStoreHandler::new(None);
     let callback =

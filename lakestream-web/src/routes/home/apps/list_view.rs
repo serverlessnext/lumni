@@ -4,8 +4,8 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use crate::components::forms::FormError;
 use super::AppConfig;
+use crate::components::forms::FormError;
 use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to

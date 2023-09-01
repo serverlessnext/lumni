@@ -1,20 +1,30 @@
-
-use leptos::log;
-
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-
-use crate::base::connector::LakestreamHandler;
+use leptos::log;
 
 use crate::api::error::*;
+use crate::api::handler::AppHandler;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{
     Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
 };
+use crate::base::connector::LakestreamHandler;
 
+pub struct Handler;
+
+impl AppHandler for Handler {
+    fn handle_query(
+        &self,
+        rx: mpsc::UnboundedReceiver<Request>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
+        Box::pin(handle_query(rx))
+    }
+}
 
 pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
     if let Some(request) = rx.next().await {
@@ -37,9 +47,9 @@ pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
                     log!("Select {} From {}", select_string, query_uri);
 
                     let max_files = 20; // TODO: get query
-                    let results =
-                        handler.list_objects(query_uri, max_files).await;
-                    log!("Results: {:?}", results);
+                                        //let results =
+                                        //    handler.list_objects(query_uri, max_files).await;
+                                        //log!("Results: {:?}", results);
 
                     // TODO: wrap results into rows and columns
                     response = Ok(generate_test_data_row());

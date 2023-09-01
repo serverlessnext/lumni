@@ -8,7 +8,7 @@ pub enum TableType {
     Columnar,
 }
 
-pub trait Table: Debug {
+pub trait Table: Debug + Send + Sync {
     fn get_row_count(&self) -> usize;
     fn table_type(&self) -> TableType;
     fn as_row(&self) -> Option<&RowTable>;

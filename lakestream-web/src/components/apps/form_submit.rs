@@ -10,26 +10,22 @@ use uuid::Uuid;
 
 use crate::api::error::*;
 use crate::api::invoke::{Request, Response};
-use crate::api::types::{
-    Data, TableType,
-};
+use crate::api::types::{Data, TableType};
 use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::forms::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
+use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::GlobalState;
 
-use crate::apps::builtin::storage::s3::objectstore_s3::handler::handle_query;
-
+include!(concat!(env!("OUT_DIR"), "/generated_modules.rs"));
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
-
 #[component]
-pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
+pub fn AppFormSubmit(cx: Scope, app_name: String) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
@@ -106,6 +102,7 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
 
     let handle_submit = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
+            let app_name = app_name.clone();
             let memory_store = memory_store.clone();
             ev.prevent_default();
             results_rw.set(None);
@@ -171,7 +168,11 @@ pub fn AppFormSubmit(cx: Scope) -> impl IntoView {
                             ))
                             .unwrap();
 
-                        handle_query(rx_handler).await;
+                        let handler: Option<Box<dyn AppHandler>> =
+                            get_app_handler(&app_name);
+                        let handler = handler.unwrap();
+                        // TODO: handle None
+                        handler.handle_query(rx_handler).await;
 
                         // query is done
                         is_submitting.set(false);

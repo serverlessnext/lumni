@@ -4,8 +4,8 @@ use std::sync::Arc;
 use leptos::*;
 use regex::Regex;
 
-use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::forms::input::*;
+use crate::components::forms::{ConfigurationFormMeta, FormData};
 
 pub fn make_form_elements() -> Vec<FormElement> {
     // textbox with validation

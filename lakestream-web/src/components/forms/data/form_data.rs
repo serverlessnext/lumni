@@ -4,7 +4,9 @@ use std::sync::Arc;
 use leptos::*;
 
 use super::form_storage::ConfigurationFormMeta;
-use crate::components::forms::input::{DisplayValue, FormElement, FormElementState};
+use crate::components::forms::input::{
+    DisplayValue, FormElement, FormElementState,
+};
 
 pub enum SubmitInput {
     Elements(FormElements),

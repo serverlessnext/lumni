@@ -1,12 +1,12 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
 use leptos::*;
 
+use crate::components::buttons::{ButtonType, FormButton, TextLink};
 use crate::components::forms::builders::{
     FormType, LoadParameters, ProfileFormBuilder, SubmitParameters,
 };
-use crate::components::buttons::{ButtonType, FormButton, TextLink};
-use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::components::forms::input::*;
+use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::GlobalState;
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";

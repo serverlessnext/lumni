@@ -8,8 +8,8 @@ use super::html_form::{Form, HtmlForm};
 use super::submit_handler::{CustomSubmitHandler, SubmitFormHandler};
 use super::view_handler::ViewHandler;
 use super::{ConfigurationFormMeta, FormData, SubmitInput};
-use crate::components::forms::builders::SubmitParameters;
 use crate::components::buttons::{ButtonType, FormButton};
+use crate::components::forms::builders::SubmitParameters;
 
 pub struct SubmitForm {
     form: HtmlForm,

@@ -3,10 +3,10 @@ use leptos::*;
 
 use super::ElementBuilder;
 use crate::components::buttons::FormButton;
+use crate::components::forms::input::FormElement;
 use crate::components::forms::{
     ConfigurationFormMeta, Form, FormData, FormViewOptions, HtmlForm,
 };
-use crate::components::forms::input::FormElement;
 
 pub struct FormBuilder {
     title: String,

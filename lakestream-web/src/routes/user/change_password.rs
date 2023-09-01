@@ -4,14 +4,14 @@ use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::components::buttons::{ButtonType, FormButton};
 use crate::components::forms::builders::{
     build_all, ElementBuilder, InputFieldPattern,
 };
-use crate::components::buttons::{ButtonType, FormButton};
+use crate::components::forms::input::FormElement;
 use crate::components::forms::{
     ConfigurationFormMeta, FormData, FormError, HtmlForm, SubmitFormClassic,
 };
-use crate::components::forms::input::FormElement;
 use crate::vars::{LOCALSTORAGE_PREFIX, ROOT_USERNAME};
 
 const INTERNAL_ERROR: &str = "An internal error occurred: ";

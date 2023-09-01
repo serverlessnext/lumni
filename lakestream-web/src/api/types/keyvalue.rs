@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-pub trait KeyValue: Debug + AnyKeyValue {
+pub trait KeyValue: Debug + AnyKeyValue + Send + Sync {
     type ValueType;
     fn get(&self, key: &str) -> Option<&Self::ValueType>;
 }
@@ -25,7 +25,7 @@ impl KeyValue for ByteMap {
     }
 }
 
-pub trait AnyKeyValue: Debug + Any {
+pub trait AnyKeyValue: Debug + Send + Sync + Any {
     fn get_boxed(&self, key: &str) -> Option<Box<dyn Any>>;
     fn get_string_or_default(
         &self,

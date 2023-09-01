@@ -39,7 +39,9 @@ impl AppConfig {
         // TODO: in future update app will be loaded in memory
         // and not from the filesystem
         // the environment config should then be loaded from the app
-        include_str!("../../../apps/builtin/storage/s3/objectstore_s3/spec.yaml")
+        include_str!(
+            "../../../apps/builtin/storage/s3/objectstore_s3/spec.yaml"
+        )
     }
 
     pub fn profile_name(&self) -> String {

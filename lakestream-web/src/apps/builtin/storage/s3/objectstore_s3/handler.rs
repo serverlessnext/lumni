@@ -17,16 +17,30 @@ use crate::base::connector::LakestreamHandler;
 
 pub struct Handler;
 
+
 impl AppHandler for Handler {
     fn handle_query(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-        Box::pin(handle_query(rx))
+        let (local_tx, local_rx) = futures::channel::oneshot::channel();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let result = handle_query(rx).await;
+            if let Err(e) = result {
+                log!("Error handling query: {:?}", e);
+            }
+            local_tx.send(()).expect("Failed to send completion signal");
+        });
+
+        Box::pin(async move {
+            local_rx.await.expect("Failed to receive completion signal");
+        })
     }
 }
 
-pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
+
+pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) -> Result<(),Error> {
     if let Some(request) = rx.next().await {
         log!("Received query");
 
@@ -34,7 +48,6 @@ pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
         let content = request.content();
         let tx = request.tx();
 
-        // Note: I'm assuming the Response type can carry either Data or an Error.
         let response: Result<Response, Error>;
 
         if let Some(conf) = config {
@@ -47,9 +60,9 @@ pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
                     log!("Select {} From {}", select_string, query_uri);
 
                     let max_files = 20; // TODO: get query
-                                        //let results =
-                                        //    handler.list_objects(query_uri, max_files).await;
-                                        //log!("Results: {:?}", results);
+                    let results =
+                        handler.list_objects(query_uri, max_files).await;
+                    log!("Results: {:?}", results);
 
                     // TODO: wrap results into rows and columns
                     response = Ok(generate_test_data_row());
@@ -70,6 +83,7 @@ pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) {
 
         tx.unbounded_send(response).unwrap();
     }
+    Ok(())
 }
 
 fn generate_test_data_columnar() -> Response {

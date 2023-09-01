@@ -1,28 +1,27 @@
 use std::fs;
 use std::path::Path;
 
-use super::bucket::FileSystem;
+use super::bucket::{LocalFileSystem, FileSystem};
 use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub async fn list_files(
-    fs: &dyn FileSystem,
     path: &Path,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     file_objects: &mut FileObjectVec,
 ) {
-    list_files_next(fs, path, max_keys, recursive, filter, file_objects).await;
+    list_files_next(path, max_keys, recursive, filter, file_objects).await;
 }
 
 async fn list_files_next(
-    fs: &dyn FileSystem,
     path: &Path,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     file_objects: &mut FileObjectVec,
 ) {
+    let fs = &LocalFileSystem;
     let mut directory_stack = vec![path.to_owned()];
 
     while let Some(current_path) = directory_stack.pop() {

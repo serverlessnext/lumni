@@ -235,7 +235,7 @@ impl CallbackItem for ObjectStore {
 }
 
 #[async_trait(?Send)]
-pub trait ObjectStoreTrait {
+pub trait ObjectStoreTrait: Send {
     fn name(&self) -> &str;
     fn config(&self) -> &EnvironmentConfig;
     async fn list_files(

@@ -160,7 +160,7 @@ impl ObjectStoreHandler {
 }
 
 #[async_trait(?Send)]
-pub trait ObjectStoreBackend {
+pub trait ObjectStoreBackend: Send {
     fn new(config: EnvironmentConfig) -> Result<Self, LakestreamError>
     where
         Self: Sized;

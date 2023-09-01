@@ -37,12 +37,14 @@ hyper-tls = { version = "0.5" }
 native-tls = { version = "0.2" }
 openssl-sys = { version = "0.9", features = ["vendored"] }
 tokio-native-tls = { version = "0.3" }
+anyhow = "1.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
 wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2.84"
+anyhow = "1.0"
 
 [build-dependencies]
 toml_edit = "0.2"

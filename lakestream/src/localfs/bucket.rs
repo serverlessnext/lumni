@@ -60,19 +60,11 @@ impl ObjectStoreTrait for LocalFsBucket {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec,
     ) -> Result<(), LakestreamError> {
-
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
-        list_files(
-            &path,
-            max_keys,
-            recursive,
-            filter,
-            file_objects,
-        )
-        .await;
+        list_files(&path, max_keys, recursive, filter, file_objects).await;
         Ok(())
     }
 

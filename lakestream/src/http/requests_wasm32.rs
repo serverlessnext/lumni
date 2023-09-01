@@ -72,4 +72,3 @@ pub async fn http_get_request(
         Err(LakestreamError::String(error_message))
     }
 }
-

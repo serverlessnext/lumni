@@ -17,30 +17,18 @@ use crate::base::connector::LakestreamHandler;
 
 pub struct Handler;
 
-
 impl AppHandler for Handler {
-    fn handle_query(
+    fn process_request(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-        let (local_tx, local_rx) = futures::channel::oneshot::channel();
-
-        wasm_bindgen_futures::spawn_local(async move {
-            let result = handle_query(rx).await;
-            if let Err(e) = result {
-                log!("Error handling query: {:?}", e);
-            }
-            local_tx.send(()).expect("Failed to send completion signal");
-        });
-
-        Box::pin(async move {
-            local_rx.await.expect("Failed to receive completion signal");
-        })
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
+        Box::pin(handle_query(rx))
     }
 }
 
-
-pub async fn handle_query(mut rx: mpsc::UnboundedReceiver<Request>) -> Result<(),Error> {
+pub async fn handle_query(
+    mut rx: mpsc::UnboundedReceiver<Request>,
+) -> Result<(), Error> {
     if let Some(request) = rx.next().await {
         log!("Received query");
 

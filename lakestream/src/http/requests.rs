@@ -10,7 +10,6 @@ use native_tls::TlsConnector as NativeTlsConnector;
 use tokio_native_tls::TlsConnector;
 use url::Url;
 
-
 type HttpResult = Result<(Bytes, u16, HashMap<String, String>), anyhow::Error>;
 type HttpResultWithoutHeaders = Result<(Bytes, u16), anyhow::Error>;
 

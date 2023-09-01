@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::bucket::{LocalFileSystem, FileSystem};
+use super::bucket::{FileSystem, LocalFileSystem};
 use crate::{FileObject, FileObjectFilter, FileObjectVec};
 
 pub async fn list_files(

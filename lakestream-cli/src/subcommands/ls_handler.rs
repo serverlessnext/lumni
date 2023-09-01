@@ -1,10 +1,13 @@
 use lakestream::{
-    CallbackItem, CallbackWrapper, EnvironmentConfig, FileObjectFilter, LakestreamError,
-    ListObjectsResult, ObjectStoreHandler,
+    CallbackItem, CallbackWrapper, EnvironmentConfig, FileObjectFilter,
+    LakestreamError, ListObjectsResult, ObjectStoreHandler,
 };
 use log::info;
 
-pub async fn handle_ls(ls_matches: &clap::ArgMatches, config: &mut EnvironmentConfig) {
+pub async fn handle_ls(
+    ls_matches: &clap::ArgMatches,
+    config: &mut EnvironmentConfig,
+) {
     let (uri, recursive, max_files, filter) =
         prepare_handle_ls_arguments(ls_matches);
 

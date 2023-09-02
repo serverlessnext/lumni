@@ -1,39 +1,55 @@
-
 Configuration:
   Environment:
-    - id: "BUCKET_URI"
-      type: "PlainText"
-      label: "Bucket URI"
-      initial_value: "s3://"
-      validation:
-        pattern: "^s3://"
-        error_message: "Invalid URI scheme. Must start with 's3://'."
+  - id: "BUCKET_URI"
+    type: "PlainText"
+    label: "Bucket URI"
+    initial_value: "s3://"
+    validation:
+      pattern: "^s3://"
+      error_message: "Invalid URI scheme. Must start with 's3://'."
 
-    - id: "AWS_ACCESS_KEY_ID"
-      type: "PlainText"
-      label: "AWS Access Key ID"
-      validation:
-        pattern: "^.+$"
-        error_message: "Invalid AWS access key id."
+  - id: "AWS_ACCESS_KEY_ID"
+    type: "PlainText"
+    label: "AWS Access Key ID"
+    validation:
+      pattern: "^.+$"
+      error_message: "Invalid AWS access key id."
 
-    - id: "AWS_SECRET_ACCESS_KEY"
-      type: "Secret"
-      label: "AWS Secret Access Key"
-      validation:
-        pattern: "^.+$"
-        error_message: "Invalid AWS secret access key."
+  - id: "AWS_SECRET_ACCESS_KEY"
+    type: "Secret"
+    label: "AWS Secret Access Key"
+    validation:
+      pattern: "^.+$"
+      error_message: "Invalid AWS secret access key."
 
-    - id: "AWS_REGION"
-      type: "PlainText"
-      label: "AWS Region"
-      initial_value: "auto"
-      validation:
-        pattern: "^[-a-zA-Z0-9]*$"
-        error_message: "Invalid AWS region."
+  - id: "AWS_REGION"
+    type: "PlainText"
+    label: "AWS Region"
+    initial_value: "auto"
+    validation:
+      pattern: "^[-a-zA-Z0-9]*$"
+      error_message: "Invalid AWS region."
 
-    - id: "S3_ENDPOINT_URL"
-      type: "PlainText"
-      label: "S3 Endpoint URL"
-      validation:
-        pattern: "^https?://[^/]+/$|^$"
-        error_message: "Invalid S3 endpoint URL."
+  - id: "S3_ENDPOINT_URL"
+    type: "PlainText"
+    label: "S3 Endpoint URL"
+    validation:
+      pattern: "^https?://[^/]+/$|^$"
+      error_message: "Invalid S3 endpoint URL."
+
+Interface:
+  Form:
+  - id: "SELECT"
+    type: "PlainText"
+    label: "Select"
+    initial_value: "*"
+    placeholder: "*"
+
+  - id: "FROM"
+    type: "PlainText"
+    label: "From"
+    placeholder: "s3://bucket"
+    validation:
+      pattern: "^s3://"
+      error_message: "Invalid URI scheme. Must start with 's3://'."
+

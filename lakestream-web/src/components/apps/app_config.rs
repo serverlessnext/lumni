@@ -1,12 +1,10 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
-use regex::Regex;
-use serde::Deserialize;
-use serde_yaml;
 use uuid::Uuid;
 
 use super::get_app_handler;
+use super::parse_config::{parse_yaml, ConfigYamlType};
+use crate::api::error::Error;
 use crate::api::handler::AppHandler;
 use crate::components::forms::builders::ElementBuilder;
 
@@ -61,6 +59,10 @@ impl AppConfig {
         self.handler.load_config()
     }
 
+    pub fn handler(&self) -> &dyn AppHandler {
+        self.handler.as_ref()
+    }
+
     pub fn profile_name(&self) -> String {
         self.profile_name.clone()
     }
@@ -73,71 +75,15 @@ impl AppConfig {
         self.app_uri.clone()
     }
 
-    pub fn form_elements(&self) -> Vec<ElementBuilder> {
-        let yaml_str = self.load_config();
-        form_elements_from_yaml(yaml_str)
+    pub fn configuration_form_elements(
+        &self,
+    ) -> Result<Vec<ElementBuilder>, Error> {
+        parse_yaml(self.load_config(), ConfigYamlType::ConfigurationEnvironment)
     }
-}
 
-fn form_elements_from_yaml(yaml_string: &str) -> Vec<ElementBuilder> {
-    let parsed_yaml: Root = serde_yaml::from_str(yaml_string).unwrap();
-    let form_elements = parsed_yaml.Configuration.Environment;
-
-    form_elements
-        .into_iter()
-        .map(|element| {
-            let content_type = element.r#type.parse().unwrap_or_default();
-            let mut builder = ElementBuilder::new(&element.id, content_type);
-
-            if let Some(label_text) = element.label {
-                builder = builder.with_label(label_text);
-            }
-
-            if let Some(initial_value) = element.initial_value {
-                builder = builder.with_initial_value(&initial_value);
-            }
-
-            if let Some(validation) = element.validation {
-                let pattern = Regex::new(&validation.pattern).unwrap();
-                builder =
-                    builder.validator(Some(Arc::new(move |input: &str| {
-                        if pattern.is_match(input) {
-                            Ok(())
-                        } else {
-                            Err(validation.error_message.clone())
-                        }
-                    })));
-            }
-
-            builder
-        })
-        .collect()
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-struct Root {
-    Configuration: Configuration,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
-struct Configuration {
-    Environment: Vec<YamlElement>,
-}
-
-#[derive(Debug, Deserialize)]
-struct YamlElement {
-    id: String,
-    #[serde(rename = "type")]
-    r#type: String,
-    label: Option<String>,
-    initial_value: Option<String>,
-    validation: Option<YamlValidation>,
-}
-
-#[derive(Debug, Deserialize)]
-struct YamlValidation {
-    pattern: String,
-    error_message: String,
+    pub fn interface_form_elements(
+        &self,
+    ) -> Result<Vec<ElementBuilder>, Error> {
+        parse_yaml(self.load_config(), ConfigYamlType::InterfaceForm)
+    }
 }

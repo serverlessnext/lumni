@@ -70,7 +70,7 @@ pub async fn handle_query(
                 }
             }
         } else {
-            let err = Error::Request(RequestError::ConfigInvalid(
+            let err = Error::Application(ApplicationError::ConfigInvalid(
                 "No config provided".into(),
             ));
             response = Err(err);

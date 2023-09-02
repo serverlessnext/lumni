@@ -8,7 +8,7 @@ use leptos::*;
 use regex::Regex;
 use uuid::Uuid;
 
-use super::get_app_handler;
+use super::AppConfig;
 use crate::api::error::*;
 use crate::api::handler::AppHandler;
 use crate::api::invoke::{Request, Response};
@@ -41,6 +41,9 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         .with(|state| state.store.clone());
 
     let (tx, mut rx) = mpsc::unbounded::<Result<Response, Error>>();
+
+    let app_config = AppConfig::new(app_uri, "Search Form".to_string(), None);
+    // TODO: handle None
 
     spawn_local(async move {
         while let Some(result) = rx.next().await {
@@ -86,14 +89,20 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
                     }
                 },
                 Err(error) => match error {
-                    Error::Request(RequestError::ConfigInvalid(e)) => {
-                        log::error!("Request Error - Invalid Config: {}", e);
-                    }
                     Error::Request(RequestError::QueryInvalid(e)) => {
                         log::error!("Request Error - Invalid Query: {}", e);
                     }
                     Error::Runtime(RuntimeError::Unexpected(e)) => {
                         log::error!("Runtime Error - Unexpected: {}", e);
+                    }
+                    Error::Application(ApplicationError::ConfigInvalid(e)) => {
+                        log::error!(
+                            "Application Error - Invalid Config: {}",
+                            e
+                        );
+                    }
+                    Error::Application(ApplicationError::Unexpected(e)) => {
+                        log::error!("Application Error - Unexpected: {}", e);
                     }
                 },
             }
@@ -101,8 +110,9 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
     });
 
     let handle_submit = {
+        let app_config_clone = app_config.clone();
         move |ev: SubmitEvent, form_data: Option<FormData>| {
-            let app_uri = app_uri.clone();
+            let app_config = app_config_clone.clone();
             let memory_store = memory_store.clone();
             ev.prevent_default();
             results_rw.set(None);
@@ -168,11 +178,7 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
                             ))
                             .unwrap();
 
-                        let handler: Option<Box<dyn AppHandler>> =
-                            get_app_handler(&app_uri);
-                        let handler = handler.unwrap();
-                        // TODO: handle None
-                        handler.handle_query(rx_handler).await;
+                        app_config.handler().handle_query(rx_handler).await;
 
                         // query is done
                         is_submitting.set(false);
@@ -196,19 +202,7 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         FormType::SubmitData(submit_parameters),
     );
 
-    let builders = vec![
-        ElementBuilder::new("Select", FieldContentType::PlainText)
-            .with_label("Select")
-            .with_placeholder("*")
-            .with_initial_value("*"),
-        ElementBuilder::new("From", FieldContentType::PlainText)
-            .with_label("From")
-            .with_placeholder("s3://bucket")
-            .validator(Some(Arc::new(validate_with_pattern(
-                Regex::new(r"^s3://").unwrap(),
-                "Unsupported source".to_string(),
-            )))),
-    ];
+    let builders = app_config.interface_form_elements().unwrap_or(vec![]);
     let query_form = query_form.with_elements(builders).build(cx, None);
 
     view! { cx,

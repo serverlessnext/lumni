@@ -4,12 +4,18 @@ use std::fmt;
 pub enum Error {
     Request(RequestError),
     Runtime(RuntimeError),
+    Application(ApplicationError),
 }
 
 #[derive(Debug, Clone)]
 pub enum RequestError {
-    ConfigInvalid(String),
     QueryInvalid(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum ApplicationError {
+    ConfigInvalid(String),
+    Unexpected(String),
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +30,9 @@ impl fmt::Display for Error {
             Error::Runtime(runtime_err) => {
                 write!(f, "Runtime Error: {}", runtime_err)
             }
+            Error::Application(app_err) => {
+                write!(f, "Application Error: {}", app_err)
+            }
         }
     }
 }
@@ -31,9 +40,6 @@ impl fmt::Display for Error {
 impl fmt::Display for RequestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RequestError::ConfigInvalid(s) => {
-                write!(f, "Config Invalid: {}", s)
-            }
             RequestError::QueryInvalid(s) => write!(f, "Query Invalid: {}", s),
         }
     }
@@ -43,6 +49,17 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RuntimeError::Unexpected(s) => write!(f, "Unexpected: {}", s),
+        }
+    }
+}
+
+impl fmt::Display for ApplicationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ApplicationError::ConfigInvalid(s) => {
+                write!(f, "Config Invalid: {}", s)
+            }
+            ApplicationError::Unexpected(s) => write!(f, "Unexpected: {}", s),
         }
     }
 }

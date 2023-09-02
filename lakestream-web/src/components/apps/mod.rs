@@ -1,5 +1,6 @@
 mod app_config;
 mod form_submit;
+mod parse_config;
 
 pub use app_config::AppConfig;
 pub use form_submit::AppFormSubmit;

@@ -8,26 +8,24 @@ use leptos::*;
 use regex::Regex;
 use uuid::Uuid;
 
+use super::get_app_handler;
 use crate::api::error::*;
+use crate::api::handler::AppHandler;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{Data, TableType};
 use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
-use crate::api::handler::AppHandler;
 use crate::components::forms::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::GlobalState;
 
-use super::get_app_handler;
-
-
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
-pub fn AppFormSubmit(cx: Scope, app_name: String) -> impl IntoView {
+pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
     let is_submitting = create_rw_signal(cx, false);
     let validation_error = create_rw_signal(cx, None::<String>);
 
@@ -104,7 +102,7 @@ pub fn AppFormSubmit(cx: Scope, app_name: String) -> impl IntoView {
 
     let handle_submit = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
-            let app_name = app_name.clone();
+            let app_uri = app_uri.clone();
             let memory_store = memory_store.clone();
             ev.prevent_default();
             results_rw.set(None);
@@ -171,7 +169,7 @@ pub fn AppFormSubmit(cx: Scope, app_name: String) -> impl IntoView {
                             .unwrap();
 
                         let handler: Option<Box<dyn AppHandler>> =
-                            get_app_handler(&app_name);
+                            get_app_handler(&app_uri);
                         let handler = handler.unwrap();
                         // TODO: handle None
                         handler.handle_query(rx_handler).await;

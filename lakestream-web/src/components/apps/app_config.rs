@@ -6,9 +6,9 @@ use serde::Deserialize;
 use serde_yaml;
 use uuid::Uuid;
 
+use super::get_app_handler;
 use crate::api::handler::AppHandler;
 use crate::components::forms::builders::ElementBuilder;
-use super::get_app_handler;
 
 pub struct AppConfig {
     app_uri: String,

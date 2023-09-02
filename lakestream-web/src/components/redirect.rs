@@ -18,7 +18,7 @@ pub fn Redirect(cx: Scope, redirect_url: Option<String>) -> impl IntoView {
         }
     }
 
-    {
+    move || {
         if let Some(error) = error_message.get() {
             view! {
                 cx,

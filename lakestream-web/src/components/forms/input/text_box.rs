@@ -36,23 +36,27 @@ pub fn TextBoxView(
 
     // signals
     let initial_value = value_signal.get_untracked();
-    let is_locked = create_rw_signal(
-        cx,
-        if initial_value.is_empty() {
-            false
-        } else {
-            is_secret || is_password
-        },
-    );
 
-    let is_enabled = (move || {
-        if is_locked.get() {
-            false
-        } else {
-            initial_enabled
-        }
-    })
-    .derive_signal(cx);
+    let is_locked = create_rw_signal(cx, !initial_value.is_empty() && (is_secret  || is_password));
+    let is_enabled = create_rw_signal(cx, initial_enabled);
+
+//    let is_locked = create_rw_signal(
+//        cx,
+//        if initial_value.is_empty() {
+//            false
+//        } else {
+//            is_secret || is_password
+//        },
+//    );
+
+//    let is_enabled = (move || {
+//        if is_locked.get() {
+//            false
+//        } else {
+//            initial_enabled
+//        }
+//    })
+//    .derive_signal(cx);
 
     let initial_value = if is_locked.get_untracked() {
         match initial_value {
@@ -76,6 +80,7 @@ pub fn TextBoxView(
         let new_state = !is_locked.get();
         let current_value = value_signal.get();
         is_locked.set(new_state);
+        is_enabled.set(!new_state);
         display_value_signal.set(if new_state {
             MASKED_VALUE.to_string()
         } else {
@@ -112,7 +117,7 @@ pub fn TextBoxView(
                 view! {
                     cx,
                     <TextAreaFieldView
-                        is_enabled
+                        is_enabled=is_enabled.into()
                         value_signal
                         display_value_signal
                         input_changed
@@ -124,7 +129,7 @@ pub fn TextBoxView(
                     cx,
                     <InputFieldView
                         is_password
-                        is_enabled
+                        is_enabled=is_enabled.into()
                         value_signal
                         display_value_signal
                         input_changed
@@ -175,7 +180,7 @@ pub fn InputFieldView(
                 }
             }
             placeholder=placeholder_text.unwrap_or_else(|| "none".to_string())
-            class={ get_input_class(is_enabled.get() ) }
+            class=move || { get_input_class(is_enabled.get() ) }
             disabled=move || { !is_enabled.get() }
         />
     }
@@ -191,11 +196,13 @@ pub fn TextAreaFieldView(
     placeholder_text: Option<String>,
 ) -> impl IntoView {
     let min_height = 8;
-    let line_count = display_value_signal.get().lines().count();
 
     view! { cx,
         <textarea
-            rows={ if line_count > min_height { line_count + 1} else { min_height }}
+            rows=move || {
+                let line_count = display_value_signal.get().lines().count();
+                if line_count > min_height { line_count + 1} else { min_height }
+            }
             prop:value={ display_value_signal }
             on:input=move |ev| {
                 if is_enabled.get() {
@@ -205,7 +212,7 @@ pub fn TextAreaFieldView(
                 }
             }
             placeholder=placeholder_text.unwrap_or_else(|| "none".to_string())
-            class={ get_input_class(is_enabled.get()) }
+            class=move || { get_input_class(is_enabled.get()) }
             disabled=move || { !is_enabled.get()}
         />
     }

@@ -5,20 +5,16 @@ use futures::stream::StreamExt;
 use lakestream::EnvironmentConfig;
 use leptos::ev::SubmitEvent;
 use leptos::*;
-use regex::Regex;
 use uuid::Uuid;
 
 use super::AppConfig;
 use crate::api::error::*;
-use crate::api::handler::AppHandler;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{Data, TableType};
 use crate::components::forms::builders::{
-    ElementBuilder, FormBuilder, FormType, SubmitParameters,
+    FormBuilder, FormType, SubmitParameters,
 };
-use crate::components::forms::input::{
-    perform_validation, validate_with_pattern, FieldContentType,
-};
+use crate::components::forms::input::perform_validation;
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::GlobalState;
 
@@ -35,10 +31,6 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
             .build(cx, None);
 
     let results_rw = results_form.form_data_rw();
-
-    let memory_store = use_context::<RwSignal<GlobalState>>(cx)
-        .expect("state to have been provided")
-        .with(|state| state.store.clone());
 
     let (tx, mut rx) = mpsc::unbounded::<Result<Response, Error>>();
 
@@ -113,7 +105,11 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         let app_config_clone = app_config.clone();
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             let app_config = app_config_clone.clone();
-            let memory_store = memory_store.clone();
+
+            let memory_store = use_context::<RwSignal<GlobalState>>(cx)
+                .expect("state to have been provided")
+                .with(|state| state.store.clone());
+
             ev.prevent_default();
             results_rw.set(None);
             is_submitting.set(true);

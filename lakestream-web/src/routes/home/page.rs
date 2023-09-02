@@ -7,7 +7,7 @@ use web_sys::window;
 pub fn Home(cx: Scope) -> impl IntoView {
     let page_path = use_location(cx).pathname;
 
-    if page_path.get().ends_with("/") {
+    if page_path.get_untracked().ends_with("/") {
         // on first page load, rewrite url to /console
         // this avoids are more costly redirect
         if let Some(window) = window() {

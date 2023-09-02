@@ -150,11 +150,11 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             }
         });
 
-    let previous_url = create_read_slice(cx, state, |state| {
+    let previous_url = move || create_read_slice(cx, state, |state| {
         state.runtime.as_ref().map(|r| r.previous_url().clone())
     });
 
-    let redirect_url = previous_url().unwrap_or_default();
+    let redirect_url = previous_url().get_untracked().unwrap_or_default();
 
     // Page is in a loading state until we know if the user is defined
     let is_user_defined = create_rw_signal(cx, false);

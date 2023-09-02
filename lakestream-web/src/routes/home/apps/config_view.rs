@@ -24,11 +24,13 @@ pub fn AppConfigView(
     let form_id_clone = form_meta.id();
     let storage_handler_clone = storage_handler.clone();
 
-    let param_view = use_query_map(cx).get().get("view").cloned();
-    let is_text_area = param_view
-        .as_ref()
-        .map(|v| v.as_str() == "TextArea")
-        .unwrap_or(false);
+    let is_text_area = {
+        let param_view = use_query_map(cx).get_untracked().get("view").cloned();
+        param_view
+            .as_ref()
+            .map(|v| v.as_str() == "TextArea")
+            .unwrap_or(false)
+    };
 
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
         let form_id = form_id_clone.to_owned();

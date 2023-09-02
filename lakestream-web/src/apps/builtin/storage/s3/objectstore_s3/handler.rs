@@ -15,14 +15,21 @@ use crate::api::types::{
 };
 use crate::base::connector::LakestreamHandler;
 
+#[derive(Clone)]
 pub struct Handler;
 
 impl AppHandler for Handler {
+    fn clone_box(&self) -> Box<dyn AppHandler> {
+        Box::new(self.clone())
+    }
     fn process_request(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         Box::pin(handle_query(rx))
+    }
+    fn load_config(&self) -> &str {
+        include_str!("spec.yaml")
     }
 }
 

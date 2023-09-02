@@ -7,7 +7,8 @@ use leptos::log;
 use crate::api::error::Error;
 use crate::api::invoke::Request;
 
-pub trait AppHandler {
+pub trait AppHandler: Send + Sync + 'static {
+    fn clone_box(&self) -> Box<dyn AppHandler>;
     fn process_request(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
@@ -32,4 +33,6 @@ pub trait AppHandler {
             local_rx.await.expect("Failed to receive completion signal");
         })
     }
+
+    fn load_config(&self) -> &str;
 }

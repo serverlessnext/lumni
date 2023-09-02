@@ -14,13 +14,15 @@ use crate::api::types::{Data, TableType};
 use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, SubmitParameters,
 };
+use crate::api::handler::AppHandler;
 use crate::components::forms::input::{
     perform_validation, validate_with_pattern, FieldContentType,
 };
 use crate::components::forms::{ConfigurationFormMeta, FormData};
 use crate::GlobalState;
 
-include!(concat!(env!("OUT_DIR"), "/generated_modules.rs"));
+use super::get_app_handler;
+
 
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 

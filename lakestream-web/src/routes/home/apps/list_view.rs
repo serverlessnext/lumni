@@ -4,13 +4,13 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use super::AppConfig;
 use crate::components::forms::FormError;
+use crate::components::apps::AppConfig;
 use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to
 // make this dynamic
-const APP_NAME: &str = "objectstore-s3";
+const APP_NAME: &str = "builtin::storage::s3::objectstore_s3";
 
 #[component]
 pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
@@ -198,19 +198,19 @@ impl ConfigurationList {
                         .or_else(|| Some("Untitled".to_string()))
                 });
 
-                let app_name = form_data
+                let app_uri = form_data
                     .tags()
                     .and_then(|tags| tags.get("AppName").cloned());
 
-                app_name
-                    .and_then(|app_name| {
+                app_uri
+                    .and_then(|app_uri| {
                         config_name.map(|name| {
                             log!(
                                 "Loaded name {} with template {}",
                                 name,
-                                app_name
+                                app_uri
                             );
-                            AppConfig::new(app_name, name, Some(form_data.id()))
+                            AppConfig::new(app_uri, name, Some(form_data.id()))
                         })
                     })
                     .ok_or_else(|| {
@@ -233,13 +233,13 @@ impl ConfigurationList {
 
         let profile_name = item.profile_name();
         let profile_id = item.profile_id();
-        let app_name = item.app_name();
+        let app_uri = item.app_uri();
 
         let mut tags = HashMap::new();
         log!("ProfileName: {}", profile_name.clone());
-        log!("AppName: {}", app_name);
+        log!("AppName: {}", app_uri);
         tags.insert("ProfileName".to_string(), profile_name);
-        tags.insert("AppName".to_string(), app_name);
+        tags.insert("AppName".to_string(), app_uri);
         let meta_data = ItemMetaData::new_with_tags(&profile_id, tags);
 
         spawn_local({

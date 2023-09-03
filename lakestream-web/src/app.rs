@@ -3,8 +3,10 @@ use leptos_meta::*;
 use leptos_router::*;
 
 use crate::components::Redirect;
+use crate::helpers::string_replace::replace_first_single_colon;
 use crate::routes::api::Login;
-use crate::routes::home::apps::{AppConfiguration, AppId, Apps};
+use crate::routes::home::apps::Apps;
+use crate::routes::home::apps::uri::{AppConfiguration, AppId};
 use crate::routes::home::{Console, Home};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
 use crate::routes::About;
@@ -36,7 +38,8 @@ pub fn App(cx: Scope) -> impl IntoView {
 
     let set_previous_url =
         create_write_slice(cx, state, |state, previous_url: String| {
-            let updated_url = previous_url.replace(':', "/");
+            //let updated_url = previous_url.replace(':', "/");
+            let updated_url = replace_first_single_colon(&previous_url);
             state
                 .runtime
                 .get_or_insert_with(RunTime::new)
@@ -87,7 +90,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                             }/>
 
                             <Route
-                                path="/apps/:id"
+                                path="/apps/:uri"
                                 view=move |cx| {
                                     if vault_initialized.get() == false {
                                         // not yet logged in
@@ -111,7 +114,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 
                             />
                             <Route
-                                path="/apps/:_id/:id"
+                                path="/apps/:uri/:id"
                                 view=move |cx| {
                                     if vault_initialized.get() == false {
                                         // not yet logged in

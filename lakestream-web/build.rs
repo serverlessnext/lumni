@@ -87,7 +87,7 @@ fn traverse_and_generate(
                         app_spec.app_info.version,
                     );
                     app_info_map
-                        .insert("path".to_string(), module_path.clone());
+                        .insert("__uri__".to_string(), module_path.clone());
                     app_paths.push(app_info_map);
                 }
                 Err(e) => {
@@ -112,11 +112,18 @@ fn generate_app_strings(app_paths: &Vec<HashMap<String, String>>) -> String {
         .map(|app| {
             let pairs: Vec<String> = app
                 .iter()
-                .map(|(k, v)| format!("map.insert(\"{}\".to_string(), \"{}\".to_string());", k, v))
+                .map(|(k, v)| {
+                    format!(
+                        "map.insert(\"{}\".to_string(), \"{}\".to_string());",
+                        k, v
+                    )
+                })
                 .collect();
-            format!("{{\n    let mut map = HashMap::new();\n    {}\n    map\n}}", pairs.join("\n    "))
+            format!(
+                "{{\n    let mut map = HashMap::new();\n    {}\n    map\n}}",
+                pairs.join("\n    ")
+            )
         })
         .collect::<Vec<String>>()
         .join(", ")
 }
-

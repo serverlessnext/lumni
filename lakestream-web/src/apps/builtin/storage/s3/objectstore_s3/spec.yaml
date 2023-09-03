@@ -1,5 +1,10 @@
-Configuration:
-  Environment:
+app_info:
+  name: "ObjectstoreS3"
+  display_name: "ObjectstoreS3"
+  version: 0.0.1
+
+configuration:
+  environment:
   - id: "BUCKET_URI"
     type: "PlainText"
     label: "Bucket URI"
@@ -37,8 +42,8 @@ Configuration:
       pattern: "^https?://[^/]+/$|^$"
       error_message: "Invalid S3 endpoint URL."
 
-Interface:
-  Form:
+interface:
+  form:
   - id: "SELECT"
     type: "PlainText"
     label: "Select"

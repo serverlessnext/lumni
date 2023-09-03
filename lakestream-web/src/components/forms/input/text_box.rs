@@ -37,26 +37,29 @@ pub fn TextBoxView(
     // signals
     let initial_value = value_signal.get_untracked();
 
-    let is_locked = create_rw_signal(cx, !initial_value.is_empty() && (is_secret  || is_password));
+    let is_locked = create_rw_signal(
+        cx,
+        !initial_value.is_empty() && (is_secret || is_password),
+    );
     let is_enabled = create_rw_signal(cx, initial_enabled);
 
-//    let is_locked = create_rw_signal(
-//        cx,
-//        if initial_value.is_empty() {
-//            false
-//        } else {
-//            is_secret || is_password
-//        },
-//    );
+    //    let is_locked = create_rw_signal(
+    //        cx,
+    //        if initial_value.is_empty() {
+    //            false
+    //        } else {
+    //            is_secret || is_password
+    //        },
+    //    );
 
-//    let is_enabled = (move || {
-//        if is_locked.get() {
-//            false
-//        } else {
-//            initial_enabled
-//        }
-//    })
-//    .derive_signal(cx);
+    //    let is_enabled = (move || {
+    //        if is_locked.get() {
+    //            false
+    //        } else {
+    //            initial_enabled
+    //        }
+    //    })
+    //    .derive_signal(cx);
 
     let initial_value = if is_locked.get_untracked() {
         match initial_value {

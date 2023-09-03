@@ -23,7 +23,7 @@ pub fn parse_yaml(
 
     match yaml_type {
         ConfigYamlType::ConfigurationEnvironment => {
-            if let Some(configuration) = root.Configuration {
+            if let Some(configuration) = root.configuration {
                 form_elements_from_yaml(configuration.get_elements())
             } else {
                 Err(Error::Application(ApplicationError::ConfigInvalid(
@@ -32,7 +32,7 @@ pub fn parse_yaml(
             }
         }
         ConfigYamlType::InterfaceForm => {
-            if let Some(interface) = root.Interface {
+            if let Some(interface) = root.interface {
                 form_elements_from_yaml(interface.get_elements())
             } else {
                 Err(Error::Application(ApplicationError::ConfigInvalid(
@@ -50,31 +50,31 @@ trait ElementContainer {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct Root {
-    Configuration: Option<Configuration>,
-    Interface: Option<Interface>,
+    configuration: Option<Configuration>,
+    interface: Option<Interface>,
 }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct Configuration {
-    Environment: Vec<YamlElement>,
+    environment: Vec<YamlElement>,
 }
 
 impl ElementContainer for Configuration {
     fn get_elements(&self) -> &Vec<YamlElement> {
-        &self.Environment
+        &self.environment
     }
 }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct Interface {
-    Form: Vec<YamlElement>,
+    form: Vec<YamlElement>,
 }
 
 impl ElementContainer for Interface {
     fn get_elements(&self) -> &Vec<YamlElement> {
-        &self.Form
+        &self.form
     }
 }
 

@@ -1,9 +1,12 @@
 use leptos::*;
 
 use super::list_view::ConfigurationListView;
+use crate::components::apps::get_available_apps;
 
 #[component]
 pub fn Apps(cx: Scope) -> impl IntoView {
+    let apps = get_available_apps();
+    log!("Available apps /apps: {:?}", apps);
     view! {
         cx,
         <div class="mt-0 p-4 bg-gray-200 rounded shadow w-full flex flex-wrap space-x-4">

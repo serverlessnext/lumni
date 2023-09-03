@@ -150,9 +150,11 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
             }
         });
 
-    let previous_url = move || create_read_slice(cx, state, |state| {
-        state.runtime.as_ref().map(|r| r.previous_url().clone())
-    });
+    let previous_url = move || {
+        create_read_slice(cx, state, |state| {
+            state.runtime.as_ref().map(|r| r.previous_url().clone())
+        })
+    };
 
     let redirect_url = previous_url().get_untracked().unwrap_or_default();
 

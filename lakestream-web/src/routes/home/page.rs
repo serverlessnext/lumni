@@ -21,24 +21,24 @@ pub fn Home(cx: Scope) -> impl IntoView {
 
     view! {
         cx,
-        <nav class="bg-black">
+        <nav class="bg-slate-100 mb-2">
             <div class="flex">
                 {move ||
                     view! { cx,
                        <a href="/console"
                             class={
                                 if page_path.get().ends_with("/console") || page_path.get().ends_with("/") {
-                                    "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
+                                    "bg-green-200 text-black border-b-2 font-medium font-mono border-black px-3 py-1 text-sm mr-4"
                                 } else {
-                                    "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
+                                    "text-black hover:bg-green-200 font-mono hover:text-black px-3 py-1 text-sm mr-4"
                                 }
                             }>"Console"</a>
                        <a href="/apps"
                             class={
                                 if page_path.get().ends_with("/apps") {
-                                    "bg-green-500/20 text-green-500 border-b-2 font-mono border-green-900 px-3 py-1 text-sm mr-4"
+                                    "bg-green-200 text-black border-b-2 font-medium font-mono border-black px-3 py-1 text-sm mr-4"
                                 } else {
-                                    "text-green-300 hover:bg-green-500/20 font-mono hover:text-green-100 px-3 py-1 text-sm mr-4"
+                                    "text-black hover:bg-green-200 font-mono hover:text-black px-3 py-1 text-sm mr-4"
                                 }
                             }>"Apps"</a>
 

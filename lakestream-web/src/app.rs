@@ -9,7 +9,6 @@ use crate::routes::home::apps::Apps;
 use crate::routes::home::apps::uri::{AppConfiguration, AppId};
 use crate::routes::home::{Console, Home};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
-use crate::routes::About;
 use crate::{GlobalState, RunTime};
 
 // const API_PATH: &str = "/api/v1";
@@ -60,14 +59,26 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
             <Router fallback=|cx| view! { cx, <Redirect redirect_url=None/>}.into_view(cx)>
-                <nav class="py-2 px-4 text-lg font-medium h-24 bg-black">
-                    <div class="mb-4 text-4xl font-sans font-bold bg-gradient-to-r from-white via-sky-200 to-sky-300 inline-block text-transparent bg-clip-text tracking-widest">"Goaiio"</div>
-                    <div class="flex items-end text-white">
-                        <a href="/console" class="hover:text-green-500 mr-4 font-mono font-bold">"Home"</a>
-                        <a href="/user/settings" class="hover:text-green-500 mr-4 font-mono font-bold">"User"</a>
-                        <a href="/about" class="hover:text-green-500 mr-4 font-mono font-bold">"About"</a>
-                    </div>
-                </nav>
+            <nav class="py-2 px-4 text-lg font-medium h-12 bg-customBlue flex items-center justify-between">
+                <a href="/console" class="flex items-left">
+                    <img src="/xlatti-logo-sm.png" alt="XLatti Logo" class="h-6 mr-1 mt-1" />
+                    <div class="text-2xl font-mono font-medium text-white inline-block text-transparent bg-clip-text tracking-widest">Latti</div>
+                </a>
+
+                <div class="flex items-right text-white">
+                    <a href="/user/settings" class="text-white hover:text-green-500 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-6 w-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </a> 
+                    <a href="https://github.com/serverlessnext" target="_blank" class="text-white hover:text-green-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-5 w-5" aria-hidden="true">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.20-.82 2.20-.82.44 1.10.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.20 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                        </svg>
+                    </a> 
+                </div>
+            </nav>
+        
                 <main>
                     <Routes>
                         <Route
@@ -154,7 +165,6 @@ pub fn App(cx: Scope) -> impl IntoView {
                                 <ChangePassword />
                             }/>
                         </ProtectedRoute>
-                        <Route path="/about" view=|cx| view! { cx, <About/> }/>
                         <Route path="/user/logout" view=|cx| view! { cx, <Logout/> }/>
                         <Route
                             path=redirect_path!(":id")

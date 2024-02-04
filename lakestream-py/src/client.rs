@@ -9,12 +9,12 @@ use crate::utils::create_filter;
 use tokio::runtime::Runtime;
 
 // start with :: to ensure local crate is used
-use ::lakestream::{ListObjectsResult, ObjectStoreHandler, Config, AWS_DEFAULT_REGION};
+use ::lakestream::{ListObjectsResult, ObjectStoreHandler, EnvironmentConfig, AWS_DEFAULT_REGION};
 use ::lakestream_cli::run_cli;
 
 #[pyclass]
 pub struct _Client {
-    config: Config,
+    config: EnvironmentConfig,
 }
 
 #[pymethods]
@@ -27,7 +27,7 @@ impl _Client {
 
         let mut config = HashMap::new();
         config.insert("region".to_string(), region);
-        let config = Config {
+        let config = EnvironmentConfig {
             settings: config,
         };
         Ok(_Client { config })

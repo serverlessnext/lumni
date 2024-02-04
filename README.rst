@@ -20,6 +20,12 @@ Prerequisites
 - Python or Rust
 - Optional: S3 account with valid access key and secret key
 
+# Development
+- maturin (cargo install --locked maturin)
+- trunk (cargo install trunk)
+- npx (brew install npm; npm install -g npx)
+- rustup target add wasm32-unknown-unknown
+
 Installation
 ------------
 

@@ -48,8 +48,8 @@ minio_clean: minio_stop
 
 
 ## Documentation targets
-DOCS_IMAGE := lakestream-docs-image
-DOCS_CONTAINER := lakestream-docs-run
+DOCS_IMAGE := xlatti-docs-image
+DOCS_CONTAINER := xlatti-docs-run
 
 .PHONY: docs_html
 

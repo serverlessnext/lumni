@@ -1,9 +1,9 @@
 [workspace]
 # Rust package
 members = [
-    "lakestream",
-    "lakestream-cli",
-    "lakestream-web",
+    "xlatti",
+    "xlatti-cli",
+    "xlatti-web",
 ]
 
 # required to workaround the tokio-mio wasm bug
@@ -11,10 +11,10 @@ members = [
 # note current tokio wasm-browser support still limited, see:
 # https://docs.rs/tokio/latest/tokio/#wasm-support
 
-# Python interface to lakestream
+# Python interface to xlatti
 # exclude to prevent publishing to crates.io
 exclude = [
-    "lakestream-py",
+    "xlatti-py",
 ]
 
 

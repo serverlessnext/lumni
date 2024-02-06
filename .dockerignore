@@ -13,4 +13,4 @@
 !.coveragerc
 !.pre-commit-config.yaml
 !README.rst
-!lakestream-py/dist/
+!xlatti-py/dist/

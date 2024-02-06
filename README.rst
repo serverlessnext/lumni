@@ -1,5 +1,5 @@
 
-Lakestream
+xlatti
 ==========
 
 xlatti is a tool for interacting with object stores such as S3. It is built from the ground up in Rust, with APIs available for both Python and the web via JS/WASM.
@@ -29,7 +29,7 @@ Prerequisites
 Installation
 ------------
 
-Lakestream can be used via Python (API) or directly via Rust (CLI).
+xlatti can be used via Python (API) or directly via Rust (CLI).
 A (local-first) browser-based version is on the short-term roadmap.
 
 Python (API)

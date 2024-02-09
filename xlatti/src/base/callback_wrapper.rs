@@ -2,6 +2,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use crate::error::LakestreamError;
+
 type SyncCallback<T> = Arc<dyn Fn(&[T]) + Send + Sync + 'static>;
 type AsyncCallback<T> = Arc<
     dyn Fn(Vec<T>) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
@@ -125,10 +127,11 @@ impl BinaryCallbackWrapper {
         }
     }
 
-    pub fn call(&self, data: Vec<u8>) {
+    pub async fn call(&self, data: Vec<u8>) -> Result<(), LakestreamError> {
         match self {
             BinaryCallbackWrapper::Async(callback) => {
-                callback(data);
+                callback(data).await;
+                Ok(())
             }
         }
     }

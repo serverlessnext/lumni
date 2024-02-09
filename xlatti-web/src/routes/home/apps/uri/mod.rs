@@ -1,8 +1,8 @@
-mod page;
+mod app;
 mod config_view;
 mod list_view;
-mod app;
+mod page;
 
-pub use page::AppConfiguration;
 pub use app::AppId;
 pub use config_view::AppConfigView;
+pub use page::AppConfiguration;

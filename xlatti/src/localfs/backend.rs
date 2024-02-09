@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-pub use super::bucket::{FileSystem, LocalFsBucket};
+pub use super::bucket::LocalFsBucket;
 use crate::{
     EnvironmentConfig, LakestreamError, ObjectStoreBackend, ObjectStoreVec,
 };

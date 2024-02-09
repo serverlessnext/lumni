@@ -1,7 +1,7 @@
 use std::panic::{self, PanicInfo};
 
-use xlatti_web::app::App;
 use leptos::{mount_to_body, view};
+use xlatti_web::app::App;
 
 fn custom_panic_hook(info: &PanicInfo) {
     // print panic message only - not entire stack trace

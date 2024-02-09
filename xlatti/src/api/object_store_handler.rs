@@ -106,7 +106,7 @@ impl ObjectStoreHandler {
             if let Some(callback) = callback {
                 let mut data = Vec::new();
                 object_store.get_object(key, &mut data).await?;
-                callback.call(data);
+                callback.call(data).await?;
                 Ok(None)
             } else {
                 let mut data = Vec::new();

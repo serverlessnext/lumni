@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use xlatti::EnvironmentConfig;
 use leptos::ev::SubmitEvent;
 use leptos::*;
 use uuid::Uuid;
+use xlatti::EnvironmentConfig;
 
 use super::AppConfig;
 use crate::api::error::*;

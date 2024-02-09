@@ -16,12 +16,7 @@ fn main() {
             version
         };
 
-        let crates = &[
-            "xlatti",
-            "xlatti-cli",
-            "xlatti-py",
-            "xlatti-web",
-        ];
+        let crates = &["xlatti", "xlatti-cli", "xlatti-py", "xlatti-web"];
 
         for crate_name in crates {
             let path = Path::new("..").join(crate_name).join("Cargo.toml");

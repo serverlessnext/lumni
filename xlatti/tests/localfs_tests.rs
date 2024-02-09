@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 
-use xlatti::{EnvironmentConfig, ListObjectsResult, ObjectStoreHandler};
 use tempfile::tempdir;
+use xlatti::{EnvironmentConfig, ListObjectsResult, ObjectStoreHandler};
 
 #[tokio::test]
 async fn test_list_objects() {

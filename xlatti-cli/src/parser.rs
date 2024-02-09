@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::env;
 
 use clap::{Arg, Command};
-use xlatti::EnvironmentConfig;
 use tokio::runtime::Builder;
+use xlatti::EnvironmentConfig;
 
 use crate::subcommands::cp::*;
 use crate::subcommands::ls::*;

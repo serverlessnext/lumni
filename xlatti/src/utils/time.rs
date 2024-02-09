@@ -1,8 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub use super::time_parse_ext::{
-    datetime_utc, epoch_to_rfc3339, rfc3339_to_epoch,
-};
+pub use super::time_parse_ext::{datetime_utc, rfc3339_to_epoch};
 
 impl UtcTimeNow {
     pub fn new() -> UtcTimeNow {

@@ -2,9 +2,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use xlatti::{
-    BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler,
-};
+use xlatti::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
 
 pub async fn handle_request(
     matches: &clap::ArgMatches,
@@ -23,16 +21,16 @@ pub async fn handle_request(
             handle_get_request(uri, config, output_file).await;
         }
         "PUT" => {
-            println!("PUT request");
+            println!("PUT request not yet implemented");
         }
         "DELETE" => {
-            println!("DELETE request");
+            println!("DELETE request not yet implemented");
         }
         "HEAD" => {
-            println!("HEAD request");
+            println!("HEAD request not yet implemented");
         }
         "LIST" => {
-            println!("LIST request");
+            println!("LIST request not yet implemented");
         }
         _ => {
             eprintln!("Invalid HTTP method: {}", method);
@@ -48,6 +46,7 @@ async fn handle_get_request(
     let handler = ObjectStoreHandler::new(None);
 
     let callback = if let Some(output_path) = output_path {
+        // write to file
         let file = Arc::new(Mutex::new(File::create(output_path).unwrap()));
         Some(BinaryCallbackWrapper::create_async(move |data: Vec<u8>| {
             let mut file = file.lock().unwrap();
@@ -57,6 +56,7 @@ async fn handle_get_request(
             async {}
         }))
     } else {
+        // write to stdout
         Some(BinaryCallbackWrapper::create_async(move |data: Vec<u8>| {
             let mut stdout = io::stdout();
             if let Err(e) = stdout.write_all(&data) {

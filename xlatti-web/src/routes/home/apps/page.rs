@@ -38,4 +38,3 @@ fn AppListItem(cx: Scope, app: HashMap<String, String>) -> impl IntoView {
         <a href={format!("/apps/{}", uri)} class="flex min-w-[16rem] w-1/5 max-w-sm py-4 px-4 bg-green-400 text-gray-800 hover:bg-green-500 transition duration-300 ease-in-out font-mono font-bold rounded mb-2">{name}</a>
     }
 }
-

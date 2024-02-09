@@ -8,6 +8,7 @@ use xlatti::EnvironmentConfig;
 use crate::subcommands::cp::*;
 use crate::subcommands::ls::*;
 use crate::subcommands::request::*;
+use crate::subcommands::query::*;
 
 const PROGRAM_NAME: &str = "xlatti";
 
@@ -28,6 +29,7 @@ pub fn run_cli(args: Vec<String>) {
                 .help("Region to use"),
         )
         .subcommand(request_subcommand()) // "-X/--request [GET,PUT]"
+        .subcommand(query_subcommand()) // "-Q/--query [SELECT,DESCRIBE]"
         .subcommand(ls_subcommand()) // "ls [URI]"
         .subcommand(cp_subcommand()); // "cp" [SOURCE] [TARGET]
 
@@ -41,6 +43,9 @@ pub fn run_cli(args: Vec<String>) {
     match matches.subcommand() {
         Some(("-X", matches)) => {
             rt.block_on(handle_request(matches, &mut config));
+        }
+        Some(("-Q", matches)) => {
+            rt.block_on(handle_query(matches, &mut config));
         }
         Some(("ls", matches)) => {
             rt.block_on(handle_ls(matches, &mut config));

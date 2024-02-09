@@ -2,7 +2,9 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use xlatti::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
+use xlatti::{
+    BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler,
+};
 
 pub async fn handle_request(
     matches: &clap::ArgMatches,

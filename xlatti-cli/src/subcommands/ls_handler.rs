@@ -42,7 +42,9 @@ pub async fn handle_ls(
     }
 }
 
-async fn handle_list_objects_result(list_objects_result: ListObjectsResult) {
+pub async fn handle_list_objects_result(
+    list_objects_result: ListObjectsResult,
+) {
     match list_objects_result {
         ListObjectsResult::Buckets(buckets) => {
             // Print buckets to stdout
@@ -122,7 +124,7 @@ fn prepare_handle_ls_arguments(
     (uri, recursive, max_files, filter)
 }
 
-async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {
+pub async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {
     info!("Found {} items:", items.len());
     for item in &items {
         println!("{}", item.println_path());

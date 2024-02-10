@@ -1,5 +1,8 @@
 use async_trait::async_trait;
 use log::info;
+use sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
 use crate::base::object_store::object_stores_from_config;
 use crate::utils::uri_parse::ParsedUri;
@@ -156,6 +159,77 @@ impl ObjectStoreHandler {
                 .await?;
             Ok(Some(ListObjectsResult::FileObjects(file_objects)))
         }
+    }
+
+    pub async fn execute_query(
+        &self,
+        statement: &str,
+        config: &EnvironmentConfig,
+        callback: Option<CallbackWrapper<FileObject>>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        let dialect = GenericDialect {};
+        let parsed = Parser::parse_sql(&dialect, statement);
+
+        match parsed {
+            Ok(statements) => {
+                if let Some(Statement::Query(query)) =
+                    statements.into_iter().next()
+                {
+                    self.handle_select_statement(*query, config, callback).await
+                } else {
+                    Err(LakestreamError::InternalError(
+                        "Unsupported query statement".to_string(),
+                    ))
+                }
+            }
+            Err(_e) => Err(LakestreamError::InternalError(
+                "Failed to parse query statement".to_string(),
+            )),
+        }
+    }
+
+    async fn handle_select_statement(
+        &self,
+        query: Query,
+        config: &EnvironmentConfig,
+        callback: Option<CallbackWrapper<FileObject>>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        if let SetExpr::Select(select) = *query.body {
+            if select.projection.len() == 1
+                && matches!(select.projection[0], SelectItem::Wildcard(_))
+            {
+                if let Some(table) = select.from.first() {
+                    // assume the query is of the form 'SELECT * FROM "uri"'
+                    // TODOs:
+                    // 1. directories vs files
+                    // in this first implementation, everything is treated as a directory,
+                    // while we should distinguish between files and directories
+                    // directories -> call list_objects()
+                    // files -> treat as a database file (e.g. .sql, .parquet)
+                    //
+                    // 2. handle the following SQL clauses:
+                    // non-wildcards in the SELECT statementA, e.g. 'SELECT name, size FROM "uri"'
+                    // WHERE clauses, e.g. 'SELECT * FROM "uri" WHERE size > 100'
+                    // ORDER BY, LIMIT and OFFSET clauses
+                    let mut uri = table.relation.to_string();
+
+                    // check for and remove leading and trailing quotes
+                    if (uri.starts_with('"') && uri.ends_with('"'))
+                        || (uri.starts_with('\'') && uri.ends_with('\''))
+                    {
+                        uri = uri[1..uri.len() - 1].to_string(); // Remove the first and last characters
+                    }
+
+                    return self
+                        .list_objects(&uri, config, true, None, &None, callback)
+                        .await;
+                }
+            }
+        }
+
+        Err(LakestreamError::InternalError(
+            "Query does not match 'SELECT * FROM uri' pattern".to_string(),
+        ))
     }
 }
 

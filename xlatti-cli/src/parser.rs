@@ -7,8 +7,8 @@ use xlatti::EnvironmentConfig;
 
 use crate::subcommands::cp::*;
 use crate::subcommands::ls::*;
-use crate::subcommands::request::*;
 use crate::subcommands::query::*;
+use crate::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "xlatti";
 

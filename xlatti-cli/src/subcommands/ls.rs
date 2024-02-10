@@ -8,7 +8,7 @@ pub fn ls_subcommand() -> Command {
         .arg(
             Arg::new("uri")
                 .index(1)
-                .required(true)
+                .default_value(".") // default to current directory
                 .help("URI to list objects from. E.g. s3://bucket-name/"),
         )
         .arg(

@@ -1,22 +1,38 @@
+use xlatti::{
+    CallbackWrapper, EnvironmentConfig, ObjectStoreHandler,
+};
 
-use xlatti::EnvironmentConfig;
+use super::ls_handler::{
+    handle_list_objects_result, print_callback_items_async,
+};
 
 pub async fn handle_query(
-    matches: &clap::ArgMatches,
-    _config: &mut EnvironmentConfig,
+    query_matches: &clap::ArgMatches,
+    config: &mut EnvironmentConfig,
 ) {
-    let statement = matches.get_one::<String>("statement").unwrap();
+    // Retrieve the SQL statement from the command-line arguments
+    let statement = query_matches
+        .get_one::<String>("statement")
+        .expect("SQL statement is required");
 
-    // catch SELECT and DESCRIBE statements
-    match statement.to_lowercase().as_str() {
-        _ if statement.to_lowercase().starts_with("select") => {
-            println!("SELECT statement not yet implemented");
+    let handler = ObjectStoreHandler::new(None);
+
+    // Reusing the callback mechanism for async processing
+    let callback =
+        Some(CallbackWrapper::create_async(print_callback_items_async));
+
+    // Execute the SQL query through the ObjectStoreHandler
+    // Assuming `execute_query` can utilize the same `ListObjectsResult` for its output
+    match handler.execute_query(statement, config, callback).await {
+        Ok(Some(query_result)) => {
+            // Reuse the existing result handling logic
+            handle_list_objects_result(query_result).await;
         }
-        _ if statement.to_lowercase().starts_with("describe") => {
-            println!("DESCRIBE statement not yet implemented");
+        Ok(None) => {
+            println!("Query executed successfully with no return value.");
         }
-        _ => {
-            eprintln!("Invalid statement: {}", statement);
+        Err(err) => {
+            eprintln!("Error executing query: {:?}", err);
         }
     }
 }

@@ -84,6 +84,8 @@ impl ObjectStoreTrait for S3Bucket {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec,
     ) -> Result<(), LakestreamError> {
+        // TODO: check if path is a valid (virtual) directory in the bucket
+        // else we should return NoBucketInUri error
         list_files(self, prefix, recursive, max_keys, filter, file_objects)
             .await
     }

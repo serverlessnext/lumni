@@ -1,5 +1,6 @@
 use regex::Regex;
 
+#[derive(Debug)]
 pub struct ParsedUri {
     pub scheme: Option<String>,
     pub bucket: Option<String>,
@@ -88,7 +89,12 @@ fn parse_uri_path(
     // If there is no path, treat the input as a path instead of a bucket
     // bucket is currenth path on LocalFs
     if scheme.is_none() && path.is_none() && bucket.is_some() {
-        return (Some(".".to_string()), bucket);
+        if append_slash {
+            return (Some(".".to_string()), Some(format!("{}/", bucket.unwrap())));
+        }
+        else {
+            return (Some(".".to_string()), bucket);
+        }
     }
 
     if let Some(bucket) = bucket {

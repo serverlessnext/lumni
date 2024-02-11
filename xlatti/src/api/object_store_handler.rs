@@ -135,6 +135,7 @@ impl ObjectStoreHandler {
         } else {
             format!("localfs://{}", parsed_uri.bucket.as_ref().unwrap())
         };
+
         let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
 
         if let Some(callback) = callback {
@@ -175,7 +176,7 @@ impl ObjectStoreHandler {
                 if let Some(Statement::Query(query)) =
                     statements.into_iter().next()
                 {
-                    self.handle_select_statement(*query, config, callback).await
+                    self.handle_select_statement(&query, config, callback).await
                 } else {
                     Err(LakestreamError::InternalError(
                         "Unsupported query statement".to_string(),
@@ -190,11 +191,11 @@ impl ObjectStoreHandler {
 
     async fn handle_select_statement(
         &self,
-        query: Query,
+        query: &Query,
         config: &EnvironmentConfig,
         callback: Option<CallbackWrapper<FileObject>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
-        if let SetExpr::Select(select) = *query.body {
+        if let SetExpr::Select(select) = &*query.body {
             if select.projection.len() == 1
                 && matches!(select.projection[0], SelectItem::Wildcard(_))
             {
@@ -220,9 +221,17 @@ impl ObjectStoreHandler {
                         uri = uri[1..uri.len() - 1].to_string(); // Remove the first and last characters
                     }
 
-                    return self
-                        .list_objects(&uri, config, true, None, &None, callback)
+                    let result = self
+                        .list_objects(&uri, config, true, None, &None, callback.clone())
                         .await;
+
+                    match result {
+                        Err(LakestreamError::NoBucketInUri(_)) => {
+                            // Assume uri is a pointer to a database file (e.g. .sql, .parquet)
+                            return self.query_object(&uri, config, query, callback).await;
+                        }
+                        _ => return result,
+                    }
                 }
             }
         }
@@ -231,6 +240,20 @@ impl ObjectStoreHandler {
             "Query does not match 'SELECT * FROM uri' pattern".to_string(),
         ))
     }
+
+    async fn query_object(
+        &self,
+        _uri: &str,
+        _config: &EnvironmentConfig,
+        _query: &Query,
+        _callback: Option<CallbackWrapper<FileObject>>,
+    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        // Logic to treat the URI as a database file and query it
+
+        // This is a placeholder for the actual implementation.
+        Err(LakestreamError::InternalError("Querying object not implemented".to_string()))
+    }
+
 }
 
 #[async_trait(?Send)]

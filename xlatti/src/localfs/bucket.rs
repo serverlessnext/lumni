@@ -64,6 +64,13 @@ impl ObjectStoreTrait for LocalFsBucket {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
         };
+
+        // to be considered a Bucket, path must be a directory
+        if !path.is_dir() {
+            return Err(LakestreamError::NoBucketInUri(
+                path.to_string_lossy().to_string(),
+            ));
+        }
         list_files(&path, max_keys, recursive, filter, file_objects).await;
         Ok(())
     }

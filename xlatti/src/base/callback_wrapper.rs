@@ -16,6 +16,7 @@ pub trait CallbackItem: Send + Sync + 'static {
     fn println_path(&self) -> String;
 }
 
+#[derive(Clone)]
 pub enum CallbackWrapper<T>
 where
     T: CallbackItem,

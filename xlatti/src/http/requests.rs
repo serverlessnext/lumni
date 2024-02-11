@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use log::info;
 use bytes::Bytes;
 use hyper::client::HttpConnector;
 use hyper::header::{HeaderName, HeaderValue};
@@ -17,14 +18,17 @@ pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> HttpResultWithoutHeaders {
-    let (body, status, _) = http_get_request_with_headers(url, headers).await?;
+    let method = "GET";
+    let (body, status, _) = http_request_with_headers(url, headers, method).await?;
     Ok((body, status))
 }
 
-pub async fn http_get_request_with_headers(
+pub async fn http_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
+    method: &str,
 ) -> HttpResult {
+    info!("http_request_with_headers {}: {}", method, url);
     let url_u = Url::parse(url)?;
     let accept_invalid_certs = url_u.scheme() == "https"
         && url_u.host_str() == Some("localhost")
@@ -43,7 +47,11 @@ pub async fn http_get_request_with_headers(
     let https = HttpsConnector::from((http_connector, tls_connector));
     let client = Client::builder().build::<_, Body>(https);
 
-    let mut request = Request::get(url).body(Body::empty())?;
+    let mut request = Request::builder()
+        .method(method)
+        .uri(url)
+        .body(Body::empty())?;
+
     for (key, value) in headers.iter() {
         if let (Ok(header_name), Ok(header_value)) =
             (HeaderName::from_str(key), HeaderValue::from_str(value))
@@ -61,7 +69,6 @@ pub async fn http_get_request_with_headers(
         return Ok((Bytes::new(), status, headers_map));
     }
     let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
-
     Ok((body_bytes, status, headers_map))
 }
 

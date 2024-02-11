@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use super::get::get_object;
+use super::head::head_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
 use crate::s3::config::validate_config;
@@ -86,6 +87,18 @@ impl ObjectStoreTrait for S3Bucket {
     ) -> Result<(), LakestreamError> {
         // TODO: check if path is a valid (virtual) directory in the bucket
         // else we should return NoBucketInUri error
+        // we can do this by calling head_object with the prefix
+        // based on the result we can decide if it's a valid directory or not
+        // let key = prefix.unwrap_or("");
+        // let key = key.trim_end_matches('/');
+        // let object_data = &mut Vec::new();
+        // self.head_object(key, object_data).await?;
+        // validate if it's a directory by analyzing the object_data
+
+        // convert data to string
+        let data = String::from_utf8_lossy(data.as_ref()).to_string();
+        println!("data: {:?}", data);
+
         list_files(self, prefix, recursive, max_keys, filter, file_objects)
             .await
     }
@@ -96,6 +109,14 @@ impl ObjectStoreTrait for S3Bucket {
         data: &mut Vec<u8>,
     ) -> Result<(), LakestreamError> {
         get_object(self, key, data).await
+    }
+
+    async fn head_object(
+        &self,
+        key: &str,
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError> {
+        head_object(self, key, data).await
     }
 }
 

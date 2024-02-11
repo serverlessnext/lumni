@@ -35,13 +35,20 @@ impl S3Client {
     }
 
     pub fn url(&self) -> String {
-        format!(
-            "{}/{}?{}",
+        let mut url = format!(
+            "{}/{}",
             self.config.bucket_url(),
-            self.resource.as_ref().unwrap_or(&"".to_string()),
-            self.query_string.as_ref().unwrap_or(&"".to_string())
-        )
+            self.resource.as_ref().unwrap_or(&"".to_string())
+        );
+    
+        if let Some(query) = self.query_string.as_ref() {
+            url.push('?');
+            url.push_str(query);
+        }
+        url
     }
+    
+
 }
 
 impl Clone for S3Client {

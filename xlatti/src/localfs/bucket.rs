@@ -83,4 +83,12 @@ impl ObjectStoreTrait for LocalFsBucket {
         let path = Path::new(&self.name);
         get_object(path, key, data).await
     }
+
+    async fn head_object(
+        &self,
+        _key: &str,
+        _data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError> {
+        return Err(LakestreamError::InternalError("Not implemented".to_string()));
+    }
 }

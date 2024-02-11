@@ -19,6 +19,10 @@ pub trait Headers {
         &mut self,
         object_key: &str,
     ) -> Result<HashMap<String, String>, LakestreamError>;
+    fn generate_head_object_headers(
+        &mut self,
+        object_key: &str,
+    ) -> Result<HashMap<String, String>, LakestreamError>;
     fn create_list_objects_query_string(
         &self,
         prefix: Option<&str>,
@@ -75,6 +79,21 @@ impl Headers for S3Client {
             method,
             self.resource.as_deref(),
             self.query_string.as_deref(),
+            None,
+        )
+    }
+
+    fn generate_head_object_headers(
+        &mut self,
+        object_key: &str,
+    ) -> Result<HashMap<String, String>, LakestreamError> {
+        self.resource = Some(object_key.to_string());
+        let method = "HEAD";
+        self.request_builder.generate_headers(
+            self.config(),
+            method,
+            self.resource.as_deref(),
+            None,
             None,
         )
     }

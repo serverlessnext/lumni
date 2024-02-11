@@ -9,15 +9,16 @@ use web_sys::{Headers, Request, RequestInit, RequestMode};
 
 use crate::LakestreamError;
 
-pub async fn http_get_request_with_headers(
+pub async fn http_request_with_headers(
     url: &str,
     headers: &HashMap<String, String>,
+    method: &str,
 ) -> Result<(Bytes, u16, HashMap<String, String>), LakestreamError> {
     info!("http_get_request_with_headers: {}", url);
     // TODO: implement response headers -- for now forward to http_get_request
     // Call the http_get_request function
     let (response_body, response_status) =
-        http_get_request(url, headers).await?;
+        http_request(url, headers, method).await?;
 
     // Add the headers to the returned result
     Ok((response_body, response_status, HashMap::new()))
@@ -27,10 +28,20 @@ pub async fn http_get_request(
     url: &str,
     headers: &HashMap<String, String>,
 ) -> Result<(Bytes, u16), LakestreamError> {
-    info!("http_get_request: {}", url);
+    let method = "GET";
+    let (body, status) = http_request(url, headers, method).await?;
+    Ok((body, status))
+}
+
+pub async fn http_request(
+    url: &str,
+    headers: &HashMap<String, String>,
+    method: &str,
+) -> Result<(Bytes, u16), LakestreamError> {
+    info!("http_request: {}", url);
     let window = web_sys::window().ok_or("No window available")?;
     let mut request_init = RequestInit::new();
-    request_init.method("GET");
+    request_init.method(method);
     request_init.mode(RequestMode::Cors);
 
     let headers_map = Headers::new().unwrap();

@@ -251,4 +251,9 @@ pub trait ObjectStoreTrait: Send {
         key: &str,
         data: &mut Vec<u8>,
     ) -> Result<(), LakestreamError>;
+    async fn head_object(
+        &self,
+        key: &str,
+        data: &mut Vec<u8>,
+    ) -> Result<(), LakestreamError>;
 }

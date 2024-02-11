@@ -8,7 +8,7 @@ use super::client_headers::Headers;
 use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
 };
-use super::request_handler::http_get_with_redirect_handling;
+use super::request_handler::http_with_redirect_handling;
 use crate::base::config::EnvironmentConfig;
 use crate::http::requests::http_get_request;
 use crate::{
@@ -67,7 +67,7 @@ async fn list_files_next(
         let mut virtual_directories = Vec::<String>::new();
         loop {
             let (body_bytes, updated_s3_client) =
-                http_get_with_redirect_handling(
+                http_with_redirect_handling(
                     params.s3_client,
                     |s3_client: &mut S3Client| {
                         s3_client.generate_list_objects_headers(
@@ -76,6 +76,7 @@ async fn list_files_next(
                             params.continuation_token.as_deref(),
                         )
                     },
+                    "GET",
                 )
                 .await?;
 
@@ -84,6 +85,7 @@ async fn list_files_next(
             }
 
             let body = String::from_utf8_lossy(&body_bytes).to_string();
+            println!("body: {}", body);
             params.continuation_token = process_response_body(
                 &body,
                 params.recursive,

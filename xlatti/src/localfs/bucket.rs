@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::{self, ReadDir};
 use std::io;
 use std::path::Path;
@@ -87,8 +88,7 @@ impl ObjectStoreTrait for LocalFsBucket {
     async fn head_object(
         &self,
         _key: &str,
-        _data: &mut Vec<u8>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<(HashMap<String, String>), LakestreamError> {
         return Err(LakestreamError::InternalError("Not implemented".to_string()));
     }
 }

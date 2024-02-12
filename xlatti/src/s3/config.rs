@@ -20,14 +20,7 @@ pub fn validate_config(
         }
     }
 
-    // Set AWS Endpoint
-    if !config.contains_key("S3_ENDPOINT_URL") {
-        if let Ok(s3_endpoint_url) = env::var("S3_ENDPOINT_URL") {
-            config.insert("S3_ENDPOINT_URL".to_string(), s3_endpoint_url);
-        }
-    }
-
-    // Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+    // Set AWS_ACCESS_KEY_ID
     if !config.contains_key("AWS_ACCESS_KEY_ID") {
         if let Ok(aws_access_key_id) = env::var("AWS_ACCESS_KEY_ID") {
             config.insert("AWS_ACCESS_KEY_ID".to_string(), aws_access_key_id);
@@ -39,6 +32,7 @@ pub fn validate_config(
         }
     }
 
+    // Set AWS_SECRET_ACCESS_KEY
     if !config.contains_key("AWS_SECRET_ACCESS_KEY") {
         if let Ok(aws_secret_access_key) = env::var("AWS_SECRET_ACCESS_KEY") {
             config.insert(
@@ -53,6 +47,19 @@ pub fn validate_config(
         }
     }
 
-    // Any other custom logic related to the S3 object store
+    // Set AWS_SESSION_TOKEN (optional)
+    if !config.contains_key("AWS_SESSION_TOKEN") {
+        if let Ok(aws_session_token) = env::var("AWS_SESSION_TOKEN") {
+            config.insert("AWS_SESSION_TOKEN".to_string(), aws_session_token);
+        }
+    }
+
+    // Set AWS Endpoint (optional)
+    if !config.contains_key("S3_ENDPOINT_URL") {
+        if let Ok(s3_endpoint_url) = env::var("S3_ENDPOINT_URL") {
+            config.insert("S3_ENDPOINT_URL".to_string(), s3_endpoint_url);
+        }
+    }
+
     Ok(())
 }

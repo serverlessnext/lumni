@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use bytes::Bytes;
 
 use crate::http::requests::http_request_with_headers;
-use crate::s3::client::{S3Client, S3ClientConfig};
+use crate::s3::client::S3Client;
+use crate::s3::client_config::S3ClientConfig;
 use crate::LakestreamError;
 
 async fn handle_redirect(s3_client: &S3Client, new_region: &str) -> S3Client {
@@ -21,7 +22,7 @@ pub async fn http_with_redirect_handling<F>(
     s3_client: &S3Client,
     generate_headers: F,
     method: &str,
-) -> Result<(Bytes, Option<S3Client>), LakestreamError>
+) -> Result<(Bytes, Option<S3Client>, HashMap<String, String>), LakestreamError>
 where
     F: Fn(&mut S3Client) -> Result<HashMap<String, String>, LakestreamError>,
 {
@@ -56,6 +57,7 @@ where
                         } else {
                             None
                         },
+                        response_headers,
                     ));
                 }
             }

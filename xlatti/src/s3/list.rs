@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use log::error;
 
 use super::bucket::{S3Bucket, S3Credentials};
-use super::client::{S3Client, S3ClientConfig};
+use super::client::S3Client;
+use super::client_config::S3ClientConfig;
 use super::client_headers::Headers;
 use super::parse_http_response::{
     extract_continuation_token, parse_bucket_objects, parse_file_objects,
@@ -66,7 +67,7 @@ async fn list_files_next(
     while let Some(prefix) = directory_stack.pop_front() {
         let mut virtual_directories = Vec::<String>::new();
         loop {
-            let (body_bytes, updated_s3_client) =
+            let (body_bytes, updated_s3_client, _response_headers) =
                 http_with_redirect_handling(
                     params.s3_client,
                     |s3_client: &mut S3Client| {
@@ -85,7 +86,6 @@ async fn list_files_next(
             }
 
             let body = String::from_utf8_lossy(&body_bytes).to_string();
-            println!("body: {}", body);
             params.continuation_token = process_response_body(
                 &body,
                 params.recursive,
@@ -217,8 +217,13 @@ pub fn create_s3_client(
         .get("AWS_SECRET_ACCESS_KEY")
         .expect("Missing secret_key in the configuration");
 
-    let credentials =
-        S3Credentials::new(String::from(access_key), String::from(secret_key));
+    let session_token = config.get("AWS_SESSION_TOKEN").map(|s| s.to_string());
+
+    let credentials = S3Credentials::new(
+        String::from(access_key),
+        String::from(secret_key),
+        session_token
+    );
     let endpoint_url =
         config.settings.get("S3_ENDPOINT_URL").map(String::as_str);
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 
 use super::get::get_object;
@@ -13,13 +15,15 @@ use crate::{
 pub struct S3Credentials {
     access_key: String,
     secret_key: String,
+    session_token: Option<String>,
 }
 
 impl S3Credentials {
-    pub fn new(access_key: String, secret_key: String) -> S3Credentials {
+    pub fn new(access_key: String, secret_key: String, session_token: Option<String>) -> S3Credentials {
         S3Credentials {
             access_key,
             secret_key,
+            session_token,
         }
     }
 
@@ -29,6 +33,10 @@ impl S3Credentials {
 
     pub fn secret_key(&self) -> &str {
         &self.secret_key
+    }
+
+    pub fn session_token(&self) -> Option<&str> {
+        self.session_token.as_deref()
     }
 }
 
@@ -89,16 +97,12 @@ impl ObjectStoreTrait for S3Bucket {
         // else we should return NoBucketInUri error
         // we can do this by calling head_object with the prefix
         // based on the result we can decide if it's a valid directory or not
-        // let key = prefix.unwrap_or("");
-        // let key = key.trim_end_matches('/');
-        // let object_data = &mut Vec::new();
-        // self.head_object(key, object_data).await?;
+        let key = prefix.unwrap_or("");
+        //let key = key.trim_end_matches('/');
+        //let object_data = &mut Vec::new();
+        //let response_headers = self.head_object(key).await?;
         // validate if it's a directory by analyzing the object_data
-
-        // convert data to string
-        let data = String::from_utf8_lossy(data.as_ref()).to_string();
-        println!("data: {:?}", data);
-
+        // convert to readable string
         list_files(self, prefix, recursive, max_keys, filter, file_objects)
             .await
     }
@@ -114,9 +118,8 @@ impl ObjectStoreTrait for S3Bucket {
     async fn head_object(
         &self,
         key: &str,
-        data: &mut Vec<u8>,
-    ) -> Result<(), LakestreamError> {
-        head_object(self, key, data).await
+    ) -> Result<(HashMap<String, String>), LakestreamError> {
+        head_object(self, key).await
     }
 }
 

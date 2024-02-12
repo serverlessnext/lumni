@@ -1,4 +1,4 @@
-pub use super::client_config::S3ClientConfig;
+use super::client_config::S3ClientConfig;
 use super::request_builder::RequestBuilder;
 
 pub struct S3Client {

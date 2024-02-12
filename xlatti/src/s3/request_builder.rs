@@ -5,7 +5,7 @@ use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
 use url::{form_urlencoded, Url};
 
-use super::client::S3ClientConfig;
+use super::client_config::S3ClientConfig;
 use crate::utils::time::UtcTimeNow;
 use crate::LakestreamError;
 
@@ -43,6 +43,10 @@ impl RequestBuilder {
         };
 
         headers.insert("host".to_string(), host);
+
+        if let Some(session_token) = config.credentials().session_token() {
+            headers.insert("x-amz-security-token".to_string(), session_token.to_string());
+        }
 
         let canonical_uri = self.get_canonical_uri(&url, resource);
 

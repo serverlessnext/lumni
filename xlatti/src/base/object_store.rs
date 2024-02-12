@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 
@@ -254,6 +255,5 @@ pub trait ObjectStoreTrait: Send {
     async fn head_object(
         &self,
         key: &str,
-        data: &mut Vec<u8>,
-    ) -> Result<(), LakestreamError>;
+    ) -> Result<(HashMap<String, String>), LakestreamError>;
 }

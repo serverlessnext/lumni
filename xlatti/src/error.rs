@@ -10,6 +10,7 @@ pub enum LakestreamError {
     String(String),
     ConfigError(String),
     NoBucketInUri(String),
+    AccessDenied(String),
     InternalError(String),
     NotFound(String),
     Anyhow(anyhow::Error),
@@ -29,6 +30,7 @@ impl fmt::Display for LakestreamError {
             LakestreamError::NoBucketInUri(s) => {
                 write!(f, "No bucket specified in URI: {}", s)
             }
+            LakestreamError::AccessDenied(s) => write!(f, "Access denied: {}", s),
             LakestreamError::InternalError(s) => {
                 write!(f, "Internal error: {}", s)
             }

@@ -34,7 +34,12 @@ pub async fn handle_ls(
             println!("Done");
         }
         Err(LakestreamError::NoBucketInUri(_)) => {
-            handle_list_buckets(&uri, config).await;
+            // if uri ends with "/", try to list buckets instead
+            if uri.ends_with('/') {
+                handle_list_buckets(&uri, config).await;
+            } else {
+                eprintln!("Error: No bucket found at: {}", uri);
+            }
         }
         Err(err) => {
             eprintln!("Error: {:?}", err);

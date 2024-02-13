@@ -88,7 +88,7 @@ impl ObjectStoreTrait for LocalFsBucket {
     async fn head_object(
         &self,
         _key: &str,
-    ) -> Result<(HashMap<String, String>), LakestreamError> {
+    ) -> Result<(u16, HashMap<String, String>), LakestreamError> {
         return Err(LakestreamError::InternalError("Not implemented".to_string()));
     }
 }

@@ -57,28 +57,27 @@ impl ObjectStoreHandler {
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
-        if let Some(bucket) = &parsed_uri.bucket {
-            panic!("list_buckets called with bucket {}", bucket);
+        if let Some(_) = &parsed_uri.bucket {
+            return Err(LakestreamError::NoBucketInUri(uri.to_string()));
+        } 
+        // list buckets
+        // Clone the original config and update the settings
+        // will change the input config to reference at future update
+        let mut updated_config = config.clone();
+        updated_config.settings.insert(
+            "uri".to_string(),
+            format!("{}://", parsed_uri.scheme.unwrap()),
+        );
+
+        let object_stores =
+            object_stores_from_config(updated_config, &callback).await?;
+
+        if callback.is_some() {
+            // callback used, so can just return None
+            Ok(None)
         } else {
-            // list buckets
-            // Clone the original config and update the settings
-            // will change the input config to reference at future update
-            let mut updated_config = config.clone();
-            updated_config.settings.insert(
-                "uri".to_string(),
-                format!("{}://", parsed_uri.scheme.unwrap()),
-            );
-
-            let object_stores =
-                object_stores_from_config(updated_config, &callback).await?;
-
-            if callback.is_some() {
-                // callback used, so can just return None
-                Ok(None)
-            } else {
-                // no callback used, so convert the ObjectStoreVec to a Vec<ObjectStore>
-                Ok(Some(ListObjectsResult::Buckets(object_stores.into_inner())))
-            }
+            // no callback used, so convert the ObjectStoreVec to a Vec<ObjectStore>
+            Ok(Some(ListObjectsResult::Buckets(object_stores.into_inner())))
         }
     }
 

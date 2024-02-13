@@ -255,5 +255,5 @@ pub trait ObjectStoreTrait: Send {
     async fn head_object(
         &self,
         key: &str,
-    ) -> Result<(HashMap<String, String>), LakestreamError>;
+    ) -> Result<(u16, HashMap<String, String>), LakestreamError>;
 }

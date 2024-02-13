@@ -93,16 +93,15 @@ impl ObjectStoreTrait for S3Bucket {
         filter: &Option<FileObjectFilter>,
         file_objects: &mut FileObjectVec,
     ) -> Result<(), LakestreamError> {
-        // TODO: check if path is a valid (virtual) directory in the bucket
-        // else we should return NoBucketInUri error
-        // we can do this by calling head_object with the prefix
-        // based on the result we can decide if it's a valid directory or not
-        let key = prefix.unwrap_or("");
-        //let key = key.trim_end_matches('/');
-        //let object_data = &mut Vec::new();
-        //let response_headers = self.head_object(key).await?;
-        // validate if it's a directory by analyzing the object_data
-        // convert to readable string
+        if let Some(prefix) = prefix {
+            // prefix should not exist as a file object
+            let (status_code, _response_headers) = self.head_object(prefix.trim_end_matches("/")).await?;
+            if status_code != 404 {
+                return Err(LakestreamError::NoBucketInUri(
+                    prefix.to_string(),
+                ));
+            }
+        }
         list_files(self, prefix, recursive, max_keys, filter, file_objects)
             .await
     }
@@ -118,7 +117,7 @@ impl ObjectStoreTrait for S3Bucket {
     async fn head_object(
         &self,
         key: &str,
-    ) -> Result<(HashMap<String, String>), LakestreamError> {
+    ) -> Result<(u16, HashMap<String, String>), LakestreamError> {
         head_object(self, key).await
     }
 }

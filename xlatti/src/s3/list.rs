@@ -67,7 +67,7 @@ async fn list_files_next(
     while let Some(prefix) = directory_stack.pop_front() {
         let mut virtual_directories = Vec::<String>::new();
         loop {
-            let (body_bytes, updated_s3_client, _response_headers) =
+            let (body_bytes, updated_s3_client, _status_code, _response_headers) =
                 http_with_redirect_handling(
                     params.s3_client,
                     |s3_client: &mut S3Client| {

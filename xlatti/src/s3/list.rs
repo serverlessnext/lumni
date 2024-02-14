@@ -14,7 +14,7 @@ use crate::base::config::EnvironmentConfig;
 use crate::http::requests::http_get_request;
 use crate::{
     FileObject, FileObjectFilter, FileObjectVec, LakestreamError,
-    ObjectStoreTrait, ObjectStoreVec, AWS_MAX_LIST_OBJECTS,
+    ObjectStoreTrait, RowItem, RowItemVec, RowType, AWS_MAX_LIST_OBJECTS,
 };
 
 pub struct ListFilesParams<'a> {
@@ -67,19 +67,23 @@ async fn list_files_next(
     while let Some(prefix) = directory_stack.pop_front() {
         let mut virtual_directories = Vec::<String>::new();
         loop {
-            let (body_bytes, updated_s3_client, _status_code, _response_headers) =
-                http_with_redirect_handling(
-                    params.s3_client,
-                    |s3_client: &mut S3Client| {
-                        s3_client.generate_list_objects_headers(
-                            prefix.as_deref(),
-                            Some(effective_max_keys),
-                            params.continuation_token.as_deref(),
-                        )
-                    },
-                    "GET",
-                )
-                .await?;
+            let (
+                body_bytes,
+                updated_s3_client,
+                _status_code,
+                _response_headers,
+            ) = http_with_redirect_handling(
+                params.s3_client,
+                |s3_client: &mut S3Client| {
+                    s3_client.generate_list_objects_headers(
+                        prefix.as_deref(),
+                        Some(effective_max_keys),
+                        params.continuation_token.as_deref(),
+                    )
+                },
+                "GET",
+            )
+            .await?;
 
             if let Some(new_s3_client) = updated_s3_client {
                 *params.s3_client = new_s3_client;
@@ -174,32 +178,33 @@ fn process_response_body(
 
 pub async fn list_buckets(
     config: &EnvironmentConfig,
-    object_stores: &mut ObjectStoreVec,
+    row_items_vec: &mut RowItemVec,
 ) -> Result<(), LakestreamError> {
     let s3_client = create_s3_client(config, None);
-
     let headers: HashMap<String, String> =
         s3_client.generate_list_buckets_headers().unwrap();
     let result = http_get_request(&s3_client.url().clone(), &headers).await;
 
-    let bucket_objects = match result {
+    match result {
         Ok((body_bytes, _)) => {
-            let body = String::from_utf8_lossy(body_bytes.as_ref()).to_string();
+            let body = String::from_utf8_lossy(&body_bytes).to_string();
             match parse_bucket_objects(&body, Some(config.clone())) {
-                Ok(bucket_objects) => bucket_objects,
-                Err(e) => {
-                    error!("Error listing bucket objects: {}", e);
-                    Vec::new()
+                Ok(bucket_objects) => {
+                    // Convert ObjectStore items to RowItem and add to row_items_vec
+                    for object_store in bucket_objects {
+                        let row_item = RowItem::new(
+                            object_store.name(),
+                            RowType::ObjectStore(object_store.clone()),
+                        );
+                        row_items_vec.extend_async(vec![row_item]).await;
+                    }
                 }
+                Err(e) => error!("Error listing bucket objects: {}", e),
             }
         }
-        Err(e) => {
-            error!("Error in http_get_request: {}", e);
-            Vec::new()
-        }
+        Err(e) => error!("Error in http_get_request: {}", e),
     };
 
-    object_stores.extend_async(bucket_objects).await;
     Ok(())
 }
 
@@ -222,7 +227,7 @@ pub fn create_s3_client(
     let credentials = S3Credentials::new(
         String::from(access_key),
         String::from(secret_key),
-        session_token
+        session_token,
     );
     let endpoint_url =
         config.settings.get("S3_ENDPOINT_URL").map(String::as_str);

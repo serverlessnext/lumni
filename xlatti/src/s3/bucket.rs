@@ -19,7 +19,11 @@ pub struct S3Credentials {
 }
 
 impl S3Credentials {
-    pub fn new(access_key: String, secret_key: String, session_token: Option<String>) -> S3Credentials {
+    pub fn new(
+        access_key: String,
+        secret_key: String,
+        session_token: Option<String>,
+    ) -> S3Credentials {
         S3Credentials {
             access_key,
             secret_key,
@@ -40,7 +44,7 @@ impl S3Credentials {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct S3Bucket {
     name: String,
     config: EnvironmentConfig,
@@ -95,11 +99,10 @@ impl ObjectStoreTrait for S3Bucket {
     ) -> Result<(), LakestreamError> {
         if let Some(prefix) = prefix {
             // prefix should not exist as a file object
-            let (status_code, _response_headers) = self.head_object(prefix.trim_end_matches("/")).await?;
+            let (status_code, _response_headers) =
+                self.head_object(prefix.trim_end_matches("/")).await?;
             if status_code != 404 {
-                return Err(LakestreamError::NoBucketInUri(
-                    prefix.to_string(),
-                ));
+                return Err(LakestreamError::NoBucketInUri(prefix.to_string()));
             }
         }
         list_files(self, prefix, recursive, max_keys, filter, file_objects)

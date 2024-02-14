@@ -4,12 +4,12 @@ use sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-use crate::base::object_store::object_stores_from_config;
+use crate::base::row_item::row_items_from_list_bucket;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
     BinaryCallbackWrapper, CallbackWrapper, EnvironmentConfig, FileObject,
-    FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore,
-    ObjectStoreVec,
+    FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore, RowItem,
+    RowItemVec,
 };
 
 #[derive(Clone)]
@@ -53,13 +53,13 @@ impl ObjectStoreHandler {
         &self,
         uri: &str,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<ObjectStore>>,
+        callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(_) = &parsed_uri.bucket {
             return Err(LakestreamError::NoBucketInUri(uri.to_string()));
-        } 
+        }
         // list buckets
         // Clone the original config and update the settings
         // will change the input config to reference at future update
@@ -69,15 +69,15 @@ impl ObjectStoreHandler {
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
 
-        let object_stores =
-            object_stores_from_config(updated_config, &callback).await?;
+        let row_items =
+            row_items_from_list_bucket(updated_config, &callback).await?;
 
         if callback.is_some() {
             // callback used, so can just return None
             Ok(None)
         } else {
-            // no callback used, so convert the ObjectStoreVec to a Vec<ObjectStore>
-            Ok(Some(ListObjectsResult::Buckets(object_stores.into_inner())))
+            // no callback used -- return as list of row items
+            Ok(Some(ListObjectsResult::RowItems(row_items.into_inner())))
         }
     }
 
@@ -221,13 +221,22 @@ impl ObjectStoreHandler {
                     }
 
                     let result = self
-                        .list_objects(&uri, config, true, None, &None, callback.clone())
+                        .list_objects(
+                            &uri,
+                            config,
+                            true,
+                            None,
+                            &None,
+                            callback.clone(),
+                        )
                         .await;
 
                     match result {
                         Err(LakestreamError::NoBucketInUri(_)) => {
                             // Assume uri is a pointer to a database file (e.g. .sql, .parquet)
-                            return self.query_object(&uri, config, query, callback).await;
+                            return self
+                                .query_object(&uri, config, query, callback)
+                                .await;
                         }
                         _ => return result,
                     }
@@ -250,9 +259,10 @@ impl ObjectStoreHandler {
         // Logic to treat the URI as a database file and query it
 
         // This is a placeholder for the actual implementation.
-        Err(LakestreamError::InternalError("Querying object not implemented".to_string()))
+        Err(LakestreamError::InternalError(
+            "Querying object not implemented".to_string(),
+        ))
     }
-
 }
 
 #[async_trait(?Send)]
@@ -263,6 +273,6 @@ pub trait ObjectStoreBackend: Send {
 
     async fn list_buckets(
         config: EnvironmentConfig,
-        object_stores: &mut ObjectStoreVec,
+        items: &mut RowItemVec,
     ) -> Result<(), LakestreamError>;
 }

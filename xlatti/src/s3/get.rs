@@ -16,9 +16,11 @@ pub async fn get_object(
 
     info!("Getting object: {}", object_key);
     let (body_bytes, _updated_s3_client, _status_code, _response_headers) =
-        http_with_redirect_handling(&s3_client, |s3_client| {
-            s3_client.generate_get_object_headers(object_key)
-        }, "GET")
+        http_with_redirect_handling(
+            &s3_client,
+            |s3_client| s3_client.generate_get_object_headers(object_key),
+            "GET",
+        )
         .await?;
     info!(
         "Got object: {} of size {} bytes",

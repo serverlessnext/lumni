@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use log::info;
 use bytes::Bytes;
 use hyper::client::HttpConnector;
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::{Body, Client, Request};
 use hyper_tls::HttpsConnector;
+use log::info;
 use native_tls::TlsConnector as NativeTlsConnector;
 use tokio_native_tls::TlsConnector;
 use url::Url;
@@ -19,7 +19,8 @@ pub async fn http_get_request(
     headers: &HashMap<String, String>,
 ) -> HttpResultWithoutHeaders {
     let method = "GET";
-    let (body, status, _) = http_request_with_headers(url, headers, method).await?;
+    let (body, status, _) =
+        http_request_with_headers(url, headers, method).await?;
     Ok((body, status))
 }
 

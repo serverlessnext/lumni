@@ -15,7 +15,8 @@ pub use base::config::EnvironmentConfig;
 pub use base::file_object::{FileObject, FileObjectVec};
 pub use base::filters::FileObjectFilter;
 pub use base::list_objects_result::ListObjectsResult;
-pub use base::object_store::{ObjectStore, ObjectStoreTrait, ObjectStoreVec};
+pub use base::object_store::{ObjectStore, ObjectStoreTrait};
+pub use base::row_item::{RowItem, RowItemVec, RowType};
 // re-export all defaults
 pub use default::*;
 pub use error::LakestreamError;

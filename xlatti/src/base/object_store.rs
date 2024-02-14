@@ -1,12 +1,9 @@
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 
 use async_trait::async_trait;
 use futures::Future;
 
-pub use super::object_store_helpers::object_stores_from_config;
-use super::object_store_helpers::BoxedAsyncCallbackForObjectStore;
 use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
@@ -15,54 +12,7 @@ use crate::{
     FileObjectVec, LakestreamError,
 };
 
-pub struct ObjectStoreVec {
-    object_stores: Vec<ObjectStore>,
-    callback: Option<BoxedAsyncCallbackForObjectStore>,
-}
-
-impl ObjectStoreVec {
-    pub fn new(callback: Option<BoxedAsyncCallbackForObjectStore>) -> Self {
-        Self {
-            object_stores: Vec::new(),
-            callback,
-        }
-    }
-
-    pub fn into_inner(self) -> Vec<ObjectStore> {
-        self.object_stores
-    }
-
-    pub async fn extend_async<T: IntoIterator<Item = ObjectStore>>(
-        &mut self,
-        iter: T,
-    ) {
-        let new_object_stores: Vec<ObjectStore> = iter.into_iter().collect();
-
-        if let Some(callback) = &self.callback {
-            log::info!("Calling callback for new object stores with callback");
-            let fut = (callback)(&new_object_stores);
-            fut.await;
-        }
-
-        self.object_stores.extend(new_object_stores);
-    }
-}
-
-impl Deref for ObjectStoreVec {
-    type Target = Vec<ObjectStore>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.object_stores
-    }
-}
-
-impl DerefMut for ObjectStoreVec {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.object_stores
-    }
-}
-
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum ObjectStore {
     S3Bucket(S3Bucket),
     LocalFsBucket(LocalFsBucket),

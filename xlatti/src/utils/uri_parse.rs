@@ -90,9 +90,11 @@ fn parse_uri_path(
     // bucket is currenth path on LocalFs
     if scheme.is_none() && path.is_none() && bucket.is_some() {
         if append_slash {
-            return (Some(".".to_string()), Some(format!("{}/", bucket.unwrap())));
-        }
-        else {
+            return (
+                Some(".".to_string()),
+                Some(format!("{}/", bucket.unwrap())),
+            );
+        } else {
             return (Some(".".to_string()), bucket);
         }
     }

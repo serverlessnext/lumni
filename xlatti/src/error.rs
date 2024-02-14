@@ -30,7 +30,9 @@ impl fmt::Display for LakestreamError {
             LakestreamError::NoBucketInUri(s) => {
                 write!(f, "No bucket specified in URI: {}", s)
             }
-            LakestreamError::AccessDenied(s) => write!(f, "Access denied: {}", s),
+            LakestreamError::AccessDenied(s) => {
+                write!(f, "Access denied: {}", s)
+            }
             LakestreamError::InternalError(s) => {
                 write!(f, "Internal error: {}", s)
             }

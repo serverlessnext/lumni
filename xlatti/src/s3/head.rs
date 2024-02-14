@@ -20,9 +20,11 @@ pub async fn head_object(
     // TODO: head does not return a body, we need to update http_with_redirect_handling
     // to return response headers as a separate object
     let (_body_bytes, _updated_s3_client, status_code, response_headers) =
-        http_with_redirect_handling(&s3_client, |s3_client| {
-            s3_client.generate_head_object_headers(object_key)
-        },
-        "HEAD").await?;
+        http_with_redirect_handling(
+            &s3_client,
+            |s3_client| s3_client.generate_head_object_headers(object_key),
+            "HEAD",
+        )
+        .await?;
     Ok((status_code, response_headers))
 }

@@ -51,11 +51,11 @@ pub async fn handle_list_objects_result(
     list_objects_result: ListObjectsResult,
 ) {
     match list_objects_result {
-        ListObjectsResult::Buckets(buckets) => {
+        ListObjectsResult::RowItems(items) => {
             // Print buckets to stdout
-            info!("Found {} buckets:", buckets.len());
-            for bucket in buckets {
-                println!("{}", bucket.name());
+            info!("Found {} items:", items.len());
+            for item in items {
+                println!("{}", item.name());
             }
         }
         ListObjectsResult::FileObjects(file_objects) => {

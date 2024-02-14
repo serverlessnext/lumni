@@ -1,6 +1,6 @@
-use crate::{FileObject, ObjectStore};
+use crate::{FileObject, RowItem};
 
 pub enum ListObjectsResult {
-    Buckets(Vec<ObjectStore>),
+    RowItems(Vec<RowItem>),
     FileObjects(Vec<FileObject>),
 }

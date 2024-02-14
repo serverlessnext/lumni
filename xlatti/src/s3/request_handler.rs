@@ -22,16 +22,22 @@ pub async fn http_with_redirect_handling<F>(
     s3_client: &S3Client,
     generate_headers: F,
     method: &str,
-) -> Result<(Bytes, Option<S3Client>, u16, HashMap<String, String>), LakestreamError>
+) -> Result<
+    (Bytes, Option<S3Client>, u16, HashMap<String, String>),
+    LakestreamError,
+>
 where
     F: Fn(&mut S3Client) -> Result<HashMap<String, String>, LakestreamError>,
 {
     let mut current_s3_client = s3_client.clone();
     loop {
         let headers = generate_headers(&mut current_s3_client)?;
-        let result =
-            http_request_with_headers(&current_s3_client.url(), &headers, method)
-                .await;
+        let result = http_request_with_headers(
+            &current_s3_client.url(),
+            &headers,
+            method,
+        )
+        .await;
 
         match result {
             Ok((body_bytes, status_code, response_headers)) => {
@@ -47,16 +53,17 @@ where
                                      x-amz-bucket-region header";
                         return Err(LakestreamError::from(error));
                     }
-                }
-                else {
+                } else {
                     if status_code == 403 {
                         let url = current_s3_client.url();
-                        return Err(LakestreamError::AccessDenied(url.to_string()));
-                    }                
-     
+                        return Err(LakestreamError::AccessDenied(
+                            url.to_string(),
+                        ));
+                    }
+
                     // TODO: Handle non-200 status codes
                     // TODO: return response_headers to accomodate HEAD requests
-                   return Ok((
+                    return Ok((
                         body_bytes,
                         if current_s3_client.region() != s3_client.region() {
                             Some(current_s3_client)

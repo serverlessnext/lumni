@@ -24,7 +24,7 @@ impl FileSystem for LocalFileSystem {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LocalFsBucket {
     name: String,
     #[allow(dead_code)]
@@ -89,6 +89,8 @@ impl ObjectStoreTrait for LocalFsBucket {
         &self,
         _key: &str,
     ) -> Result<(u16, HashMap<String, String>), LakestreamError> {
-        return Err(LakestreamError::InternalError("Not implemented".to_string()));
+        return Err(LakestreamError::InternalError(
+            "Not implemented".to_string(),
+        ));
     }
 }

@@ -1,6 +1,4 @@
-use xlatti::{
-    CallbackWrapper, EnvironmentConfig, ObjectStoreHandler,
-};
+use xlatti::{CallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
 
 use super::ls_handler::{
     handle_list_objects_result, print_callback_items_async,

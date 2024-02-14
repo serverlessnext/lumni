@@ -40,15 +40,13 @@ impl S3Client {
             self.config.bucket_url(),
             self.resource.as_ref().unwrap_or(&"".to_string())
         );
-    
+
         if let Some(query) = self.query_string.as_ref() {
             url.push('?');
             url.push_str(query);
         }
         url
     }
-    
-
 }
 
 impl Clone for S3Client {

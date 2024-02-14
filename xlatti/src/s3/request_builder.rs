@@ -45,7 +45,10 @@ impl RequestBuilder {
         headers.insert("host".to_string(), host);
 
         if let Some(session_token) = config.credentials().session_token() {
-            headers.insert("x-amz-security-token".to_string(), session_token.to_string());
+            headers.insert(
+                "x-amz-security-token".to_string(),
+                session_token.to_string(),
+            );
         }
 
         let canonical_uri = self.get_canonical_uri(&url, resource);

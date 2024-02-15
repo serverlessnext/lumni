@@ -19,6 +19,10 @@ pub type BoxedAsyncCallbackForRowItem = Box<
         + Sync
         + 'static,
 >;
+pub trait RowItemTrait {
+    fn name(&self) -> &str;
+    fn println_path(&self) -> String;
+}
 
 #[derive(Debug, Clone)]
 pub enum RowType {
@@ -26,29 +30,40 @@ pub enum RowType {
     FileObject(FileObject),
 }
 
+impl RowType {
+    pub fn name(&self) -> &str {
+        match self {
+            RowType::ObjectStore(obj) => obj.name(),
+            RowType::FileObject(obj) => obj.name(),
+        }
+    }
+
+    pub fn println_path(&self) -> String {
+        match self {
+            RowType::ObjectStore(obj) => obj.println_path(),
+            RowType::FileObject(obj) => obj.println_path(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RowItem {
-    name: String,
     row_type: RowType,
 }
 
 impl RowItem {
-    pub fn new(name: &str, row_type: RowType) -> Self {
+    pub fn new(row_type: RowType) -> Self {
         Self {
-            name: name.to_string(),
             row_type,
         }
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        self.row_type.name()
     }
 
     pub fn println_path(&self) -> String {
-        match &self.row_type {
-            RowType::ObjectStore(object_store) => object_store.println_path(),
-            RowType::FileObject(file_object) => file_object.println_path(),
-        }
+        self.row_type.println_path()
     }
 }
 
@@ -76,7 +91,6 @@ impl RowItemVec {
         let new_items: Vec<RowItem> = iter.into_iter().collect();
 
         if let Some(callback) = &self.callback {
-            log::info!("Calling callback for new items with callback");
             let fut = (callback)(&new_items);
             fut.await;
         }

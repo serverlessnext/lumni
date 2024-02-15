@@ -193,7 +193,6 @@ pub async fn list_buckets(
                     // Convert ObjectStore items to RowItem and add to row_items_vec
                     for object_store in bucket_objects {
                         let row_item = RowItem::new(
-                            object_store.name(),
                             RowType::ObjectStore(object_store.clone()),
                         );
                         row_items_vec.extend_async(vec![row_item]).await;

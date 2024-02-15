@@ -42,7 +42,7 @@ impl LakestreamHandler {
                     .map(|fo| fo.name().to_owned())
                     .collect::<Vec<_>>()
             }
-            Ok(Some(ListObjectsResult::Buckets(buckets))) => {
+            Ok(Some(ListObjectsResult::RowItems(buckets))) => {
                 // note - CORS does not work on Bucket List
                 buckets
                     .into_iter()

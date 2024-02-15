@@ -130,7 +130,6 @@ fn prepare_handle_ls_arguments(
 }
 
 pub async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {
-    info!("Found {} items:", items.len());
     for item in &items {
         println!("{}", item.println_path());
     }

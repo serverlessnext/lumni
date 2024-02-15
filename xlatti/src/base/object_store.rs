@@ -9,7 +9,7 @@ use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
     CallbackWrapper, EnvironmentConfig, FileObject, FileObjectFilter,
-    FileObjectVec, LakestreamError,
+    RowItemTrait, FileObjectVec, LakestreamError,
 };
 
 #[derive(Debug, Clone)]
@@ -184,6 +184,16 @@ impl CallbackItem for ObjectStore {
         self.println_path()
     }
 }
+
+impl RowItemTrait for ObjectStore {
+    fn name(&self) -> &str {
+        self.name()
+    }
+    fn println_path(&self) -> String {
+        self.println_path()
+    }
+}
+
 
 #[async_trait(?Send)]
 pub trait ObjectStoreTrait: Send {

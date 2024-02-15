@@ -4,6 +4,7 @@ use std::pin::Pin;
 
 use futures::Future;
 
+use crate::RowItemTrait;
 use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
@@ -132,6 +133,16 @@ impl FileObject {
 }
 
 impl CallbackItem for FileObject {
+    fn println_path(&self) -> String {
+        self.println_path()
+    }
+}
+
+impl RowItemTrait for FileObject {
+    fn name(&self) -> &str {
+        self.name()
+    }
+
     fn println_path(&self) -> String {
         self.println_path()
     }

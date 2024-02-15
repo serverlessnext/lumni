@@ -12,7 +12,7 @@ pub use base::callback_wrapper::{
     BinaryCallbackWrapper, CallbackItem, CallbackWrapper,
 };
 pub use base::config::EnvironmentConfig;
-pub use base::file_object::{FileObject, FileObjectVec};
+pub use base::file_object::FileObject;
 pub use base::filters::FileObjectFilter;
 pub use base::list_objects_result::ListObjectsResult;
 pub use base::object_store::{ObjectStore, ObjectStoreTrait};

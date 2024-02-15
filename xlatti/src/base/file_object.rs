@@ -1,63 +1,8 @@
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
 
-use futures::Future;
-
-use crate::RowItemTrait;
 use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-
-type BoxedAsyncCallback = Box<
-    dyn Fn(&[FileObject]) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-        + Send
-        + Sync
-        + 'static,
->;
-
-pub struct FileObjectVec {
-    file_objects: Vec<FileObject>,
-    callback: Option<BoxedAsyncCallback>,
-}
-
-impl FileObjectVec {
-    pub fn new(callback: Option<BoxedAsyncCallback>) -> Self {
-        Self {
-            file_objects: Vec::new(),
-            callback,
-        }
-    }
-    pub fn into_inner(self) -> Vec<FileObject> {
-        self.file_objects
-    }
-
-    pub async fn extend_async<T: IntoIterator<Item = FileObject>>(
-        &mut self,
-        iter: T,
-    ) {
-        let new_file_objects: Vec<FileObject> = iter.into_iter().collect();
-        if let Some(callback) = &self.callback {
-            let fut = (callback)(&new_file_objects);
-            fut.await;
-        }
-
-        self.file_objects.extend(new_file_objects);
-    }
-}
-
-impl Deref for FileObjectVec {
-    type Target = Vec<FileObject>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.file_objects
-    }
-}
-
-impl DerefMut for FileObjectVec {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.file_objects
-    }
-}
+use crate::RowItemTrait;
 
 #[derive(Debug, Clone)]
 pub struct FileObject {

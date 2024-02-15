@@ -8,8 +8,8 @@ use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, EnvironmentConfig, FileObject, FileObjectFilter,
-    RowItemTrait, FileObjectVec, LakestreamError,
+    CallbackWrapper, EnvironmentConfig, FileObjectFilter, LakestreamError,
+    RowItem, RowItemTrait, RowItemVec,
 };
 
 #[derive(Debug, Clone)]
@@ -69,8 +69,8 @@ impl ObjectStore {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Result<Vec<FileObject>, LakestreamError> {
-        let mut file_objects = FileObjectVec::new(None);
+    ) -> Result<Vec<RowItem>, LakestreamError> {
+        let mut row_items = RowItemVec::new(None);
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
@@ -79,7 +79,7 @@ impl ObjectStore {
                         recursive,
                         max_keys,
                         filter,
-                        &mut file_objects,
+                        &mut row_items,
                     )
                     .await
             }
@@ -90,12 +90,12 @@ impl ObjectStore {
                         recursive,
                         max_keys,
                         filter,
-                        &mut file_objects,
+                        &mut row_items,
                     )
                     .await
             }
         }?;
-        Ok(file_objects.into_inner())
+        Ok(row_items.into_inner())
     }
 
     pub async fn list_files_with_callback(
@@ -104,18 +104,18 @@ impl ObjectStore {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: CallbackWrapper<FileObject>,
+        callback: CallbackWrapper<RowItem>,
     ) -> Result<(), LakestreamError> {
         let callback = match callback {
             CallbackWrapper::Sync(sync_callback) => {
-                Some(Box::new(move |file_objects: &[FileObject]| {
-                    sync_callback(file_objects);
+                Some(Box::new(move |row_item: &[RowItem]| {
+                    sync_callback(row_item);
                     Box::pin(futures::future::ready(()))
                         as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
                 })
                     as Box<
                         dyn Fn(
-                                &[FileObject],
+                                &[RowItem],
                             ) -> Pin<
                                 Box<dyn Future<Output = ()> + Send + 'static>,
                             > + Send
@@ -123,13 +123,13 @@ impl ObjectStore {
                     >)
             }
             CallbackWrapper::Async(async_callback) => {
-                Some(Box::new(move |file_objects: &[FileObject]| {
-                    Box::pin(async_callback(file_objects.to_vec()))
+                Some(Box::new(move |row_item: &[RowItem]| {
+                    Box::pin(async_callback(row_item.to_vec()))
                         as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
                 })
                     as Box<
                         dyn Fn(
-                                &[FileObject],
+                                &[RowItem],
                             ) -> Pin<
                                 Box<dyn Future<Output = ()> + Send + 'static>,
                             > + Send
@@ -138,7 +138,7 @@ impl ObjectStore {
             }
         };
 
-        let mut file_objects = FileObjectVec::new(callback);
+        let mut row_items = RowItemVec::new(callback);
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
@@ -147,7 +147,7 @@ impl ObjectStore {
                         recursive,
                         max_files,
                         filter,
-                        &mut file_objects,
+                        &mut row_items,
                     )
                     .await
             }
@@ -158,7 +158,7 @@ impl ObjectStore {
                         recursive,
                         max_files,
                         filter,
-                        &mut file_objects,
+                        &mut row_items,
                     )
                     .await
             }
@@ -194,7 +194,6 @@ impl RowItemTrait for ObjectStore {
     }
 }
 
-
 #[async_trait(?Send)]
 pub trait ObjectStoreTrait: Send {
     fn name(&self) -> &str;
@@ -205,7 +204,7 @@ pub trait ObjectStoreTrait: Send {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        file_objects: &mut FileObjectVec, // Change this parameter
+        file_objects: &mut RowItemVec, // Change this parameter
     ) -> Result<(), LakestreamError>;
     async fn get_object(
         &self,

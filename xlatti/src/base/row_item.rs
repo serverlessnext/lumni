@@ -53,9 +53,7 @@ pub struct RowItem {
 
 impl RowItem {
     pub fn new(row_type: RowType) -> Self {
-        Self {
-            row_type,
-        }
+        Self { row_type }
     }
 
     pub fn name(&self) -> &str {

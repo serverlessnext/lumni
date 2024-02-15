@@ -8,9 +8,7 @@ use async_trait::async_trait;
 use super::get::get_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
-use crate::{
-    FileObjectFilter, FileObjectVec, LakestreamError, ObjectStoreTrait,
-};
+use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait, RowItemVec};
 
 pub struct LocalFileSystem;
 
@@ -59,7 +57,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        file_objects: &mut FileObjectVec,
+        file_objects: &mut RowItemVec,
     ) -> Result<(), LakestreamError> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),

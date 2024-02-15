@@ -13,8 +13,8 @@ use super::request_handler::http_with_redirect_handling;
 use crate::base::config::EnvironmentConfig;
 use crate::http::requests::http_get_request;
 use crate::{
-    FileObject, FileObjectFilter, FileObjectVec, LakestreamError,
-    ObjectStoreTrait, RowItem, RowItemVec, RowType, AWS_MAX_LIST_OBJECTS,
+    FileObject, FileObjectFilter, LakestreamError, ObjectStoreTrait, RowItem,
+    RowItemVec, RowType, AWS_MAX_LIST_OBJECTS,
 };
 
 pub struct ListFilesParams<'a> {
@@ -32,7 +32,7 @@ pub async fn list_files(
     recursive: bool,
     max_keys: Option<u32>,
     filter: &Option<FileObjectFilter>,
-    file_objects: &mut FileObjectVec,
+    file_objects: &mut RowItemVec,
 ) -> Result<(), LakestreamError> {
     let mut s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
@@ -54,7 +54,7 @@ pub async fn list_files(
 
 async fn list_files_next(
     params: &mut ListFilesParams<'_>,
-    file_objects: &mut FileObjectVec,
+    file_objects: &mut RowItemVec,
 ) -> Result<(), LakestreamError> {
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();
@@ -106,8 +106,14 @@ async fn list_files_next(
             }
         }
 
+        let temp_row_items = temp_file_objects
+            .drain(..)
+            .map(|file_object| RowItem::new(RowType::FileObject(file_object)))
+            .collect::<Vec<RowItem>>();
+
         // Extend file_objects with temp_file_objects and clear temp_file_objects
-        file_objects.extend_async(temp_file_objects.drain(..)).await;
+        //file_objects.extend_async(temp_file_objects.drain(..)).await;
+        file_objects.extend_async(temp_row_items).await;
 
         if params.recursive {
             for virtual_directory in virtual_directories.drain(..) {
@@ -192,9 +198,9 @@ pub async fn list_buckets(
                 Ok(bucket_objects) => {
                     // Convert ObjectStore items to RowItem and add to row_items_vec
                     for object_store in bucket_objects {
-                        let row_item = RowItem::new(
-                            RowType::ObjectStore(object_store.clone()),
-                        );
+                        let row_item = RowItem::new(RowType::ObjectStore(
+                            object_store.clone(),
+                        ));
                         row_items_vec.extend_async(vec![row_item]).await;
                     }
                 }

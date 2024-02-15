@@ -7,7 +7,7 @@ use sqlparser::parser::Parser;
 use crate::base::row_item::row_items_from_list_bucket;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
-    BinaryCallbackWrapper, CallbackWrapper, EnvironmentConfig, FileObject,
+    BinaryCallbackWrapper, CallbackWrapper, EnvironmentConfig,
     FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore, RowItem,
     RowItemVec,
 };
@@ -28,7 +28,7 @@ impl ObjectStoreHandler {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: Option<CallbackWrapper<FileObject>>,
+        callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
@@ -127,7 +127,7 @@ impl ObjectStoreHandler {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: Option<CallbackWrapper<FileObject>>,
+        callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
             format!("{}://{}", scheme, parsed_uri.bucket.as_ref().unwrap())
@@ -165,7 +165,7 @@ impl ObjectStoreHandler {
         &self,
         statement: &str,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<FileObject>>,
+        callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         let dialect = GenericDialect {};
         let parsed = Parser::parse_sql(&dialect, statement);
@@ -192,7 +192,7 @@ impl ObjectStoreHandler {
         &self,
         query: &Query,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<FileObject>>,
+        callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         if let SetExpr::Select(select) = &*query.body {
             if select.projection.len() == 1
@@ -254,7 +254,7 @@ impl ObjectStoreHandler {
         _uri: &str,
         _config: &EnvironmentConfig,
         _query: &Query,
-        _callback: Option<CallbackWrapper<FileObject>>,
+        _callback: Option<CallbackWrapper<RowItem>>,
     ) -> Result<Option<ListObjectsResult>, LakestreamError> {
         // Logic to treat the URI as a database file and query it
 

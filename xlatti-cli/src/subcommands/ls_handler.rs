@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
+use std::collections::HashMap;
 use log::info;
 use xlatti::{
-    CallbackItem, CallbackWrapper, EnvironmentConfig, FileObjectFilter,
-    LakestreamError, ListObjectsResult, ObjectStoreHandler,
+    EnvironmentConfig,
+    FileObjectFilter, LakestreamError, ObjectStoreHandler,
+    TableCallback, TableColumnValue,
 };
 
 pub async fn handle_ls(
@@ -13,8 +17,7 @@ pub async fn handle_ls(
 
     let handler = ObjectStoreHandler::new(None);
 
-    let callback =
-        Some(CallbackWrapper::create_async(print_callback_items_async));
+    let callback = Arc::new(FileObjectCallback);
 
     match handler
         .list_objects(
@@ -23,14 +26,14 @@ pub async fn handle_ls(
             recursive,
             Some(max_files),
             &filter,
-            callback,
+            Some(callback),
         )
         .await
     {
-        Ok(Some(list_objects_result)) => {
-            handle_list_objects_result(list_objects_result).await;
-        }
-        Ok(None) => {
+        //Ok(Some(list_objects_result)) => {
+        //    //handle_list_objects_result(list_objects_result).await;
+        //}
+        Ok(_) => {
             println!("Done");
         }
         Err(LakestreamError::NoBucketInUri(_)) => {
@@ -47,39 +50,33 @@ pub async fn handle_ls(
     }
 }
 
-pub async fn handle_list_objects_result(
-    list_objects_result: ListObjectsResult,
-) {
-    match list_objects_result {
-        ListObjectsResult::RowItems(items) => {
-            // Print buckets to stdout
-            info!("Found {} items:", items.len());
-            for item in items {
-                println!("{}", item.name());
-            }
-        }
-        ListObjectsResult::FileObjects(file_objects) => {
-            // Print file objects to stdout
-            info!("Found {} file objects:", file_objects.len());
-            for fo in file_objects {
-                println!("{}", fo.println_path());
-            }
-        }
-    }
-}
+//pub async fn handle_list_objects_result(
+//    list_objects_result: ListObjectsResult,
+//) {
+//    match list_objects_result {
+//        ListObjectsResult::RowItems(items) => {
+//            // Print buckets to stdout
+//            info!("Found {} items:", items.len());
+//            for item in items {
+//                println!("{}", item.name());
+//            }
+//        }
+//        ListObjectsResult::FileObjects(file_objects) => {
+//            // Print file objects to stdout
+//            info!("Found {} file objects:", file_objects.len());
+//            for fo in file_objects {
+//                println!("{}", fo.println_path());
+//            }
+//        }
+//    }
+//}
 
 async fn handle_list_buckets(uri: &str, config: &EnvironmentConfig) {
     log::info!("Calling list_buckets");
     let handler = ObjectStoreHandler::new(None);
-    let callback =
-        Some(CallbackWrapper::create_async(print_callback_items_async));
-    match handler.list_buckets(uri, config, callback).await {
-        Ok(Some(list_objects_result)) => {
-            handle_list_objects_result(list_objects_result).await;
-        }
-        Ok(None) => {
-            log::info!("Done");
-        }
+    let callback = Arc::new(ObjectStoreCallback);
+    match handler.list_buckets(uri, config, Some(callback)).await {
+        Ok(_) => {}
         Err(err) => {
             eprintln!("Error: {:?}", err);
         }
@@ -129,8 +126,21 @@ fn prepare_handle_ls_arguments(
     (uri, recursive, max_files, filter)
 }
 
-pub async fn print_callback_items_async<T: CallbackItem>(items: Vec<T>) {
-    for item in &items {
-        println!("{}", item.println_path());
+// Callback to print buckets
+struct ObjectStoreCallback;
+impl TableCallback for ObjectStoreCallback {
+    fn on_row_add(&self, row: &mut HashMap<String, TableColumnValue>) {
+        let uri = row.get("uri").unwrap().to_string();
+        println!("{}", uri);
+    }
+}
+
+// Callback to print file objects
+struct FileObjectCallback;
+impl TableCallback for FileObjectCallback {
+    fn on_row_add(&self, row: &mut HashMap<String, TableColumnValue>) {
+        let name = row.get("name").unwrap().to_string();
+        let size = row.get("size").unwrap().to_string();
+        println!("{} - {}", size, name);
     }
 }

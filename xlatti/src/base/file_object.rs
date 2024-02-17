@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-use crate::RowItemTrait;
 
 #[derive(Debug, Clone)]
 pub struct FileObject {
@@ -44,12 +43,13 @@ impl FileObject {
     }
 
     pub fn println_path(&self) -> String {
-        self.printable(true)
-    }
+        // TODO: move to table.file_object
+        let full_path = true;
+        let name = self.name();
+        let fsize = self.size();
+        let modified = self.modified();
 
-    fn printable(&self, full_path: bool) -> String {
-        let name_without_trailing_slash = self.name.trim_end_matches('/');
-
+        let name_without_trailing_slash = name.trim_end_matches('/');
         let mut name_to_print = if full_path {
             name_without_trailing_slash.to_string()
         } else {
@@ -66,29 +66,13 @@ impl FileObject {
 
         format!(
             "{:8} {} {}",
-            bytes_human_readable(self.size()),
-            if let Some(modified) = self.modified() {
-                time_human_readable(modified)
+            bytes_human_readable(fsize),
+            if let Some(mtime) = modified {
+                time_human_readable(mtime)
             } else {
                 "PRE".to_string()
             },
             name_to_print
         )
-    }
-}
-
-impl CallbackItem for FileObject {
-    fn println_path(&self) -> String {
-        self.println_path()
-    }
-}
-
-impl RowItemTrait for FileObject {
-    fn name(&self) -> &str {
-        self.name()
-    }
-
-    fn println_path(&self) -> String {
-        self.println_path()
     }
 }

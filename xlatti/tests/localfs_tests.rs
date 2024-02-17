@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 
 use tempfile::tempdir;
-use xlatti::{EnvironmentConfig, ListObjectsResult, ObjectStoreHandler};
+use xlatti::{EnvironmentConfig, ObjectStoreHandler};
 
 #[tokio::test]
 async fn test_list_objects() {

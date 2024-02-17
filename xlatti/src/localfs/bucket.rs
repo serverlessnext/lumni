@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::{self, ReadDir};
+use std::fs::{self, File, ReadDir};
 use std::io;
 use std::path::Path;
 
@@ -8,7 +8,10 @@ use async_trait::async_trait;
 use super::get::get_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
-use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait, RowItemVec};
+use crate::{
+    FileObjectFilter, LakestreamError, ObjectStoreTrait,
+};
+use crate::table::FileObjectTable;
 
 pub struct LocalFileSystem;
 
@@ -57,7 +60,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        file_objects: &mut RowItemVec,
+        table: &mut FileObjectTable,
     ) -> Result<(), LakestreamError> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
@@ -70,7 +73,7 @@ impl ObjectStoreTrait for LocalFsBucket {
                 path.to_string_lossy().to_string(),
             ));
         }
-        list_files(&path, max_keys, recursive, filter, file_objects).await;
+        list_files(&path, max_keys, recursive, filter, table).await;
         Ok(())
     }
 

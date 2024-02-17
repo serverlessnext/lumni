@@ -1,5 +1,6 @@
 pub(crate) mod api;
 pub(crate) mod base;
+pub(crate) mod table;
 pub(crate) mod default;
 pub(crate) mod error;
 pub(crate) mod http;
@@ -14,9 +15,8 @@ pub use base::callback_wrapper::{
 pub use base::config::EnvironmentConfig;
 pub use base::file_object::FileObject;
 pub use base::filters::FileObjectFilter;
-pub use base::list_objects_result::ListObjectsResult;
 pub use base::object_store::{ObjectStore, ObjectStoreTrait};
-pub use base::row_item::{RowItem, RowItemTrait, RowItemVec, RowType};
+pub use table::{Table, TableCallback, TableColumn, TableColumnValue, FileObjectTable, ObjectStoreTable};
 // re-export all defaults
 pub use default::*;
 pub use error::LakestreamError;

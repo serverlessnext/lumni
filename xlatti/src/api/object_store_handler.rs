@@ -1,15 +1,17 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use log::info;
 use sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
-use crate::base::row_item::row_items_from_list_bucket;
+use crate::table::object_store::table_from_list_bucket;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
-    BinaryCallbackWrapper, CallbackWrapper, EnvironmentConfig,
-    FileObjectFilter, LakestreamError, ListObjectsResult, ObjectStore, RowItem,
-    RowItemVec,
+    BinaryCallbackWrapper, EnvironmentConfig,
+    FileObjectFilter, LakestreamError, ObjectStore,
+    Table, TableCallback, ObjectStoreTable,
 };
 
 #[derive(Clone)]
@@ -28,8 +30,8 @@ impl ObjectStoreHandler {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<(), LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(bucket) = &parsed_uri.bucket {
@@ -53,32 +55,22 @@ impl ObjectStoreHandler {
         &self,
         uri: &str,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(_) = &parsed_uri.bucket {
             return Err(LakestreamError::NoBucketInUri(uri.to_string()));
         }
-        // list buckets
         // Clone the original config and update the settings
-        // will change the input config to reference at future update
         let mut updated_config = config.clone();
         updated_config.settings.insert(
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
-
-        let row_items =
-            row_items_from_list_bucket(updated_config, &callback).await?;
-
-        if callback.is_some() {
-            // callback used, so can just return None
-            Ok(None)
-        } else {
-            // no callback used -- return as list of row items
-            Ok(Some(ListObjectsResult::RowItems(row_items.into_inner())))
-        }
+        let table =
+            table_from_list_bucket(updated_config, callback).await?;
+        Ok(table)
     }
 
     pub async fn get_object(
@@ -127,8 +119,8 @@ impl ObjectStoreHandler {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<(), LakestreamError> {
         let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
             format!("{}://{}", scheme, parsed_uri.bucket.as_ref().unwrap())
         } else {
@@ -147,7 +139,7 @@ impl ObjectStoreHandler {
                     callback,
                 )
                 .await?;
-            Ok(None)
+            Ok(())
         } else {
             let file_objects = object_store
                 .list_files(
@@ -157,7 +149,8 @@ impl ObjectStoreHandler {
                     filter,
                 )
                 .await?;
-            Ok(Some(ListObjectsResult::FileObjects(file_objects)))
+            Ok(())
+            //Ok(Some(ListObjectsResult::FileObjects(file_objects)))
         }
     }
 
@@ -165,8 +158,8 @@ impl ObjectStoreHandler {
         &self,
         statement: &str,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<(), LakestreamError> {
         let dialect = GenericDialect {};
         let parsed = Parser::parse_sql(&dialect, statement);
 
@@ -192,8 +185,8 @@ impl ObjectStoreHandler {
         &self,
         query: &Query,
         config: &EnvironmentConfig,
-        callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<(), LakestreamError> {
         if let SetExpr::Select(select) = &*query.body {
             if select.projection.len() == 1
                 && matches!(select.projection[0], SelectItem::Wildcard(_))
@@ -254,8 +247,8 @@ impl ObjectStoreHandler {
         _uri: &str,
         _config: &EnvironmentConfig,
         _query: &Query,
-        _callback: Option<CallbackWrapper<RowItem>>,
-    ) -> Result<Option<ListObjectsResult>, LakestreamError> {
+        _callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<(), LakestreamError> {
         // Logic to treat the URI as a database file and query it
 
         // This is a placeholder for the actual implementation.
@@ -273,6 +266,6 @@ pub trait ObjectStoreBackend: Send {
 
     async fn list_buckets(
         config: EnvironmentConfig,
-        items: &mut RowItemVec,
+        table: &mut ObjectStoreTable,
     ) -> Result<(), LakestreamError>;
 }

@@ -1,16 +1,15 @@
 use std::collections::HashMap;
-use std::pin::Pin;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::Future;
 
-use crate::base::callback_wrapper::CallbackItem;
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::{
-    CallbackWrapper, EnvironmentConfig, FileObjectFilter, LakestreamError,
-    RowItem, RowItemTrait, RowItemVec,
+    EnvironmentConfig, FileObjectFilter, LakestreamError, TableCallback
 };
+use crate::table::{Table, FileObjectTable};
 
 #[derive(Debug, Clone)]
 pub enum ObjectStore {
@@ -52,7 +51,7 @@ impl ObjectStore {
         }
     }
 
-    pub fn println_path(&self) -> String {
+    pub fn uri(&self) -> String {
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 format!("s3://{}", bucket.name())
@@ -69,8 +68,8 @@ impl ObjectStore {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-    ) -> Result<Vec<RowItem>, LakestreamError> {
-        let mut row_items = RowItemVec::new(None);
+    ) -> Result<Box<dyn Table>, LakestreamError> { 
+        let mut table = FileObjectTable::new();
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
@@ -79,7 +78,7 @@ impl ObjectStore {
                         recursive,
                         max_keys,
                         filter,
-                        &mut row_items,
+                        &mut table,
                     )
                     .await
             }
@@ -90,12 +89,12 @@ impl ObjectStore {
                         recursive,
                         max_keys,
                         filter,
-                        &mut row_items,
+                        &mut table,
                     )
                     .await
             }
         }?;
-        Ok(row_items.into_inner())
+        Ok(Box::new(table))
     }
 
     pub async fn list_files_with_callback(
@@ -104,41 +103,12 @@ impl ObjectStore {
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: CallbackWrapper<RowItem>,
+        callback: Arc<dyn TableCallback>,
     ) -> Result<(), LakestreamError> {
-        let callback = match callback {
-            CallbackWrapper::Sync(sync_callback) => {
-                Some(Box::new(move |row_item: &[RowItem]| {
-                    sync_callback(row_item);
-                    Box::pin(futures::future::ready(()))
-                        as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                })
-                    as Box<
-                        dyn Fn(
-                                &[RowItem],
-                            ) -> Pin<
-                                Box<dyn Future<Output = ()> + Send + 'static>,
-                            > + Send
-                            + Sync,
-                    >)
-            }
-            CallbackWrapper::Async(async_callback) => {
-                Some(Box::new(move |row_item: &[RowItem]| {
-                    Box::pin(async_callback(row_item.to_vec()))
-                        as Pin<Box<dyn Future<Output = ()> + Send + 'static>>
-                })
-                    as Box<
-                        dyn Fn(
-                                &[RowItem],
-                            ) -> Pin<
-                                Box<dyn Future<Output = ()> + Send + 'static>,
-                            > + Send
-                            + Sync,
-                    >)
-            }
-        };
 
-        let mut row_items = RowItemVec::new(callback);
+        let mut table = FileObjectTable::new();
+        table.set_callback(callback);
+    
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
@@ -147,7 +117,7 @@ impl ObjectStore {
                         recursive,
                         max_files,
                         filter,
-                        &mut row_items,
+                        &mut table,
                     )
                     .await
             }
@@ -158,7 +128,7 @@ impl ObjectStore {
                         recursive,
                         max_files,
                         filter,
-                        &mut row_items,
+                        &mut table,
                     )
                     .await
             }
@@ -179,21 +149,6 @@ impl ObjectStore {
     }
 }
 
-impl CallbackItem for ObjectStore {
-    fn println_path(&self) -> String {
-        self.println_path()
-    }
-}
-
-impl RowItemTrait for ObjectStore {
-    fn name(&self) -> &str {
-        self.name()
-    }
-    fn println_path(&self) -> String {
-        self.println_path()
-    }
-}
-
 #[async_trait(?Send)]
 pub trait ObjectStoreTrait: Send {
     fn name(&self) -> &str;
@@ -204,7 +159,7 @@ pub trait ObjectStoreTrait: Send {
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        file_objects: &mut RowItemVec, // Change this parameter
+        table: &mut FileObjectTable,
     ) -> Result<(), LakestreamError>;
     async fn get_object(
         &self,
@@ -216,3 +171,4 @@ pub trait ObjectStoreTrait: Send {
         key: &str,
     ) -> Result<(u16, HashMap<String, String>), LakestreamError>;
 }
+

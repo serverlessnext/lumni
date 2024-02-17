@@ -80,6 +80,12 @@ impl From<&str> for LakestreamError {
     }
 }
 
+impl From<std::string::String> for LakestreamError {
+    fn from(error: std::string::String) -> Self {
+        LakestreamError::String(error.to_owned())
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 impl From<wasm_bindgen::JsValue> for LakestreamError {
     fn from(error: wasm_bindgen::JsValue) -> Self {

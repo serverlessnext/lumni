@@ -1,9 +1,4 @@
-use xlatti::{CallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
-
-//use super::ls_handler::{
-    //handle_list_objects_result,
-    //print_callback_items_async,
-//};
+use xlatti::{EnvironmentConfig, ObjectStoreHandler};
 
 pub async fn handle_query(
     query_matches: &clap::ArgMatches,

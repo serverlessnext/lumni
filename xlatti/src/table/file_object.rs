@@ -96,7 +96,8 @@ impl Table for FileObjectTable {
         f.write_str("columns: {\n")?;
         for (name, column) in &self.columns {
             write!(f, "    {}: ", name)?;
-            column.fmt_debug(f)?;
+            write!(f, "{:?}", column)?;
+            //column.fmt_debug(f)?;
             f.write_str(",\n")?;
         }
         f.write_str("}\n")
@@ -112,11 +113,11 @@ impl FileObjectTable {
             let mut row = HashMap::new();
             row.insert(
                 "name".to_string(),
-                TableColumnValue::String(file_object.name().to_string()),
+                TableColumnValue::StringColumn(file_object.name().to_string()),
             );
             row.insert(
                 "size".to_string(),
-                TableColumnValue::Uint64(file_object.size()),
+                TableColumnValue::Uint64Column(file_object.size()),
             );
             self.add_row(row)?;
         }

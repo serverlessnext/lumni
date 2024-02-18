@@ -30,9 +30,6 @@ pub async fn handle_ls(
         )
         .await
     {
-        //Ok(Some(list_objects_result)) => {
-        //    //handle_list_objects_result(list_objects_result).await;
-        //}
         Ok(_) => {
             println!("Done");
         }
@@ -49,27 +46,6 @@ pub async fn handle_ls(
         }
     }
 }
-
-//pub async fn handle_list_objects_result(
-//    list_objects_result: ListObjectsResult,
-//) {
-//    match list_objects_result {
-//        ListObjectsResult::RowItems(items) => {
-//            // Print buckets to stdout
-//            info!("Found {} items:", items.len());
-//            for item in items {
-//                println!("{}", item.name());
-//            }
-//        }
-//        ListObjectsResult::FileObjects(file_objects) => {
-//            // Print file objects to stdout
-//            info!("Found {} file objects:", file_objects.len());
-//            for fo in file_objects {
-//                println!("{}", fo.println_path());
-//            }
-//        }
-//    }
-//}
 
 async fn handle_list_buckets(uri: &str, config: &EnvironmentConfig) {
     log::info!("Calling list_buckets");

@@ -93,7 +93,8 @@ impl Table for ObjectStoreTable {
         f.write_str("columns: {\n")?;
         for (name, column) in &self.columns {
             write!(f, "    {}: ", name)?;
-            column.fmt_debug(f)?;
+            write!(f, "{:?}", column)?;
+            //column.fmt_debug(f)?;
             f.write_str(",\n")?;
         }
         f.write_str("}\n")
@@ -108,7 +109,7 @@ impl ObjectStoreTable {
         let mut row = HashMap::new();
         row.insert(
             "uri".to_string(),
-            TableColumnValue::String(object_store.uri()),
+            TableColumnValue::StringColumn(object_store.uri()),
         );
         self.add_row(row)
     }

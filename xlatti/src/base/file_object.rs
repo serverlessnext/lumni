@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::base::callback_wrapper::CallbackItem;
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 
 #[derive(Debug, Clone)]

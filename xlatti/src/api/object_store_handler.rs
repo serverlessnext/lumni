@@ -129,29 +129,15 @@ impl ObjectStoreHandler {
 
         let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
 
-        if let Some(callback) = callback {
-            object_store
-                .list_files_with_callback(
-                    parsed_uri.path.as_deref(),
-                    recursive,
-                    max_files,
-                    filter,
-                    callback,
-                )
-                .await?;
-            Ok(())
-        } else {
-            let file_objects = object_store
-                .list_files(
-                    parsed_uri.path.as_deref(),
-                    recursive,
-                    max_files,
-                    filter,
-                )
-                .await?;
-            Ok(())
-            //Ok(Some(ListObjectsResult::FileObjects(file_objects)))
-        }
+        let _ = object_store
+            .list_files(
+                parsed_uri.path.as_deref(),
+                recursive,
+                max_files,
+                filter,
+                callback,
+            ).await?;
+        Ok(())
     }
 
     pub async fn execute_query(

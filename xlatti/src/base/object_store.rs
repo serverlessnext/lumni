@@ -66,48 +66,15 @@ impl ObjectStore {
         &self,
         prefix: Option<&str>,
         recursive: bool,
-        max_keys: Option<u32>,
-        filter: &Option<FileObjectFilter>,
-    ) -> Result<Box<dyn Table>, LakestreamError> { 
-        let mut table = FileObjectTable::new();
-        match self {
-            ObjectStore::S3Bucket(bucket) => {
-                bucket
-                    .list_files(
-                        prefix,
-                        recursive,
-                        max_keys,
-                        filter,
-                        &mut table,
-                    )
-                    .await
-            }
-            ObjectStore::LocalFsBucket(local_fs) => {
-                local_fs
-                    .list_files(
-                        prefix,
-                        recursive,
-                        max_keys,
-                        filter,
-                        &mut table,
-                    )
-                    .await
-            }
-        }?;
-        Ok(Box::new(table))
-    }
-
-    pub async fn list_files_with_callback(
-        &self,
-        prefix: Option<&str>,
-        recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
-        callback: Arc<dyn TableCallback>,
-    ) -> Result<(), LakestreamError> {
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Result<Box<dyn Table>, LakestreamError> { 
 
         let mut table = FileObjectTable::new();
-        table.set_callback(callback);
+        if let Some(callback) = callback {
+            table.set_callback(callback);
+        }
     
         match self {
             ObjectStore::S3Bucket(bucket) => {
@@ -132,7 +99,8 @@ impl ObjectStore {
                     )
                     .await
             }
-        }
+        }?;
+        Ok(Box::new(table))
     }
 
     pub async fn get_object(

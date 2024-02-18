@@ -4,157 +4,104 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub enum TableColumnValue {
-    Int32(i32),
-    Uint64(u64),
-    Float(f64),
-    String(String),
+    Int32Column(i32),
+    Uint64Column(u64),
+    FloatColumn(f64),
+    StringColumn(String),
+    OptionalInt32Column(Option<i32>),
+    OptionalUint64Column(Option<u64>),
+    OptionalFloatColumn(Option<f64>),
+    OptionalStringColumn(Option<String>),
 }
 
-impl TableColumnValue {
-    pub fn to_string(&self) -> String {
-        match self {
-            TableColumnValue::Int32(val) => val.to_string(),
-            TableColumnValue::Uint64(val) => val.to_string(),
-            TableColumnValue::Float(val) => val.to_string(),
-            TableColumnValue::String(val) => val.clone(),
-        }
-    }
-}
-
-pub trait TableColumn {
+pub trait TableColumn: Debug {
     fn len(&self) -> usize;
     fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str>;
     fn as_any(&self) -> &dyn Any;
-    fn fmt_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
 }
 
-#[derive(Debug, Clone)]
-pub struct Int32Column(pub Vec<i32>);
+macro_rules! create_column_types {
+    ($TypeName:ident, $OptionalTypeName:ident, $ValueType:ty) => {
+        #[derive(Debug, Clone)]
+        pub struct $TypeName(pub Vec<$ValueType>);
 
-impl Int32Column {
-    pub fn values(&self) -> &[i32] {
-        &self.0
-    }
-}
+        #[derive(Debug, Clone)]
+        pub struct $OptionalTypeName(pub Vec<Option<$ValueType>>);
 
-impl TableColumn for Int32Column {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
-        match value {
-            TableColumnValue::Int32(val) => {
-                self.0.push(val);
-                Ok(())
+        impl $TypeName {
+            pub fn values(&self) -> &[$ValueType] {
+                &self.0
             }
-            _ => Err("Type mismatch"),
         }
-    }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn fmt_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
-    }
-}
-
-pub struct Uint64Column(pub Vec<u64>);
-
-impl Uint64Column {
-    pub fn values(&self) -> &[u64] {
-        &self.0
-    }
-}
-
-impl TableColumn for Uint64Column {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
-        match value {
-            TableColumnValue::Uint64(val) => {
-                self.0.push(val);
-                Ok(())
+        impl $OptionalTypeName {
+            pub fn values(&self) -> &[Option<$ValueType>] {
+                &self.0
             }
-            _ => Err("Type mismatch"),
         }
-    }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn fmt_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FloatColumn(pub Vec<f64>);
-
-impl FloatColumn {
-    pub fn values(&self) -> &[f64] {
-        &self.0
-    }
-}
-
-impl TableColumn for FloatColumn {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
-        match value {
-            TableColumnValue::Float(val) => {
-                self.0.push(val);
-                Ok(())
+        impl TableColumn for $TypeName {
+            fn len(&self) -> usize {
+                self.0.len()
             }
-            _ => Err("Type mismatch"),
-        }
-    }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn fmt_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct StringColumn(pub Vec<String>);
-
-impl StringColumn {
-    pub fn values(&self) -> &[String] {
-        &self.0
-    }
-}
-
-impl TableColumn for StringColumn {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
-        match value {
-            TableColumnValue::String(val) => {
-                self.0.push(val);
-                Ok(())
+            fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
+                if let TableColumnValue::$TypeName(val) = value {
+                    self.0.push(val);
+                    Ok(())
+                } else {
+                    Err("Type mismatch")
+                }
             }
-            _ => Err("Type mismatch"),
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
         }
-    }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+        impl TableColumn for $OptionalTypeName {
+            fn len(&self) -> usize {
+                self.0.len()
+            }
 
-    fn fmt_debug(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+            fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
+                if let TableColumnValue::$OptionalTypeName(val) = value {
+                    self.0.push(val);
+                    Ok(())
+                } else {
+                    Err("Type mismatch")
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    };
+}
+
+create_column_types!(Int32Column, OptionalInt32Column, i32);
+create_column_types!(Uint64Column, OptionalUint64Column, u64);
+create_column_types!(FloatColumn, OptionalFloatColumn, f64);
+create_column_types!(StringColumn, OptionalStringColumn, String);
+
+
+impl TableColumnValue {
+    pub fn to_string(&self) -> String {
+        // Use a generic pattern for Optional variants to return "NULL" for None values.
+        match self {
+            TableColumnValue::Int32Column(val) => val.to_string(),
+            TableColumnValue::Uint64Column(val) => val.to_string(),
+            TableColumnValue::FloatColumn(val) => val.to_string(),
+            TableColumnValue::StringColumn(val) => val.clone(),
+            // Handle optional types using a pattern that matches any Some variant and calls to_string on its content.
+            // For None, return "NULL".
+            TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalUint64Column(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
+            // Match any None variant for Optional types
+            _ => "NULL".to_string(),
+        }
     }
 }

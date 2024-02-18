@@ -12,12 +12,11 @@ use super::parse_http_response::{
 use super::request_handler::http_with_redirect_handling;
 use crate::base::config::EnvironmentConfig;
 use crate::http::requests::http_get_request;
+use crate::table::{FileObjectTable, ObjectStoreTable, Table};
 use crate::{
-    FileObject, FileObjectFilter, LakestreamError, 
-    ObjectStoreTrait, AWS_MAX_LIST_OBJECTS
+    FileObject, FileObjectFilter, LakestreamError, ObjectStoreTrait,
+    AWS_MAX_LIST_OBJECTS,
 };
-use crate::table::{Table, FileObjectTable, ObjectStoreTable};
-
 
 pub struct ListFilesParams<'a> {
     prefix: Option<String>,
@@ -108,7 +107,8 @@ async fn list_files_next(
             }
         }
 
-       let file_objects = temp_file_objects.drain(..).collect::<Vec<FileObject>>();
+        let file_objects =
+            temp_file_objects.drain(..).collect::<Vec<FileObject>>();
         table.add_file_objects(file_objects).await?;
 
         if params.recursive {

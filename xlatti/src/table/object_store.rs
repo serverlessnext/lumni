@@ -1,4 +1,4 @@
-use core::{fmt, panic};
+use core::fmt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -7,13 +7,11 @@ use log::error;
 use crate::api::object_store_handler::ObjectStoreBackend;
 use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
-use crate::table::StringColumn;
+use crate::table::{StringColumn, TableRow};
 use crate::{
-    EnvironmentConfig, LakestreamError,
-    ObjectStore,
-    Table, TableCallback, TableColumn, TableColumnValue,
+    EnvironmentConfig, LakestreamError, ObjectStore, Table, TableCallback,
+    TableColumn, TableColumnValue,
 };
-
 
 pub struct ObjectStoreTable {
     columns: HashMap<String, Box<dyn TableColumn>>,
@@ -52,14 +50,14 @@ impl Table for ObjectStoreTable {
 
     fn add_row(
         &mut self,
-        row: HashMap<String, TableColumnValue>,
+        row_data: HashMap<String, TableColumnValue>,
     ) -> Result<(), String> {
         if let Some(callback) = &self.callback {
-            let mut row_for_callback = row.clone();
-            callback.on_row_add(&mut row_for_callback);
+            let mut row = TableRow::new(row_data.clone(), &print_row);
+            callback.on_row_add(&mut row);
         }
 
-        for (column_name, value) in row {
+        for (column_name, value) in row_data {
             if let Some(column) = self.columns.get_mut(&column_name) {
                 column.append(value)?;
             } else {
@@ -71,17 +69,18 @@ impl Table for ObjectStoreTable {
     }
 
     fn print_items(&self) {
-        if let Some(column_uri) = self.columns.get("uri") {
-            if let Some(string_column) =
-                column_uri.as_any().downcast_ref::<StringColumn>()
-            {
-                for value in string_column.values() {
-                    println!("{}", value);
-                }
-            } else {
-                // This should never happen, if it does, it's a programming error.
-                panic!("Column 'uri' is not a StringColumn or does not exist.");
-            }
+        let column_uri = self
+            .columns
+            .get("uri")
+            .expect("Column 'uri' does not exist.");
+
+        let string_column = column_uri
+            .as_any()
+            .downcast_ref::<StringColumn>()
+            .expect("Column 'name' is not a StringColumn.");
+
+        for value in string_column.values() {
+            println!("{}", value);
         }
     }
 
@@ -106,13 +105,18 @@ impl ObjectStoreTable {
         &mut self,
         object_store: ObjectStore,
     ) -> Result<(), String> {
-        let mut row = HashMap::new();
-        row.insert(
+        let mut row_data = HashMap::new();
+        row_data.insert(
             "uri".to_string(),
             TableColumnValue::StringColumn(object_store.uri()),
         );
-        self.add_row(row)
+        self.add_row(row_data)
     }
+}
+
+fn print_row(row: &TableRow) {
+    let uri = row.data().get("uri").unwrap().to_string();
+    println!("{}", uri);
 }
 
 impl fmt::Debug for ObjectStoreTable {
@@ -145,4 +149,3 @@ pub async fn table_from_list_bucket(
     }
     Ok(Box::new(table))
 }
-

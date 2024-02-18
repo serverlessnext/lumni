@@ -9,9 +9,8 @@ use sqlparser::parser::Parser;
 use crate::table::object_store::table_from_list_bucket;
 use crate::utils::uri_parse::ParsedUri;
 use crate::{
-    BinaryCallbackWrapper, EnvironmentConfig,
-    FileObjectFilter, LakestreamError, ObjectStore,
-    Table, TableCallback, ObjectStoreTable,
+    BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter,
+    LakestreamError, ObjectStore, ObjectStoreTable, Table, TableCallback,
 };
 
 #[derive(Clone)]
@@ -68,8 +67,7 @@ impl ObjectStoreHandler {
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
-        let table =
-            table_from_list_bucket(updated_config, callback).await?;
+        let table = table_from_list_bucket(updated_config, callback).await?;
         Ok(table)
     }
 
@@ -136,7 +134,8 @@ impl ObjectStoreHandler {
                 max_files,
                 filter,
                 callback,
-            ).await?;
+            )
+            .await?;
         Ok(())
     }
 

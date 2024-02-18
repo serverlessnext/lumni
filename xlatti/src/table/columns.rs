@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::fmt::Debug;
 
-
 #[derive(Debug, Clone)]
 pub enum TableColumnValue {
     Int32Column(i32),
@@ -29,12 +28,14 @@ macro_rules! create_column_types {
         pub struct $OptionalTypeName(pub Vec<Option<$ValueType>>);
 
         impl $TypeName {
+            #[allow(dead_code)]
             pub fn values(&self) -> &[$ValueType] {
                 &self.0
             }
         }
 
         impl $OptionalTypeName {
+            #[allow(dead_code)]
             pub fn values(&self) -> &[Option<$ValueType>] {
                 &self.0
             }
@@ -45,7 +46,10 @@ macro_rules! create_column_types {
                 self.0.len()
             }
 
-            fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
+            fn append(
+                &mut self,
+                value: TableColumnValue,
+            ) -> Result<(), &'static str> {
                 if let TableColumnValue::$TypeName(val) = value {
                     self.0.push(val);
                     Ok(())
@@ -64,7 +68,10 @@ macro_rules! create_column_types {
                 self.0.len()
             }
 
-            fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str> {
+            fn append(
+                &mut self,
+                value: TableColumnValue,
+            ) -> Result<(), &'static str> {
                 if let TableColumnValue::$OptionalTypeName(val) = value {
                     self.0.push(val);
                     Ok(())
@@ -85,7 +92,6 @@ create_column_types!(Uint64Column, OptionalUint64Column, u64);
 create_column_types!(FloatColumn, OptionalFloatColumn, f64);
 create_column_types!(StringColumn, OptionalStringColumn, String);
 
-
 impl TableColumnValue {
     pub fn to_string(&self) -> String {
         // Use a generic pattern for Optional variants to return "NULL" for None values.
@@ -97,7 +103,9 @@ impl TableColumnValue {
             // Handle optional types using a pattern that matches any Some variant and calls to_string on its content.
             // For None, return "NULL".
             TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
-            TableColumnValue::OptionalUint64Column(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalUint64Column(Some(val)) => {
+                val.to_string()
+            }
             TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
             TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
             // Match any None variant for Optional types

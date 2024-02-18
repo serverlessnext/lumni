@@ -2,9 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use super::bucket::{FileSystem, LocalFileSystem};
+use crate::table::{FileObjectTable, Table};
 use crate::{FileObject, FileObjectFilter};
-use crate::table::{Table, FileObjectTable};
-
 
 pub async fn list_files(
     path: &Path,
@@ -63,7 +62,7 @@ async fn list_files_next(
                 }
             }
         }
-        table.add_file_objects(temp_file_objects).await;
+        let _ = table.add_file_objects(temp_file_objects).await;
     }
 }
 

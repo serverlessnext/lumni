@@ -6,10 +6,10 @@ use async_trait::async_trait;
 
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
+use crate::table::{FileObjectTable, Table};
 use crate::{
-    EnvironmentConfig, FileObjectFilter, LakestreamError, TableCallback
+    EnvironmentConfig, FileObjectFilter, LakestreamError, TableCallback,
 };
-use crate::table::{Table, FileObjectTable};
 
 #[derive(Debug, Clone)]
 pub enum ObjectStore {
@@ -69,33 +69,24 @@ impl ObjectStore {
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<Box<dyn Table>, LakestreamError> { 
-
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let mut table = FileObjectTable::new();
         if let Some(callback) = callback {
             table.set_callback(callback);
         }
-    
+
         match self {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
                     .list_files(
-                        prefix,
-                        recursive,
-                        max_files,
-                        filter,
-                        &mut table,
+                        prefix, recursive, max_files, filter, &mut table,
                     )
                     .await
             }
             ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs
                     .list_files(
-                        prefix,
-                        recursive,
-                        max_files,
-                        filter,
-                        &mut table,
+                        prefix, recursive, max_files, filter, &mut table,
                     )
                     .await
             }
@@ -139,4 +130,3 @@ pub trait ObjectStoreTrait: Send {
         key: &str,
     ) -> Result<(u16, HashMap<String, String>), LakestreamError>;
 }
-

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::{self, File, ReadDir};
+use std::fs::{self, ReadDir};
 use std::io;
 use std::path::Path;
 
@@ -8,10 +8,8 @@ use async_trait::async_trait;
 use super::get::get_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
-use crate::{
-    FileObjectFilter, LakestreamError, ObjectStoreTrait,
-};
 use crate::table::FileObjectTable;
+use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait};
 
 pub struct LocalFileSystem;
 

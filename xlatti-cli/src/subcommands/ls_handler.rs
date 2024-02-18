@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use std::collections::HashMap;
-use log::info;
 use xlatti::{
-    EnvironmentConfig,
-    FileObjectFilter, LakestreamError, ObjectStoreHandler,
-    TableCallback, TableColumnValue,
+    EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
+    TableCallback, TableRow,
 };
 
 pub async fn handle_ls(
@@ -105,18 +102,15 @@ fn prepare_handle_ls_arguments(
 // Callback to print buckets
 struct ObjectStoreCallback;
 impl TableCallback for ObjectStoreCallback {
-    fn on_row_add(&self, row: &mut HashMap<String, TableColumnValue>) {
-        let uri = row.get("uri").unwrap().to_string();
-        println!("{}", uri);
+    fn on_row_add(&self, row: &mut TableRow) {
+        row.print();
     }
 }
 
 // Callback to print file objects
 struct FileObjectCallback;
 impl TableCallback for FileObjectCallback {
-    fn on_row_add(&self, row: &mut HashMap<String, TableColumnValue>) {
-        let name = row.get("name").unwrap().to_string();
-        let size = row.get("size").unwrap().to_string();
-        println!("{} - {}", size, name);
+    fn on_row_add(&self, row: &mut TableRow) {
+        row.print();
     }
 }

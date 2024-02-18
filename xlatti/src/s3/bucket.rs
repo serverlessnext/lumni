@@ -7,8 +7,8 @@ use super::head::head_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
 use crate::s3::config::validate_config;
-use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait};
 use crate::table::FileObjectTable;
+use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait};
 
 #[derive(Clone)]
 pub struct S3Credentials {
@@ -104,8 +104,7 @@ impl ObjectStoreTrait for S3Bucket {
                 return Err(LakestreamError::NoBucketInUri(prefix.to_string()));
             }
         }
-        list_files(self, prefix, recursive, max_keys, filter, table)
-            .await
+        list_files(self, prefix, recursive, max_keys, filter, table).await
     }
 
     async fn get_object(

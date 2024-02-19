@@ -9,7 +9,6 @@ pub fn query_subcommand() -> Command {
         .arg(
             Arg::new("statement")
                 .index(1)
-                //.value_parser(["GET"])
                 .required(true)
                 .help("Query statement"),
         )

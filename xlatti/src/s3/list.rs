@@ -61,6 +61,7 @@ async fn list_files_next(
     let mut temp_file_objects = Vec::new();
 
     directory_stack.push_back(params.prefix.clone());
+    let mut object_count = 0usize;
 
     let effective_max_keys =
         get_effective_max_keys(params.filter, params.max_keys);
@@ -99,17 +100,22 @@ async fn list_files_next(
                 &mut virtual_directories,
             );
 
+            object_count += temp_file_objects.len();
+
             if params.continuation_token.is_none()
-                || table.len()
+                || object_count
                     >= params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize
             {
                 break;
             }
         }
 
-        let file_objects =
-            temp_file_objects.drain(..).collect::<Vec<FileObject>>();
-        table.add_file_objects(file_objects).await?;
+        // Before adding to table, check if adding these objects would exceed max_keys limit.
+        let max_to_add = params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize - table.len();
+        if !temp_file_objects.is_empty() && max_to_add > 0 {
+            let objects_to_add = temp_file_objects.drain(..).take(max_to_add).collect::<Vec<_>>();
+            table.add_file_objects(objects_to_add).await?;
+        }
 
         if params.recursive {
             for virtual_directory in virtual_directories.drain(..) {
@@ -234,6 +240,8 @@ pub fn create_s3_client(
     S3Client::new(s3_client_config)
 }
 
+// when filter is provided, the effective max_keys is AWS_MAX_LIST_OBJECTS
+// because we are not sure how many objects will be filtered out
 fn get_effective_max_keys(
     filter: &Option<FileObjectFilter>,
     max_keys: Option<u32>,

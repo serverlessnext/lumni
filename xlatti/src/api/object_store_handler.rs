@@ -198,12 +198,18 @@ impl ObjectStoreHandler {
                         uri = uri[1..uri.len() - 1].to_string(); // Remove the first and last characters
                     }
 
+                    // Extract the LIMIT value if present
+                    let limit = match &query.limit {
+                        Some(sqlparser::ast::Expr::Value(sqlparser::ast::Value::Number(n, _))) => n.parse::<u32>().ok(),
+                        _ => None,
+                    };
+
                     let result = self
                         .list_objects(
                             &uri,
                             config,
                             true,
-                            None,
+                            limit,
                             &None,
                             callback.clone(),
                         )

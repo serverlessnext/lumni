@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use super::bucket::{FileSystem, LocalFileSystem};
-use crate::table::{FileObjectTable, Table};
+use crate::table::FileObjectTable;
 use crate::{FileObject, FileObjectFilter};
 
 pub async fn list_files(
@@ -24,16 +24,15 @@ async fn list_files_next(
 ) {
     let fs = &LocalFileSystem;
     let mut directory_stack = vec![path.to_owned()];
+    let mut object_count = 0usize;
 
     while let Some(current_path) = directory_stack.pop() {
         let mut temp_file_objects = Vec::new();
 
         if let Ok(entries) = fs.read_dir(&current_path) {
             for entry in entries.flatten() {
-                if let Some(max_keys) = max_keys {
-                    if table.len() >= max_keys as usize {
-                        break;
-                    }
+                if max_keys.map_or(false, |max| object_count >= max as usize) {
+                    break; // Stop processing more entries
                 }
 
                 let metadata = match entry.metadata() {
@@ -45,6 +44,7 @@ async fn list_files_next(
                     let file_object = handle_file(&entry, filter);
                     if let Some(file_object) = file_object {
                         temp_file_objects.push(file_object);
+                        object_count += 1;
                     }
                 } else if metadata.is_dir() {
                     let dir_name = entry.path().to_string_lossy().to_string();
@@ -54,6 +54,7 @@ async fn list_files_next(
                         let dir_object =
                             FileObject::new(dir_name, 0, None, None);
                         temp_file_objects.push(dir_object);
+                        object_count += 1;
                     }
 
                     if recursive {
@@ -62,7 +63,15 @@ async fn list_files_next(
                 }
             }
         }
-        let _ = table.add_file_objects(temp_file_objects).await;
+        if !temp_file_objects.is_empty() {
+            let _ = table.add_file_objects(temp_file_objects).await;
+        }
+
+        // Exit the loop early if the max_keys limit has been reached
+        if max_keys.map_or(false, |max| object_count >= max as usize) {
+            break;
+        }
+
     }
 }
 

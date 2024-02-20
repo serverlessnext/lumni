@@ -91,6 +91,7 @@ impl ObjectStoreTrait for S3Bucket {
     async fn list_files(
         &self,
         prefix: Option<&str>,
+        selected_columns: &Option<Vec<&str>>,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,

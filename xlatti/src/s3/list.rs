@@ -186,20 +186,27 @@ fn process_response_body(
 
 pub async fn list_buckets(
     config: &EnvironmentConfig,
+    max_files: Option<u32>,
     table: &mut ObjectStoreTable,
 ) -> Result<(), LakestreamError> {
     let s3_client = create_s3_client(config, None);
     let headers: HashMap<String, String> =
         s3_client.generate_list_buckets_headers().unwrap();
     let result = http_get_request(&s3_client.url().clone(), &headers).await;
+    let mut object_count = 0usize;
 
     match result {
         Ok((body_bytes, _)) => {
             let body = String::from_utf8_lossy(&body_bytes).to_string();
             match parse_bucket_objects(&body, Some(config.clone())) {
                 Ok(bucket_objects) => {
+                    // ensure to not exceed max_files
                     for object_store in bucket_objects {
+                        if max_files.map_or(false, |max| object_count >= max as usize) {
+                            break;
+                        }
                         table.add_object_store(object_store).await?;
+                        object_count += 1;
                     }
                 }
                 Err(e) => error!("Error listing bucket objects: {}", e),

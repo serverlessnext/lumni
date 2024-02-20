@@ -15,6 +15,7 @@ impl ObjectStoreBackend for LocalFsBackend {
 
     async fn list_buckets(
         _config: EnvironmentConfig,
+        _max_files: Option<u32>,
         _table: &mut ObjectStoreTable,
     ) -> Result<(), LakestreamError> {
         Ok(())

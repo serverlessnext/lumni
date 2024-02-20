@@ -1,22 +1,25 @@
 use std::fs;
 use std::path::Path;
+use std::collections::HashMap;
 
 use super::bucket::{FileSystem, LocalFileSystem};
-use crate::table::FileObjectTable;
+use crate::table::{FileObjectTable, TableColumnValue};
 use crate::{FileObject, FileObjectFilter};
 
 pub async fn list_files(
     path: &Path,
+    selected_columns: &Option<Vec<&str>>,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     table: &mut FileObjectTable,
 ) {
-    list_files_next(path, max_keys, recursive, filter, table).await;
+    list_files_next(path, selected_columns, max_keys, recursive, filter, table).await;
 }
 
 async fn list_files_next(
     path: &Path,
+    selected_columns: &Option<Vec<&str>>,
     max_keys: Option<u32>,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
@@ -26,7 +29,9 @@ async fn list_files_next(
     let mut directory_stack = vec![path.to_owned()];
     let mut object_count = 0usize;
 
+    println!("Selected columns: {:?}", selected_columns);
     while let Some(current_path) = directory_stack.pop() {
+        let mut temp_rows = Vec::new();
         let mut temp_file_objects = Vec::new();
 
         if let Ok(entries) = fs.read_dir(&current_path) {
@@ -41,9 +46,13 @@ async fn list_files_next(
                 };
 
                 if metadata.is_file() {
-                    let file_object = handle_file(&entry, filter);
-                    if let Some(file_object) = file_object {
-                        temp_file_objects.push(file_object);
+                    //let file_object = handle_file(&entry, filter);
+                    //if let Some(file_object) = file_object {
+                    //    temp_file_objects.push(file_object);
+                    //    object_count += 1;
+                    //}
+                    if let Some(row_data) = handle_file(&entry, filter, selected_columns) {
+                        temp_rows.push(row_data);
                         object_count += 1;
                     }
                 } else if metadata.is_dir() {
@@ -63,8 +72,11 @@ async fn list_files_next(
                 }
             }
         }
-        if !temp_file_objects.is_empty() {
-            let _ = table.add_file_objects(temp_file_objects).await;
+        //if !temp_file_objects.is_empty() {
+        //    let _ = table.add_file_objects(temp_file_objects).await;
+        //}
+        if !temp_rows.is_empty() {
+            let _ = table.add_rows(temp_rows).await;
         }
 
         // Exit the loop early if the max_keys limit has been reached
@@ -78,11 +90,10 @@ async fn list_files_next(
 fn handle_file(
     entry: &fs::DirEntry,
     filter: &Option<FileObjectFilter>,
-) -> Option<FileObject> {
-    let metadata = match entry.metadata() {
-        Ok(md) => md,
-        Err(_) => return None,
-    };
+    selected_columns: &Option<Vec<&str>>,
+//) -> Option<FileObject> {
+) -> Option<HashMap<String, TableColumnValue>> {
+   let metadata = entry.metadata().ok()?;
 
     let file_name = entry.path().to_string_lossy().to_string();
     let file_size = metadata.len();
@@ -93,14 +104,23 @@ fn handle_file(
             .unwrap_or(0)
     });
 
-    let file_object = FileObject::new(file_name, file_size, modified, None);
-
     // Check if the file_object satisfies the filter conditions
+    let file_object = FileObject::new(file_name.clone(), file_size, modified, None);
     if let Some(ref filter) = filter {
         if !filter.matches(&file_object) {
             return None;
         }
     }
+    let mut row_data = HashMap::new();
+    if selected_columns.as_ref().map_or(true, |cols| cols.contains(&"name")) {
+        row_data.insert("name".to_string(), TableColumnValue::StringColumn(file_name));
+    }
+    if selected_columns.as_ref().map_or(true, |cols| cols.contains(&"size")) {
+        row_data.insert("size".to_string(), TableColumnValue::Uint64Column(file_size));
+    }
+    if selected_columns.as_ref().map_or(true, |cols| cols.contains(&"modified")) && modified.is_some() {
+        row_data.insert("modified".to_string(), TableColumnValue::OptionalUint64Column(modified));
+    }
 
-    Some(file_object)
+    Some(row_data)
 }

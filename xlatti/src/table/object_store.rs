@@ -127,6 +127,7 @@ impl fmt::Debug for ObjectStoreTable {
 
 pub async fn table_from_list_bucket(
     config: EnvironmentConfig,
+    max_files: Option<u32>,
     callback: Option<Arc<dyn TableCallback>>,
 ) -> Result<Box<dyn Table>, LakestreamError> {
     let uri = config.get("uri").unwrap_or(&"".to_string()).clone();
@@ -140,10 +141,10 @@ pub async fn table_from_list_bucket(
 
     if uri.starts_with("s3://") {
         // Delegate the logic to the S3 backend
-        S3Backend::list_buckets(config.clone(), &mut table).await?;
+        S3Backend::list_buckets(config.clone(), max_files, &mut table).await?;
     } else if uri.starts_with("localfs://") {
         // Delegate the logic to the LocalFs backend
-        LocalFsBackend::list_buckets(config.clone(), &mut table).await?;
+        LocalFsBackend::list_buckets(config.clone(), max_files, &mut table).await?;
     } else {
         error!("Unsupported object store type: {}", uri);
     }

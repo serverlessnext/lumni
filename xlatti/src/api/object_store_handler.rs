@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::info;
-use sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
+use log::debug;
+use sqlparser::ast::{Query, SelectItem, SetExpr, Expr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
@@ -33,19 +33,34 @@ impl ObjectStoreHandler {
     ) -> Result<(), LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
+
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
-            info!("Listing files in bucket {}", bucket);
+            debug!("Listing files in bucket {}", bucket);
+        
+            // temporary set columns here 
+            let selected_columns = Some(vec!["name", "size", "modified"]);
+            //let selected_columns = Some(vec!["size"]);
+
             self.list_files_in_bucket(
-                parsed_uri,
+                parsed_uri, // FROM
                 config.clone(),
-                recursive,
-                max_files,
-                filter,
-                callback,
+                &selected_columns, // SELECT
+                recursive,  // true in case Query is used
+                max_files,  // LIMIT
+                filter,     // WHERE
+                callback,   // callback is a custom function
+                            // applied to what gets selected (via ROW addition)
             )
             .await
         } else {
+            if let Some(scheme) = &parsed_uri.scheme {
+                if scheme == "s3" {
+                    debug!("Listing buckets on S3");
+                    self.list_buckets(uri, config, max_files, callback).await?;
+                    return Ok(());
+                }
+            }
             Err(LakestreamError::NoBucketInUri(uri.to_string()))
         }
     }
@@ -54,6 +69,7 @@ impl ObjectStoreHandler {
         &self,
         uri: &str,
         config: &EnvironmentConfig,
+        max_files: Option<u32>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
@@ -67,7 +83,7 @@ impl ObjectStoreHandler {
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
-        let table = table_from_list_bucket(updated_config, callback).await?;
+        let table = table_from_list_bucket(updated_config, max_files, callback).await?;
         Ok(table)
     }
 
@@ -114,6 +130,7 @@ impl ObjectStoreHandler {
         &self,
         parsed_uri: ParsedUri,
         config: EnvironmentConfig,
+        selected_columns: &Option<Vec<&str>>,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -130,6 +147,7 @@ impl ObjectStoreHandler {
         let _ = object_store
             .list_files(
                 parsed_uri.path.as_deref(),
+                selected_columns,
                 recursive,
                 max_files,
                 filter,
@@ -172,61 +190,76 @@ impl ObjectStoreHandler {
         config: &EnvironmentConfig,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<(), LakestreamError> {
+
         if let SetExpr::Select(select) = &*query.body {
-            if select.projection.len() == 1
-                && matches!(select.projection[0], SelectItem::Wildcard(_))
-            {
-                if let Some(table) = select.from.first() {
-                    // assume the query is of the form 'SELECT * FROM "uri"'
-                    // TODOs:
-                    // 1. directories vs files
-                    // in this first implementation, everything is treated as a directory,
-                    // while we should distinguish between files and directories
-                    // directories -> call list_objects()
-                    // files -> treat as a database file (e.g. .sql, .parquet)
-                    //
-                    // 2. handle the following SQL clauses:
-                    // non-wildcards in the SELECT statementA, e.g. 'SELECT name, size FROM "uri"'
-                    // WHERE clauses, e.g. 'SELECT * FROM "uri" WHERE size > 100'
-                    // ORDER BY, LIMIT and OFFSET clauses
-                    let mut uri = table.relation.to_string();
 
-                    // check for and remove leading and trailing quotes
-                    if (uri.starts_with('"') && uri.ends_with('"'))
-                        || (uri.starts_with('\'') && uri.ends_with('\''))
-                    {
-                        uri = uri[1..uri.len() - 1].to_string(); // Remove the first and last characters
+            let selected_columns = if select.projection.iter().any(|item| matches!(item, SelectItem::Wildcard(_))) { 
+                // wildcard: e.g. SELECT * FROM "uri"
+                None 
+            } else {
+                Some(select.projection.iter().filter_map(|item| {
+                    if let SelectItem::UnnamedExpr(Expr::Identifier(ident)) = item {
+                        Some(ident.value.clone())
+                    } else {
+                        log::warn!("Skipping non-identifier selection: {:?}", item);
+                        None
                     }
+                }).collect::<Vec<String>>())
+            };
 
-                    // Extract the LIMIT value if present
-                    let limit = match &query.limit {
-                        Some(sqlparser::ast::Expr::Value(sqlparser::ast::Value::Number(n, _))) => n.parse::<u32>().ok(),
-                        _ => None,
-                    };
+            if let Some(table) = select.from.first() {
+                 // assume the query is of the form 'SELECT * FROM "uri"'
+                 // TODOs:
+                 // 1. directories vs files
+                 // in this first implementation, everything is treated as a directory,
+                 // while we should distinguish between files and directories
+                 // directories -> call list_objects()
+                 // files -> treat as a database file (e.g. .sql, .parquet)
+                 //
+                 // 2. handle the following SQL clauses:
+                 // non-wildcards in the SELECT statementA, e.g. 'SELECT name, size FROM "uri"'
+                 // WHERE clauses, e.g. 'SELECT * FROM "uri" WHERE size > 100'
+                 // ORDER BY, LIMIT and OFFSET clauses
+                 let mut uri = table.relation.to_string();
+         
+                 // check for and remove leading and trailing quotes
+                 if (uri.starts_with('"') && uri.ends_with('"'))
+                     || (uri.starts_with('\'') && uri.ends_with('\''))
+                 {
+                     uri = uri[1..uri.len() - 1].to_string(); // Remove the first and last characters
+                 }
+             
+                 // Extract the LIMIT value if present
+                 let limit = match &query.limit {
+                     Some(sqlparser::ast::Expr::Value(sqlparser::ast::Value::Number(n, _))) => n.parse::<u32>().ok(),
+                     _ => None,
+                 };
 
-                    let result = self
-                        .list_objects(
-                            &uri,
-                            config,
-                            true,
-                            limit,
-                            &None,
-                            callback.clone(),
-                        )
-                        .await;
-
-                    match result {
-                        Err(LakestreamError::NoBucketInUri(_)) => {
-                            // Assume uri is a pointer to a database file (e.g. .sql, .parquet)
-                            return self
-                                .query_object(&uri, config, query, callback)
-                                .await;
-                        }
-                        _ => return result,
-                    }
-                }
-            }
+                 println!("LIST OBJECTS for {}, Selected Columns: {:?}", uri, selected_columns);
+                 let result = self
+                     .list_objects(
+                         &uri,
+                         config,
+                         true,
+                         limit,
+                         &None,
+                         callback.clone(),
+                     )
+                     .await;
+                 
+                 match result {
+                     Err(LakestreamError::NoBucketInUri(_)) => {
+                         // uri does not point to a bucket or (virtual) directory
+                         // assume it to be a pointer to a database file (e.g. .sql, .parquet)
+                         return self
+                             .query_object(&uri, config, query, callback)
+                             .await;
+                     }
+                     _ => return result,
+                 }
+             }
         }
+    //}
 
         Err(LakestreamError::InternalError(
             "Query does not match 'SELECT * FROM uri' pattern".to_string(),
@@ -257,6 +290,7 @@ pub trait ObjectStoreBackend: Send {
 
     async fn list_buckets(
         config: EnvironmentConfig,
+        max_files: Option<u32>,
         table: &mut ObjectStoreTable,
     ) -> Result<(), LakestreamError>;
 }

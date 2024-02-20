@@ -65,6 +65,7 @@ impl ObjectStore {
     pub async fn list_files(
         &self,
         prefix: Option<&str>,
+        selected_columns: &Option<Vec<&str>>,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -79,14 +80,14 @@ impl ObjectStore {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
                     .list_files(
-                        prefix, recursive, max_files, filter, &mut table,
+                        prefix, selected_columns, recursive, max_files, filter, &mut table,
                     )
                     .await
             }
             ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs
                     .list_files(
-                        prefix, recursive, max_files, filter, &mut table,
+                        prefix, selected_columns, recursive, max_files, filter, &mut table,
                     )
                     .await
             }
@@ -115,6 +116,7 @@ pub trait ObjectStoreTrait: Send {
     async fn list_files(
         &self,
         prefix: Option<&str>,
+        selected_columns: &Option<Vec<&str>>,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,

@@ -104,6 +104,8 @@ fn print_row(row: &TableRow) {
     let fsize =
         extract_u64_value(row_data.get("size").expect("size not found"))
             .unwrap_or(0);
+
+
     let modified = extract_u64_value(
         row_data.get("modified").expect("modified not found"),
     );
@@ -157,6 +159,15 @@ impl FileObjectTable {
                 "modified".to_string(),
                 TableColumnValue::OptionalUint64Column(file_object.modified()),
             );
+            self.add_row(row_data)?;
+        }
+        Ok(())
+    }
+    pub async fn add_rows(
+        &mut self,
+        rows: Vec<HashMap<String, TableColumnValue>>,
+    ) -> Result<(), String> {
+        for row_data in rows {
             self.add_row(row_data)?;
         }
         Ok(())

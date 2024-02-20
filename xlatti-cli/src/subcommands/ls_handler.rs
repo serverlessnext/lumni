@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use log::{debug, error};
 use xlatti::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
     TableCallback, TableRow,
@@ -14,7 +14,7 @@ pub async fn handle_ls(
 
     let handler = ObjectStoreHandler::new(None);
 
-    let callback = Arc::new(FileObjectCallback);
+    let callback = Arc::new(PrintCallback);
 
     match handler
         .list_objects(
@@ -28,30 +28,15 @@ pub async fn handle_ls(
         .await
     {
         Ok(_) => {
-            println!("Done");
+            debug!("List objects executed successfully with no return value.");
         }
         Err(LakestreamError::NoBucketInUri(_)) => {
-            // if uri ends with "/", try to list buckets instead
-            if uri.ends_with('/') {
-                handle_list_buckets(&uri, config).await;
-            } else {
-                eprintln!("Error: No bucket found at: {}", uri);
-            }
+            error!("Error: No bucket in URI");
+            std::process::exit(1);
         }
         Err(err) => {
-            eprintln!("Error: {:?}", err);
-        }
-    }
-}
-
-async fn handle_list_buckets(uri: &str, config: &EnvironmentConfig) {
-    log::info!("Calling list_buckets");
-    let handler = ObjectStoreHandler::new(None);
-    let callback = Arc::new(ObjectStoreCallback);
-    match handler.list_buckets(uri, config, Some(callback)).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("Error: {:?}", err);
+            error!("Error listing objects: {}", err);
+            std::process::exit(1);
         }
     }
 }
@@ -83,7 +68,7 @@ fn prepare_handle_ls_arguments(
             match filter_result {
                 Ok(filter) => Some(filter),
                 Err(err) => {
-                    eprintln!("Error: {}", err);
+                    error!("Error creating filter: {}", err);
                     std::process::exit(1);
                 }
             }
@@ -99,17 +84,9 @@ fn prepare_handle_ls_arguments(
     (uri, recursive, max_files, filter)
 }
 
-// Callback to print buckets
-struct ObjectStoreCallback;
-impl TableCallback for ObjectStoreCallback {
-    fn on_row_add(&self, row: &mut TableRow) {
-        row.print();
-    }
-}
-
-// Callback to print file objects
-struct FileObjectCallback;
-impl TableCallback for FileObjectCallback {
+// Callback to print each row to the console
+struct PrintCallback;
+impl TableCallback for PrintCallback {
     fn on_row_add(&self, row: &mut TableRow) {
         row.print();
     }

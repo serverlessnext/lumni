@@ -18,7 +18,7 @@ impl ObjectStoreBackend for S3Backend {
 
     async fn list_buckets(
         config: EnvironmentConfig,
-        //object_stores: &mut ObjectStoreVec,
+        max_files: Option<u32>,
         table: &mut ObjectStoreTable,
     ) -> Result<(), LakestreamError> {
         let config_map = config.settings.clone();
@@ -33,6 +33,6 @@ impl ObjectStoreBackend for S3Backend {
                 "Invalid configuration".to_string(),
             ));
         }
-        list_buckets(&config_instance, table).await
+        list_buckets(&config_instance, max_files, table).await
     }
 }

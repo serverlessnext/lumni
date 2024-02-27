@@ -50,7 +50,7 @@ impl Table for ObjectStoreTable {
 
     fn add_row(
         &mut self,
-        row_data: HashMap<String, TableColumnValue>,
+        row_data: Vec<(String, TableColumnValue)>,
     ) -> Result<(), String> {
         if let Some(callback) = &self.callback {
             let mut row = TableRow::new(row_data.clone(), &print_row);
@@ -105,17 +105,24 @@ impl ObjectStoreTable {
         &mut self,
         object_store: ObjectStore,
     ) -> Result<(), String> {
-        let mut row_data = HashMap::new();
-        row_data.insert(
+        let row_data = vec![(
             "uri".to_string(),
             TableColumnValue::StringColumn(object_store.uri()),
-        );
+        )];
         self.add_row(row_data)
     }
 }
 
 fn print_row(row: &TableRow) {
-    let uri = row.data().get("uri").unwrap().to_string();
+    let uri = row
+        .data()
+        .iter()
+        .find(|(key, _)| key == "uri")
+        .map(|(_, value)| match value {
+            TableColumnValue::StringColumn(val) => val,
+            _ => "Invalid type", // Placeholder for error handling
+        })
+        .unwrap_or("URI not found");
     println!("{}", uri);
 }
 
@@ -144,7 +151,8 @@ pub async fn table_from_list_bucket(
         S3Backend::list_buckets(config.clone(), max_files, &mut table).await?;
     } else if uri.starts_with("localfs://") {
         // Delegate the logic to the LocalFs backend
-        LocalFsBackend::list_buckets(config.clone(), max_files, &mut table).await?;
+        LocalFsBackend::list_buckets(config.clone(), max_files, &mut table)
+            .await?;
     } else {
         error!("Unsupported object store type: {}", uri);
     }

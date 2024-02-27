@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use log::{debug, error};
 use xlatti::{EnvironmentConfig, ObjectStoreHandler, TableCallback, TableRow};
 
@@ -16,8 +17,11 @@ pub async fn handle_query(
     let callback = Arc::new(PrintCallback);
     // Execute the SQL query through the ObjectStoreHandler
     // Assuming `execute_query` can utilize the same `ListObjectsResult` for its output
-    match handler.execute_query(statement, config, Some(callback)).await {
-       Ok(_) => {
+    match handler
+        .execute_query(statement, config, Some(callback))
+        .await
+    {
+        Ok(_) => {
             debug!("Query executed successfully with no return value.");
         }
         Err(err) => {

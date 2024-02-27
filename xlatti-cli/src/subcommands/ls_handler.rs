@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use log::{debug, error};
 use xlatti::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
@@ -20,6 +21,7 @@ pub async fn handle_ls(
         .list_objects(
             &uri,
             config,
+            None, // functions as "*", prints all columns
             recursive,
             Some(max_files),
             &filter,

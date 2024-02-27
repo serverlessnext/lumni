@@ -72,7 +72,8 @@ impl ObjectStoreTrait for LocalFsBucket {
                 path.to_string_lossy().to_string(),
             ));
         }
-        list_files(&path, selected_columns, max_keys, recursive, filter, table).await;
+        list_files(&path, selected_columns, max_keys, recursive, filter, table)
+            .await;
         Ok(())
     }
 

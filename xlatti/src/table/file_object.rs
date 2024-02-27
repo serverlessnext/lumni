@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, panic};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -9,22 +9,61 @@ use crate::table::{
 use crate::{FileObject, Table, TableCallback, TableColumn, TableColumnValue};
 
 pub struct FileObjectTable {
-    columns: HashMap<String, Box<dyn TableColumn>>,
+    columns: Vec<(String, Box<dyn TableColumn>)>, // Store columns in order
+    column_index: HashMap<String, usize>,         // store order of columns
     callback: Option<Arc<dyn TableCallback>>,
+    print_function: fn(&TableRow),
 }
 
 impl FileObjectTable {
-    pub fn new() -> Self {
-        let mut table = Self {
-            columns: HashMap::new(),
-            callback: None,
+    pub fn new(selected_columns: &Option<Vec<&str>>) -> Self {
+        let print_function: fn(&TableRow) = if selected_columns.is_some() {
+            print_selected
+        } else {
+            print_row
         };
-        table.add_column("name", Box::new(StringColumn(Vec::new())));
-        table.add_column("size", Box::new(Uint64Column(Vec::new())));
-        table
-            .add_column("modified", Box::new(OptionalUint64Column(Vec::new())));
-        // note: tags are not yet covered: Option<HashMap<String, String>>,
 
+        let mut table = Self {
+            columns: Vec::new(),
+            column_index: HashMap::new(),
+            callback: None,
+            print_function,
+        };
+
+        // Define a list of valid column names
+        let valid_columns = vec!["name", "size", "modified"];
+
+        if let Some(columns) = selected_columns {
+            for &column in columns {
+                match column {
+                    "name" => table
+                        .add_column("name", Box::new(StringColumn(Vec::new()))),
+                    "size" => table
+                        .add_column("size", Box::new(Uint64Column(Vec::new()))),
+                    "modified" => table.add_column(
+                        "modified",
+                        Box::new(OptionalUint64Column(Vec::new())),
+                    ),
+                    _ => panic!("Invalid column name: {}", column),
+                }
+            }
+        } else {
+            // If no selected_columns provided, add all valid columns by default
+            for &column in &valid_columns {
+                match column {
+                    "name" => table
+                        .add_column("name", Box::new(StringColumn(Vec::new()))),
+                    "size" => table
+                        .add_column("size", Box::new(Uint64Column(Vec::new()))),
+                    "modified" => table.add_column(
+                        "modified",
+                        Box::new(OptionalUint64Column(Vec::new())),
+                    ),
+                    // should not be reachable because valid_columns is hardcoded
+                    _ => panic!("Invalid column name: {}", column),
+                }
+            }
+        }
         table
     }
 }
@@ -34,12 +73,16 @@ impl Table for FileObjectTable {
         if self.columns.is_empty() {
             0
         } else {
-            // Return the length of the first column found
-            self.columns.values().next().unwrap().len()
+            // Since all columns should have the same length,
+            // return the length of the first column's data.
+            self.columns[0].1.len()
         }
     }
+
     fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>) {
-        self.columns.insert(name.to_string(), column_type);
+        let index = self.columns.len();
+        self.columns.push((name.to_string(), column_type));
+        self.column_index.insert(name.to_string(), index);
     }
 
     fn set_callback(&mut self, callback: Arc<dyn TableCallback>) {
@@ -48,18 +91,18 @@ impl Table for FileObjectTable {
 
     fn add_row(
         &mut self,
-        row_data: HashMap<String, TableColumnValue>,
+        row_data: Vec<(String, TableColumnValue)>,
     ) -> Result<(), String> {
         if let Some(callback) = &self.callback {
-            let mut row = TableRow::new(row_data.clone(), &print_row);
+            let mut row = TableRow::new(row_data.clone(), &self.print_function);
             callback.on_row_add(&mut row);
         }
-
         for (column_name, value) in row_data {
-            if let Some(column) = self.columns.get_mut(&column_name) {
+            if let Some(&index) = self.column_index.get(&column_name) {
+                let (_, column) = &mut self.columns[index];
                 column.append(value)?;
             } else {
-                return Err(format!("Column not found: {}", column_name));
+                return Err(format!("Column '{}' not found", column_name));
             }
         }
 
@@ -67,18 +110,22 @@ impl Table for FileObjectTable {
     }
 
     fn print_items(&self) {
-        let column_uri = self
-            .columns
-            .get("name")
-            .expect("Column 'name' does not exist.");
+        let column = self.columns.iter().find(|(name, _)| name == "name");
 
-        let string_column = column_uri
-            .as_any()
-            .downcast_ref::<StringColumn>()
-            .expect("Column 'name' is not a StringColumn.");
-
-        for value in string_column.values() {
-            println!("{}", value);
+        if let Some((_, column)) = column {
+            // Attempt to downcast to a StringColumn
+            if let Some(string_column) =
+                column.as_any().downcast_ref::<StringColumn>()
+            {
+                // Iterate over the values in the StringColumn and print them
+                for value in string_column.values() {
+                    println!("{}", value);
+                }
+            } else {
+                println!("Column 'name' is not a StringColumn.");
+            }
+        } else {
+            println!("Column 'name' does not exist.");
         }
     }
 
@@ -100,15 +147,30 @@ impl Table for FileObjectTable {
 fn print_row(row: &TableRow) {
     let full_path = true;
     let row_data = row.data();
-    let name = row_data.get("name").expect("name not found").to_string();
-    let fsize =
-        extract_u64_value(row_data.get("size").expect("size not found"))
-            .unwrap_or(0);
 
+    let name = row_data
+        .iter()
+        .find(|(key, _)| key == "name")
+        .map(|(_, value)| match value {
+            TableColumnValue::StringColumn(val)
+            | TableColumnValue::OptionalStringColumn(Some(val)) => val,
+            _ => panic!("name column not found or not a string"),
+        })
+        .expect("name not found")
+        .to_string();
 
-    let modified = extract_u64_value(
-        row_data.get("modified").expect("modified not found"),
-    );
+    let fsize = row_data
+        .iter()
+        .find(|(key, _)| key == "size")
+        .map(|(_, value)| extract_u64_value(value))
+        .flatten()
+        .unwrap_or(0); // defaults to 0 if None
+
+    let modified = row_data
+        .iter()
+        .find(|(key, _)| key == "modified")
+        .map(|(_, value)| extract_u64_value(value))
+        .flatten();
 
     let name_without_trailing_slash = name.trim_end_matches('/');
     let mut name_to_print = if full_path {
@@ -140,35 +202,76 @@ fn print_row(row: &TableRow) {
     );
 }
 
+fn print_selected(row: &TableRow) {
+    let row_data = row.data();
+    let mut values_to_print = Vec::new();
+
+    // Iterate over all columns present in the row
+    for (_key, value) in row_data {
+        // Prepare the value for printing, adjust as necessary
+        let value_str = match value {
+            TableColumnValue::Int32Column(val) => val.to_string(),
+            TableColumnValue::Uint64Column(val) => val.to_string(),
+            TableColumnValue::FloatColumn(val) => val.to_string(),
+            TableColumnValue::StringColumn(val) => val.clone(),
+            TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalUint64Column(Some(val)) => {
+                val.to_string()
+            }
+            TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
+            TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
+            TableColumnValue::OptionalInt32Column(None) => "None".to_string(),
+            TableColumnValue::OptionalUint64Column(None) => "None".to_string(),
+            TableColumnValue::OptionalFloatColumn(None) => "None".to_string(),
+            TableColumnValue::OptionalStringColumn(None) => "None".to_string(),
+        };
+        values_to_print.push(value_str);
+    }
+
+    // Join the values with commas and print
+    println!("{}", values_to_print.join(","));
+}
+
 impl FileObjectTable {
     pub async fn add_file_objects(
         &mut self,
         file_objects: Vec<FileObject>,
     ) -> Result<(), String> {
         for file_object in file_objects {
-            let mut row_data = HashMap::new();
-            row_data.insert(
-                "name".to_string(),
-                TableColumnValue::StringColumn(file_object.name().to_string()),
-            );
-            row_data.insert(
-                "size".to_string(),
-                TableColumnValue::Uint64Column(file_object.size()),
-            );
-            row_data.insert(
-                "modified".to_string(),
-                TableColumnValue::OptionalUint64Column(file_object.modified()),
-            );
+            let mut row_data: Vec<(String, TableColumnValue)> = Vec::new();
+
+            for (column_name, _) in &self.columns {
+                if let Some(value) =
+                    file_object.get_value_by_column_name(column_name)
+                {
+                    row_data.push((column_name.clone(), value));
+                } else {
+                    panic!("Column not found: {}", column_name);
+                }
+            }
+
+            // Now add the row_data for this file_object to the table
             self.add_row(row_data)?;
         }
         Ok(())
     }
+
     pub async fn add_rows(
         &mut self,
         rows: Vec<HashMap<String, TableColumnValue>>,
     ) -> Result<(), String> {
         for row_data in rows {
-            self.add_row(row_data)?;
+            let mut row_vec: Vec<(String, TableColumnValue)> = Vec::new();
+
+            // Iterate over self.columns to maintain the defined order
+            for (column_name, _) in &self.columns {
+                if let Some(value) = row_data.get(column_name) {
+                    row_vec.push((column_name.clone(), value.clone()));
+                } else {
+                    panic!("Column not found: {}", column_name);
+                }
+            }
+            self.add_row(row_vec)?;
         }
         Ok(())
     }

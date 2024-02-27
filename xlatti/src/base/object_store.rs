@@ -71,7 +71,7 @@ impl ObjectStore {
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        let mut table = FileObjectTable::new();
+        let mut table = FileObjectTable::new(selected_columns);
         if let Some(callback) = callback {
             table.set_callback(callback);
         }
@@ -80,14 +80,24 @@ impl ObjectStore {
             ObjectStore::S3Bucket(bucket) => {
                 bucket
                     .list_files(
-                        prefix, selected_columns, recursive, max_files, filter, &mut table,
+                        prefix,
+                        selected_columns,
+                        recursive,
+                        max_files,
+                        filter,
+                        &mut table,
                     )
                     .await
             }
             ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs
                     .list_files(
-                        prefix, selected_columns, recursive, max_files, filter, &mut table,
+                        prefix,
+                        selected_columns,
+                        recursive,
+                        max_files,
+                        filter,
+                        &mut table,
                     )
                     .await
             }

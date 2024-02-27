@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::table::{TableColumn, TableColumnValue};
+
 #[derive(Debug, Clone)]
 pub struct FileObject {
     name: String,
@@ -37,5 +39,17 @@ impl FileObject {
 
     pub fn tags(&self) -> &Option<HashMap<String, String>> {
         &self.tags
+    }
+
+    pub fn get_value_by_column_name(
+        &self,
+        column_name: &str,
+    ) -> Option<TableColumnValue> {
+        match column_name {
+            "name" => Some(TableColumnValue::StringColumn(self.name.clone())),
+            "size" => Some(TableColumnValue::Uint64Column(self.size)),
+            "modified" => self.modified.map(TableColumnValue::Uint64Column),
+            _ => None,
+        }
     }
 }

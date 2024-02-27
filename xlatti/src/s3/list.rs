@@ -111,9 +111,14 @@ async fn list_files_next(
         }
 
         // Before adding to table, check if adding these objects would exceed max_keys limit.
-        let max_to_add = params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS) as usize - table.len();
+        let max_to_add = params.max_keys.unwrap_or(AWS_MAX_LIST_OBJECTS)
+            as usize
+            - table.len();
         if !temp_file_objects.is_empty() && max_to_add > 0 {
-            let objects_to_add = temp_file_objects.drain(..).take(max_to_add).collect::<Vec<_>>();
+            let objects_to_add = temp_file_objects
+                .drain(..)
+                .take(max_to_add)
+                .collect::<Vec<_>>();
             table.add_file_objects(objects_to_add).await?;
         }
 
@@ -202,7 +207,9 @@ pub async fn list_buckets(
                 Ok(bucket_objects) => {
                     // ensure to not exceed max_files
                     for object_store in bucket_objects {
-                        if max_files.map_or(false, |max| object_count >= max as usize) {
+                        if max_files
+                            .map_or(false, |max| object_count >= max as usize)
+                        {
                             break;
                         }
                         table.add_object_store(object_store).await?;

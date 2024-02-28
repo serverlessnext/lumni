@@ -1,7 +1,7 @@
 use ::xlatti::{
     EnvironmentConfig, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
 };
-use leptos::log;
+use leptos::{ev::select, log};
 
 #[derive(Clone)]
 pub struct LakestreamHandler {
@@ -23,11 +23,15 @@ impl LakestreamHandler {
         let filter: Option<FileObjectFilter> = None;
         let callback = None;
 
+        // TODO: implement column selection
+        let selected_columns = None;
+
         let result = self
             .handler
             .list_objects(
                 &uri,
                 &self.config,
+                selected_columns,
                 recursive,
                 max_files,
                 &filter,

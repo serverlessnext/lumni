@@ -2,6 +2,7 @@ pub mod columns;
 pub mod file_object;
 pub mod object_store;
 
+use std::fmt::Debug;
 use core::fmt;
 use std::sync::Arc;
 
@@ -67,7 +68,7 @@ pub trait TableCallback: Send + Sync {
     fn on_row_add(&self, row: &mut TableRow);
 }
 
-pub trait Table {
+pub trait Table: Debug {
     fn len(&self) -> usize;
     fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>);
     fn set_callback(&mut self, callback: Arc<dyn TableCallback>);

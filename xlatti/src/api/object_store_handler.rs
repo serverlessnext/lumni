@@ -31,13 +31,13 @@ impl ObjectStoreHandler {
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let parsed_uri = ParsedUri::from_uri(uri, true);
 
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
             debug!("Listing files in bucket {}", bucket);
-            self.list_files_in_bucket(
+            let table = self.list_files_in_bucket(
                 parsed_uri, // FROM
                 config.clone(),
                 &selected_columns, // SELECT
@@ -47,13 +47,13 @@ impl ObjectStoreHandler {
                 callback,          // callback is a custom function
                                    // applied to what gets selected (via ROW addition)
             )
-            .await
+            .await?;
+            Ok(table)
         } else {
             if let Some(scheme) = &parsed_uri.scheme {
                 if scheme == "s3" {
                     debug!("Listing buckets on S3");
-                    self.list_buckets(uri, config, &selected_columns, max_files, callback).await?;
-                    return Ok(());
+                    return self.list_buckets(uri, config, &selected_columns, max_files, callback).await
                 }
             }
             Err(LakestreamError::NoBucketInUri(uri.to_string()))
@@ -79,9 +79,7 @@ impl ObjectStoreHandler {
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
-        let table =
-            table_from_list_bucket(updated_config, selected_columns, max_files, callback).await?;
-        Ok(table)
+        table_from_list_bucket(updated_config, selected_columns, max_files, callback).await
     }
 
     pub async fn get_object(
@@ -132,7 +130,7 @@ impl ObjectStoreHandler {
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
             format!("{}://{}", scheme, parsed_uri.bucket.as_ref().unwrap())
         } else {
@@ -140,8 +138,7 @@ impl ObjectStoreHandler {
         };
 
         let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
-
-        let _ = object_store
+        object_store
             .list_files(
                 parsed_uri.path.as_deref(),
                 selected_columns,
@@ -150,8 +147,7 @@ impl ObjectStoreHandler {
                 filter,
                 callback,
             )
-            .await?;
-        Ok(())
+            .await
     }
 
     pub async fn execute_query(
@@ -269,7 +265,7 @@ impl ObjectStoreHandler {
                             .query_object(&uri, config, query, callback)
                             .await;
                     }
-                    _ => return result,
+                    _ => return Ok(()), // TODO: query should return Table
                 }
             }
         }

@@ -11,13 +11,13 @@ pub use object_store::ObjectStoreTable;
 
 pub struct TableRow<'a> {
     data: Vec<(String, TableColumnValue)>,
-    print_fn: &'a (dyn Fn(&TableRow) + 'a),
+    print_fn: Option<&'a (dyn Fn(&TableRow) + 'a)>,
 }
 
 impl<'a> TableRow<'a> {
     pub fn new(
         data: Vec<(String, TableColumnValue)>,
-        print_fn: &'a (dyn Fn(&TableRow) + 'a),
+        print_fn: Option<&'a (dyn Fn(&TableRow) + 'a)>,
     ) -> Self {
         Self { data, print_fn }
     }
@@ -27,8 +27,32 @@ impl<'a> TableRow<'a> {
     }
 
     pub fn print(&self) {
-        (self.print_fn)(self);
+        if let Some(print_fn) = self.print_fn {
+            print_fn(self); // custom print function
+        } else {
+            self.print_columns(); // default print function
+        }
     }
+
+    pub fn print_columns(&self) {
+        let values_to_print: Vec<String> = self.data.iter().map(|(_, value)| {
+            let value_str = match value {
+                TableColumnValue::Int32Column(val) => val.to_string(),
+                TableColumnValue::Uint64Column(val) => val.to_string(),
+                TableColumnValue::FloatColumn(val) => val.to_string(),
+                TableColumnValue::StringColumn(val) => val.clone(),
+                TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
+                TableColumnValue::OptionalUint64Column(Some(val)) => val.to_string(),
+                TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
+                TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
+                _ => "None".to_string(), // Handle None cases for Optional values
+            };
+            format!("{}", value_str)
+        }).collect();
+
+        println!("{}", values_to_print.join(","));
+    }
+
 }
 
 impl<'a> Clone for TableRow<'a> {
@@ -51,6 +75,5 @@ pub trait Table {
         &mut self,
         row_data: Vec<(String, TableColumnValue)>,
     ) -> Result<(), String>;
-    fn print_items(&self);
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }

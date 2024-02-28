@@ -12,22 +12,14 @@ pub struct FileObjectTable {
     columns: Vec<(String, Box<dyn TableColumn>)>, // Store columns in order
     column_index: HashMap<String, usize>,         // store order of columns
     callback: Option<Arc<dyn TableCallback>>,
-    print_function: fn(&TableRow),
 }
 
 impl FileObjectTable {
     pub fn new(selected_columns: &Option<Vec<&str>>) -> Self {
-        let print_function: fn(&TableRow) = if selected_columns.is_some() {
-            print_selected
-        } else {
-            print_row
-        };
-
         let mut table = Self {
             columns: Vec::new(),
             column_index: HashMap::new(),
             callback: None,
-            print_function,
         };
 
         // Define a list of valid column names
@@ -94,7 +86,7 @@ impl Table for FileObjectTable {
         row_data: Vec<(String, TableColumnValue)>,
     ) -> Result<(), String> {
         if let Some(callback) = &self.callback {
-            let mut row = TableRow::new(row_data.clone(), &self.print_function);
+            let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
         }
         for (column_name, value) in row_data {
@@ -107,26 +99,6 @@ impl Table for FileObjectTable {
         }
 
         Ok(())
-    }
-
-    fn print_items(&self) {
-        let column = self.columns.iter().find(|(name, _)| name == "name");
-
-        if let Some((_, column)) = column {
-            // Attempt to downcast to a StringColumn
-            if let Some(string_column) =
-                column.as_any().downcast_ref::<StringColumn>()
-            {
-                // Iterate over the values in the StringColumn and print them
-                for value in string_column.values() {
-                    println!("{}", value);
-                }
-            } else {
-                println!("Column 'name' is not a StringColumn.");
-            }
-        } else {
-            println!("Column 'name' does not exist.");
-        }
     }
 
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -200,36 +172,6 @@ fn print_row(row: &TableRow) {
             name_to_print
         )
     );
-}
-
-fn print_selected(row: &TableRow) {
-    let row_data = row.data();
-    let mut values_to_print = Vec::new();
-
-    // Iterate over all columns present in the row
-    for (_key, value) in row_data {
-        // Prepare the value for printing, adjust as necessary
-        let value_str = match value {
-            TableColumnValue::Int32Column(val) => val.to_string(),
-            TableColumnValue::Uint64Column(val) => val.to_string(),
-            TableColumnValue::FloatColumn(val) => val.to_string(),
-            TableColumnValue::StringColumn(val) => val.clone(),
-            TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
-            TableColumnValue::OptionalUint64Column(Some(val)) => {
-                val.to_string()
-            }
-            TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
-            TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
-            TableColumnValue::OptionalInt32Column(None) => "None".to_string(),
-            TableColumnValue::OptionalUint64Column(None) => "None".to_string(),
-            TableColumnValue::OptionalFloatColumn(None) => "None".to_string(),
-            TableColumnValue::OptionalStringColumn(None) => "None".to_string(),
-        };
-        values_to_print.push(value_str);
-    }
-
-    // Join the values with commas and print
-    println!("{}", values_to_print.join(","));
 }
 
 impl FileObjectTable {

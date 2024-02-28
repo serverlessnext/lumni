@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::table::{TableColumn, TableColumnValue};
+use crate::table::TableColumnValue;
 
 #[derive(Debug, Clone)]
 pub struct FileObject {

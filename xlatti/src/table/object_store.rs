@@ -1,5 +1,4 @@
 use core::fmt;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::error;
@@ -14,74 +13,71 @@ use crate::{
 };
 
 pub struct ObjectStoreTable {
-    columns: HashMap<String, Box<dyn TableColumn>>,
+    columns: Vec<(String, Box<dyn TableColumn>)>, // Store columns in order
     callback: Option<Arc<dyn TableCallback>>,
 }
 
 impl ObjectStoreTable {
-    pub fn new() -> Self {
+    pub fn new(selected_columns: &Option<Vec<&str>>) -> Self {
         let mut table = Self {
-            columns: HashMap::new(),
+            columns: Vec::new(),
             callback: None,
         };
 
-        table.add_column("uri", Box::new(StringColumn(Vec::new())));
+        // Considering future flexibility, even though we currently only expect "uri"
+        let valid_columns = vec!["uri"]; // Only "uri" is valid for ObjectStoreTable
+
+        if let Some(columns) = selected_columns {
+            for &column in columns {
+                if valid_columns.contains(&column) {
+                    table.add_column(column, Box::new(StringColumn(Vec::new())));
+                } else {
+                    panic!("Invalid column name for ObjectStoreTable: {}", column);
+                }
+            }
+        } else {
+            // If no columns are specified, add "uri" by default
+            table.add_column("uri", Box::new(StringColumn(Vec::new())));
+        }
+
         table
     }
 }
+
 
 impl Table for ObjectStoreTable {
     fn len(&self) -> usize {
         if self.columns.is_empty() {
             0
         } else {
-            // Return the length of the first column found
-            self.columns.values().next().unwrap().len()
+            // Since all columns should have the same length,
+            // return the length of the first column's data.
+            self.columns[0].1.len()
         }
     }
-
-    fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>) {
-        self.columns.insert(name.to_string(), column_type);
+    
+   fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>) {
+        self.columns.push((name.to_string(), column_type));
     }
 
     fn set_callback(&mut self, callback: Arc<dyn TableCallback>) {
         self.callback = Some(callback);
     }
 
-    fn add_row(
-        &mut self,
-        row_data: Vec<(String, TableColumnValue)>,
-    ) -> Result<(), String> {
+    fn add_row(&mut self, row_data: Vec<(String, TableColumnValue)>) -> Result<(), String> {
         if let Some(callback) = &self.callback {
-            let mut row = TableRow::new(row_data.clone(), &print_row);
+            let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
         }
-
         for (column_name, value) in row_data {
-            if let Some(column) = self.columns.get_mut(&column_name) {
+            if let Some((_, column)) = self.columns.iter_mut().find(|(name, _)| name == &column_name) {
                 column.append(value)?;
             } else {
-                return Err(format!("Column not found: {}", column_name));
+                return Err(format!("Column '{}' not found", column_name));
             }
         }
-
+    
         Ok(())
-    }
-
-    fn print_items(&self) {
-        let column_uri = self
-            .columns
-            .get("uri")
-            .expect("Column 'uri' does not exist.");
-
-        let string_column = column_uri
-            .as_any()
-            .downcast_ref::<StringColumn>()
-            .expect("Column 'name' is not a StringColumn.");
-
-        for value in string_column.values() {
-            println!("{}", value);
-        }
     }
 
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -93,7 +89,6 @@ impl Table for ObjectStoreTable {
         for (name, column) in &self.columns {
             write!(f, "    {}: ", name)?;
             write!(f, "{:?}", column)?;
-            //column.fmt_debug(f)?;
             f.write_str(",\n")?;
         }
         f.write_str("}\n")
@@ -134,12 +129,13 @@ impl fmt::Debug for ObjectStoreTable {
 
 pub async fn table_from_list_bucket(
     config: EnvironmentConfig,
+    selected_columns: &Option<Vec<&str>>,
     max_files: Option<u32>,
     callback: Option<Arc<dyn TableCallback>>,
 ) -> Result<Box<dyn Table>, LakestreamError> {
     let uri = config.get("uri").unwrap_or(&"".to_string()).clone();
 
-    let mut table = ObjectStoreTable::new();
+    let mut table = ObjectStoreTable::new(selected_columns);
 
     // if callback defined, set it
     if let Some(callback) = callback {

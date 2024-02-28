@@ -33,6 +33,6 @@ pub async fn handle_query(
 struct PrintCallback;
 impl TableCallback for PrintCallback {
     fn on_row_add(&self, row: &mut TableRow) {
-        row.print();
+        row.print_columns();
     }
 }

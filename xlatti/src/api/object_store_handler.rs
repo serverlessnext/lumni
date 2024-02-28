@@ -52,7 +52,7 @@ impl ObjectStoreHandler {
             if let Some(scheme) = &parsed_uri.scheme {
                 if scheme == "s3" {
                     debug!("Listing buckets on S3");
-                    self.list_buckets(uri, config, max_files, callback).await?;
+                    self.list_buckets(uri, config, &selected_columns, max_files, callback).await?;
                     return Ok(());
                 }
             }
@@ -64,6 +64,7 @@ impl ObjectStoreHandler {
         &self,
         uri: &str,
         config: &EnvironmentConfig,
+        selected_columns: &Option<Vec<&str>>,
         max_files: Option<u32>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
@@ -79,7 +80,7 @@ impl ObjectStoreHandler {
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
         let table =
-            table_from_list_bucket(updated_config, max_files, callback).await?;
+            table_from_list_bucket(updated_config, selected_columns, max_files, callback).await?;
         Ok(table)
     }
 
@@ -248,11 +249,7 @@ impl ObjectStoreHandler {
                     _ => None,
                 };
 
-                println!(
-                    "LIST OBJECTS for {}, Selected Columns: {:?}",
-                    uri, selected_columns
-                );
-                let result = self
+               let result = self
                     .list_objects(
                         &uri,
                         config,

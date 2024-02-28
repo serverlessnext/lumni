@@ -30,6 +30,7 @@ pub struct ListFilesParams<'a> {
 pub async fn list_files(
     s3_bucket: &S3Bucket,
     prefix: Option<&str>,
+    selected_columns: &Option<Vec<&str>>,
     recursive: bool,
     max_keys: Option<u32>,
     filter: &Option<FileObjectFilter>,
@@ -48,6 +49,7 @@ pub async fn list_files(
             filter: &(*filter).clone(),
         },
         table,
+        selected_columns,
     )
     .await?;
     Ok(())
@@ -56,6 +58,7 @@ pub async fn list_files(
 async fn list_files_next(
     params: &mut ListFilesParams<'_>,
     table: &mut FileObjectTable,
+    _selected_columns: &Option<Vec<&str>>,  // not yet implemented
 ) -> Result<(), LakestreamError> {
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();

@@ -19,8 +19,3 @@ xlatti = { path = "../xlatti" }
 tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
 futures = { version = "0.3", default-features = false }
-
-[profile.release]
-lto = true
-opt-level = 3
-panic = "abort"

@@ -30,9 +30,13 @@ impl ObjectStoreTable {
         if let Some(columns) = selected_columns {
             for &column in columns {
                 if valid_columns.contains(&column) {
-                    table.add_column(column, Box::new(StringColumn(Vec::new())));
+                    table
+                        .add_column(column, Box::new(StringColumn(Vec::new())));
                 } else {
-                    panic!("Invalid column name for ObjectStoreTable: {}", column);
+                    panic!(
+                        "Invalid column name for ObjectStoreTable: {}",
+                        column
+                    );
                 }
             }
         } else {
@@ -44,7 +48,6 @@ impl ObjectStoreTable {
     }
 }
 
-
 impl Table for ObjectStoreTable {
     fn len(&self) -> usize {
         if self.columns.is_empty() {
@@ -55,8 +58,8 @@ impl Table for ObjectStoreTable {
             self.columns[0].1.len()
         }
     }
-    
-   fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>) {
+
+    fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>) {
         self.columns.push((name.to_string(), column_type));
     }
 
@@ -64,19 +67,26 @@ impl Table for ObjectStoreTable {
         self.callback = Some(callback);
     }
 
-    fn add_row(&mut self, row_data: Vec<(String, TableColumnValue)>) -> Result<(), String> {
+    fn add_row(
+        &mut self,
+        row_data: Vec<(String, TableColumnValue)>,
+    ) -> Result<(), String> {
         if let Some(callback) = &self.callback {
             let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
         }
         for (column_name, value) in row_data {
-            if let Some((_, column)) = self.columns.iter_mut().find(|(name, _)| name == &column_name) {
+            if let Some((_, column)) = self
+                .columns
+                .iter_mut()
+                .find(|(name, _)| name == &column_name)
+            {
                 column.append(value)?;
             } else {
                 return Err(format!("Column '{}' not found", column_name));
             }
         }
-    
+
         Ok(())
     }
 

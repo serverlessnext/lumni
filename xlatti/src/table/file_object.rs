@@ -89,6 +89,7 @@ impl Table for FileObjectTable {
             let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
         }
+
         for (column_name, value) in row_data {
             if let Some(&index) = self.column_index.get(&column_name) {
                 let (_, column) = &mut self.columns[index];

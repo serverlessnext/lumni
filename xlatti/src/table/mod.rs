@@ -2,8 +2,8 @@ pub mod columns;
 pub mod file_object;
 pub mod object_store;
 
-use std::fmt::Debug;
 use core::fmt;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 pub use columns::*;
@@ -36,24 +36,35 @@ impl<'a> TableRow<'a> {
     }
 
     pub fn print_columns(&self) {
-        let values_to_print: Vec<String> = self.data.iter().map(|(_, value)| {
-            let value_str = match value {
-                TableColumnValue::Int32Column(val) => val.to_string(),
-                TableColumnValue::Uint64Column(val) => val.to_string(),
-                TableColumnValue::FloatColumn(val) => val.to_string(),
-                TableColumnValue::StringColumn(val) => val.clone(),
-                TableColumnValue::OptionalInt32Column(Some(val)) => val.to_string(),
-                TableColumnValue::OptionalUint64Column(Some(val)) => val.to_string(),
-                TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
-                TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
-                _ => "None".to_string(), // Handle None cases for Optional values
-            };
-            format!("{}", value_str)
-        }).collect();
+        let values_to_print: Vec<String> = self
+            .data
+            .iter()
+            .map(|(_, value)| {
+                let value_str = match value {
+                    TableColumnValue::Int32Column(val) => val.to_string(),
+                    TableColumnValue::Uint64Column(val) => val.to_string(),
+                    TableColumnValue::FloatColumn(val) => val.to_string(),
+                    TableColumnValue::StringColumn(val) => val.clone(),
+                    TableColumnValue::OptionalInt32Column(Some(val)) => {
+                        val.to_string()
+                    }
+                    TableColumnValue::OptionalUint64Column(Some(val)) => {
+                        val.to_string()
+                    }
+                    TableColumnValue::OptionalFloatColumn(Some(val)) => {
+                        val.to_string()
+                    }
+                    TableColumnValue::OptionalStringColumn(Some(val)) => {
+                        val.clone()
+                    }
+                    _ => "None".to_string(), // Handle None cases for Optional values
+                };
+                format!("{}", value_str)
+            })
+            .collect();
 
         println!("{}", values_to_print.join(","));
     }
-
 }
 
 impl<'a> Clone for TableRow<'a> {

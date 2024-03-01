@@ -105,7 +105,16 @@ impl ObjectStoreTrait for S3Bucket {
                 return Err(LakestreamError::NoBucketInUri(prefix.to_string()));
             }
         }
-        list_files(self, prefix, selected_columns, recursive, max_keys, filter, table).await
+        list_files(
+            self,
+            prefix,
+            selected_columns,
+            recursive,
+            max_keys,
+            filter,
+            table,
+        )
+        .await
     }
 
     async fn get_object(

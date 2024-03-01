@@ -50,8 +50,8 @@ pub async fn handle_query(
 
             match &content {
                 Data::KeyValue(kv) => {
-                    let select_string = kv.get_string_or_default("Select", "*");
-                    let query_uri = kv.get_string_or_default("From", "s3://");
+                    let select_string = kv.get_string_or_default("SELECT", "*");
+                    let query_uri = kv.get_string_or_default("FROM", "s3://");
                     log!("Select {} From {}", select_string, query_uri);
 
                     let max_files = 20; // TODO: get query

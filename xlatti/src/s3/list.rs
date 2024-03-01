@@ -58,7 +58,7 @@ pub async fn list_files(
 async fn list_files_next(
     params: &mut ListFilesParams<'_>,
     table: &mut FileObjectTable,
-    _selected_columns: &Option<Vec<&str>>,  // not yet implemented
+    _selected_columns: &Option<Vec<&str>>, // not yet implemented
 ) -> Result<(), LakestreamError> {
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();

@@ -15,7 +15,7 @@ pub enum TableColumnValue {
 
 pub trait TableColumn: Debug {
     fn len(&self) -> usize;
-    fn append(&mut self, value: TableColumnValue) -> Result<(), &'static str>;
+    fn append(&mut self, value: TableColumnValue) -> Result<(), String>;
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -49,12 +49,12 @@ macro_rules! create_column_types {
             fn append(
                 &mut self,
                 value: TableColumnValue,
-            ) -> Result<(), &'static str> {
+            ) -> Result<(), String> {
                 if let TableColumnValue::$TypeName(val) = value {
                     self.0.push(val);
                     Ok(())
                 } else {
-                    Err("Type mismatch")
+                    Err(format!("Type mismatch for {:?}", value))
                 }
             }
 
@@ -71,12 +71,12 @@ macro_rules! create_column_types {
             fn append(
                 &mut self,
                 value: TableColumnValue,
-            ) -> Result<(), &'static str> {
+            ) -> Result<(), String> {
                 if let TableColumnValue::$OptionalTypeName(val) = value {
                     self.0.push(val);
                     Ok(())
                 } else {
-                    Err("Type mismatch")
+                    Err(format!("Type mismatch for {:?}", value))
                 }
             }
 

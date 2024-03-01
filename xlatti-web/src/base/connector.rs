@@ -1,7 +1,9 @@
 use ::xlatti::{
-    EnvironmentConfig, FileObjectFilter, ListObjectsResult, ObjectStoreHandler,
+    EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
+    Table,
 };
-use leptos::{ev::select, log};
+use leptos::ev::select;
+use leptos::log;
 
 #[derive(Clone)]
 pub struct LakestreamHandler {
@@ -17,7 +19,11 @@ impl LakestreamHandler {
         }
     }
 
-    pub async fn list_objects(&self, uri: String, count: u32) -> Vec<String> {
+    pub async fn list_objects(
+        &self,
+        uri: String,
+        count: u32,
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let recursive = false;
         let max_files = Some(count);
         let filter: Option<FileObjectFilter> = None;
@@ -38,26 +44,7 @@ impl LakestreamHandler {
                 callback,
             )
             .await;
-
-        match result {
-            Ok(Some(ListObjectsResult::FileObjects(file_objects))) => {
-                file_objects
-                    .into_iter()
-                    .map(|fo| fo.name().to_owned())
-                    .collect::<Vec<_>>()
-            }
-            Ok(Some(ListObjectsResult::RowItems(buckets))) => {
-                // note - CORS does not work on Bucket List
-                buckets
-                    .into_iter()
-                    .map(|bucket| bucket.name().to_owned())
-                    .collect::<Vec<_>>()
-            }
-            Err(err) => {
-                log!("Error: {:?}", err);
-                vec![]
-            }
-            _ => vec![],
-        }
+        log::debug!("Web Results: {:?}", result);
+        result
     }
 }

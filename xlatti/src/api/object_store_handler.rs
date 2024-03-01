@@ -37,23 +37,32 @@ impl ObjectStoreHandler {
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
             debug!("Listing files in bucket {}", bucket);
-            let table = self.list_files_in_bucket(
-                parsed_uri, // FROM
-                config.clone(),
-                &selected_columns, // SELECT
-                recursive,         // true in case Query is used
-                max_files,         // LIMIT
-                filter,            // WHERE
-                callback,          // callback is a custom function
-                                   // applied to what gets selected (via ROW addition)
-            )
-            .await?;
+            let table = self
+                .list_files_in_bucket(
+                    parsed_uri, // FROM
+                    config.clone(),
+                    &selected_columns, // SELECT
+                    recursive,         // true in case Query is used
+                    max_files,         // LIMIT
+                    filter,            // WHERE
+                    callback,          // callback is a custom function
+                                       // applied to what gets selected (via ROW addition)
+                )
+                .await?;
             Ok(table)
         } else {
             if let Some(scheme) = &parsed_uri.scheme {
                 if scheme == "s3" {
                     debug!("Listing buckets on S3");
-                    return self.list_buckets(uri, config, &selected_columns, max_files, callback).await
+                    return self
+                        .list_buckets(
+                            uri,
+                            config,
+                            &selected_columns,
+                            max_files,
+                            callback,
+                        )
+                        .await;
                 }
             }
             Err(LakestreamError::NoBucketInUri(uri.to_string()))
@@ -79,7 +88,13 @@ impl ObjectStoreHandler {
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );
-        table_from_list_bucket(updated_config, selected_columns, max_files, callback).await
+        table_from_list_bucket(
+            updated_config,
+            selected_columns,
+            max_files,
+            callback,
+        )
+        .await
     }
 
     pub async fn get_object(
@@ -245,7 +260,7 @@ impl ObjectStoreHandler {
                     _ => None,
                 };
 
-               let result = self
+                let result = self
                     .list_objects(
                         &uri,
                         config,

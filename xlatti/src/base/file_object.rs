@@ -48,7 +48,9 @@ impl FileObject {
         match column_name {
             "name" => Some(TableColumnValue::StringColumn(self.name.clone())),
             "size" => Some(TableColumnValue::Uint64Column(self.size)),
-            "modified" => self.modified.map(TableColumnValue::Uint64Column),
+            "modified" => self
+                .modified
+                .map(|val| TableColumnValue::OptionalUint64Column(Some(val))),
             _ => None,
         }
     }

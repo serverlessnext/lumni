@@ -114,10 +114,18 @@ pub fn AppConfigView(
     // Use predefined form elements based on config_type
     let template_name = form_meta.template().unwrap_or("".to_string());
     let profile_name = form_meta.name().unwrap_or("".to_string());
-
     let app_config = AppConfig::new(template_name, profile_name.clone(), None);
-    let form_elements =
-        app_config.configuration_form_elements().unwrap_or(vec![]);
+
+    let form_elements = match app_config {
+        Some(config) => match config.configuration_form_elements() {
+            Ok(elements) => elements,
+            Err(_) => {
+                log!("Error loading form elements");
+                vec![] // Using an empty vector as a fallback
+            }
+        },
+        None => vec![], // AppConfig is None, also use an empty vector as a fallback
+    };
 
     let form_builder = ProfileFormBuilder::new(
         &profile_name,

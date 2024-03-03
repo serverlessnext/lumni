@@ -44,7 +44,18 @@ impl LakestreamHandler {
                 callback,
             )
             .await;
-        log::debug!("Web Results: {:?}", result);
+        result
+    }
+
+    pub async fn execute_query(
+        &self,
+        query: String,
+    ) -> Result<Box<dyn Table>, LakestreamError> {
+        let callback = None;
+        let result = self
+            .handler
+            .execute_query(&query, &self.config, callback)
+            .await;
         result
     }
 }

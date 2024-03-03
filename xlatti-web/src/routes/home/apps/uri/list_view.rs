@@ -10,7 +10,7 @@ use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to
 // make this dynamic
-const APP_NAME: &str = "builtin::storage::s3::objectstore_s3";
+const APP_NAME: &str = "builtin::storage::objectstore";
 
 #[component]
 pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
@@ -102,7 +102,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
                                     let template = selected_template.get();
-                                    let app_config = AppConfig::new(template, name, None);
+                                    let app_config = AppConfig::new(template, name, None).unwrap();
                                     set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                                 }
                             }
@@ -112,7 +112,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
                             let template = selected_template.get();
-                            let app_config =  AppConfig::new(template, name, None);
+                            let app_config =  AppConfig::new(template, name, None).unwrap();
                             set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
@@ -189,9 +189,9 @@ impl ConfigurationList {
             .await
             .map_err(FormError::from)?;
 
-        let items: Result<Vec<_>, _> = configs
+        let items: Vec<AppConfig> = configs
             .into_iter()
-            .map(|form_data| {
+            .filter_map(|form_data| {
                 let config_name = form_data.tags().and_then(|tags| {
                     tags.get("ProfileName")
                         .cloned()
@@ -218,9 +218,11 @@ impl ConfigurationList {
                             "Form name not found".to_string(),
                         )
                     })
+                    .ok()
+                    .flatten()
             })
             .collect();
-        items
+        Ok(items)
     }
 
     pub fn add(

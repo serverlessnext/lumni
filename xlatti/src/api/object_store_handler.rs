@@ -170,7 +170,7 @@ impl ObjectStoreHandler {
         statement: &str,
         config: &EnvironmentConfig,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         let dialect = GenericDialect {};
         let parsed = Parser::parse_sql(&dialect, statement);
 
@@ -197,7 +197,7 @@ impl ObjectStoreHandler {
         query: &Query,
         config: &EnvironmentConfig,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         if let SetExpr::Select(select) = &*query.body {
             let selected_columns = if select
                 .projection
@@ -280,7 +280,7 @@ impl ObjectStoreHandler {
                             .query_object(&uri, config, query, callback)
                             .await;
                     }
-                    _ => return Ok(()), // TODO: query should return Table
+                    _ => return result, // TODO: query should return Table
                 }
             }
         }
@@ -297,7 +297,7 @@ impl ObjectStoreHandler {
         _config: &EnvironmentConfig,
         _query: &Query,
         _callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<Box<dyn Table>, LakestreamError> {
         // Logic to treat the URI as a database file and query it
 
         // This is a placeholder for the actual implementation.

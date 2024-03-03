@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
+use leptos::leptos_config::Env;
 use leptos::log;
+use xlatti::EnvironmentConfig;
 
 use crate::api::error::*;
 use crate::api::handler::AppHandler;
@@ -37,44 +39,37 @@ pub async fn handle_query(
     mut rx: mpsc::UnboundedReceiver<Request>,
 ) -> Result<(), Error> {
     if let Some(request) = rx.next().await {
-        log!("Received query");
-
-        let config = request.config();
-        let content = request.content();
         let tx = request.tx();
 
-        let response: Result<Response, Error>;
+        let response = match request.content() {
+            Data::KeyValue(kv) => {
+                let query = kv.get_string_or_default("QUERY", "");
+                log!("Query: {}", query);
 
-        if let Some(conf) = config {
-            let handler = LakestreamHandler::new(conf);
+                //let select_string = kv.get_string_or_default("SELECT", "*");
+                //let query_uri = kv.get_string_or_default("FROM", "s3://");
+                //log!("Select {} From {}", select_string, query_uri);
 
-            match &content {
-                Data::KeyValue(kv) => {
-                    let select_string = kv.get_string_or_default("SELECT", "*");
-                    let query_uri = kv.get_string_or_default("FROM", "s3://");
-                    log!("Select {} From {}", select_string, query_uri);
+                //let max_files = 20; // TODO: get query
 
-                    let max_files = 20; // TODO: get query
-                    let results =
-                        handler.list_objects(query_uri, max_files).await;
-                    log!("Results: {:?}", results);
+                let config =
+                    request.config().unwrap_or_else(EnvironmentConfig::default);
+                log!("EnvironmentConfig: {:?}", config);
+                let handler = LakestreamHandler::new(config);
+                let results = handler.execute_query(query).await;
+                //let results = handler.list_objects(query_uri, max_files).await;
+                log!("Results: {:?}", results);
 
-                    // TODO: wrap results into rows and columns
-                    response = Ok(generate_test_data_row());
-                }
-                _ => {
-                    let err = Error::Request(RequestError::QueryInvalid(
-                        "Invalid data type".into(),
-                    ));
-                    response = Err(err);
-                }
+                // TODO: wrap results into rows and columns
+                Ok(generate_test_data_row())
             }
-        } else {
-            let err = Error::Application(ApplicationError::ConfigInvalid(
-                "No config provided".into(),
-            ));
-            response = Err(err);
-        }
+            _ => {
+                let err = Error::Request(RequestError::QueryInvalid(
+                    "Invalid data type".into(),
+                ));
+                Err(err)
+            }
+        };
 
         tx.unbounded_send(response).unwrap();
     }

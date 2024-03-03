@@ -44,17 +44,25 @@ configuration:
 
 interface:
   form:
-  - id: "SELECT"
-    type: "PlainText"
-    label: "Select"
-    initial_value: "*"
-    placeholder: "*"
+ # - id: "SELECT"
+ #   type: "PlainText"
+ #   label: "Select"
+ #   initial_value: "*"
+ #   placeholder: "*"
 
-  - id: "FROM"
-    type: "PlainText"
-    label: "From"
-    placeholder: "s3://bucket"
+ # - id: "FROM"
+ #   type: "PlainText"
+ #   label: "From"
+ #   placeholder: "s3://bucket"
+ #   validation:
+ #     pattern: "^s3://"
+ #     error_message: "Invalid URI scheme. Must start with 's3://'."
+
+  - id: "QUERY"
+    type: "TextArea"
+    label: "Query"
+    placeholder: "SELECT * FROM ${BUCKET_URI} LIMIT 10"
+    initial_value: "SELECT * FROM ${BUCKET_URI} LIMIT 10"
     validation:
-      pattern: "^s3://"
-      error_message: "Invalid URI scheme. Must start with 's3://'."
-
+      pattern: "^.+$"
+      error_message: "Invalid query."

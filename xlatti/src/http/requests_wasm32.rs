@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use bytes::Bytes;
-use js_sys::{ArrayBuffer, Uint8Array};
 use log::info;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
@@ -33,44 +32,64 @@ pub async fn http_get_request(
     Ok((body, status))
 }
 
-
 pub async fn http_request(
     url: &str,
     headers: &HashMap<String, String>,
     method: &str,
 ) -> Result<(Bytes, u16), LakestreamError> {
     info!("http_request: {}", url);
-    let window = web_sys::window().ok_or(LakestreamError::String("No window available".to_string()))?;
+    let window = web_sys::window()
+        .ok_or(LakestreamError::String("No window available".to_string()))?;
 
     let mut request_init = RequestInit::new();
     request_init.method(method);
     request_init.mode(RequestMode::Cors);
 
-    let headers_map = Headers::new().map_err(|e| LakestreamError::Js(e.into()))?;
+    let headers_map =
+        Headers::new().map_err(|e| LakestreamError::Js(e.into()))?;
     for (key, value) in headers {
-        headers_map.set(key, value).map_err(|e| LakestreamError::Js(e.into()))?;
+        headers_map
+            .set(key, value)
+            .map_err(|e| LakestreamError::Js(e.into()))?;
     }
     request_init.headers(&headers_map);
 
-    let request = Request::new_with_str_and_init(url, &request_init).map_err(|e| LakestreamError::Js(e.into()))?;
-    let response_js = JsFuture::from(window.fetch_with_request(&request)).await.map_err(|e| LakestreamError::Js(e.into()))?;
-    let response: Response = response_js.dyn_into().map_err(|e| LakestreamError::Js(e.into()))?;
+    let request = Request::new_with_str_and_init(url, &request_init)
+        .map_err(|e| LakestreamError::Js(e.into()))?;
+    let response_js = JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|e| LakestreamError::Js(e.into()))?;
+    let response: Response = response_js
+        .dyn_into()
+        .map_err(|e| LakestreamError::Js(e.into()))?;
 
     let status = response.status();
     if status >= 200 && status < 300 {
-        let body_js = JsFuture::from(response.array_buffer().map_err(|e| LakestreamError::Js(e.into()))?)
-            .await
+        let body_js = JsFuture::from(
+            response
+                .array_buffer()
+                .map_err(|e| LakestreamError::Js(e.into()))?,
+        )
+        .await
+        .map_err(|e| LakestreamError::Js(e.into()))?;
+        let body: js_sys::ArrayBuffer = body_js
+            .dyn_into()
             .map_err(|e| LakestreamError::Js(e.into()))?;
-        let body: js_sys::ArrayBuffer = body_js.dyn_into().map_err(|e| LakestreamError::Js(e.into()))?;
 
         let uint8_array = js_sys::Uint8Array::new(&body);
         let body_bytes = uint8_array.to_vec();
         Ok((Bytes::from(body_bytes), status))
     } else {
-        let body_js = JsFuture::from(response.array_buffer().map_err(|e| LakestreamError::Js(e.into()))?)
-            .await
+        let body_js = JsFuture::from(
+            response
+                .array_buffer()
+                .map_err(|e| LakestreamError::Js(e.into()))?,
+        )
+        .await
+        .map_err(|e| LakestreamError::Js(e.into()))?;
+        let body: js_sys::ArrayBuffer = body_js
+            .dyn_into()
             .map_err(|e| LakestreamError::Js(e.into()))?;
-        let body: js_sys::ArrayBuffer = body_js.dyn_into().map_err(|e| LakestreamError::Js(e.into()))?;
 
         let uint8_array = js_sys::Uint8Array::new(&body);
         let vec = uint8_array.to_vec();

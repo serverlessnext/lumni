@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use leptos::log;
 use uuid::Uuid;
 
 use super::get_app_handler;
@@ -41,18 +42,20 @@ impl AppConfig {
         app_uri: S,
         profile_name: S,
         profile_id: Option<S>,
-    ) -> AppConfig {
+    ) -> Option<AppConfig> {
         let app_uri = app_uri.into();
-        let handler = get_app_handler(&app_uri).unwrap();
-        // TODO: handle None
+        let handler = match get_app_handler(&app_uri) {
+            Some(handler) => handler,
+            None => return None,
+        };
 
-        AppConfig {
+        Some(AppConfig {
             app_uri,
             handler,
             profile_name: profile_name.into(),
             profile_id: profile_id
-                .map_or_else(|| Uuid::new_v4().to_string(), |id| id.into()),
-        }
+                .map_or_else(|| Uuid::new_v4().to_string(), Into::into),
+        })
     }
 
     fn load_config(&self) -> &str {

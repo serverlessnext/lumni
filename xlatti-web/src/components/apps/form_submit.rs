@@ -174,7 +174,13 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
                             ))
                             .unwrap();
 
-                        app_config.handler().handle_query(rx_handler).await;
+                        if let Some(config) = app_config {
+                            config.handler().handle_query(rx_handler).await;
+                        } else {
+                            // Handle the case where app_config is None if necessary
+                            log!("AppConfig is not available.");
+                            is_submitting.set(false);
+                        }
 
                         // query is done
                         is_submitting.set(false);
@@ -198,8 +204,18 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         FormType::SubmitData(submit_parameters),
     );
 
-    let builders = app_config.interface_form_elements().unwrap_or(vec![]);
-    let query_form = query_form.with_elements(builders).build(cx, None);
+    let interface_elements =
+        match app_config.map(|config| config.interface_form_elements()) {
+            Some(Ok(elements)) => elements,
+            Some(Err(_)) => {
+                log!("Error loading form elements");
+                vec![] // fallback to an empty vector
+            }
+            None => vec![], // AppConfig is None, use an empty vector as a fallback
+        };
+
+    let query_form =
+        query_form.with_elements(interface_elements).build(cx, None);
 
     view! { cx,
         { query_form.to_view() }

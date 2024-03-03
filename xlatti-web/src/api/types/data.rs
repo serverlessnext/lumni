@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use super::{AnyKeyValue, Table};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum Data {
     Empty,
@@ -15,6 +16,7 @@ pub enum Data {
     // TODO: Document(DocumentType),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum DataType {
     Boolean(bool),

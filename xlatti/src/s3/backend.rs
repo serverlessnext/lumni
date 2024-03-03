@@ -21,11 +21,9 @@ impl ObjectStoreBackend for S3Backend {
         max_files: Option<u32>,
         table: &mut ObjectStoreTable,
     ) -> Result<(), LakestreamError> {
-        let config_map = config.settings.clone();
-        let mut config_instance = EnvironmentConfig {
-            settings: config_map,
-        };
-        //Ok(())
+        let config_map = config.get_settings().clone();
+        let mut config_instance = EnvironmentConfig::new(config_map);
+
         if let Err(e) = validate_config(&mut config_instance) {
             // Handle the error, e.g., log the error and/or return early with an appropriate error value
             error!("Error validating the config: {}", e);

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Default, Debug)]
 pub struct EnvironmentConfig {
-    pub settings: HashMap<String, String>,
+    settings: HashMap<String, String>,
 }
 
 impl EnvironmentConfig {

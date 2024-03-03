@@ -66,7 +66,5 @@ fn create_initial_config(matches: &clap::ArgMatches) -> EnvironmentConfig {
     }
 
     // Create a Config instance
-    EnvironmentConfig {
-        settings: config_hashmap,
-    }
+    EnvironmentConfig::new(config_hashmap)
 }

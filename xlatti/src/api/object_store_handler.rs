@@ -84,7 +84,7 @@ impl ObjectStoreHandler {
         }
         // Clone the original config and update the settings
         let mut updated_config = config.clone();
-        updated_config.settings.insert(
+        updated_config.set(
             "uri".to_string(),
             format!("{}://", parsed_uri.scheme.unwrap()),
         );

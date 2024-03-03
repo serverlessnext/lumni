@@ -250,7 +250,7 @@ pub fn create_s3_client(
         session_token,
     );
     let endpoint_url =
-        config.settings.get("S3_ENDPOINT_URL").map(String::as_str);
+        config.get("S3_ENDPOINT_URL").map(String::as_str);
 
     let s3_client_config =
         S3ClientConfig::new(credentials, bucket_name, endpoint_url, region);

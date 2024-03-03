@@ -67,10 +67,9 @@ impl S3Bucket {
     }
 
     pub fn bucket_path(&self) -> String {
-        let region = self.config.settings.get("AWS_REGION").unwrap();
+        let region = self.config.get("AWS_REGION").unwrap();
         let endpoint_url = self
             .config
-            .settings
             .get("S3_ENDPOINT_URL")
             .map(String::as_str);
         let name = Some(self.name().to_string());

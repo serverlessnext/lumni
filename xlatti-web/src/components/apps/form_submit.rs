@@ -11,6 +11,7 @@ use super::AppConfig;
 use crate::api::error::*;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{Data, TableType};
+use crate::components::environment;
 use crate::components::forms::builders::{
     FormBuilder, FormType, SubmitParameters,
 };
@@ -145,9 +146,7 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
                             .load_config(ENVIRONMENT_FORM_ID)
                             .await
                         {
-                            Ok(Some(environment)) => Some(EnvironmentConfig {
-                                settings: environment,
-                            }),
+                            Ok(Some(environment)) => Some(EnvironmentConfig::new(environment)),
                             Ok(None) => {
                                 log!(
                                     "No data found for form_id: {}",

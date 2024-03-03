@@ -1,6 +1,6 @@
 app_info:
-  name: "ObjectstoreS3"
-  display_name: "ObjectstoreS3"
+  name: "Objectstore"
+  display_name: "Objectstore"
   version: 0.0.1
 
 configuration:
@@ -44,25 +44,11 @@ configuration:
 
 interface:
   form:
- # - id: "SELECT"
- #   type: "PlainText"
- #   label: "Select"
- #   initial_value: "*"
- #   placeholder: "*"
-
- # - id: "FROM"
- #   type: "PlainText"
- #   label: "From"
- #   placeholder: "s3://bucket"
- #   validation:
- #     pattern: "^s3://"
- #     error_message: "Invalid URI scheme. Must start with 's3://'."
-
   - id: "QUERY"
     type: "TextArea"
     label: "Query"
-    placeholder: "SELECT * FROM ${BUCKET_URI} LIMIT 10"
-    initial_value: "SELECT * FROM ${BUCKET_URI} LIMIT 10"
+    placeholder: 'SELECT * FROM "${BUCKET_URI}" LIMIT 10'
+    initial_value: 'SELECT * FROM "${BUCKET_URI}" LIMIT 10'
     validation:
       pattern: "^.+$"
       error_message: "Invalid query."

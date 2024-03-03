@@ -10,7 +10,7 @@ use crate::GlobalState;
 
 // TODO: currently we have only 1 App, in future updates we need to
 // make this dynamic
-const APP_NAME: &str = "builtin::storage::objectstore";
+const APP_NAME: &str = "builtin::extract::objectstore";
 
 #[component]
 pub fn ConfigurationListView(cx: Scope) -> impl IntoView {

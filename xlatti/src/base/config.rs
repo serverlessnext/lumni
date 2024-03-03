@@ -32,4 +32,8 @@ impl EnvironmentConfig {
     pub fn insert(&mut self, key: String, value: String) {
         self.settings.insert(key, value);
     }
+
+    pub fn get_settings(&self) -> &HashMap<String, String> {
+        &self.settings
+    }
 }

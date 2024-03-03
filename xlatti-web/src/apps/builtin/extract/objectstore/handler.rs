@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use leptos::leptos_config::Env;
 use leptos::log;
 use xlatti::EnvironmentConfig;
 
@@ -16,6 +15,7 @@ use crate::api::types::{
     Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
 };
 use crate::base::connector::LakestreamHandler;
+use crate::helpers::string_replace::replace_variables_in_string_with_map;
 
 #[derive(Clone)]
 pub struct Handler;
@@ -44,20 +44,15 @@ pub async fn handle_query(
         let response = match request.content() {
             Data::KeyValue(kv) => {
                 let query = kv.get_string_or_default("QUERY", "");
-                log!("Query: {}", query);
-
-                //let select_string = kv.get_string_or_default("SELECT", "*");
-                //let query_uri = kv.get_string_or_default("FROM", "s3://");
-                //log!("Select {} From {}", select_string, query_uri);
-
-                //let max_files = 20; // TODO: get query
 
                 let config =
                     request.config().unwrap_or_else(EnvironmentConfig::default);
-                log!("EnvironmentConfig: {:?}", config);
+                let settings = config.get_settings();
+                let query =
+                    replace_variables_in_string_with_map(&query, settings);
+                log!("Query: {}", query);
                 let handler = LakestreamHandler::new(config);
                 let results = handler.execute_query(query).await;
-                //let results = handler.list_objects(query_uri, max_files).await;
                 log!("Results: {:?}", results);
 
                 // TODO: wrap results into rows and columns

@@ -7,7 +7,7 @@ pub use crate::components::Environment;
 pub fn Console(cx: Scope) -> impl IntoView {
     // TODO: user should be able to select this
     log!("Available apps: {:?}", get_available_apps());
-    let app_uri = "builtin::storage::objectstore".to_string();
+    let app_uri = "builtin::extract::objectstore".to_string();
 
     view! {
         cx,

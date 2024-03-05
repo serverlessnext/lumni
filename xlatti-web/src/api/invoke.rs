@@ -47,13 +47,6 @@ impl Response {
         Self { content }
     }
 
-    pub fn is_empty(&self) -> bool {
-        match &self.content {
-            Data::Empty => true,
-            _ => false,
-        }
-    }
-
     pub fn content(&self) -> &Data {
         &self.content
     }

@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use leptos::log;
 use uuid::Uuid;
 
 use super::get_app_handler;
@@ -40,7 +39,7 @@ impl Clone for AppConfig {
 impl AppConfig {
     pub fn new<S: Into<String>>(
         app_uri: S,
-        profile_name: S,
+        profile_name: Option<S>,
         profile_id: Option<S>,
     ) -> Option<AppConfig> {
         let app_uri = app_uri.into();
@@ -49,12 +48,16 @@ impl AppConfig {
             None => return None,
         };
 
+        let profile_name =
+            profile_name.map_or_else(|| "Untitled".to_string(), Into::into);
+        let profile_id =
+            profile_id.map_or_else(|| Uuid::new_v4().to_string(), Into::into);
+
         Some(AppConfig {
             app_uri,
             handler,
             profile_name: profile_name.into(),
-            profile_id: profile_id
-                .map_or_else(|| Uuid::new_v4().to_string(), Into::into),
+            profile_id,
         })
     }
 
@@ -90,3 +93,20 @@ impl AppConfig {
         parse_yaml(self.load_config(), ConfigYamlType::InterfaceForm)
     }
 }
+
+//async fn load_config(cx: Scope, form_id: String) -> Result<(), Error> {
+//    log!("Loading config");
+//    let storage_handler = create_storage_handler(cx);
+//    match storage_handler {
+//        Some(handler) => {
+//            let items = handler.list_items().await;
+//            log!("Items: {:?}", items);
+//            let result = handler.load_config(&form_id).await;
+//            log!("Result: {:?}", result);
+//        }
+//        None => {
+//            log!("Storage handler is not available");
+//        }
+//    }
+//   Ok(())
+//}

@@ -11,7 +11,6 @@ use super::AppConfig;
 use crate::api::error::*;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{Data, TableType};
-use crate::components::environment;
 use crate::components::forms::builders::{
     FormBuilder, FormType, SubmitParameters,
 };
@@ -35,7 +34,21 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
 
     let (tx, mut rx) = mpsc::unbounded::<Result<Response, Error>>();
 
-    let app_config = AppConfig::new(app_uri, "Search Form".to_string(), None);
+    let app_config =
+        AppConfig::new(app_uri, Some("Search Form".to_string()), None);
+
+    let form_elements = match app_config {
+        Some(ref config) => match config.configuration_form_elements() {
+            Ok(elements) => elements,
+            Err(_) => {
+                log!("Error loading form elements");
+                vec![] // Using an empty vector as a fallback
+            }
+        },
+        None => vec![], // AppConfig is None, also use an empty vector as a fallback
+    };
+    log!("Form Elements: {:?}", form_elements);
+    //log!("AppConfig: {:?}", app_config);
     // TODO: handle None
 
     spawn_local(async move {
@@ -146,7 +159,9 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
                             .load_config(ENVIRONMENT_FORM_ID)
                             .await
                         {
-                            Ok(Some(environment)) => Some(EnvironmentConfig::new(environment)),
+                            Ok(Some(environment)) => {
+                                Some(EnvironmentConfig::new(environment))
+                            }
                             Ok(None) => {
                                 log!(
                                     "No data found for form_id: {}",
@@ -220,7 +235,6 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         { query_form.to_view() }
         { move ||
             if results_rw.get().is_none() {
-                // submit not yet clicked
                 view! { cx, ""}.into_view(cx)
             } else if let Some(error) = validation_error.get() {
                 view! { cx, <p>{ error }</p> }.into_view(cx)

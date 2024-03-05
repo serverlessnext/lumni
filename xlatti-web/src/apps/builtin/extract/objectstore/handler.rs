@@ -71,6 +71,7 @@ pub async fn handle_query(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn generate_test_data_columnar() -> Response {
     // Define column data
     let names_column_data = ColumnarData {

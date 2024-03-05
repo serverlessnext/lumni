@@ -1,4 +1,37 @@
+use leptos::*;
 use wasm_bindgen::prelude::*;
+
+use crate::components::forms::{FormStorageHandler, LocalStorageWrapper};
+use crate::GlobalState;
+
+pub fn create_storage_handler(
+    cx: Scope,
+) -> Option<FormStorageHandler<LocalStorageWrapper>> {
+    let vault_option = use_context::<RwSignal<GlobalState>>(cx);
+
+    match vault_option {
+        Some(vault_signal) => {
+            let vault_result =
+                vault_signal.with_untracked(|state| state.vault.clone());
+
+            match vault_result {
+                Some(vault) => {
+                    log!("Vault has been initialized");
+                    let storage_wrapper = LocalStorageWrapper::new(vault);
+                    Some(FormStorageHandler::new(storage_wrapper))
+                }
+                None => {
+                    log::error!("Vault has not been initialized");
+                    None
+                }
+            }
+        }
+        None => {
+            log::error!("GlobalState has not been provided");
+            None
+        }
+    }
+}
 
 pub async fn list_all_keys() -> Result<Vec<String>, JsValue> {
     let mut result = Vec::new();

@@ -102,6 +102,12 @@ impl<S: FormStorage> FormStorageHandler<S> {
         }
     }
 
+    pub async fn list_items(
+        &self,
+    ) -> Result<Vec<ConfigurationFormMeta>, String> {
+        self.storage.list_items().await
+    }
+
     pub async fn get_configuration_meta(
         &self,
         form_id: &str,

@@ -2,18 +2,11 @@ use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
 use super::AppConfigView;
-use crate::components::forms::{
-    ConfigurationFormMeta, FormStorageHandler, LocalStorageWrapper,
-};
-use crate::GlobalState;
+use crate::components::forms::ConfigurationFormMeta;
+use crate::helpers::local_storage::create_storage_handler;
 
 #[component]
 pub fn AppId(cx: Scope) -> impl IntoView {
-    let vault = use_context::<RwSignal<GlobalState>>(cx)
-        .expect("state to have been provided")
-        .with(|state| state.vault.clone())
-        .expect("vault to have been initialized");
-
     let params = use_params::<RouteParams>(cx);
     let form_id: Option<String> = params
         .try_get()
@@ -24,8 +17,9 @@ pub fn AppId(cx: Scope) -> impl IntoView {
 
     let error_signal = create_rw_signal(cx, None::<String>);
 
-    let storage_wrapper = LocalStorageWrapper::new(vault);
-    let storage_handler = FormStorageHandler::new(storage_wrapper);
+    // TODO: handle expect error via error_signal
+    let storage_handler =
+        create_storage_handler(cx).expect("storage_handler to be present");
 
     let storage_handler_clone = storage_handler.clone();
     spawn_local(async move {

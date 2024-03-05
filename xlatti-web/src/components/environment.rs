@@ -48,7 +48,6 @@ pub fn Environment(cx: Scope) -> impl IntoView {
 pub fn SetEnvironment(cx: Scope) -> impl IntoView {
     let is_loading = create_rw_signal(cx, false);
     let load_error = create_rw_signal(cx, None::<String>);
-    let validation_error = create_rw_signal(cx, None::<String>);
 
     let is_submitting = create_rw_signal(cx, false);
     let submit_error = create_rw_signal(cx, None::<String>);
@@ -66,7 +65,7 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
                 match store.load_config(ENVIRONMENT_FORM_ID).await {
                     Ok(Some(config)) => {
                         log!(
-                            "Data loaded for form_id: {}",
+                            "Data loaded into environment for form_id: {}",
                             ENVIRONMENT_FORM_ID
                         );
                         let mut form_data =
@@ -135,11 +134,7 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
         }
     };
 
-    let load_parameters = LoadParameters::new(
-        Some(Box::new(handle_load)),
-        Some(is_loading),
-        Some(validation_error),
-    );
+    let load_parameters = LoadParameters::new(Some(Box::new(handle_load)));
 
     let save_button =
         FormButton::new(ButtonType::Save, None).set_enabled(false);

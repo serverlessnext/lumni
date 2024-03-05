@@ -4,6 +4,7 @@ use leptos::*;
 use uuid::Uuid;
 
 use super::dummy_data::make_form_data;
+#[allow(unused_imports)]
 #[cfg(debug_assertions)]
 #[cfg(feature = "debug-assertions")]
 use super::helpers::debug_sleep;
@@ -15,7 +16,6 @@ use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 #[component]
 pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
     let is_loading = create_rw_signal(cx, false);
-    let validation_error = create_rw_signal(cx, None::<String>);
 
     // define a function that fetches the data
     let handle_load = {
@@ -33,11 +33,7 @@ pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
         }
     };
 
-    let load_parameters = LoadParameters::new(
-        Some(Box::new(handle_load)),
-        Some(is_loading),
-        Some(validation_error),
-    );
+    let load_parameters = LoadParameters::new(Some(Box::new(handle_load)));
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let load_form = FormBuilder::new(

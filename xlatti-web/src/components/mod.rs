@@ -9,5 +9,5 @@ pub mod forms;
 pub mod icons;
 
 pub use environment::Environment;
-pub use login_form::{LoginForm, LoginFormDebug};
+pub use login_form::LoginForm;
 pub use redirect::Redirect;

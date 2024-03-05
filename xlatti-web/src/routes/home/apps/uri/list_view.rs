@@ -4,16 +4,12 @@ use leptos::html::Input;
 use leptos::*;
 use localencrypt::{ItemMetaData, LocalStorage};
 
-use crate::components::apps::AppConfig;
+use crate::components::apps::{AppConfig, AppFormSubmit};
 use crate::components::forms::FormError;
 use crate::GlobalState;
 
-// TODO: currently we have only 1 App, in future updates we need to
-// make this dynamic
-const APP_NAME: &str = "builtin::extract::objectstore";
-
 #[component]
-pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
+pub fn ConfigurationListView(cx: Scope, app_uri: String) -> impl IntoView {
     let vault = use_context::<RwSignal<GlobalState>>(cx)
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
@@ -28,7 +24,9 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
         _ => panic!("Invalid storage backend"),
     };
 
-    let selected_template = create_rw_signal(cx, APP_NAME.to_string());
+    // TODO: select form_id from list
+    let selected_template = create_rw_signal(cx, "".to_string());
+
     let (is_loading, set_is_loading) = create_signal(cx, true);
     let (item_list, set_item_list) =
         create_signal(cx, ConfigurationList::new(local_storage));
@@ -89,20 +87,25 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
         {move || if is_loading.get() {
             view! { cx, <div>"Loading..."</div> }
         } else {
+            let app_uri_clone_for_keydown = app_uri.clone();
+            let app_uri_clone_for_click = app_uri.clone();
+            let selected = selected_template.get();
             view! {
                 cx,
                 <div>
+                <p>{format!("Selected template: {}", selected)}</p>
+                   <select on:change=move |ev| selected_template.set(event_target_value(&ev).into()) >
+                       <option value="abc".to_string()>{"abc".to_string()}</option>
+                       <option value="def".to_string()>{"def".to_string()}</option>
+                       <option value="ghi".to_string()>{"ghi".to_string()}</option>
+                   </select>
                 <div>
-                    <select on:change=move |ev| selected_template.set(event_target_value(&ev)) >
-                        <option value=APP_NAME>{APP_NAME}</option>
-                    </select>
                     <input class="px-4 py-2"
                         placeholder="Bucket URI"
                         on:keydown=move |ev: web_sys::KeyboardEvent| {
                             if ev.key() == "Enter" {
                                 if let Some(name) = get_input_value(input_ref) {
-                                    let template = selected_template.get();
-                                    let app_config = AppConfig::new(template, name, None).unwrap();
+                                    let app_config = AppConfig::new(&app_uri_clone_for_keydown, Some(&name), None).unwrap();
                                     set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                                 }
                             }
@@ -111,8 +114,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                     />
                     <button class="px-4 py-2" on:click=move |_| {
                         if let Some(name) = get_input_value(input_ref) {
-                            let template = selected_template.get();
-                            let app_config =  AppConfig::new(template, name, None).unwrap();
+                            let app_config =  AppConfig::new(&app_uri_clone_for_click, Some(&name), None).unwrap();
                             set_item_list.update(|item_list| item_list.add(app_config, set_is_loading, set_submit_error));
                         }
                     }> "Add Item" </button>
@@ -126,6 +128,7 @@ pub fn ConfigurationListView(cx: Scope) -> impl IntoView {
                         />
                     </ul>
                 </div>
+                <AppFormSubmit app_uri=app_uri.clone()/>
                 </div>
             }
         }}
@@ -146,11 +149,11 @@ fn ListItem(
         <li>
             <div class="px-4 py-2">
                 {profile_name.clone()} " | "
-                <a href={format!("/apps/{}/{}", APP_NAME, profile_id)}>
+                <a href={format!("/apps/{}/{}", item.app_uri(), profile_id)}>
                     "Form"
                 </a>
                 " | "
-                <a href={format!("/apps/{}/{}?view=TextArea", APP_NAME, profile_id)}>
+                <a href={format!("/apps/{}/{}?view=TextArea", item.app_uri(), profile_id)}>
                     "TextArea"
                 </a>
                 " | "
@@ -210,7 +213,11 @@ impl ConfigurationList {
                                 name,
                                 app_uri
                             );
-                            AppConfig::new(app_uri, name, Some(form_data.id()))
+                            AppConfig::new(
+                                app_uri,
+                                Some(name),
+                                Some(form_data.id()),
+                            )
                         })
                     })
                     .ok_or_else(|| {
@@ -238,8 +245,6 @@ impl ConfigurationList {
         let app_uri = item.app_uri();
 
         let mut tags = HashMap::new();
-        log!("ProfileName: {}", profile_name.clone());
-        log!("AppName: {}", app_uri);
         tags.insert("ProfileName".to_string(), profile_name);
         tags.insert("AppName".to_string(), app_uri);
         let meta_data = ItemMetaData::new_with_tags(&profile_id, tags);

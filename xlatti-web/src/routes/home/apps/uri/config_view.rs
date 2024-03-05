@@ -96,11 +96,7 @@ pub fn AppConfigView(
         });
     };
 
-    let load_parameters = LoadParameters::new(
-        Some(Box::new(handle_load)),
-        Some(is_loading),
-        Some(load_error),
-    );
+    let load_parameters = LoadParameters::new(Some(Box::new(handle_load)));
 
     let form_button =
         FormButton::new(ButtonType::Save, None).set_enabled(false);
@@ -114,7 +110,8 @@ pub fn AppConfigView(
     // Use predefined form elements based on config_type
     let template_name = form_meta.template().unwrap_or("".to_string());
     let profile_name = form_meta.name().unwrap_or("".to_string());
-    let app_config = AppConfig::new(template_name, profile_name.clone(), None);
+    let app_config =
+        AppConfig::new(template_name, Some(profile_name.clone()), None);
 
     let form_elements = match app_config {
         Some(config) => match config.configuration_form_elements() {

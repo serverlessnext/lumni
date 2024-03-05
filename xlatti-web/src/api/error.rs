@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Error {
     Request(RequestError),
@@ -12,12 +13,14 @@ pub enum RequestError {
     QueryInvalid(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum ApplicationError {
     ConfigInvalid(String),
     Unexpected(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
     Unexpected(String),

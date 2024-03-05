@@ -22,7 +22,6 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     let is_loading = create_rw_signal(cx, false);
     let is_submitting = create_rw_signal(cx, false);
 
-    let load_error = create_rw_signal(cx, None::<String>);
     let submit_error = create_rw_signal(cx, None::<String>);
 
     // define a function that fetches the data
@@ -71,11 +70,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
         });
     };
 
-    let load_parameters = LoadParameters::new(
-        Some(Box::new(handle_load)),
-        Some(is_loading),
-        Some(load_error),
-    );
+    let load_parameters = LoadParameters::new(Some(Box::new(handle_load)));
 
     let submit_parameters = SubmitParameters::new(
         Box::new(handle_submit),
@@ -109,6 +104,7 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
     load_and_submit_form.to_view()
 }
 
+#[allow(dead_code)]
 async fn load_data(cx: Scope) -> Result<FormData, FormError> {
     // simulate high latency in debug mode
     #[cfg(feature = "debug-assertions")]

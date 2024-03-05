@@ -99,11 +99,7 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         });
     };
 
-    let load_parameters = LoadParameters::new(
-        Some(Box::new(handle_load)),
-        Some(is_loading),
-        Some(load_error),
-    );
+    let load_parameters = LoadParameters::new(Some(Box::new(handle_load)));
 
     let submit_parameters = SubmitParameters::new(
         Box::new(handle_submit),

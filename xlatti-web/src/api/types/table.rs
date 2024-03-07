@@ -8,6 +8,7 @@ pub enum TableType {
     Columnar,
 }
 
+#[allow(dead_code)]
 pub trait Table: Debug + Send + Sync {
     fn get_row_count(&self) -> usize;
     fn table_type(&self) -> TableType;

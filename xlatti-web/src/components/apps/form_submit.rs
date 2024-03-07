@@ -7,10 +7,10 @@ use leptos::*;
 use uuid::Uuid;
 use xlatti::EnvironmentConfig;
 
-use super::AppConfig;
 use crate::api::error::*;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{Data, TableType};
+use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::builders::{
     FormBuilder, FormType, SubmitParameters,
 };

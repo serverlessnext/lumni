@@ -14,8 +14,6 @@ pub struct LoadAndSubmitForm {
     form: HtmlForm,
     view_handler: ViewHandler,
     form_button: Option<FormButton>,
-    is_processing: RwSignal<bool>,
-    process_error: RwSignal<Option<String>>,
 }
 
 impl LoadAndSubmitForm {
@@ -61,8 +59,6 @@ impl LoadAndSubmitForm {
             form,
             view_handler,
             form_button,
-            is_processing,
-            process_error,
         }
     }
 
@@ -75,14 +71,6 @@ impl LoadAndSubmitForm {
 }
 
 impl Form for LoadAndSubmitForm {
-    fn is_processing(&self) -> RwSignal<bool> {
-        self.is_processing
-    }
-
-    fn process_error(&self) -> RwSignal<Option<String>> {
-        self.process_error
-    }
-
     fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
         self.form.form_data_rw()
     }

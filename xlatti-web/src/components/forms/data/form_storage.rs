@@ -15,15 +15,34 @@ pub trait FormStorage {
                 + '_,
         >,
     >;
+    fn add_item(
+        &self,
+        form_meta: &ConfigurationFormMeta,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+
+    fn delete_item(
+        &self,
+        form_id: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+
     fn load_content<'a>(
         &'a self,
         id: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<Option<Vec<u8>>, String>> + '_>>;
+
     fn save_content<'a>(
         &'a self,
         form_meta: &ConfigurationFormMeta,
         content: &'a [u8],
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+
+    fn clone_box(&self) -> Box<dyn FormStorage>;
+}
+
+impl Clone for Box<dyn FormStorage> {
+    fn clone(&self) -> Box<dyn FormStorage> {
+        self.clone_box()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +103,10 @@ pub struct FormStorageHandler<S: FormStorage> {
 impl<S: FormStorage> FormStorageHandler<S> {
     pub fn new(storage: S) -> Self {
         FormStorageHandler { storage }
+    }
+
+    pub fn storage(&self) -> &S {
+        &self.storage
     }
 
     pub async fn get_form_info(

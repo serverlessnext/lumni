@@ -181,14 +181,6 @@ impl FormData {
     }
 }
 
-pub trait FormElementBuilder {
-    fn build_form_state(
-        &self,
-        cx: Scope,
-        initial_value: DisplayValue,
-    ) -> (String, FormElementState);
-}
-
 #[derive(Clone, Debug)]
 pub struct FormViewOptions {
     text_area: bool,

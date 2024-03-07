@@ -29,6 +29,24 @@ impl FormStorage for MemoryStorage {
         Box::pin(async { Ok(items) })
     }
 
+    fn add_item(
+        &self,
+        item_meta: &ConfigurationFormMeta,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>>>> {
+        self.items
+            .borrow_mut()
+            .insert(item_meta.id(), item_meta.clone());
+        Box::pin(async { Ok(()) })
+    }
+
+    fn delete_item(
+        &self,
+        item_id: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>> {
+        self.items.borrow_mut().remove(item_id);
+        Box::pin(async { Ok(()) })
+    }
+
     fn load_content(
         &self,
         id: &str,
@@ -49,5 +67,9 @@ impl FormStorage for MemoryStorage {
             .borrow_mut()
             .insert(form_meta.id(), content.to_vec());
         Box::pin(async { Ok(()) })
+    }
+
+    fn clone_box(&self) -> Box<dyn FormStorage> {
+        Box::new(self.clone())
     }
 }

@@ -1,8 +1,6 @@
-mod app_config;
+pub mod configuration;
 mod form_submit;
-mod parse_config;
 
-pub use app_config::AppConfig;
 pub use form_submit::AppFormSubmit;
 
 use crate::api::handler::AppHandler;

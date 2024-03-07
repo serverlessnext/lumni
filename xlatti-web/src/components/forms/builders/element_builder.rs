@@ -123,15 +123,10 @@ impl FieldBuilderTrait for ElementBuilder {
     fn build(&self) -> FormElement {
         self.clone().build()
     }
-
-    fn box_clone(&self) -> Box<dyn FieldBuilderTrait> {
-        Box::new(self.clone())
-    }
 }
 
 pub trait FieldBuilderTrait {
     fn build(&self) -> FormElement;
-    fn box_clone(&self) -> Box<dyn FieldBuilderTrait>;
 }
 
 pub fn build_all<T: FieldBuilderTrait>(builders: Vec<T>) -> Vec<FormElement> {

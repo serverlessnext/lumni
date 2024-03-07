@@ -33,14 +33,6 @@ impl LoadForm {
         }
     }
 
-    pub fn is_processing(&self) -> RwSignal<bool> {
-        self.is_processing
-    }
-
-    pub fn process_error(&self) -> RwSignal<Option<String>> {
-        self.process_error
-    }
-
     pub fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
         self.form.form_data_rw()
     }
@@ -57,14 +49,6 @@ impl LoadForm {
 }
 
 impl Form for LoadForm {
-    fn is_processing(&self) -> RwSignal<bool> {
-        self.is_processing()
-    }
-
-    fn process_error(&self) -> RwSignal<Option<String>> {
-        self.process_error()
-    }
-
     fn form_data_rw(&self) -> RwSignal<Option<FormData>> {
         self.form_data_rw()
     }

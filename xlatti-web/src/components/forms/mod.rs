@@ -16,7 +16,9 @@ pub mod output;
 pub use data::form_data::{
     FormData, FormElements, FormViewOptions, SubmitInput,
 };
-pub use data::form_storage::{ConfigurationFormMeta, FormStorageHandler};
+pub use data::form_storage::{
+    ConfigurationFormMeta, FormStorage, FormStorageHandler,
+};
 pub use data::local_storage::LocalStorageWrapper;
 pub use data::memory_storage::MemoryStorage;
 pub use form_error::FormError;

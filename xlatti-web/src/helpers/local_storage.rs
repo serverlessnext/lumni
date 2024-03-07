@@ -1,7 +1,9 @@
 use leptos::*;
 use wasm_bindgen::prelude::*;
 
-use crate::components::forms::{FormStorageHandler, LocalStorageWrapper};
+use crate::components::forms::{
+    FormStorage, FormStorageHandler, LocalStorageWrapper,
+};
 use crate::GlobalState;
 
 pub fn create_storage_handler(
@@ -19,6 +21,34 @@ pub fn create_storage_handler(
                     log!("Vault has been initialized");
                     let storage_wrapper = LocalStorageWrapper::new(vault);
                     Some(FormStorageHandler::new(storage_wrapper))
+                }
+                None => {
+                    log::error!("Vault has not been initialized");
+                    None
+                }
+            }
+        }
+        None => {
+            log::error!("GlobalState has not been provided");
+            None
+        }
+    }
+}
+
+pub fn create_local_storage(cx: Scope) -> Option<Box<dyn FormStorage>> {
+    let vault_option = use_context::<RwSignal<GlobalState>>(cx);
+
+    match vault_option {
+        Some(vault_signal) => {
+            let vault_result =
+                vault_signal.with_untracked(|state| state.vault.clone());
+
+            match vault_result {
+                Some(vault) => {
+                    log!("Vault has been initialized");
+                    // Directly return a boxed LocalStorageWrapper that implements FormStorage
+                    Some(Box::new(LocalStorageWrapper::new(vault))
+                        as Box<dyn FormStorage>)
                 }
                 None => {
                     log::error!("Vault has not been initialized");

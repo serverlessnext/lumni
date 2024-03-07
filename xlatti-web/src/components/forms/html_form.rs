@@ -77,8 +77,6 @@ impl HtmlForm {
 }
 
 pub trait Form {
-    fn is_processing(&self) -> RwSignal<bool>;
-    fn process_error(&self) -> RwSignal<Option<String>>;
     fn form_data_rw(&self) -> RwSignal<Option<FormData>>;
     fn to_view(&self) -> View;
 }

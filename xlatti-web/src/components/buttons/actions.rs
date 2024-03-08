@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use leptos::ev::MouseEvent;
 use leptos::*;
+use leptos::logging::log;
 
 use super::{ClickButton, FormButton};
 use crate::components::forms::FormError;
@@ -29,8 +30,8 @@ where
         }
     }
 
-    pub fn render_view(&self, cx: Scope) -> View {
-        let is_enabled = create_rw_signal(cx, true);
+    pub fn render_view(&self) -> View {
+        let is_enabled = create_rw_signal(true);
 
         let action = Arc::clone(&self.action); // clone action outside the closure
 
@@ -50,9 +51,9 @@ where
             });
         };
 
-        view! { cx,
+        view! {
             <ClickButton form_button={self.form_button.clone()} enabled={is_enabled.into()} on_click={on_click} />
         }
-        .into_view(cx)
+        .into_view()
     }
 }

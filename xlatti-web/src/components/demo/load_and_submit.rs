@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::log;
 use regex::Regex;
 use uuid::Uuid;
 
@@ -18,11 +19,11 @@ use crate::components::forms::{
 };
 
 #[component]
-pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
-    let is_loading = create_rw_signal(cx, false);
-    let is_submitting = create_rw_signal(cx, false);
+pub fn LoadAndSubmitDemo() -> impl IntoView {
+    let is_loading = create_rw_signal(false);
+    let is_submitting = create_rw_signal(false);
 
-    let submit_error = create_rw_signal(cx, None::<String>);
+    let submit_error = create_rw_signal(None::<String>);
 
     // define a function that fetches the data
     let handle_load = {
@@ -99,19 +100,19 @@ pub fn LoadAndSubmitDemo(cx: Scope) -> impl IntoView {
             .validator(Some(validate_foo)),
     );
 
-    let load_and_submit_form = load_and_submit_form.build(cx, None);
+    let load_and_submit_form = load_and_submit_form.build(None);
 
     load_and_submit_form.to_view()
 }
 
 #[allow(dead_code)]
-async fn load_data(cx: Scope) -> Result<FormData, FormError> {
+async fn load_data() -> Result<FormData, FormError> {
     // simulate high latency in debug mode
     #[cfg(feature = "debug-assertions")]
     crate::debug_sleep!();
 
     log!("Loading data...");
-    Ok(make_form_data(cx))
+    Ok(make_form_data())
 }
 
 async fn submit_data(_form_data: FormData) -> Result<(), FormError> {

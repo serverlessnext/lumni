@@ -2,14 +2,13 @@ use leptos::*;
 use leptos_router::{use_location, Outlet};
 
 #[component]
-pub fn User(cx: Scope) -> impl IntoView {
-    let page_path = use_location(cx).pathname;
+pub fn User() -> impl IntoView {
+    let page_path = use_location().pathname;
     view! {
-        cx,
         <nav class="bg-slate-100 mb-4">
             <div class="flex">
                 {move ||
-                    view! { cx,
+                    view! { 
                         <a href="/user/settings"
                             class={
                                 if page_path.get().ends_with("/user/settings") {

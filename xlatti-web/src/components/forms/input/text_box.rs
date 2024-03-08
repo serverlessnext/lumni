@@ -7,7 +7,6 @@ const MASKED_VALUE: &str = "*****";
 
 #[component]
 pub fn TextBoxView(
-    cx: Scope,
     form_element_state: FormElementState,
     input_changed: RwSignal<bool>,
 ) -> impl IntoView {
@@ -38,10 +37,9 @@ pub fn TextBoxView(
     let initial_value = value_signal.get_untracked();
 
     let is_locked = create_rw_signal(
-        cx,
         !initial_value.is_empty() && (is_secret || is_password),
     );
-    let is_enabled = create_rw_signal(cx, initial_enabled);
+    let is_enabled = create_rw_signal(initial_enabled);
 
     //    let is_locked = create_rw_signal(
     //        cx,
@@ -77,7 +75,7 @@ pub fn TextBoxView(
         }
     };
 
-    let display_value_signal = create_rw_signal(cx, initial_value);
+    let display_value_signal = create_rw_signal(initial_value);
 
     let click_handler: Box<dyn Fn()> = Box::new(move || {
         let new_state = !is_locked.get();
@@ -95,7 +93,6 @@ pub fn TextBoxView(
 
     let icon_view: View = if show_lock_icon {
         view! {
-            cx,
             <div class="w-8">
                 <LockIconView
                     is_locked
@@ -103,13 +100,12 @@ pub fn TextBoxView(
                 />
             </div>
         }
-        .into_view(cx)
+        .into_view()
     } else {
-        view! { cx, }.into_view(cx)
+        view! { }.into_view()
     };
 
     view! {
-        cx,
         <div class="w-full flex-col items-start text-left mb-2 p-2 bg-white text-gray-800">
             <InputFieldLabelView
                 label_text
@@ -118,7 +114,6 @@ pub fn TextBoxView(
 
             {if is_text_area {
                 view! {
-                    cx,
                     <TextAreaFieldView
                         is_enabled=is_enabled.into()
                         value_signal
@@ -126,10 +121,9 @@ pub fn TextBoxView(
                         input_changed
                         placeholder_text
                     />
-                }.into_view(cx)
+                }.into_view()
             } else {
                 view! {
-                    cx,
                     <InputFieldView
                         is_password
                         is_enabled=is_enabled.into()
@@ -138,7 +132,7 @@ pub fn TextBoxView(
                         input_changed
                         placeholder_text
                     />
-                }.into_view(cx)
+                }.into_view()
             }}
             <InputFieldErrorView error_signal/>
         </div>
@@ -147,12 +141,10 @@ pub fn TextBoxView(
 
 #[component]
 pub fn InputFieldLabelView(
-    cx: Scope,
     label_text: String,
     icon_view: View,
 ) -> impl IntoView {
     view! {
-        cx,
         <div class="flex justify-between items-center">
             <label for="field_id" class="text-base font-semibold text-gray-900">{label_text}</label>
             {icon_view}
@@ -163,7 +155,6 @@ pub fn InputFieldLabelView(
 
 #[component]
 pub fn InputFieldView(
-    cx: Scope,
     is_password: bool,
     is_enabled: Signal<bool>,
     value_signal: RwSignal<DisplayValue>,
@@ -171,7 +162,7 @@ pub fn InputFieldView(
     input_changed: RwSignal<bool>,
     placeholder_text: Option<String>,
 ) -> impl IntoView {
-    view! { cx,
+    view! {
         <input
             type=if is_password { "password" } else { "text" }
             prop:value= { display_value_signal }
@@ -191,7 +182,6 @@ pub fn InputFieldView(
 
 #[component]
 pub fn TextAreaFieldView(
-    cx: Scope,
     is_enabled: Signal<bool>,
     value_signal: RwSignal<DisplayValue>,
     display_value_signal: RwSignal<String>,
@@ -200,7 +190,7 @@ pub fn TextAreaFieldView(
 ) -> impl IntoView {
     let min_height = 8;
 
-    view! { cx,
+    view! {
         <textarea
             rows=move || {
                 let line_count = display_value_signal.get().lines().count();
@@ -233,13 +223,12 @@ fn get_input_class(is_enabled: bool) -> &'static str {
 
 #[component]
 pub fn InputFieldErrorView(
-    cx: Scope,
     error_signal: RwSignal<Option<String>>,
 ) -> impl IntoView {
-    view! { cx,
+    view! {
         <div class="text-red-500">
             { move || error_signal.get().unwrap_or("".to_string()) }
         </div>
     }
-    .into_view(cx)
+    .into_view()
 }

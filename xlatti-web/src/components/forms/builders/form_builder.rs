@@ -56,7 +56,6 @@ impl FormBuilder {
 
     pub fn build(
         self,
-        cx: Scope,
         view_options: Option<FormViewOptions>,
     ) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
@@ -64,7 +63,6 @@ impl FormBuilder {
 
         match self.form_type {
             FormType::SubmitData(parameters) => HtmlForm::new(
-                cx,
                 &self.title,
                 self.form_meta,
                 view_options,
@@ -72,7 +70,6 @@ impl FormBuilder {
             )
             .build(FormType::SubmitData(parameters)),
             FormType::LoadData(parameters) => HtmlForm::new(
-                cx,
                 &self.title,
                 self.form_meta,
                 view_options,
@@ -81,7 +78,6 @@ impl FormBuilder {
             .build(FormType::LoadData(parameters)),
             FormType::LoadAndSubmitData(load_parameters, submit_parameters) => {
                 HtmlForm::new(
-                    cx,
                     &self.title,
                     self.form_meta,
                     view_options,
@@ -93,7 +89,6 @@ impl FormBuilder {
                 ))
             }
             FormType::LoadElements => HtmlForm::new(
-                cx,
                 &self.title,
                 self.form_meta,
                 view_options,

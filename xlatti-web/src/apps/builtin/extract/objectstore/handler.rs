@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use leptos::log;
+use leptos::logging::log;
 use xlatti::EnvironmentConfig;
 
 use crate::api::error::*;

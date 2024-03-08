@@ -12,5 +12,5 @@ fn custom_panic_hook(info: &PanicInfo) {
 pub fn main() {
     _ = console_log::init_with_level(log::Level::Debug);
     panic::set_hook(Box::new(custom_panic_hook));
-    mount_to_body(|cx| view! { cx, <App /> })
+    mount_to_body(|| view! { <App /> })
 }

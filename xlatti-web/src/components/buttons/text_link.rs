@@ -5,7 +5,6 @@ use super::FormButton;
 
 #[component]
 pub fn TextLink<F>(
-    cx: Scope,
     form_button: FormButton,
     enabled: Signal<bool>,
     on_click: F,
@@ -16,7 +15,6 @@ where
     let button_text = form_button.text();
 
     view! {
-        cx,
         <button
             class={move || {
                 form_button.clone().set_enabled(enabled.get()).button_class()

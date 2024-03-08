@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use leptos::*;
 use regex::Regex;
 
 use crate::components::forms::input::*;
@@ -39,13 +38,13 @@ pub fn make_form_elements() -> Vec<FormElement> {
     elements
 }
 
-pub fn make_form_data(cx: Scope) -> FormData {
+pub fn make_form_data() -> FormData {
     let elements = make_form_elements();
     let mut tags = HashMap::new();
     tags.insert("Name".to_string(), "Test Form".to_string());
 
     let form_meta = ConfigurationFormMeta::with_id("Form1").with_tags(tags);
-    let form_data = FormData::build(cx, form_meta, &elements, None);
+    let form_data = FormData::build(form_meta, &elements, None);
     form_data
 }
 

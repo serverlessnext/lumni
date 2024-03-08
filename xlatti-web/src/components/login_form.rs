@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::{error, log};
 use leptos_router::use_navigate;
 use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
@@ -25,7 +26,6 @@ const PASSWORD_MISSING: &str = "password does not exist";
 
 #[derive(Clone)]
 pub struct AppLogin {
-    cx: Scope,
     set_vault: SignalSetter<LocalEncrypt>,
     set_vault_initialized: SignalSetter<bool>,
     is_submitting: RwSignal<bool>,
@@ -35,15 +35,13 @@ pub struct AppLogin {
 
 impl AppLogin {
     pub fn new(
-        cx: Scope,
         set_vault: SignalSetter<LocalEncrypt>,
         set_vault_initialized: SignalSetter<bool>,
         redirect_url: String,
     ) -> Self {
-        let is_submitting = create_rw_signal(cx, false);
-        let validation_error = create_rw_signal(cx, None::<String>);
+        let is_submitting = create_rw_signal(false);
+        let validation_error = create_rw_signal(None::<String>);
         Self {
-            cx,
             set_vault,
             set_vault_initialized,
             is_submitting,
@@ -78,7 +76,7 @@ impl AppLogin {
             );
         }
 
-        let navigate = use_navigate(self.cx);
+        let navigate = use_navigate();
         match StorageBackend::initiate_with_local_storage(
             Some(LOCALSTORAGE_PREFIX),
             ROOT_USERNAME,
@@ -94,10 +92,7 @@ impl AppLogin {
                 self.set_vault.set(local_encrypt);
                 self.set_vault_initialized.set(true);
 
-                if let Err(e) = navigate(&self.redirect_url, Default::default())
-                {
-                    error!("Error navigating to {}: {}", &self.redirect_url, e);
-                }
+                navigate(&self.redirect_url, Default::default())
             }
             Err(err) => {
                 let msg = err.to_string();
@@ -137,21 +132,21 @@ impl AppLogin {
 }
 
 #[component]
-pub fn LoginForm(cx: Scope) -> impl IntoView {
-    let state = use_context::<RwSignal<GlobalState>>(cx)
+pub fn LoginForm() -> impl IntoView {
+    let state = use_context::<RwSignal<GlobalState>>()
         .expect("state to have been provided");
 
     let init_vault =
-        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
+        create_write_slice(state, |state, vault| state.vault = Some(vault));
     let vault_initialized =
-        create_write_slice(cx, state, |state, initialized| {
+        create_write_slice(state, |state, initialized| {
             if let Some(runtime) = &mut state.runtime {
                 runtime.set_vault_initialized(initialized);
             }
         });
 
     let previous_url = move || {
-        create_read_slice(cx, state, |state| {
+        create_read_slice(state, |state| {
             state.runtime.as_ref().map(|r| r.previous_url().clone())
         })
     };
@@ -159,8 +154,8 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     let redirect_url = previous_url().get_untracked().unwrap_or_default();
 
     // Page is in a loading state until we know if the user is defined
-    let is_user_defined = create_rw_signal(cx, false);
-    let is_loading = create_rw_signal(cx, true);
+    let is_user_defined = create_rw_signal(false);
+    let is_loading = create_rw_signal(true);
     spawn_local({
         async move {
             let user_exists =
@@ -172,42 +167,38 @@ pub fn LoginForm(cx: Scope) -> impl IntoView {
     });
 
     let app_login =
-        AppLogin::new(cx, init_vault, vault_initialized, redirect_url);
+        AppLogin::new(init_vault, vault_initialized, redirect_url);
 
-    view! { cx,
+    view! {
         { move ||
             if is_loading.get() {
                 view! {
-                    cx,
                     <div>"Loading..."</div>
-                }.into_view(cx)
+                }.into_view()
             } else if is_user_defined.get() {
                 let app_login = app_login.clone();
                 let validation_error = app_login.validation_error();
                 if app_login.validation_error.get().is_some() {
                     view! {
-                        cx,
                         <LoginUser app_login/>
-                        { reset_password_view(cx, is_user_defined, validation_error) }
-                    }.into_view(cx)
+                        { reset_password_view(is_user_defined, validation_error) }
+                    }.into_view()
                 } else {
                     view! {
-                        cx,
                         <LoginUser app_login/>
-                    }.into_view(cx)
+                    }.into_view()
                 }
             } else {
                 view! {
-                    cx,
                     <CreateUser app_login=app_login.clone()/>
-                }.into_view(cx)
+                }.into_view()
             }
         }
     }
 }
 
 #[component]
-pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
+pub fn LoginUser(app_login: AppLogin) -> impl IntoView {
     let is_submitting = app_login.is_submitting();
     let validation_error = app_login.validation_error();
     let elements: Vec<FormElement> =
@@ -216,7 +207,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
         )]);
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
-    let form_login = HtmlForm::new(cx, "Login", form_meta, None, elements);
+    let form_login = HtmlForm::new("Login", form_meta, None, elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -225,7 +216,6 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
 
     let login_button = FormButton::new(ButtonType::Login, None);
     let login_form = SubmitFormClassic::new(
-        cx,
         form_login,
         Box::new(handle_form_submission),
         is_submitting,
@@ -237,7 +227,7 @@ pub fn LoginUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
 }
 
 #[component]
-pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
+pub fn CreateUser(app_login: AppLogin) -> impl IntoView {
     let is_submitting = app_login.is_submitting();
     let validation_error = app_login.validation_error();
     let elements: Vec<FormElement> =
@@ -247,7 +237,7 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let form_create =
-        HtmlForm::new(cx, "Create Password", form_meta, None, elements);
+        HtmlForm::new("Create Password", form_meta, None, elements);
 
     let handle_form_submission =
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -256,7 +246,6 @@ pub fn CreateUser(cx: Scope, app_login: AppLogin) -> impl IntoView {
 
     let create_button = FormButton::new(ButtonType::Create, None);
     let create_form = SubmitFormClassic::new(
-        cx,
         form_create,
         Box::new(handle_form_submission),
         is_submitting,
@@ -283,17 +272,16 @@ fn extract_password(form_data: Option<FormData>) -> Result<String, FormError> {
 }
 
 #[component]
-pub fn LoginFormDebug(cx: Scope) -> impl IntoView {
-    debug_login(cx);
+pub fn LoginFormDebug() -> impl IntoView {
+    debug_login();
     view! {
-        cx,
         <div>
             <p>"Debug logged in..."</p>
         </div>
     }
 }
 
-fn debug_login(cx: Scope) {
+fn debug_login() {
     // generate both unique user and password for each session
     // in the event confidential data is stored during development
     // its at least encrypted with a unique password
@@ -301,14 +289,14 @@ fn debug_login(cx: Scope) {
     let debug_username = format!("debug-user-{}", Uuid::new_v4());
     let debug_password = format!("debug-password-{}", Uuid::new_v4());
 
-    let state = use_context::<RwSignal<GlobalState>>(cx)
+    let state = use_context::<RwSignal<GlobalState>>()
         .expect("state to have been provided");
 
     // Create writable state slices for the vault and initialization status.
     let set_vault =
-        create_write_slice(cx, state, |state, vault| state.vault = Some(vault));
+        create_write_slice(state, |state, vault| state.vault = Some(vault));
     let set_vault_initialized =
-        create_write_slice(cx, state, |state, initialized| {
+        create_write_slice(state, |state, initialized| {
             if let Some(runtime) = &mut state.runtime {
                 runtime.set_vault_initialized(initialized);
             }
@@ -341,10 +329,8 @@ fn debug_login(cx: Scope) {
 
                 set_vault(local_encrypt);
                 set_vault_initialized(true);
-                let navigate = use_navigate(cx);
-                if let Err(e) = navigate("/", Default::default()) {
-                    log!("Error navigating to {}: {}", "/", e);
-                }
+                let navigate = use_navigate();
+                navigate("/", Default::default());
             }
             Err(err) => {
                 let msg = err.to_string();
@@ -386,7 +372,6 @@ async fn reset_vault_action() -> Result<(), FormError> {
 }
 
 fn reset_password_view(
-    cx: Scope,
     is_user_defined: RwSignal<bool>,
     validation_error: RwSignal<Option<String>>,
 ) -> View {
@@ -406,14 +391,13 @@ fn reset_password_view(
         action,
     );
     view ! {
-        cx,
         <div class="bg-white rounded shadow p-4">
         <div class="flex flex-col mb-4">
             <p class="text-gray-700 text-lg">
                 "You have the option to reset the password. Please be aware, the configuration database is encrypted and can't be restored without the correct password. If you choose to proceed with the password reset, the database stored in this application will be permanently erased. This irreversible action should be carefully considered."
             </p>
         </div>
-        {reset_button.render_view(cx)}
+        {reset_button.render_view()}
         </div>
-    }.into_view(cx)
+    }.into_view()
 }

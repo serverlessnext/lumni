@@ -1,4 +1,5 @@
 use leptos::*;
+use leptos::logging::log;
 use wasm_bindgen::prelude::*;
 
 use crate::components::forms::{
@@ -7,9 +8,8 @@ use crate::components::forms::{
 use crate::GlobalState;
 
 pub fn create_storage_handler(
-    cx: Scope,
 ) -> Option<FormStorageHandler<LocalStorageWrapper>> {
-    let vault_option = use_context::<RwSignal<GlobalState>>(cx);
+    let vault_option = use_context::<RwSignal<GlobalState>>();
 
     match vault_option {
         Some(vault_signal) => {
@@ -35,8 +35,8 @@ pub fn create_storage_handler(
     }
 }
 
-pub fn create_local_storage(cx: Scope) -> Option<Box<dyn FormStorage>> {
-    let vault_option = use_context::<RwSignal<GlobalState>>(cx);
+pub fn create_local_storage() -> Option<Box<dyn FormStorage>> {
+    let vault_option = use_context::<RwSignal<GlobalState>>();
 
     match vault_option {
         Some(vault_signal) => {

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use leptos::log;
+use leptos::logging::log;
 
 use crate::components::forms::{FormData, FormError};
 

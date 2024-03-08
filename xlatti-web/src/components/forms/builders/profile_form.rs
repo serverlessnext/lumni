@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use leptos::*;
-
 use super::form_builder::{FormBuilder, FormType};
 use super::ElementBuilder;
 use crate::components::forms::input::FieldContentType;
@@ -34,8 +32,8 @@ impl ProfileFormBuilder {
         self
     }
 
-    pub fn build(self, cx: Scope) -> Box<dyn Form> {
-        self.inner.build(cx, Some(self.view_options))
+    pub fn build(self) -> Box<dyn Form> {
+        self.inner.build(Some(self.view_options))
     }
 
     pub fn to_text_area(mut self) -> ProfileFormBuilder {

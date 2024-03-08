@@ -1,5 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::log;
 
 use crate::components::forms::builders::{
     ElementBuilder, FormBuilder, FormType, LoadParameters, SubmitParameters,
@@ -18,8 +19,8 @@ pub struct RouteParams {
 }
 
 #[component]
-pub fn UserSettings(cx: Scope) -> impl IntoView {
-    let vault = use_context::<RwSignal<GlobalState>>(cx)
+pub fn UserSettings() -> impl IntoView {
+    let vault = use_context::<RwSignal<GlobalState>>()
         .expect("state to have been provided")
         .with(|state| state.vault.clone())
         .expect("vault to have been initialized");
@@ -28,8 +29,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
 
     let form_id = FORM_ID;
 
-    let is_loading = create_rw_signal(cx, false);
-    let load_error = create_rw_signal(cx, None::<String>);
+    let is_loading = create_rw_signal(false);
+    let load_error = create_rw_signal(None::<String>);
 
     let vault_clone = vault.clone();
     let handle_load = move |form_data_rw: RwSignal<Option<FormData>>| {
@@ -63,8 +64,8 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
         });
     };
 
-    let is_submitting = create_rw_signal(cx, false);
-    let submit_error = create_rw_signal(cx, None::<String>);
+    let is_submitting = create_rw_signal(false);
+    let submit_error = create_rw_signal(None::<String>);
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
         ev.prevent_default();
         is_submitting.set(true);
@@ -124,7 +125,6 @@ pub fn UserSettings(cx: Scope) -> impl IntoView {
             .with_label("b"),
     );
 
-    let form = form.build(cx, None);
-
+    let form = form.build(None);
     form.to_view()
 }

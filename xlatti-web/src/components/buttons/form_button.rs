@@ -37,9 +37,8 @@ impl FormButton {
         self.button_type.button_class(!self.is_enabled())
     }
 
-    pub fn into_view(self, cx: Scope) -> impl IntoView {
+    pub fn into_view(self) -> impl IntoView {
         view! {
-            cx,
             <button
                 type="submit"
                 class=self.button_class()
@@ -48,7 +47,7 @@ impl FormButton {
                 {self.text()}
             </button>
         }
-        .into_view(cx)
+        .into_view()
     }
 }
 
@@ -73,26 +72,24 @@ impl FormButtonGroup {
 
     pub fn into_view(
         self,
-        cx: Scope,
         form_change: Option<bool>,
     ) -> impl IntoView {
         let enable_on_change = self.enable_on_change.unwrap_or(false);
         let buttons = self.buttons;
 
         view! {
-            cx,
             <For
                 each=move || buttons.clone().into_iter().enumerate()
                 key=|(index, _)| *index
-                view=move |cx, (_, button)| {
+                children=move | (_, button)| {
                     if form_change.unwrap_or(false) && enable_on_change {
-                        button.set_enabled(enable_on_change).into_view(cx)
+                        button.set_enabled(enable_on_change).into_view()
                     } else {
-                        button.into_view(cx)
+                        button.into_view()
                     }
                 }
             />
         }
-        .into_view(cx)
+        .into_view()
     }
 }

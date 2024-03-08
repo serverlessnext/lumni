@@ -1,5 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::log;
 use leptos_router::use_query_map;
 
 use crate::components::apps::configuration::AppConfig;
@@ -14,18 +15,17 @@ use crate::components::forms::{
 
 #[component]
 pub fn AppConfigView(
-    cx: Scope,
     storage_handler: FormStorageHandler<LocalStorageWrapper>,
     form_meta: ConfigurationFormMeta,
 ) -> impl IntoView {
-    let is_loading = create_rw_signal(cx, false);
-    let load_error = create_rw_signal(cx, None::<String>);
+    let is_loading = create_rw_signal(false);
+    let load_error = create_rw_signal(None::<String>);
 
     let form_id_clone = form_meta.id();
     let storage_handler_clone = storage_handler.clone();
 
     let is_text_area = {
-        let param_view = use_query_map(cx).get_untracked().get("view").cloned();
+        let param_view = use_query_map().get_untracked().get("view").cloned();
         param_view
             .as_ref()
             .map(|v| v.as_str() == "TextArea")
@@ -62,8 +62,8 @@ pub fn AppConfigView(
         });
     };
 
-    let is_submitting = create_rw_signal(cx, false);
-    let submit_error = create_rw_signal(cx, None::<String>);
+    let is_submitting = create_rw_signal(false);
+    let submit_error = create_rw_signal(None::<String>);
     let handle_submit = move |ev: SubmitEvent, form_data: Option<FormData>| {
         ev.prevent_default();
         is_submitting.set(true);
@@ -132,9 +132,9 @@ pub fn AppConfigView(
     .with_elements(form_elements);
 
     let form = if is_text_area {
-        form_builder.to_text_area().build(cx)
+        form_builder.to_text_area().build()
     } else {
-        form_builder.build(cx)
+        form_builder.build()
     };
 
     form.to_view()

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use leptos::*;
+use leptos::logging::log;
 use uuid::Uuid;
 
 use super::dummy_data::make_form_data;
@@ -14,12 +15,12 @@ use crate::components::forms::builders::{
 use crate::components::forms::{ConfigurationFormMeta, FormData, FormError};
 
 #[component]
-pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
-    let is_loading = create_rw_signal(cx, false);
+pub fn LoadFormDemo() -> impl IntoView {
+    let is_loading = create_rw_signal(false);
 
     // define a function that fetches the data
     let handle_load = {
-        let dummy_data = make_form_data(cx);
+        let dummy_data = make_form_data();
         move |form_data_rw: RwSignal<Option<FormData>>| {
             let dummy_data = dummy_data.clone();
             //is_loading.set(true);
@@ -41,7 +42,7 @@ pub fn LoadFormDemo(cx: Scope) -> impl IntoView {
         form_meta,
         FormType::LoadData(load_parameters),
     )
-    .build(cx, None);
+    .build(None);
 
     load_form.to_view()
 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use leptos::*;
+use leptos::logging::log;
 
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::{ConfigurationFormMeta, FormError, FormStorage};

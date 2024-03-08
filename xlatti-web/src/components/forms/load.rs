@@ -17,8 +17,8 @@ pub struct LoadForm {
 
 impl LoadForm {
     pub fn new(form: HtmlForm, parameters: Option<LoadParameters>) -> Self {
-        let is_processing = create_rw_signal(form.cx(), false);
-        let process_error = create_rw_signal(form.cx(), None::<String>);
+        let is_processing = create_rw_signal(false);
+        let process_error = create_rw_signal(None::<String>);
 
         if let Some(parameters) = parameters {
             if let Some(handler) = parameters.load_handler {
@@ -44,7 +44,7 @@ impl LoadForm {
             form_data: self.form_data_rw(),
         };
         ViewHandler::new(Rc::new(form_handler) as Rc<dyn FormHandlerTrait>)
-            .to_view(self.form.cx(), None)
+            .to_view(None)
     }
 }
 

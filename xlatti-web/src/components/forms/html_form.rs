@@ -8,7 +8,6 @@ use crate::components::forms::{
 };
 
 pub struct HtmlForm {
-    cx: Scope,
     html_form_meta: HtmlFormMeta,
     pub elements: Vec<FormElement>,
     form_data_rw: RwSignal<Option<FormData>>,
@@ -16,7 +15,6 @@ pub struct HtmlForm {
 
 impl HtmlForm {
     pub fn new(
-        cx: Scope,
         name: &str,
         form_meta: ConfigurationFormMeta,
         view_options: Option<FormViewOptions>,
@@ -26,14 +24,13 @@ impl HtmlForm {
 
         let form_data_rw = if !elements.is_empty() {
             let form_data =
-                FormData::build(cx, form_meta, &elements, view_options);
-            create_rw_signal(cx, Some(form_data))
+                FormData::build(form_meta, &elements, view_options);
+            create_rw_signal(Some(form_data))
         } else {
-            create_rw_signal(cx, None)
+            create_rw_signal(None)
         };
 
         Self {
-            cx,
             html_form_meta,
             elements,
             form_data_rw,
@@ -57,10 +54,6 @@ impl HtmlForm {
                 ))
             }
         }
-    }
-
-    pub fn cx(&self) -> Scope {
-        self.cx
     }
 
     pub fn name(&self) -> &str {

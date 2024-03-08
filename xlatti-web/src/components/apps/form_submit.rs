@@ -4,6 +4,7 @@ use futures::channel::mpsc;
 use futures::stream::StreamExt;
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::log;
 use uuid::Uuid;
 use xlatti::EnvironmentConfig;
 
@@ -21,14 +22,14 @@ use crate::GlobalState;
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
-pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
-    let is_submitting = create_rw_signal(cx, false);
-    let validation_error = create_rw_signal(cx, None::<String>);
+pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
+    let is_submitting = create_rw_signal(false);
+    let validation_error = create_rw_signal(None::<String>);
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let results_form =
         FormBuilder::new("Search Form", form_meta, FormType::LoadElements)
-            .build(cx, None);
+            .build(None);
 
     let results_rw = results_form.form_data_rw();
 
@@ -120,7 +121,7 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
             let app_config = app_config_clone.clone();
 
-            let memory_store = use_context::<RwSignal<GlobalState>>(cx)
+            let memory_store = use_context::<RwSignal<GlobalState>>()
                 .expect("state to have been provided")
                 .with(|state| state.store.clone());
 
@@ -229,25 +230,24 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         };
 
     let query_form =
-        query_form.with_elements(interface_elements).build(cx, None);
+        query_form.with_elements(interface_elements).build(None);
 
-    view! { cx,
+    view! {
         { query_form.to_view() }
         { move ||
             if results_rw.get().is_none() {
-                view! { cx, ""}.into_view(cx)
+                view! { ""}.into_view()
             } else if let Some(error) = validation_error.get() {
-                view! { cx, <p>{ error }</p> }.into_view(cx)
+                view! { <p>{ error }</p> }.into_view()
             } else {
                 view ! {
-                    cx,
                     <div>
                         <p>"Results"</p>
                     </div>
                     { results_form.to_view() }
-                }.into_view(cx)
+                }.into_view()
             }
         }
     }
-    .into_view(cx)
+    .into_view()
 }

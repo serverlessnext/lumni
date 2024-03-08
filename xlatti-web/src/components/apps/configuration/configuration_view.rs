@@ -7,40 +7,38 @@ use crate::components::forms::FormStorage;
 use crate::helpers::local_storage::create_local_storage;
 
 #[component]
-pub fn AppConfiguration(cx: Scope, app_uri: String) -> impl IntoView {
-    let storage_handler = create_local_storage(cx);
+pub fn AppConfiguration(app_uri: String) -> impl IntoView {
+    let storage_handler = create_local_storage();
 
     if let Some(storage_handler) = storage_handler {
-        view! { cx,
+        view! { 
             <AppConfigurationView storage_handler app_uri/>
         }
     } else {
-        view! { cx,
+        view! {
             <div>"Error: Must be logged in to access Local Storage"</div>
         }
-        .into_view(cx)
+        .into_view()
     }
 }
 
 #[component]
 pub fn AppConfigurationView(
-    cx: Scope,
     storage_handler: Box<dyn FormStorage>,
     app_uri: String,
 ) -> impl IntoView {
-    let selected_template = create_rw_signal(cx, "".to_string());
+    let selected_template = create_rw_signal("".to_string());
 
-    let (is_loading, set_is_loading) = create_signal(cx, true);
+    let (is_loading, set_is_loading) = create_signal(true);
     let (item_list, set_item_list) = create_signal(
-        cx,
         EnvironmentConfigurations::new(storage_handler.clone()),
     );
-    provide_context(cx, set_item_list);
+    provide_context(set_item_list);
 
-    let input_ref = create_node_ref::<Input>(cx);
+    let input_ref = create_node_ref::<Input>();
 
     // TODO: implement error handling
-    let (_, set_submit_error) = create_signal(cx, None::<String>);
+    let (_, set_submit_error) = create_signal(None::<String>);
 
     fn get_input_value(input_ref: NodeRef<Input>) -> Option<String> {
         let input = input_ref.get()?;
@@ -53,7 +51,7 @@ pub fn AppConfigurationView(
         }
     }
 
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         spawn_local({
             let storage_handler = storage_handler.clone();
             async move {
@@ -71,7 +69,7 @@ pub fn AppConfigurationView(
         });
     });
 
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         if let Some(input) = input_ref.get() {
             request_animation_frame(move || {
                 let _ = input.focus();
@@ -80,15 +78,13 @@ pub fn AppConfigurationView(
     });
 
     view! {
-        cx,
         {move || if is_loading.get() {
-            view! { cx, <div>"Loading..."</div> }
+            view! { <div>"Loading..."</div> }
         } else {
             let app_uri_clone_for_keydown = app_uri.clone();
             let app_uri_clone_for_click = app_uri.clone();
             let selected = selected_template.get();
             view! {
-                cx,
                 <div>
                 <p>{format!("Selected template: {}", selected)}</p>
                    <select on:change=move |ev| selected_template.set(event_target_value(&ev).into()) >
@@ -121,7 +117,7 @@ pub fn AppConfigurationView(
                         <For
                             each={move || item_list.get().items}
                             key=|item| item.profile_id()
-                            view=move |cx, item| view! { cx, <ListItem item set_is_loading/> }
+                            children=move |item| view! { <ListItem item set_is_loading/> }
                         />
                     </ul>
                 </div>
@@ -133,16 +129,15 @@ pub fn AppConfigurationView(
 
 #[component]
 fn ListItem(
-    cx: Scope,
     item: AppConfig,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
     let set_item =
-        use_context::<WriteSignal<EnvironmentConfigurations>>(cx).unwrap();
+        use_context::<WriteSignal<EnvironmentConfigurations>>().unwrap();
     let profile_id = item.profile_id();
     let profile_name = item.profile_name();
 
-    view! { cx,
+    view! {
         <li>
             <div class="px-4 py-2">
                 {profile_name.clone()} " | "

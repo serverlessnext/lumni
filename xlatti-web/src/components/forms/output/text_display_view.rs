@@ -4,7 +4,6 @@ use crate::components::forms::input::{DisplayValue, FormElementState};
 
 #[component]
 pub fn TextDisplayView(
-    cx: Scope,
     form_element_state: FormElementState,
 ) -> impl IntoView {
     let value_signal = form_element_state.display_value;
@@ -20,10 +19,9 @@ pub fn TextDisplayView(
         DisplayValue::Text(text) => text,
     };
 
-    let display_value_signal = create_rw_signal(cx, initial_value);
+    let display_value_signal = create_rw_signal(initial_value);
 
     view! {
-        cx,
         <div class="w-full flex-col items-start text-left mb-2 p-2 bg-white text-gray-800">
             <InputFieldLabelView
                 label_text
@@ -37,9 +35,8 @@ pub fn TextDisplayView(
 }
 
 #[component]
-pub fn InputFieldLabelView(cx: Scope, label_text: String) -> impl IntoView {
+pub fn InputFieldLabelView(label_text: String) -> impl IntoView {
     view! {
-        cx,
         <div class="flex justify-between items-center">
             <label for="field_id" class="text-base font-semibold text-gray-900">{label_text}</label>
         </div>
@@ -58,10 +55,9 @@ fn get_input_class(is_enabled: bool) -> &'static str {
 
 #[component]
 pub fn TextAreaView(
-    cx: Scope,
     display_value_signal: RwSignal<String>,
 ) -> impl IntoView {
-    view! { cx,
+    view! {
         <textarea
             prop:value= { display_value_signal }
             placeholder="none".to_string()
@@ -73,13 +69,12 @@ pub fn TextAreaView(
 
 #[component]
 pub fn InputFieldErrorView(
-    cx: Scope,
     error_signal: RwSignal<Option<String>>,
 ) -> impl IntoView {
-    view! { cx,
+    view! {
         <div class="text-red-500">
             { move || error_signal.get().unwrap_or("".to_string()) }
         </div>
     }
-    .into_view(cx)
+    .into_view()
 }

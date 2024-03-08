@@ -22,21 +22,19 @@ macro_rules! redirect_path {
 }
 
 #[component]
-pub fn RedirectTo(cx: Scope, path: &'static str) -> impl IntoView {
-    let navigate = use_navigate(cx);
-    if let Err(e) = navigate(path, Default::default()) {
-        log!("Error navigating to {}: {}", path, e);
-    }
+pub fn RedirectTo(path: &'static str) -> impl IntoView {
+    let navigate = use_navigate();
+    navigate(path, Default::default());
 }
 
 #[component]
-pub fn App(cx: Scope) -> impl IntoView {
-    let state = create_rw_signal(cx, GlobalState::default());
-    provide_meta_context(cx);
-    provide_context(cx, state);
+pub fn App() -> impl IntoView {
+    let state = create_rw_signal(GlobalState::default());
+    provide_meta_context();
+    provide_context(state);
 
     let set_previous_url =
-        create_write_slice(cx, state, |state, previous_url: String| {
+        create_write_slice(state, |state, previous_url: String| {
             //let updated_url = previous_url.replace(':', "/");
             let updated_url = replace_first_single_colon(&previous_url);
             state
@@ -45,7 +43,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                 .set_previous_url(updated_url);
         });
 
-    let vault_initialized = create_read_slice(cx, state, |state| {
+    let vault_initialized = create_read_slice(state, |state| {
         state
             .runtime
             .as_ref()
@@ -54,11 +52,10 @@ pub fn App(cx: Scope) -> impl IntoView {
     });
 
     view! {
-        cx,
         <Stylesheet id="goaiio" href="/pkg/tailwind.css"/>
         <Link rel="shortcut icon" type_="image/ico" href="/favicon.ico"/>
         <div class="my-0 mx-auto px-8 max-w-7xl text-left">
-            <Router fallback=|cx| view! { cx, <Redirect redirect_url=None/>}.into_view(cx)>
+            <Router fallback=|| view! { <Redirect redirect_url=None/>}.into_view()>
             <nav class="py-2 px-4 text-lg font-medium h-12 bg-customBlue flex items-center justify-between">
                 <a href="/console" class="flex items-left">
                     <img src="/xlatti-logo-sm.png" alt="XLatti Logo" class="h-6 mr-1 mt-1" />
@@ -83,67 +80,53 @@ pub fn App(cx: Scope) -> impl IntoView {
                     <Routes>
                         <Route
                             path=""
-                            view=|cx| { view! { cx, <Home/>}}
+                            view=|| { view! { <Home/>}}
                         >
                             // load Console directly if no path is given
                             // the url will be rewritten via History, saving
                             // a redirect on first page load
-                            <Route path="/" view=|cx| view! { cx,
-                                <Console />
-                            }/>
+                            <Route path="/" view=|| view! { <Console /> }/>
                             // but also accept /console
-                            <Route path="/console" view=|cx| view! { cx,
-                                <Console />
-                            }/>
-
-                            <Route path="/apps" view=|cx| view! { cx,
-                                <Apps />
-                            }/>
-
+                            <Route path="/console" view=|| view! { <Console /> }/>
+                            <Route path="/apps" view=|| view! { <Apps /> }/>
                             <Route
                                 path="/apps/:uri"
-                                view=move |cx| {
+                                view=move || {
                                     if vault_initialized.get() == false {
                                         // not yet logged in
-                                        let location = use_location(cx);
+                                        let location = use_location();
                                         let pathname = location.pathname.get();
                                         let redirect_url =
                                             format!("{}{}", redirect_path!(""),
                                             pathname.strip_prefix("/").unwrap_or_default().replace("/", ":")
                                         );
                                         view! {
-                                            cx,
                                             <Redirect redirect_url=redirect_url.into()/>
-                                        }.into_view(cx)
+                                        }.into_view()
                                     }else {
                                         view! {
-                                            cx,
                                             <AppUri />
-                                        }.into_view(cx)
+                                        }.into_view()
                                     }
                                 }
 
                             />
                             <Route
                                 path="/apps/:uri/:id"
-                                view=move |cx| {
+                                view=move || {
                                     if vault_initialized.get() == false {
                                         // not yet logged in
-                                        let location = use_location(cx);
+                                        let location = use_location();
                                         let pathname = location.pathname.get();
                                         let redirect_url =
                                             format!("{}{}", redirect_path!(""),
                                             pathname.strip_prefix("/").unwrap_or_default().replace("/", ":")
                                         );
                                         view! {
-                                            cx,
                                             <Redirect redirect_url=redirect_url.into()/>
-                                        }.into_view(cx)
+                                        }.into_view()
                                     }else {
-                                        view! {
-                                            cx,
-                                            <AppId />
-                                        }.into_view(cx)
+                                        view! { <AppId /> }.into_view()
                                     }
                                 }
                             />
@@ -151,29 +134,25 @@ pub fn App(cx: Scope) -> impl IntoView {
                         <ProtectedRoute
                             path="/user"
                             redirect_path=redirect_path!("user:settings")
-                            condition=move |_| vault_initialized.get()
-                            view=|cx| view! { cx, <User/> }
+                            condition=move || vault_initialized.get()
+                            view=|| view! { <User/> }
                         >
                             // catch /user, else fallback kicks in
-                            <Route path="" view=|cx| view! { cx, <RedirectTo path="/user/settings"/> }/>
-                           <Route path="settings" view=|cx| view! { cx,
-                                <UserSettings />
-                            }/>
+                            <Route path="" view=|| view! { <RedirectTo path="/user/settings"/> }/>
+                           <Route path="settings" view=|| view! { <UserSettings /> }/>
 
 
-                            <Route path="change-password" view=|cx| view! { cx,
-                                <ChangePassword />
-                            }/>
+                            <Route path="change-password" view=|| view! { <ChangePassword /> }/>
                         </ProtectedRoute>
-                        <Route path="/user/logout" view=|cx| view! { cx, <Logout/> }/>
+                        <Route path="/user/logout" view=|| view! { <Logout/> }/>
                         <Route
                             path=redirect_path!(":id")
-                            view=move |cx| {
-                                let location = use_location(cx);
+                            view=move || {
+                                let location = use_location();
                                 let pathname = location.pathname.get();
                                 let previous_path = pathname.strip_prefix(redirect_path!("")).unwrap_or(&pathname).to_string();
                                 set_previous_url(previous_path);
-                                view! { cx, <Login/>}
+                                view! { <Login/>}
                             }
                         />
                     </Routes>

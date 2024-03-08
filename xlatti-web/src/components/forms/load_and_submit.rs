@@ -22,14 +22,12 @@ impl LoadAndSubmitForm {
         load_parameters: LoadParameters,
         submit_parameters: SubmitParameters,
     ) -> Self {
-        let cx = form.cx();
-
         let is_processing = submit_parameters
             .is_submitting()
-            .unwrap_or_else(|| create_rw_signal(cx, false));
+            .unwrap_or_else(|| create_rw_signal(false));
         let process_error = submit_parameters
             .validation_error()
-            .unwrap_or_else(|| create_rw_signal(cx, None));
+            .unwrap_or_else(|| create_rw_signal(None));
 
         if let Some(load_handler) = load_parameters.load_handler {
             // load handler writes to form_data_rw
@@ -66,7 +64,7 @@ impl LoadAndSubmitForm {
         let form_button = self.form_button.clone().unwrap_or(
             FormButton::new(ButtonType::Submit, None).set_enabled(false),
         );
-        self.view_handler.to_view(self.form.cx(), Some(form_button))
+        self.view_handler.to_view(Some(form_button))
     }
 }
 

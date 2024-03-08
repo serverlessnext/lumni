@@ -4,8 +4,8 @@ use wasm_bindgen::JsValue;
 use web_sys::window;
 
 #[component]
-pub fn Home(cx: Scope) -> impl IntoView {
-    let page_path = use_location(cx).pathname;
+pub fn Home() -> impl IntoView {
+    let page_path = use_location().pathname;
 
     if page_path.get_untracked().ends_with("/") {
         // on first page load, rewrite url to /console
@@ -20,11 +20,10 @@ pub fn Home(cx: Scope) -> impl IntoView {
     }
 
     view! {
-        cx,
         <nav class="bg-slate-100 mb-2">
             <div class="flex">
                 {move ||
-                    view! { cx,
+                    view! {
                        <a href="/console"
                             class={
                                 if page_path.get().ends_with("/console") || page_path.get().ends_with("/") {

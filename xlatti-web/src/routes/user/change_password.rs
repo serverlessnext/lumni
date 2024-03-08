@@ -1,5 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::*;
+use leptos::logging::{log, error};
 use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
@@ -21,10 +22,10 @@ const PASSWORD_FIELD: &str = "PASSWORD";
 const PASSWORD_MISSING: &str = "password does not exist";
 
 #[component]
-pub fn ChangePassword(cx: Scope) -> impl IntoView {
-    let password_validated = create_rw_signal(cx, None::<String>);
-    let is_submitting = create_rw_signal(cx, false);
-    let validation_error = create_rw_signal(cx, None::<String>);
+pub fn ChangePassword() -> impl IntoView {
+    let password_validated = create_rw_signal(None::<String>);
+    let is_submitting = create_rw_signal(false);
+    let validation_error = create_rw_signal(None::<String>);
 
     let elements_validation: Vec<FormElement> =
         build_all(vec![ElementBuilder::with_pattern(
@@ -37,14 +38,13 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
 
     let form_meta = ConfigurationFormMeta::with_id(&Uuid::new_v4().to_string());
     let form_validation = HtmlForm::new(
-        cx,
         "Validate Password",
         form_meta.clone(),
         None,
         elements_validation,
     );
     let form_change =
-        HtmlForm::new(cx, "Change Password", form_meta, None, elements_change);
+        HtmlForm::new("Change Password", form_meta, None, elements_change);
 
     let handle_password_validation = {
         move |ev: SubmitEvent, form_data: Option<FormData>| {
@@ -141,7 +141,6 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
     let login_button =
         FormButton::new(ButtonType::Login, Some("Validate Current Password"));
     let validation_form = SubmitFormClassic::new(
-        cx,
         form_validation,
         Box::new(handle_password_validation),
         is_submitting,
@@ -152,7 +151,6 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
     let change_button =
         FormButton::new(ButtonType::Change, Some("Change Password"));
     let change_form = SubmitFormClassic::new(
-        cx,
         form_change,
         Box::new(handle_password_change),
         is_submitting,
@@ -160,7 +158,7 @@ pub fn ChangePassword(cx: Scope) -> impl IntoView {
         Some(change_button),
     );
 
-    view! { cx,
+    view! {
         { move ||
             if password_validated.get().is_none() {
                 validation_form.to_view()

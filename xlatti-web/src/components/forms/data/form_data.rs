@@ -154,7 +154,6 @@ impl FormData {
     }
 
     pub fn build(
-        cx: Scope,
         meta_data: ConfigurationFormMeta,
         elements: &[FormElement],
         view_options: Option<FormViewOptions>,
@@ -165,8 +164,8 @@ impl FormData {
                 let name = element.name.clone();
                 let initial_value =
                     DisplayValue::Text(element.buffer_data_as_string());
-                let error_signal = create_rw_signal(cx, None);
-                let value_signal = create_rw_signal(cx, initial_value);
+                let error_signal = create_rw_signal(None);
+                let value_signal = create_rw_signal(initial_value);
 
                 let element_state = FormElementState {
                     schema: Arc::new(element.clone()),

@@ -1,5 +1,6 @@
 use leptos::ev::{MouseEvent, SubmitEvent};
 use leptos::*;
+use leptos::logging::log;
 
 use crate::components::buttons::{ButtonType, FormButton, TextLink};
 use crate::components::forms::builders::{
@@ -12,8 +13,8 @@ use crate::GlobalState;
 const ENVIRONMENT_FORM_ID: &str = "EnvironmentForm";
 
 #[component]
-pub fn Environment(cx: Scope) -> impl IntoView {
-    let is_enabled = create_rw_signal(cx, false);
+pub fn Environment() -> impl IntoView {
+    let is_enabled = create_rw_signal(false);
 
     let form_button =
         FormButton::new(ButtonType::Submit, Some("Set Environment"));
@@ -26,7 +27,6 @@ pub fn Environment(cx: Scope) -> impl IntoView {
     };
 
     view! {
-        cx,
         <TextLink
             form_button={form_button}
             enabled=is_enabled.into()
@@ -35,25 +35,24 @@ pub fn Environment(cx: Scope) -> impl IntoView {
         // if enabled
         { move || if is_enabled.get() {
             view! {
-                cx,
                 <SetEnvironment />
-            }.into_view(cx)
+            }.into_view()
         } else {
-            view! { cx, "" }.into_view(cx)
+            view! { "" }.into_view()
          }}
     }
 }
 
 #[component]
-pub fn SetEnvironment(cx: Scope) -> impl IntoView {
-    let is_loading = create_rw_signal(cx, false);
-    let load_error = create_rw_signal(cx, None::<String>);
+pub fn SetEnvironment() -> impl IntoView {
+    let is_loading = create_rw_signal(false);
+    let load_error = create_rw_signal(None::<String>);
 
-    let is_submitting = create_rw_signal(cx, false);
-    let submit_error = create_rw_signal(cx, None::<String>);
+    let is_submitting = create_rw_signal(false);
+    let submit_error = create_rw_signal(None::<String>);
 
     let handle_load = {
-        let memory_store = use_context::<RwSignal<GlobalState>>(cx)
+        let memory_store = use_context::<RwSignal<GlobalState>>()
             .expect("state to have been provided")
             .with(|state| state.store.clone());
 
@@ -96,7 +95,7 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
     };
 
     let handle_submit = {
-        let memory_store = use_context::<RwSignal<GlobalState>>(cx)
+        let memory_store = use_context::<RwSignal<GlobalState>>()
             .expect("state to have been provided")
             .with(|state| state.store.clone());
 
@@ -152,7 +151,7 @@ pub fn SetEnvironment(cx: Scope) -> impl IntoView {
         FormType::LoadAndSubmitData(load_parameters, submit_parameters),
     )
     .to_text_area()
-    .build(cx);
+    .build();
 
     form.to_view()
 }

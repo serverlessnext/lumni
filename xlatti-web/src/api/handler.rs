@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use futures::channel::mpsc;
-use leptos::log;
+use leptos::logging::error;
 
 use crate::api::error::Error;
 use crate::api::invoke::Request;
@@ -24,7 +24,7 @@ pub trait AppHandler: Send + Sync + 'static {
         wasm_bindgen_futures::spawn_local(async move {
             let result = processing_future.await;
             if let Err(e) = result {
-                log!("Error handling query: {:?}", e);
+                error!("Error handling query: {:?}", e);
             }
             local_tx.send(()).expect("Failed to send completion signal");
         });

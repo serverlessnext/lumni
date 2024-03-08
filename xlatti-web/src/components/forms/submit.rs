@@ -19,13 +19,12 @@ pub struct SubmitForm {
 
 impl SubmitForm {
     pub fn new(form: HtmlForm, submit_parameters: SubmitParameters) -> Self {
-        let cx = form.cx();
         let is_processing = submit_parameters
             .is_submitting()
-            .unwrap_or_else(|| create_rw_signal(cx, false));
+            .unwrap_or_else(|| create_rw_signal(false));
         let process_error = submit_parameters
             .validation_error()
-            .unwrap_or_else(|| create_rw_signal(cx, None));
+            .unwrap_or_else(|| create_rw_signal(None));
 
         let form_button = submit_parameters.form_button;
 
@@ -58,7 +57,7 @@ impl SubmitForm {
             .form_button
             .clone()
             .unwrap_or(FormButton::new(ButtonType::Submit, None));
-        self.view_handler.to_view(self.form.cx(), Some(form_button))
+        self.view_handler.to_view(Some(form_button))
     }
 }
 
@@ -75,14 +74,12 @@ impl Form for SubmitForm {
 // this version of SubmitForm is still used by ChangePassWord and LoginForm
 // which still must be restructured to use FormBuilder
 pub struct SubmitFormClassic {
-    cx: Scope,
     view_handler: ViewHandler,
     form_button: Option<FormButton>,
 }
 
 impl SubmitFormClassic {
     pub fn new(
-        cx: Scope,
         form: HtmlForm,
         function: Box<dyn Fn(SubmitEvent, Option<FormData>) + 'static>,
         is_submitting: RwSignal<bool>,
@@ -95,9 +92,9 @@ impl SubmitFormClassic {
         let form_meta =
             ConfigurationFormMeta::with_id(form.id()).with_tags(tags);
         let form_data_default =
-            FormData::build(cx, form_meta, &form.elements, None);
+            FormData::build(form_meta, &form.elements, None);
 
-        let form_data = create_rw_signal(cx, Some(form_data_default));
+        let form_data = create_rw_signal(Some(form_data_default));
 
         let custom_submit_handler = Box::new(CustomSubmitHandler::new(
             form_data,
@@ -115,7 +112,6 @@ impl SubmitFormClassic {
         let view_handler = ViewHandler::new(form_handler);
 
         Self {
-            cx,
             view_handler,
             form_button,
         }
@@ -126,6 +122,6 @@ impl SubmitFormClassic {
             .form_button
             .clone()
             .unwrap_or(FormButton::new(ButtonType::Submit, None));
-        self.view_handler.to_view(self.cx, Some(form_button))
+        self.view_handler.to_view(Some(form_button))
     }
 }

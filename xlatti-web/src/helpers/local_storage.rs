@@ -35,7 +35,7 @@ pub fn create_storage_handler(
     }
 }
 
-pub fn create_local_storage() -> Option<Box<dyn FormStorage>> {
+pub fn local_storage_handler() -> Option<Box<dyn FormStorage>> {
     let vault_option = use_context::<RwSignal<GlobalState>>();
 
     match vault_option {

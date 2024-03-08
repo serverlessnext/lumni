@@ -20,10 +20,7 @@ pub fn Environment() -> impl IntoView {
         FormButton::new(ButtonType::Submit, Some("Set Environment"));
     let on_click = move |event: MouseEvent| {
         event.prevent_default();
-
         is_enabled.set(!is_enabled.get());
-
-        log!("SetEnvironment clicked");
     };
 
     view! {

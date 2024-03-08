@@ -4,11 +4,11 @@ use leptos::*;
 use super::environment_configurations::EnvironmentConfigurations;
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::FormStorage;
-use crate::helpers::local_storage::create_local_storage;
+use crate::helpers::local_storage::local_storage_handler;
 
 #[component]
 pub fn AppConfiguration(app_uri: String) -> impl IntoView {
-    let storage_handler = create_local_storage();
+    let storage_handler = local_storage_handler();
 
     if let Some(storage_handler) = storage_handler {
         view! { 

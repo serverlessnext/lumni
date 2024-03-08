@@ -3,14 +3,14 @@ name = "xlatti"
 # version is auto-updated via xlatti/build.rs
 version = "0.0.4-alpha"
 authors = ["Anthony Potappel <mail@aprxi.com>"]
-edition = "2021"
+edition.workspace = true
+license.workspace = true
 
 description = "Portable file-utility for object-stores"
 documentation = "https://docs.rs/xlatti"
 homepage = "https://xlatti.com"
 repository = "https://github.com/serverlessnext/xlatti"
 readme = "../README.rst"
-license = "Apache-2.0"
 
 [lib]
 name = "xlatti"

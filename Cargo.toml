@@ -6,6 +6,10 @@ members = [
     "xlatti-web",
 ]
 
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+
 # required to workaround the tokio-mio wasm bug
 # resolver = "2"
 # note current tokio wasm-browser support still limited, see:

@@ -3,18 +3,38 @@ use leptos::*;
 
 use super::environment_configurations::EnvironmentConfigurations;
 use crate::components::apps::configuration::AppConfig;
+use crate::components::forms::FormStorage;
 use crate::helpers::local_storage::create_local_storage;
 
 #[component]
-pub fn AppConfigurationView(cx: Scope, app_uri: String) -> impl IntoView {
-    let storage_handler = create_local_storage(cx).unwrap();
+pub fn AppConfiguration(cx: Scope, app_uri: String) -> impl IntoView {
+    let storage_handler = create_local_storage(cx);
 
-    // TODO: select form_id from list
+    if let Some(storage_handler) = storage_handler {
+        view! { cx,
+            <AppConfigurationView storage_handler app_uri/>
+        }
+    } else {
+        view! { cx,
+            <div>"Error: Must be logged in to access Local Storage"</div>
+        }
+        .into_view(cx)
+    }
+}
+
+#[component]
+pub fn AppConfigurationView(
+    cx: Scope,
+    storage_handler: Box<dyn FormStorage>,
+    app_uri: String,
+) -> impl IntoView {
     let selected_template = create_rw_signal(cx, "".to_string());
 
     let (is_loading, set_is_loading) = create_signal(cx, true);
-    let (item_list, set_item_list) =
-        create_signal(cx, EnvironmentConfigurations::new(storage_handler));
+    let (item_list, set_item_list) = create_signal(
+        cx,
+        EnvironmentConfigurations::new(storage_handler.clone()),
+    );
     provide_context(cx, set_item_list);
 
     let input_ref = create_node_ref::<Input>(cx);
@@ -35,8 +55,7 @@ pub fn AppConfigurationView(cx: Scope, app_uri: String) -> impl IntoView {
 
     create_effect(cx, move |_| {
         spawn_local({
-            let storage_handler = create_local_storage(cx).unwrap();
-
+            let storage_handler = storage_handler.clone();
             async move {
                 let object_store_list = item_list.get_untracked();
                 let initial_items = object_store_list

@@ -47,7 +47,7 @@ pub fn AppFormSubmit(cx: Scope, app_uri: String) -> impl IntoView {
         },
         None => vec![], // AppConfig is None, also use an empty vector as a fallback
     };
-    log!("Form Elements: {:?}", form_elements);
+    log!("App Form Elements: {:?}", form_elements);
     //log!("AppConfig: {:?}", app_config);
     // TODO: handle None
 

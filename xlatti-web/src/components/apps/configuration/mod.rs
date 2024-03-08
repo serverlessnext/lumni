@@ -6,4 +6,4 @@ mod parse_config;
 
 pub use app_config::AppConfig;
 pub use config_view::AppConfigView;
-pub use configuration_view::AppConfigurationView;
+pub use configuration_view::AppConfiguration;

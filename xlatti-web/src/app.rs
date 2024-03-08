@@ -5,7 +5,7 @@ use leptos_router::*;
 use crate::components::Redirect;
 use crate::helpers::string_replace::replace_first_single_colon;
 use crate::routes::api::Login;
-use crate::routes::home::apps::uri::{AppConfiguration, AppId};
+use crate::routes::home::apps::uri::{AppId, AppUri};
 use crate::routes::home::apps::Apps;
 use crate::routes::home::{Console, Home};
 use crate::routes::user::{ChangePassword, Logout, User, UserSettings};
@@ -118,7 +118,7 @@ pub fn App(cx: Scope) -> impl IntoView {
                                     }else {
                                         view! {
                                             cx,
-                                            <AppConfiguration />
+                                            <AppUri />
                                         }.into_view(cx)
                                     }
                                 }

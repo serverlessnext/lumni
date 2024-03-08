@@ -2,4 +2,4 @@ mod app;
 mod page;
 
 pub use app::AppId;
-pub use page::AppConfiguration;
+pub use page::AppUri;

@@ -1,7 +1,7 @@
 use leptos::*;
 use leptos_router::{use_params, Params, ParamsError, ParamsMap};
 
-use crate::components::apps::configuration::AppConfigView;
+use crate::components::apps::AppConfigView;
 use crate::components::forms::ConfigurationFormMeta;
 use crate::helpers::local_storage::create_storage_handler;
 

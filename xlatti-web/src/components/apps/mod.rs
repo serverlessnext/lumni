@@ -1,7 +1,9 @@
-pub mod configuration;
+mod app_loader;
+mod configuration;
 mod form_submit;
 
-pub use form_submit::AppFormSubmit;
+pub use app_loader::AppLoader;
+pub use configuration::AppConfigView;
 
 use crate::api::handler::AppHandler;
 // auto-generated via build.rs:

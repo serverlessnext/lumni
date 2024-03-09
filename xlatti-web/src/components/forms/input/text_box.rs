@@ -102,7 +102,7 @@ pub fn TextBoxView(
         }
         .into_view()
     } else {
-        view! { }.into_view()
+        view! {}.into_view()
     };
 
     view! {

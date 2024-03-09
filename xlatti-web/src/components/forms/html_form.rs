@@ -23,8 +23,7 @@ impl HtmlForm {
         let html_form_meta = HtmlFormMeta::new(name, &form_meta.id());
 
         let form_data_rw = if !elements.is_empty() {
-            let form_data =
-                FormData::build(form_meta, &elements, view_options);
+            let form_data = FormData::build(form_meta, &elements, view_options);
             create_rw_signal(Some(form_data))
         } else {
             create_rw_signal(None)

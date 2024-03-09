@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use leptos::ev::SubmitEvent;
-use leptos::*;
 use leptos::logging::{error, log};
+use leptos::*;
 use leptos_router::use_navigate;
 use localencrypt::{LocalEncrypt, LocalStorage, StorageBackend};
 use uuid::Uuid;
@@ -156,8 +156,7 @@ pub fn LoginForm() -> impl IntoView {
         }
     });
 
-    let app_login =
-        AppLogin::new(init_vault, redirect_url);
+    let app_login = AppLogin::new(init_vault, redirect_url);
 
     view! {
         { move ||

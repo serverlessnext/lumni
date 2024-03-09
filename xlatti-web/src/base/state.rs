@@ -60,5 +60,4 @@ impl RunTime {
     pub fn set_previous_url(&mut self, url: String) {
         self.previous_url = url;
     }
-
 }

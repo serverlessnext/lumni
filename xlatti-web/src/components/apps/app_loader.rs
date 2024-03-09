@@ -1,5 +1,5 @@
-use leptos::*;
 use leptos::ev::MouseEvent;
+use leptos::*;
 
 use super::configuration::AppConfiguration;
 use super::form_submit::AppFormSubmit;
@@ -13,7 +13,7 @@ pub fn AppRunTime(app_uri: String) -> impl IntoView {
 pub fn AppLoader(app_uri: String) -> impl IntoView {
     // TODO:
     // add Logger that can be toggled open/close, this should show stdout/stderr
-    
+
     let is_enabled = create_rw_signal(false);
     let toggle_enabled = move |event: MouseEvent| {
         event.prevent_default();
@@ -23,7 +23,7 @@ pub fn AppLoader(app_uri: String) -> impl IntoView {
     let app_uri_clone = app_uri.clone();
     view! {
         <div class="flex flex-col items-start max-w-2xl">
-            <div 
+            <div
                 class="w-full px-2 py-0 bg-gray-200 hover:bg-gray-300 flex justify-between items-center"
                 on:click=toggle_enabled
             >
@@ -31,7 +31,7 @@ pub fn AppLoader(app_uri: String) -> impl IntoView {
                 <div
                     class="cursor-pointer rounded p-1"
                 >
-                    {move || 
+                    {move ||
                         if is_enabled.get() {
                             view! { <span>{"-"}</span> }
                         } else {
@@ -41,7 +41,7 @@ pub fn AppLoader(app_uri: String) -> impl IntoView {
                 </div>
             </div>
 
-            {move || 
+            {move ||
                 if is_enabled.get() {
                     view! {
                         <div class="bg-yellow-100 p-4 rounded-lg shadow my-4 w-full">
@@ -61,5 +61,4 @@ pub fn AppLoader(app_uri: String) -> impl IntoView {
             </div>
         </div>
     }
-
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
 use uuid::Uuid;
 
 use super::dummy_data::make_form_data;

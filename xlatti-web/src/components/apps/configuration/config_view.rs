@@ -1,6 +1,6 @@
 use leptos::ev::SubmitEvent;
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
 use leptos_router::use_query_map;
 
 use crate::components::apps::configuration::AppConfig;

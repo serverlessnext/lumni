@@ -8,7 +8,7 @@ pub fn User() -> impl IntoView {
         <nav class="bg-slate-100 mb-4">
             <div class="flex">
                 {move ||
-                    view! { 
+                    view! {
                         <a href="/user/settings"
                             class={
                                 if page_path.get().ends_with("/user/settings") {

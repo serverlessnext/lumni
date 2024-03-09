@@ -1,5 +1,6 @@
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
+
 pub use crate::components::apps::{get_available_apps, AppLoader};
 pub use crate::components::Environment;
 

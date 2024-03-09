@@ -2,8 +2,8 @@ use std::future::Future;
 use std::sync::Arc;
 
 use leptos::ev::MouseEvent;
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
 
 use super::{ClickButton, FormButton};
 use crate::components::forms::FormError;

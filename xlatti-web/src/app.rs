@@ -35,7 +35,6 @@ pub fn App() -> impl IntoView {
 
     let set_previous_url =
         create_write_slice(state, |state, previous_url: String| {
-            //let updated_url = previous_url.replace(':', "/");
             let updated_url = replace_first_single_colon(&previous_url);
             state
                 .runtime
@@ -43,7 +42,8 @@ pub fn App() -> impl IntoView {
                 .set_previous_url(updated_url);
         });
 
-    let vault_initialized = create_read_slice(state, |state| state.is_vault_initialized());
+    let vault_initialized =
+        create_read_slice(state, |state| state.is_vault_initialized());
 
     view! {
         <Stylesheet id="goaiio" href="/pkg/tailwind.css"/>

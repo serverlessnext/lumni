@@ -70,10 +70,7 @@ impl FormButtonGroup {
         self.buttons.push(button);
     }
 
-    pub fn into_view(
-        self,
-        form_change: Option<bool>,
-    ) -> impl IntoView {
+    pub fn into_view(self, form_change: Option<bool>) -> impl IntoView {
         let enable_on_change = self.enable_on_change.unwrap_or(false);
         let buttons = self.buttons;
 

@@ -3,9 +3,7 @@ use leptos::*;
 use crate::components::forms::input::{DisplayValue, FormElementState};
 
 #[component]
-pub fn TextDisplayView(
-    form_element_state: FormElementState,
-) -> impl IntoView {
+pub fn TextDisplayView(form_element_state: FormElementState) -> impl IntoView {
     let value_signal = form_element_state.display_value;
     let error_signal = form_element_state.display_error;
     let input_field_data = form_element_state.schema;
@@ -54,9 +52,7 @@ fn get_input_class(is_enabled: bool) -> &'static str {
 }
 
 #[component]
-pub fn TextAreaView(
-    display_value_signal: RwSignal<String>,
-) -> impl IntoView {
+pub fn TextAreaView(display_value_signal: RwSignal<String>) -> impl IntoView {
     view! {
         <textarea
             prop:value= { display_value_signal }

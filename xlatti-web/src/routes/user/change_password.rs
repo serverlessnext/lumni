@@ -1,6 +1,6 @@
 use leptos::ev::SubmitEvent;
+use leptos::logging::{error, log};
 use leptos::*;
-use leptos::logging::{log, error};
 use localencrypt::StorageBackend;
 use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;

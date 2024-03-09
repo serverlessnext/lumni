@@ -54,10 +54,7 @@ impl FormBuilder {
         self
     }
 
-    pub fn build(
-        self,
-        view_options: Option<FormViewOptions>,
-    ) -> Box<dyn Form> {
+    pub fn build(self, view_options: Option<FormViewOptions>) -> Box<dyn Form> {
         let elements: Vec<FormElement> =
             self.elements.iter().map(|b| b.clone().build()).collect();
 

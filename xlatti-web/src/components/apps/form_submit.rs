@@ -3,8 +3,8 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
 use leptos::ev::SubmitEvent;
-use leptos::*;
 use leptos::logging::log;
+use leptos::*;
 use uuid::Uuid;
 use xlatti::EnvironmentConfig;
 
@@ -229,8 +229,7 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
             None => vec![], // AppConfig is None, use an empty vector as a fallback
         };
 
-    let query_form =
-        query_form.with_elements(interface_elements).build(None);
+    let query_form = query_form.with_elements(interface_elements).build(None);
 
     view! {
         { query_form.to_view() }

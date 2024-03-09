@@ -5,6 +5,7 @@ use super::environment_configurations::EnvironmentConfigurations;
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::FormStorage;
 use crate::helpers::local_storage::local_storage_handler;
+use crate::routes::api::Login;
 
 #[component]
 pub fn AppConfiguration(app_uri: String) -> impl IntoView {
@@ -17,6 +18,7 @@ pub fn AppConfiguration(app_uri: String) -> impl IntoView {
     } else {
         view! {
             <div>"Error: Must be logged in to access Local Storage"</div>
+            <Login/>
         }
         .into_view()
     }

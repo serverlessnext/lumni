@@ -23,6 +23,10 @@ impl GlobalState {
             runtime: None,
         }
     }
+
+    pub fn is_vault_initialized(&self) -> bool {
+        self.vault.is_some()
+    }
 }
 
 impl Default for GlobalState {
@@ -34,7 +38,6 @@ impl Default for GlobalState {
 #[derive(Clone, Debug)]
 pub struct RunTime {
     previous_url: String,
-    vault_initialized: bool,
 }
 
 impl Default for RunTime {
@@ -47,7 +50,6 @@ impl RunTime {
     pub fn new() -> Self {
         Self {
             previous_url: DEFAULT_HOME_URL.to_string(),
-            vault_initialized: false,
         }
     }
 
@@ -59,11 +61,4 @@ impl RunTime {
         self.previous_url = url;
     }
 
-    pub fn vault_initialized(&self) -> bool {
-        self.vault_initialized
-    }
-
-    pub fn set_vault_initialized(&mut self, initialized: bool) {
-        self.vault_initialized = initialized;
-    }
 }

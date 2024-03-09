@@ -27,7 +27,6 @@ const PASSWORD_MISSING: &str = "password does not exist";
 #[derive(Clone)]
 pub struct AppLogin {
     set_vault: SignalSetter<LocalEncrypt>,
-    set_vault_initialized: SignalSetter<bool>,
     is_submitting: RwSignal<bool>,
     validation_error: RwSignal<Option<String>>,
     redirect_url: String,
@@ -36,14 +35,12 @@ pub struct AppLogin {
 impl AppLogin {
     pub fn new(
         set_vault: SignalSetter<LocalEncrypt>,
-        set_vault_initialized: SignalSetter<bool>,
         redirect_url: String,
     ) -> Self {
         let is_submitting = create_rw_signal(false);
         let validation_error = create_rw_signal(None::<String>);
         Self {
             set_vault,
-            set_vault_initialized,
             is_submitting,
             validation_error,
             redirect_url,
@@ -90,7 +87,6 @@ impl AppLogin {
                     .build();
 
                 self.set_vault.set(local_encrypt);
-                self.set_vault_initialized.set(true);
 
                 navigate(&self.redirect_url, Default::default())
             }
@@ -138,12 +134,6 @@ pub fn LoginForm() -> impl IntoView {
 
     let init_vault =
         create_write_slice(state, |state, vault| state.vault = Some(vault));
-    let vault_initialized =
-        create_write_slice(state, |state, initialized| {
-            if let Some(runtime) = &mut state.runtime {
-                runtime.set_vault_initialized(initialized);
-            }
-        });
 
     let previous_url = move || {
         create_read_slice(state, |state| {
@@ -167,7 +157,7 @@ pub fn LoginForm() -> impl IntoView {
     });
 
     let app_login =
-        AppLogin::new(init_vault, vault_initialized, redirect_url);
+        AppLogin::new(init_vault, redirect_url);
 
     view! {
         { move ||
@@ -295,12 +285,6 @@ fn debug_login() {
     // Create writable state slices for the vault and initialization status.
     let set_vault =
         create_write_slice(state, |state, vault| state.vault = Some(vault));
-    let set_vault_initialized =
-        create_write_slice(state, |state, initialized| {
-            if let Some(runtime) = &mut state.runtime {
-                runtime.set_vault_initialized(initialized);
-            }
-        });
 
     spawn_local(async move {
         if let Err(err) = delete_keys_not_matching_prefix(
@@ -328,7 +312,6 @@ fn debug_login() {
                     .build();
 
                 set_vault(local_encrypt);
-                set_vault_initialized(true);
                 let navigate = use_navigate();
                 navigate("/", Default::default());
             }

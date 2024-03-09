@@ -24,12 +24,12 @@ pub fn AppLoader(app_uri: String) -> impl IntoView {
     view! {
         <div class="flex flex-col items-start max-w-2xl">
             <div 
-                class="w-full px-2 py-1 bg-gray-200 flex justify-between items-center"
+                class="w-full px-2 py-0 bg-gray-200 hover:bg-gray-300 flex justify-between items-center"
+                on:click=toggle_enabled
             >
                 <span class="flex-grow"></span> {/* pushes toggle to the right */}
                 <div
-                    class="cursor-pointer hover:bg-gray-300 rounded p-1"
-                    on:click=toggle_enabled
+                    class="cursor-pointer rounded p-1"
                 >
                     {move || 
                         if is_enabled.get() {

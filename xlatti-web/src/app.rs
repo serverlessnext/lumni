@@ -43,13 +43,7 @@ pub fn App() -> impl IntoView {
                 .set_previous_url(updated_url);
         });
 
-    let vault_initialized = create_read_slice(state, |state| {
-        state
-            .runtime
-            .as_ref()
-            .map(|r| r.vault_initialized())
-            .unwrap_or_default()
-    });
+    let vault_initialized = create_read_slice(state, |state| state.is_vault_initialized());
 
     view! {
         <Stylesheet id="goaiio" href="/pkg/tailwind.css"/>

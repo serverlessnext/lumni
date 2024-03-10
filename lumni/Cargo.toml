@@ -1,0 +1,57 @@
+[package]
+name = "lumni"
+# version is auto-updated via lumni/build.rs
+version = "0.0.4-alpha"
+authors = ["Anthony Potappel <mail@aprxi.com>"]
+edition.workspace = true
+license.workspace = true
+
+description = "Portable file-utility for object-stores"
+documentation = "https://docs.rs/lumni"
+homepage = "https://lumnidata.com"
+repository = "https://github.com/serverlessnext/lumni"
+readme = "../README.rst"
+
+[lib]
+name = "lumni"
+path = "src/lib.rs"
+
+[dependencies]
+percent-encoding = { version = "2.1", default-features = false, features = ["alloc"] }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", features = ["derive"] }
+hmac = { version = "0.11", default-features = false }
+sha2 = { version = "0.9.9", default-features = false }
+regex = { version = "1.8", default-features = false, features = ["std", "unicode"] }
+futures = { version = "0.3", default-features = false }
+bytes = { version = "1.4", default-features = false }
+sqlparser = { version = "0.43", default-features = false}
+url = "2.3"
+log = "0.4"
+serde-xml-rs = "0.6"
+async-trait = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+time = { version = "0.3", features = ["parsing"]}
+hyper = { version = "0.14", default-features = false, features = ["client", "http1", "http2"]}
+hyper-tls = { version = "0.5" }
+native-tls = { version = "0.2" }
+openssl-sys = { version = "0.9", features = ["vendored"] }
+tokio-native-tls = { version = "0.3" }
+anyhow = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2.84"
+anyhow = "1.0"
+
+[build-dependencies]
+toml_edit = "0.2"
+
+[dev-dependencies]
+# keep tokio version+features in sync with lumni-cli
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
+tempfile = "3.5.0"
+

@@ -1,9 +1,9 @@
 [workspace]
 # Rust package
 members = [
-    "xlatti",
-    "xlatti-cli",
-    "xlatti-web",
+    "lumni",
+    "lumni-cli",
+    "lumni-web",
 ]
 
 [workspace.package]
@@ -15,10 +15,10 @@ license = "Apache-2.0"
 # note current tokio wasm-browser support still limited, see:
 # https://docs.rs/tokio/latest/tokio/#wasm-support
 
-# Python interface to xlatti
+# Python interface to lumni
 # exclude to prevent publishing to crates.io
 exclude = [
-    "xlatti-py",
+    "lumni-py",
 ]
 
 [profile.release]

@@ -48,8 +48,8 @@ minio_clean: minio_stop
 
 
 ## Documentation targets
-DOCS_IMAGE := xlatti-docs-image
-DOCS_CONTAINER := xlatti-docs-run
+DOCS_IMAGE := lumni-docs-image
+DOCS_CONTAINER := lumni-docs-run
 
 .PHONY: docs_html
 

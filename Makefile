@@ -1,9 +1,9 @@
 
-NAME := xlatti
+NAME := lumni
 BUILD_VERSION ?= 0.0.4-alpha
 
-DEFAULT_CRATES := xlatti xlatti-cli
-EXTRA_CRATES := xlatti-web xlatti-py
+DEFAULT_CRATES := lumni lumni_cli
+EXTRA_CRATES := lumni_web # lumni_py
 
 #export BUILD_VERSION
 
@@ -14,16 +14,16 @@ $(DEFAULT_CRATES):
 	cargo build -p $@ --release
 
 # wasm32 build
-xlatti-web:
-	@echo "xlatti-web build temp disabled"
-	@echo "  try: cd xlatti-web && trunk serve --open"
-	@#wasm-pack build xlatti-web --release --target web --out-dir static/pkg
+lumni_web:
+	@echo "lumni-web build temp disabled"
+	@echo "  try: cd lumni-web && trunk serve --open"
+	@#wasm-pack build lumni-web --release --target web --out-dir static/pkg
 
 # python bindings
-xlatti-py:
-	cd xlatti-py && maturin build --release --strip --out dist
+lumni_py:
+	cd lumni-py && maturin build --release --strip --out dist
 
 tests:
-	cargo test --package xlatti
-	cd xlatti-web && wasm-pack test --headless --firefox
+	cargo test --package lumni
+	cd lumni-web && wasm-pack test --headless --firefox
 

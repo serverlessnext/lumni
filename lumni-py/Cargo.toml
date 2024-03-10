@@ -1,0 +1,25 @@
+[package]
+name = "lumni_py"
+# version is auto-updated via lumni/build.rs
+version = "0.0.4-alpha"
+edition.workspace = true
+license.workspace = true
+
+
+[dependencies]
+pyo3 = { version = "0.18", features = ["macros", "extension-module"] }
+tokio = { version = "1", default-features = false }
+
+lumni = { path = "../lumni" }
+lumni_cli = { path = "../lumni-cli" }
+
+[build-dependencies]
+maturin = "0.12"
+
+[package.metadata.maturin]
+project-name = "lumni"
+
+[profile.release]
+lto = true
+opt-level = "s"
+panic = "abort"

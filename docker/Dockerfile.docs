@@ -14,7 +14,7 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt /var/lib/dpkg/info /var/tmp/* /tmp/*
 
 
-COPY xlatti-py/dist /dist
+COPY lumni-py/dist /dist
 RUN pip install /dist/*.whl
 COPY docs /docs
 COPY README.rst /docs/source/README.rst

@@ -5,6 +5,7 @@ use leptos::*;
 use super::environment_configurations::EnvironmentConfigurations;
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::FormStorage;
+use crate::components::icons::MenuToggleIcon;
 use crate::helpers::local_storage::local_storage_handler;
 use crate::routes::api::Login;
 
@@ -86,8 +87,9 @@ pub fn AppConfigurationView(
             view! {
                 <div>
                     {log!("Selected: {:?}", selected_item_id.get_untracked())}
-                    <ToggleButton show_delete_view=show_delete_view />
-                    <hr/>
+                    <div class="flex justify-end">
+                        <MenuToggleIcon toggle_on=show_delete_view />
+                    </div>
                     <ul>
                        <ItemList
                             show_delete_view=show_delete_view.get()
@@ -95,6 +97,7 @@ pub fn AppConfigurationView(
                             set_is_loading=set_is_loading
                             selected_item_id=selected_item_id
                         />
+                        <hr class="my-4" />
                         {if !show_delete_view.get() {
                             view! {
                                 <NewItemInput
@@ -120,19 +123,6 @@ pub fn AppConfigurationView(
 #[component]
 fn LoadingIndicator() -> impl IntoView {
     view! { <div>"Loading..."</div> }
-}
-
-#[component]
-fn ToggleButton(show_delete_view: RwSignal<bool>) -> impl IntoView {
-    view! {
-        <button on:click=move |_| show_delete_view.set(!show_delete_view.get())>
-            {if show_delete_view.get_untracked() {
-                "Cancel"
-            } else {
-                "Delete"
-            }}
-        </button>
-    }
 }
 
 #[component]
@@ -176,10 +166,9 @@ fn NewItemInput(
     let app_uri_clone_for_click = app_uri.clone();
 
     view! {
-        <li class="flex items-center space-x-4">
-            <input type="radio" disabled={true} class="opacity-50" />
-            <input class="px-4 py-1"
-                placeholder="Bucket URI"
+        <li class="flex items-center space-x-4 mt-2">
+            <input class="px-3 py-2 text-sm border rounded-md"
+                placeholder="Profile Name"
                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                     if ev.key() == "Enter" {
                         if let Some(name) = get_input_value(&input_ref) {
@@ -194,7 +183,7 @@ fn NewItemInput(
                 }
                 node_ref=input_ref
             />
-            <button class="px-4 py-1" on:click=move |_| {
+            <button class="flex items-center justify-center p-1 rounded-full text-white bg-blue-500 hover:bg-blue-600" on:click=move |_| {
                 if let Some(name) = get_input_value(&input_ref) {
                     let app_config = AppConfig::new(&app_uri_clone_for_click, Some(&name), None).unwrap();
                     set_item_list.update(move |item_list| {
@@ -203,10 +192,16 @@ fn NewItemInput(
                         selected_item_id.set(Some(profile_id));
                     });
                 }
-            }> "Add new" </button>
+            }>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+            </button>
+
         </li>
     }
 }
+
 
 fn get_input_value(input_ref: &NodeRef<Input>) -> Option<String> {
     input_ref
@@ -225,8 +220,8 @@ fn ListItem(
 
     let profile_id_clone = profile_id.clone(); // for first closure
     view! {
-        <li class="flex items-center space-x-4">
-            <input type="radio" name="selectedItem" value={profile_id.clone()}
+        <li class="flex items-center space-x-4 mb-1">
+            <input type="radio" name="selectedItem" class="custom-radio" value={profile_id.clone()}
                 checked={selected_item_id.get_untracked() == Some(item.profile_id())}
                 on:change=move |_| {
                     log!("selected_item_id: {:?}", profile_id_clone);
@@ -248,21 +243,27 @@ fn ListItemDelete(
     item: AppConfig,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
-    let set_item_list =
-        use_context::<WriteSignal<EnvironmentConfigurations>>().unwrap();
+    let set_item_list = use_context::<WriteSignal<EnvironmentConfigurations>>().unwrap();
     let profile_id = item.profile_id();
     let profile_name = item.profile_name();
 
     view! {
-        <li class="flex items-center space-x-4 justify-between">
-            <span class="text-blue-500 hover:text-blue-700">{profile_name}</span>
-            <button class="ml-4 text-red-500 hover:text-red-700"
-                on:click=move |_| {
-                    let profile_id = profile_id.clone();
-                    set_item_list.update(move |env_configs| {
-                        env_configs.remove(profile_id.clone(), set_is_loading);
-                    });
-                }> "Delete" </button>
+        <li class="flex items-center space-x-4 mb-1">
+            <div class="cursor-pointer" on:click=move |_| {
+                let profile_id_clone = profile_id.clone();
+                set_item_list.update(move |env_configs| {
+                    env_configs.remove(profile_id_clone, set_is_loading);
+                });
+            }>
+                // Trash icon SVG
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-6 h-6 text-red-500 hover:text-red-700">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </div>
+            <span class="text-slate-600">{profile_name}</span>
         </li>
     }
 }
+
+
+

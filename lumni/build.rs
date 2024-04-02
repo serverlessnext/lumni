@@ -29,7 +29,7 @@ fn main() {
                 .parse::<toml_edit::Document>()
                 .expect("Invalid TOML");
             doc["package"]["version"] = toml_edit::value(version.clone());
-            let output = doc.to_string_in_original_order();
+            let output = doc.to_string();
 
             let mut file = File::create(&path).expect("Unable to create file");
             file.write_all(output.as_bytes())

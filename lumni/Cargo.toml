@@ -1,7 +1,7 @@
 [package]
 name = "lumni"
 # version is auto-updated via lumni/build.rs
-version = "0.0.4-alpha"
+version = "0.0.4"
 authors = ["Anthony Potappel <mail@aprxi.com>"]
 edition.workspace = true
 license.workspace = true
@@ -48,7 +48,7 @@ wasm-bindgen = "0.2.84"
 anyhow = "1.0"
 
 [build-dependencies]
-toml_edit = "0.2"
+toml_edit = "0.22"
 
 [dev-dependencies]
 # keep tokio version+features in sync with lumni-cli

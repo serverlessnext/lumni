@@ -1,7 +1,7 @@
 [package]
 name = "lumni_web"
 # version is auto-updated via lumni/build.rs
-version = "0.0.4-alpha"
+version = "0.0.4"
 edition.workspace = true
 license.workspace = true
 

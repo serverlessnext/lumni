@@ -1,11 +1,11 @@
 
 NAME := lumni
-BUILD_VERSION ?= 0.0.4-alpha
+BUILD_VERSION ?= 0.0.4
 
 DEFAULT_CRATES := lumni lumni_cli
 EXTRA_CRATES := lumni_web # lumni_py
 
-#export BUILD_VERSION
+export BUILD_VERSION
 
 .PHONY: all $(DEFAULT_CRATES) $(EXTRA_CRATES)
 all: $(DEFAULT_CRATES) $(EXTRA_CRATES)

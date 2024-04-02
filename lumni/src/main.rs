@@ -1,6 +1,6 @@
 use std::env;
 
-use lumni_cli::run_cli;
+use lumni::run_cli;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

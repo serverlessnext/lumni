@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use lumni::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
+use crate::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler};
 
 pub async fn handle_request(
     matches: &clap::ArgMatches,

@@ -2,7 +2,6 @@
 # Rust package
 members = [
     "lumni",
-    "lumni-cli",
     "lumni-web",
 ]
 

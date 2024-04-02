@@ -1,7 +1,7 @@
 [package]
 name = "lumni"
 # version is auto-updated via lumni/build.rs
-version = "0.0.4"
+version = "0.0.5"
 authors = ["Anthony Potappel <mail@aprxi.com>"]
 edition.workspace = true
 license.workspace = true
@@ -15,6 +15,10 @@ readme = "../README.rst"
 [lib]
 name = "lumni"
 path = "src/lib.rs"
+
+[[bin]]
+name = "lumni"
+path = "src/main.rs"
 
 [dependencies]
 percent-encoding = { version = "2.1", default-features = false, features = ["alloc"] }
@@ -31,6 +35,7 @@ log = "0.4"
 serde-xml-rs = "0.6"
 async-trait = "0.1"
 
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 time = { version = "0.3", features = ["parsing"]}
 hyper = { version = "0.14", default-features = false, features = ["client", "http1", "http2"]}
@@ -39,6 +44,10 @@ native-tls = { version = "0.2" }
 openssl-sys = { version = "0.9", features = ["vendored"] }
 tokio-native-tls = { version = "0.3" }
 anyhow = "1.0"
+# cli-dependencies
+env_logger = "0.9"
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
+clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"

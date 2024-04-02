@@ -24,3 +24,8 @@ pub use table::{
     TableColumnValue, TableRow,
 };
 pub use utils::formatters;
+
+// cli-specific modules
+pub(crate) mod parser;
+pub(crate) mod subcommands;
+pub use parser::run_cli;

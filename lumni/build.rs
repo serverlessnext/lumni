@@ -16,7 +16,7 @@ fn main() {
             version
         };
 
-        let crates = &["lumni", "lumni-cli", "lumni-py", "lumni-web"];
+        let crates = &["lumni", "lumni-py", "lumni-web"];
 
         for crate_name in crates {
             let path = Path::new("..").join(crate_name).join("Cargo.toml");

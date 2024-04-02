@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use log::{debug, error};
-use lumni::{EnvironmentConfig, ObjectStoreHandler, TableCallback, TableRow};
+use crate::{EnvironmentConfig, ObjectStoreHandler, TableCallback, TableRow};
 
 pub async fn handle_query(
     query_matches: &clap::ArgMatches,

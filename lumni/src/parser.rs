@@ -3,7 +3,7 @@ use std::env;
 
 use clap::{Arg, Command};
 use tokio::runtime::Builder;
-use lumni::EnvironmentConfig;
+use crate::EnvironmentConfig;
 
 use crate::subcommands::cp::*;
 use crate::subcommands::ls::*;

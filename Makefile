@@ -1,8 +1,8 @@
 
 NAME := lumni
-BUILD_VERSION ?= 0.0.4
+BUILD_VERSION ?= 0.0.5
 
-DEFAULT_CRATES := lumni lumni_cli
+DEFAULT_CRATES := lumni
 EXTRA_CRATES := lumni_web # lumni_py
 
 export BUILD_VERSION

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use log::{debug, error};
-use lumni::{
+use crate::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
     TableCallback, TableRow,
 };

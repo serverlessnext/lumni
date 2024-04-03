@@ -1,23 +1,26 @@
 
-lumni
+Lumni
 ==========
 
-lumni is a tool for interacting with object stores such as S3. It is built from the ground up in Rust, with APIs available for both Python and the web via JS/WASM.
+Intro
+-------------
+TLDR; think of Lumni as the glue between various tools, services and platforms, that aspires to make the whole data experience more enjoyable and efficient. The tool is written in Rust, runs as both a command-line utility and in the browser.
 
-The idea behind lumni is to create a high-performance and future-proof data tool that can scale with new (AI-driven) networking and usage patterns. This includes the ability to work in both client and service mode, and a modular design to allow compute functions on the network.
+Initially launched as a tool to simplify interactions with S3 object storage, our long-term goal for Lumni is to embrace a much broader spectrum of data-related operations. We envision developing Lumni into not just a cool and useful utility that simplifies working with data, but also a system that can seamlessly move into production in a cost-effective and scalable manner.
 
-In the short term, the focus is on implementing basic features such as List, Copy, and Delete.
+We're not here to reinvent the wheel -- unless we encounter one that's not rolling smoothly. Fortunately, the tech landscape is filled with robust tools that excel at their specific functions. Our aim is to complement and integrate these existing resources, focusing on providing seamless and unified experiences across different computing environments and interfaces (CommandLine, Web, API).
 
-The current version (0.0.3) enables:
+Design principles
+-------------
+Multi-Interface: Lumni offers both a Command-Line Interface (CLI) and a web interface, catering to a wide range of data management needs. It enables developers to control processes through scripts and allows data scientists to conduct interactive explorations, ensuring versatility and accessibility for all users.
 
-- listing and searching items on an S3 bucket or Local Filesystem.
-- filtering by name, size, and modification time
-- GET contents of an item from Local Filesystem or S3 bucket
+Serverless & Local First: Built on a file-based, composable function architecture, Lumni is optimized for efficiency and scalability in both serverless and local environments. This foundational approach ensures that Lumni can adapt seamlessly to various computing contexts.
+
+SQL and Human Language (LLM): Incorporating SQL for structured data operations and Large Language Models (LLMs) for intuitive, conversational interactions, Lumni aims to make data management both accessible and flexible. This combination caters to a broad spectrum of data-related tasks, enhancing the tool's utility.
 
 Prerequisites
 -------------
-
-- Python or Rust
+- Rust or Docker
 - Optional: S3 account with valid access key and secret key
 
 # Development

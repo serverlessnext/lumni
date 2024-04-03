@@ -202,7 +202,6 @@ fn NewItemInput(
     }
 }
 
-
 fn get_input_value(input_ref: &NodeRef<Input>) -> Option<String> {
     input_ref
         .get()
@@ -243,7 +242,8 @@ fn ListItemDelete(
     item: AppConfig,
     set_is_loading: WriteSignal<bool>,
 ) -> impl IntoView {
-    let set_item_list = use_context::<WriteSignal<EnvironmentConfigurations>>().unwrap();
+    let set_item_list =
+        use_context::<WriteSignal<EnvironmentConfigurations>>().unwrap();
     let profile_id = item.profile_id();
     let profile_name = item.profile_name();
 
@@ -264,6 +264,3 @@ fn ListItemDelete(
         </li>
     }
 }
-
-
-

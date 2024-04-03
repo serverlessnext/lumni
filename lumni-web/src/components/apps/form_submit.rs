@@ -5,8 +5,8 @@ use futures::stream::StreamExt;
 use leptos::ev::SubmitEvent;
 use leptos::logging::log;
 use leptos::*;
-use uuid::Uuid;
 use lumni::EnvironmentConfig;
+use uuid::Uuid;
 
 use crate::api::error::*;
 use crate::api::invoke::{Request, Response};

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use log::{debug, error};
+
 use crate::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
     TableCallback, TableRow,

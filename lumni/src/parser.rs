@@ -3,12 +3,12 @@ use std::env;
 
 use clap::{Arg, Command};
 use tokio::runtime::Builder;
-use crate::EnvironmentConfig;
 
 use crate::subcommands::cp::*;
 use crate::subcommands::ls::*;
 use crate::subcommands::query::*;
 use crate::subcommands::request::*;
+use crate::EnvironmentConfig;
 
 const PROGRAM_NAME: &str = "lumni";
 

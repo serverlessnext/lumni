@@ -1,6 +1,5 @@
 use leptos::*;
 
-
 #[component]
 pub fn MenuToggleIcon(toggle_on: RwSignal<bool>) -> impl IntoView {
     view! {

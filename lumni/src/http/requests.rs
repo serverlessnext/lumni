@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bytes::Bytes;
-use hyper::client::HttpConnector;
+use bytes::{Bytes, BytesMut};
+use http_body_util::{BodyExt, Empty};
+use hyper::body::Incoming;
 use hyper::header::{HeaderName, HeaderValue};
-use hyper::{Body, Client, Request};
+use hyper::{Request, Response, Uri};
 use hyper_tls::HttpsConnector;
-use log::info;
-use native_tls::TlsConnector as NativeTlsConnector;
-use tokio_native_tls::TlsConnector;
-use url::Url;
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 
 type HttpResult = Result<(Bytes, u16, HashMap<String, String>), anyhow::Error>;
 type HttpResultWithoutHeaders = Result<(Bytes, u16), anyhow::Error>;
@@ -29,29 +28,15 @@ pub async fn http_request_with_headers(
     headers: &HashMap<String, String>,
     method: &str,
 ) -> HttpResult {
-    info!("http_request_with_headers {}: {}", method, url);
-    let url_u = Url::parse(url)?;
-    let accept_invalid_certs = url_u.scheme() == "https"
-        && url_u.host_str() == Some("localhost")
-        && url_u.port().map_or(true, |port| port > 0);
+    let https = HttpsConnector::new();
+    let client: Client<_, Empty<Bytes>> =
+        Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
 
-    let mut native_tls_connector_builder = NativeTlsConnector::builder();
-    native_tls_connector_builder
-        .danger_accept_invalid_certs(accept_invalid_certs);
-    let native_tls_connector = native_tls_connector_builder.build().unwrap();
-
-    let tls_connector = TlsConnector::from(native_tls_connector);
-
-    let mut http_connector = HttpConnector::new();
-    http_connector.enforce_http(false);
-
-    let https = HttpsConnector::from((http_connector, tls_connector));
-    let client = Client::builder().build::<_, Body>(https);
-
+    let uri = url.parse::<Uri>()?;
     let mut request = Request::builder()
         .method(method)
-        .uri(url)
-        .body(Body::empty())?;
+        .uri(uri)
+        .body(Empty::<Bytes>::new())?;
 
     for (key, value) in headers.iter() {
         if let (Ok(header_name), Ok(header_value)) =
@@ -61,7 +46,7 @@ pub async fn http_request_with_headers(
         }
     }
 
-    let response = client.request(request).await?;
+    let mut response = client.request(request).await?;
 
     let status = response.status().as_u16();
     let headers_map = parse_response_headers(&response);
@@ -69,12 +54,34 @@ pub async fn http_request_with_headers(
     if !(200..300).contains(&(status as isize)) {
         return Ok((Bytes::new(), status, headers_map));
     }
-    let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
-    Ok((body_bytes, status, headers_map))
+
+    let mut body_bytes = BytesMut::new();
+
+    while let Some(next) = response.frame().await {
+        let frame = next?;
+        if let Some(chunk) = frame.data_ref() {
+            body_bytes.extend_from_slice(chunk);
+        }
+    }
+
+    let status = response.status().as_u16();
+    let headers_map =
+        response
+            .headers()
+            .iter()
+            .fold(HashMap::new(), |mut acc, (k, v)| {
+                acc.insert(
+                    k.to_string(),
+                    v.to_str().unwrap_or_default().to_string(),
+                );
+                acc
+            });
+
+    return Ok((body_bytes.into(), status, headers_map));
 }
 
 fn parse_response_headers(
-    response: &hyper::Response<Body>,
+    response: &Response<Incoming>,
 ) -> HashMap<String, String> {
     let mut headers_map = HashMap::new();
 

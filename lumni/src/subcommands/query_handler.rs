@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use log::{debug, error};
+
 use crate::{EnvironmentConfig, ObjectStoreHandler, TableCallback, TableRow};
 
 pub async fn handle_query(

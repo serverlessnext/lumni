@@ -4,12 +4,15 @@ Lumni
 
 Intro
 -------------
-TLDR; think of Lumni as the glue between various tools, services and platforms, that aspires to make the whole data experience more enjoyable and efficient. The tool is written in Rust, runs as both a command-line utility and in the browser.
+Think of Lumni as the glue between various data related tools, services and platforms, aspiring to make the overall data experience more enjoyable and efficient. 
 
-Initially launched as a tool to simplify interactions with S3 object storage, our long-term goal for Lumni is to embrace a much broader spectrum of data-related operations. We envision developing Lumni into not just a cool and useful utility that simplifies working with data, but also a system that can seamlessly move into production in a cost-effective and scalable manner.
+Originally created to simplify interactions with S3 object storage, the goal for Lumni has expanded to encompass a wider array of data-related operations. Our approach is to complement and seamlessly integrate with existing top-tier data tools, aiming to offer unified experiences across diverse computing environments and interfaces—be it CommandLine, Web, or API.
 
-We're not here to reinvent the wheel -- unless we encounter one that's not rolling smoothly. Fortunately, the tech landscape is filled with robust tools that excel at their specific functions. Our aim is to complement and integrate these existing resources, focusing on providing seamless and unified experiences across different computing environments and interfaces (CommandLine, Web, API).
+We envision developing Lumni into not just a cool and useful utility that simplifies working with data, but also a system that can seamlessly move into production in a cost-effective and scalable manner.
 
+We're dedicated to evolving Lumni into a utility that not only makes data handling simpler but also supports its integration into production workflows in a way that is both cost-effective and scalable.
+
+Built with Rust, Lumni operates flexibly as a command-line tool and within the browser, embodying our commitment to versatility and performance.
 
 Design principles
 ------------------

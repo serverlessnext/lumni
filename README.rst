@@ -10,13 +10,21 @@ Initially launched as a tool to simplify interactions with S3 object storage, ou
 
 We're not here to reinvent the wheel -- unless we encounter one that's not rolling smoothly. Fortunately, the tech landscape is filled with robust tools that excel at their specific functions. Our aim is to complement and integrate these existing resources, focusing on providing seamless and unified experiences across different computing environments and interfaces (CommandLine, Web, API).
 
+
 Design principles
--------------
-Multi-Interface: Lumni offers both a Command-Line Interface (CLI) and a web interface, catering to a wide range of data management needs. It enables developers to control processes through scripts and allows data scientists to conduct interactive explorations, ensuring versatility and accessibility for all users.
+------------------
 
-Serverless & Local First: Built on a file-based, composable function architecture, Lumni is optimized for efficiency and scalability in both serverless and local environments. This foundational approach ensures that Lumni can adapt seamlessly to various computing contexts.
+Multi-Interface
+^^^^^^^^^^^^^^^^
+Lumni offers both a Command-Line Interface (CLI) and a web interface, catering to a wide range of data management needs. It enables developers to control processes through scripts and allows data scientists to conduct interactive explorations, ensuring versatility and accessibility for all users.
 
-SQL and Human Language (LLM): Incorporating SQL for structured data operations and Large Language Models (LLMs) for intuitive, conversational interactions, Lumni aims to make data management both accessible and flexible. This combination caters to a broad spectrum of data-related tasks, enhancing the tool's utility.
+Serverless & Local First
+^^^^^^^^^^^^^^^^^^^^^^^^
+Built on a file-based, composable function architecture, Lumni is optimized for efficiency and scalability in both serverless and local environments. This foundational approach ensures that Lumni can adapt seamlessly to various computing contexts.
+
+SQL and Human Language
+^^^^^^^^^^^^^^^^^^^^^^^
+Incorporating SQL for structured data operations and Large Language Models (LLMs) for intuitive, conversational interactions, Lumni aims to make data management both accessible and flexible. This combination caters to a broad spectrum of data-related tasks, enhancing the tool's utility.
 
 Prerequisites
 -------------

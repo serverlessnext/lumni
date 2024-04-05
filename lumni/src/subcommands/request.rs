@@ -6,17 +6,21 @@ pub fn request_subcommand() -> Command {
     Command::new("-X")
         .long_flag("request")
         .about("Executes an HTTP request")
+        .allow_missing_positional(true)
+        .arg_required_else_help(true)
+        .after_help("Use -X/--request [GET,HEAD,POST] [URI]")
         .arg(
             Arg::new("method")
+                .default_value("GET")
+                .required(false)
                 .index(1)
-                .value_parser(["GET"])
-                .required(true)
-                .help("HTTP verb for the request (GET)"),
+                .value_parser(["GET", "POST"])
+                .help("HTTP verb for the request (e.g. GET, POST)"),
         )
         .arg(
             Arg::new("uri")
                 .index(2)
                 .required(true)
-                .help("File for the HTTP request"),
+                .help("URI for the HTTP request"),
         )
 }

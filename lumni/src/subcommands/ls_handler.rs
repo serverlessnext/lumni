@@ -6,6 +6,7 @@ use crate::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
     TableCallback, TableRow,
 };
+use crate::utils::uri_parse::ParsedUri;
 
 pub async fn handle_ls(
     ls_matches: &clap::ArgMatches,
@@ -20,7 +21,7 @@ pub async fn handle_ls(
 
     match handler
         .list_objects(
-            &uri,
+            &ParsedUri::from_uri(&uri, true),
             config,
             None, // functions as "*", prints all columns
             recursive,
@@ -49,6 +50,13 @@ fn prepare_handle_ls_arguments(
 ) -> (String, bool, u32, Option<FileObjectFilter>) {
     let recursive = *ls_matches.get_one::<bool>("recursive").unwrap_or(&false);
     let uri = ls_matches.get_one::<String>("uri").unwrap().to_string();
+
+    // uri should start with a scheme, if not add default
+    let uri = if uri.contains("://") {
+        uri
+    } else {
+        format!("localfs://{}", uri)
+    };
 
     let filter_name = ls_matches
         .get_one::<String>("name")

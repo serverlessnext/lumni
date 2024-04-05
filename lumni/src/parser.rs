@@ -33,30 +33,44 @@ pub fn run_cli(args: Vec<String>) {
         .subcommand(ls_subcommand()) // "ls [URI]"
         .subcommand(cp_subcommand()); // "cp" [SOURCE] [TARGET]
 
-    let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
-        e.exit();
-    });
+    let matches = app.try_get_matches();
 
-    let mut config = create_initial_config(&matches);
-    let rt = Builder::new_current_thread().enable_all().build().unwrap();
+    match matches {
+        Ok(matches) => {
+            let mut config = create_initial_config(&matches);
+            let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
-    match matches.subcommand() {
-        Some(("-X", matches)) => {
-            rt.block_on(handle_request(matches, &mut config));
+            match matches.subcommand() {
+                Some(("-X", matches)) => {
+                    rt.block_on(handle_request(matches, &mut config));
+                }
+                Some(("-Q", matches)) => {
+                    rt.block_on(handle_query(matches, &mut config));
+                }
+                Some(("ls", matches)) => {
+                    rt.block_on(handle_ls(matches, &mut config));
+                }
+                Some(("cp", matches)) => {
+                    rt.block_on(handle_cp(matches, &mut config));
+                }
+                _ => {
+                    eprintln!("No valid subcommand provided");
+                }
+            }
         }
-        Some(("-Q", matches)) => {
-            rt.block_on(handle_query(matches, &mut config));
-        }
-        Some(("ls", matches)) => {
-            rt.block_on(handle_ls(matches, &mut config));
-        }
-        Some(("cp", matches)) => {
-            rt.block_on(handle_cp(matches, &mut config));
-        }
-        _ => {
-            eprintln!("No valid subcommand provided");
+        Err(e) => {
+            if e.kind() == clap::error::ErrorKind::DisplayHelp {
+                print!("{}", e);
+            } else {
+                eprintln!("Error parsing command-line arguments: {}", e);
+                eprintln!("Please ensure you have provided all required arguments correctly.");
+                eprintln!("For more detailed help, try running '--help' or '<subcommand> --help'.");
+                std::process::exit(1);
+            }
         }
     }
+
+
 }
 
 fn create_initial_config(matches: &clap::ArgMatches) -> EnvironmentConfig {

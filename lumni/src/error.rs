@@ -2,6 +2,7 @@ use std::error::Error;
 use std::{fmt, io};
 
 use url::ParseError;
+use crate::http::HttpClientError;
 
 #[derive(Debug)]
 pub enum LakestreamError {
@@ -85,6 +86,18 @@ impl From<std::string::String> for LakestreamError {
         LakestreamError::String(error.to_owned())
     }
 }
+
+impl From<HttpClientError> for LakestreamError {
+    fn from(error: HttpClientError) -> Self {
+        match error {
+            HttpClientError::ConnectionError(e) => LakestreamError::Anyhow(e),
+            HttpClientError::TimeoutError => LakestreamError::String("Timeout error".to_owned()),
+            HttpClientError::HttpError(code, message) => LakestreamError::String(format!("HTTP error {}: {}", code, message)),
+            HttpClientError::Other(e) => LakestreamError::Anyhow(e),
+        }
+    }
+}
+
 
 #[cfg(target_arch = "wasm32")]
 impl From<wasm_bindgen::JsValue> for LakestreamError {

@@ -7,7 +7,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use crate::table::object_store::table_from_list_bucket;
-use crate::utils::uri_parse::ParsedUri;
+use crate::utils::uri_parse::{ParsedUri, UriScheme};
 use crate::{
     BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter,
     LakestreamError, ObjectStore, ObjectStoreTable, Table, TableCallback,
@@ -24,7 +24,7 @@ impl ObjectStoreHandler {
 
     pub async fn list_objects(
         &self,
-        uri: &str,
+        parsed_uri: &ParsedUri,
         config: &EnvironmentConfig,
         selected_columns: Option<Vec<&str>>,
         recursive: bool,
@@ -32,8 +32,6 @@ impl ObjectStoreHandler {
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri, true);
-
         if let Some(bucket) = &parsed_uri.bucket {
             // list files in a bucket
             debug!("Listing files in bucket {}", bucket);
@@ -51,42 +49,40 @@ impl ObjectStoreHandler {
                 .await?;
             Ok(table)
         } else {
-            if let Some(scheme) = &parsed_uri.scheme {
-                if scheme == "s3" {
-                    debug!("Listing buckets on S3");
-                    return self
-                        .list_buckets(
-                            uri,
-                            config,
-                            &selected_columns,
-                            max_files,
-                            callback,
-                        )
-                        .await;
-                }
+            if parsed_uri.scheme == UriScheme::S3 {
+                debug!("Listing buckets on S3");
+                return self
+                    .list_buckets(
+                        &parsed_uri,
+                        config,
+                        &selected_columns,
+                        max_files,
+                        callback,
+                    )
+                    .await;
             }
-            Err(LakestreamError::NoBucketInUri(uri.to_string()))
+            Err(LakestreamError::NoBucketInUri(parsed_uri.to_string()))
         }
     }
 
     pub async fn list_buckets(
         &self,
-        uri: &str,
+        parsed_uri: &ParsedUri,
         config: &EnvironmentConfig,
         selected_columns: &Option<Vec<&str>>,
         max_files: Option<u32>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri, true);
-
-        if let Some(_) = &parsed_uri.bucket {
-            return Err(LakestreamError::NoBucketInUri(uri.to_string()));
+        // check if the uri has a bucket
+        if parsed_uri.bucket.is_none() {
+            return Err(LakestreamError::NoBucketInUri(parsed_uri.to_string()));
         }
+
         // Clone the original config and update the settings
         let mut updated_config = config.clone();
         updated_config.set(
             "uri".to_string(),
-            format!("{}://", parsed_uri.scheme.unwrap()),
+            format!("{}://", parsed_uri.scheme.to_string()),
         );
         table_from_list_bucket(
             updated_config,
@@ -99,23 +95,15 @@ impl ObjectStoreHandler {
 
     pub async fn get_object(
         &self,
-        uri: &str,
+        parsed_uri: &ParsedUri,
         config: &EnvironmentConfig,
         callback: Option<BinaryCallbackWrapper>,
     ) -> Result<Option<Vec<u8>>, LakestreamError> {
-        let parsed_uri = ParsedUri::from_uri(uri, false);
-
         if let Some(bucket) = &parsed_uri.bucket {
-            // Get the object from the bucket
-            let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
-                format!("{}://{}", scheme, bucket)
-            } else {
-                format!("localfs://{}", bucket)
-            };
-
-            let key = parsed_uri.path.as_deref().unwrap();
+            let bucket_uri = format!("{}://{}", parsed_uri.scheme.to_string(), bucket);
+            let key = parsed_uri.path.as_deref().unwrap_or("");
             let object_store =
-                ObjectStore::new(&bucket_uri, config.clone()).unwrap();
+                ObjectStore::new(&bucket_uri, config.clone())?;
 
             // NOTE: initial callback implementation for get_object. In future updates the callback
             // mechanism will be pushed to the underlying object store methods, so we can add
@@ -132,13 +120,13 @@ impl ObjectStoreHandler {
                 Ok(Some(data))
             }
         } else {
-            Err(LakestreamError::NoBucketInUri(uri.to_string()))
+            Err(LakestreamError::NoBucketInUri(parsed_uri.to_string()))
         }
     }
 
     async fn list_files_in_bucket(
         &self,
-        parsed_uri: ParsedUri,
+        parsed_uri: &ParsedUri,
         config: EnvironmentConfig,
         selected_columns: &Option<Vec<&str>>,
         recursive: bool,
@@ -146,11 +134,7 @@ impl ObjectStoreHandler {
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        let bucket_uri = if let Some(scheme) = &parsed_uri.scheme {
-            format!("{}://{}", scheme, parsed_uri.bucket.as_ref().unwrap())
-        } else {
-            format!("localfs://{}", parsed_uri.bucket.as_ref().unwrap())
-        };
+        let bucket_uri = format!("{}://{}", parsed_uri.scheme.to_string(), parsed_uri.bucket.as_ref().unwrap());
 
         let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
         object_store
@@ -262,7 +246,7 @@ impl ObjectStoreHandler {
 
                 let result = self
                     .list_objects(
-                        &uri,
+                        &ParsedUri::from_uri(&uri, true),
                         config,
                         selected_columns,
                         true,

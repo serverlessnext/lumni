@@ -33,7 +33,9 @@ impl ObjectStore {
                 .map_err(|err| err.to_string())?;
             Ok(ObjectStore::LocalFsBucket(local_fs))
         } else {
-            Err("Unsupported object store.".to_string())
+            // add name to error message
+            let err_msg = format!("Unsupported object store: {}", name);
+            Err(err_msg)
         }
     }
 

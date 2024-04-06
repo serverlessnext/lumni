@@ -1,6 +1,5 @@
 use regex::Regex;
 
-
 #[derive(Debug, PartialEq)]
 pub enum UriScheme {
     LocalFs,
@@ -8,7 +7,7 @@ pub enum UriScheme {
     Http,
     Https,
     None,
-    Unsupported(String)
+    Unsupported(String),
 }
 
 impl UriScheme {
@@ -75,7 +74,8 @@ impl ParsedUri {
             || {
                 // uri has no scheme, assume http://
                 let uri_scheme = UriScheme::Http;
-                let (bucket, path) = parse_uri_path(&uri_scheme, uri, append_slash);
+                let (bucket, path) =
+                    parse_uri_path(&uri_scheme, uri, append_slash);
                 ParsedUri {
                     scheme: uri_scheme,
                     bucket,
@@ -141,7 +141,7 @@ fn parse_uri_path(
 
     // If there is no path, treat the input as a path instead of a bucket
     // bucket is currenth path on LocalFs
-    if scheme != &UriScheme::S3 && path.is_none() && bucket.is_some() { 
+    if scheme != &UriScheme::S3 && path.is_none() && bucket.is_some() {
         if append_slash {
             return (
                 Some(".".to_string()),

@@ -1,4 +1,4 @@
-use crate::EnvironmentConfig;
+use lumni::EnvironmentConfig;
 
 pub async fn handle_cp(
     matches: &clap::ArgMatches,

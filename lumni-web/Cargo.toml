@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-lumni = { path = "../lumni" }
+lumni = { path = "../lumni", default-features = false }
 localencrypt = { version = "0.0.4" }
 leptos = { version = "0.6.9", features = ["csr", "nightly"] }
 leptos_meta = { version = "0.6.9", features = ["csr", "nightly"] }

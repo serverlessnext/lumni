@@ -2,10 +2,10 @@ use core::{fmt, panic};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::formatters::{bytes_human_readable, time_human_readable};
 use crate::table::{
     OptionalUint64Column, StringColumn, TableRow, Uint64Column,
 };
+use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 use crate::{FileObject, Table, TableCallback, TableColumn, TableColumnValue};
 
 pub struct FileObjectTable {

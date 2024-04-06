@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -35,11 +36,27 @@ impl HttpResponse {
     }
 }
 
+#[derive(Debug)]
 pub enum HttpClientError {
     ConnectionError(anyhow::Error),
     TimeoutError,
     HttpError(u16, String), // Status code, status text
     Other(AnyhowError),
+}
+
+impl fmt::Display for HttpClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HttpClientError::ConnectionError(e) => {
+                write!(f, "Connection error: {}", e)
+            }
+            HttpClientError::TimeoutError => write!(f, "Timeout error"),
+            HttpClientError::HttpError(code, message) => {
+                write!(f, "HTTP error {}: {}", code, message)
+            }
+            HttpClientError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
 }
 
 impl From<hyper::http::Error> for HttpClientError {
@@ -86,7 +103,7 @@ impl HttpClient {
 
         HttpClient {
             client,
-            timeout: Duration::from_secs(30), 
+            timeout: Duration::from_secs(30),
         }
     }
 
@@ -169,7 +186,7 @@ impl HttpClient {
         url: &str,
         headers: Option<&HashMap<String, String>>,
         params: Option<&HashMap<String, String>>,
-        body: Option<&Bytes>
+        body: Option<&Bytes>,
     ) -> HttpResult {
         self.request("POST", url, headers, body).await
     }

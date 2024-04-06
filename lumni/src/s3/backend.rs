@@ -4,9 +4,8 @@ use log::error;
 pub use super::bucket::S3Bucket;
 pub use super::config::validate_config;
 pub use super::list::list_buckets;
-use crate::{
-    EnvironmentConfig, LakestreamError, ObjectStoreBackend, ObjectStoreTable,
-};
+use crate::handlers::object_store::ObjectStoreBackend;
+use crate::{EnvironmentConfig, LakestreamError, ObjectStoreTable};
 
 pub struct S3Backend;
 

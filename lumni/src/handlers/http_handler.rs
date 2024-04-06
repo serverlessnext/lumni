@@ -1,10 +1,5 @@
-
-
-use crate::{
-    LakestreamError,
-    BinaryCallbackWrapper,
-};
 use crate::http::HttpClient;
+use crate::{BinaryCallbackWrapper, LakestreamError};
 
 pub struct HttpHandler {
     client: HttpClient,
@@ -19,9 +14,16 @@ impl HttpHandler {
         }
     }
 
-    pub async fn get(&self, url: &str) -> Result<Option<Vec<u8>>, LakestreamError> {
-        let response = self.client.get(url, None, None).await.map_err(LakestreamError::from)?;
-        let data = response.body(); 
+    pub async fn get(
+        &self,
+        url: &str,
+    ) -> Result<Option<Vec<u8>>, LakestreamError> {
+        let response = self
+            .client
+            .get(url, None, None)
+            .await
+            .map_err(|e| LakestreamError::HttpClientError(e))?;
+        let data = response.body();
 
         if self.callback.is_some() {
             if let Some(data) = &response.body() {

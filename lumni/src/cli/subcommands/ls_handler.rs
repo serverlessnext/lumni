@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
 use log::{debug, error};
-
-use crate::{
+use lumni::{
     EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
-    TableCallback, TableRow,
+    ParsedUri, TableCallback, TableRow,
 };
-use crate::utils::uri_parse::ParsedUri;
 
 pub async fn handle_ls(
     ls_matches: &clap::ArgMatches,

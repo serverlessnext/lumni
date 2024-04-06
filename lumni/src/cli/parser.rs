@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::env;
 
 use clap::{Arg, Command};
+use lumni::EnvironmentConfig;
 use tokio::runtime::Builder;
 
-use crate::subcommands::cp::*;
-use crate::subcommands::ls::*;
-use crate::subcommands::query::*;
-use crate::subcommands::request::*;
-use crate::EnvironmentConfig;
+use super::subcommands::cp::*;
+use super::subcommands::ls::*;
+use super::subcommands::query::*;
+use super::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "lumni";
 
@@ -38,7 +38,8 @@ pub fn run_cli(args: Vec<String>) {
     match matches {
         Ok(matches) => {
             let mut config = create_initial_config(&matches);
-            let rt = Builder::new_current_thread().enable_all().build().unwrap();
+            let rt =
+                Builder::new_current_thread().enable_all().build().unwrap();
 
             match matches.subcommand() {
                 Some(("-X", matches)) => {
@@ -63,14 +64,18 @@ pub fn run_cli(args: Vec<String>) {
                 print!("{}", e);
             } else {
                 eprintln!("Error parsing command-line arguments: {}", e);
-                eprintln!("Please ensure you have provided all required arguments correctly.");
-                eprintln!("For more detailed help, try running '--help' or '<subcommand> --help'.");
+                eprintln!(
+                    "Please ensure you have provided all required arguments \
+                     correctly."
+                );
+                eprintln!(
+                    "For more detailed help, try running '--help' or \
+                     '<subcommand> --help'."
+                );
                 std::process::exit(1);
             }
         }
     }
-
-
 }
 
 fn create_initial_config(matches: &clap::ArgMatches) -> EnvironmentConfig {

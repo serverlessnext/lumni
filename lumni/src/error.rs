@@ -2,7 +2,6 @@ use std::error::Error;
 use std::{fmt, io};
 
 use url::ParseError;
-use crate::http::HttpClientError;
 
 #[derive(Debug)]
 pub enum LakestreamError {
@@ -15,9 +14,11 @@ pub enum LakestreamError {
     InternalError(String),
     NotFound(String),
     Anyhow(anyhow::Error),
+    Wrapped(Box<dyn Error + 'static>),
     #[cfg(target_arch = "wasm32")]
     Js(wasm_bindgen::JsValue),
-    Wrapped(Box<dyn Error + 'static>),
+    #[cfg(feature = "http_client")]
+    HttpClientError(crate::http::HttpClientError),
 }
 
 impl fmt::Display for LakestreamError {
@@ -45,6 +46,8 @@ impl fmt::Display for LakestreamError {
                 "JsError: {}",
                 e.as_string().unwrap_or_else(|| "Unknown error".to_string())
             ),
+            #[cfg(feature = "http_client")]
+            LakestreamError::HttpClientError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -86,18 +89,6 @@ impl From<std::string::String> for LakestreamError {
         LakestreamError::String(error.to_owned())
     }
 }
-
-impl From<HttpClientError> for LakestreamError {
-    fn from(error: HttpClientError) -> Self {
-        match error {
-            HttpClientError::ConnectionError(e) => LakestreamError::Anyhow(e),
-            HttpClientError::TimeoutError => LakestreamError::String("Timeout error".to_owned()),
-            HttpClientError::HttpError(code, message) => LakestreamError::String(format!("HTTP error {}: {}", code, message)),
-            HttpClientError::Other(e) => LakestreamError::Anyhow(e),
-        }
-    }
-}
-
 
 #[cfg(target_arch = "wasm32")]
 impl From<wasm_bindgen::JsValue> for LakestreamError {

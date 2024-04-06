@@ -6,9 +6,10 @@ use super::get::get_object;
 use super::head::head_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
+use crate::handlers::object_store::ObjectStoreTrait;
 use crate::s3::config::validate_config;
 use crate::table::FileObjectTable;
-use crate::{FileObjectFilter, LakestreamError, ObjectStoreTrait};
+use crate::{FileObjectFilter, LakestreamError};
 
 #[derive(Clone)]
 pub struct S3Credentials {

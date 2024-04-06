@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use log::error;
 
-use crate::api::object_store_handler::ObjectStoreBackend;
+use crate::handlers::object_store::{ObjectStore, ObjectStoreBackend};
 use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
 use crate::table::{StringColumn, TableRow};
 use crate::{
-    EnvironmentConfig, LakestreamError, ObjectStore, Table, TableCallback,
-    TableColumn, TableColumnValue,
+    EnvironmentConfig, LakestreamError, Table, TableCallback, TableColumn,
+    TableColumnValue,
 };
 
 pub struct ObjectStoreTable {

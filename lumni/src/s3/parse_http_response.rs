@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::handlers::object_store::ObjectStore;
 use crate::utils::time::rfc3339_to_epoch;
-use crate::{EnvironmentConfig, FileObject, ObjectStore};
+use crate::{EnvironmentConfig, FileObject};
 
 // allow non snake case for the XML response
 #[allow(non_snake_case)]

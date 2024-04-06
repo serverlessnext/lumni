@@ -1,7 +1,8 @@
 pub mod formatters;
 pub mod time;
 pub mod time_parse;
-pub mod uri_parse;
+mod uri_parse;
+pub use uri_parse::{ParsedUri, UriScheme};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod time_parse_ext;

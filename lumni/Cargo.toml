@@ -20,6 +20,13 @@ path = "src/lib.rs"
 name = "lumni"
 path = "src/main.rs"
 
+
+[features]
+default = ["http_client", "cli"]
+http_client = ["hyper", "hyper-tls", "http-body-util", "hyper-util"]
+cli = ["env_logger", "tokio", "clap" ]
+
+
 [dependencies]
 percent-encoding = { version = "2.1", default-features = false, features = ["alloc"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
@@ -35,27 +42,27 @@ url = "2.3"
 log = "0.4"
 serde-xml-rs = "0.6"
 async-trait = "0.1"
+anyhow = "1.0"
+
+# feature: cli
+env_logger = { version = "0.9", optional = true }
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
+clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 time = { version = "0.3", features = ["parsing"]}
-hyper = { version = "1", default-features = false, features = ["client", "http1", "http2"]}
-hyper-tls = "0.6"
-http-body-util = "0.1.1"
-hyper-util = { version = "0.1", features = ["full"]}
-openssl-sys = { version = "0.9", features = ["vendored"] }
-anyhow = "1.0"
-# cli-dependencies
-env_logger = "0.9"
-tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
-clap = { version = "4.2" , default-features = false, features = ["std", "help"]}
+# feature: http-client 
+hyper = { version = "1", default-features = false, features = ["client", "http1", "http2"], optional = true }
+hyper-tls = { version = "0.6", optional = true }
+http-body-util = { version = "0.1.1", optional = true }
+hyper-util = { version = "0.1", features = ["client", "http1", "http2", "tokio"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ['Request', 'RequestInit', 'RequestMode', 'Headers', 'Window', 'Response', 'console'] }
 wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2.84"
-anyhow = "1.0"
 
 [build-dependencies]
 toml_edit = "0.22"

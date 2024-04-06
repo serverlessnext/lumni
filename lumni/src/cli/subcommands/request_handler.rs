@@ -2,8 +2,12 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
-use crate::{BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler, HttpHandler};
-use crate::utils::uri_parse::{ParsedUri, UriScheme};
+#[cfg(feature = "http_client")]
+use lumni::HttpHandler;
+use lumni::{
+    BinaryCallbackWrapper, EnvironmentConfig, ObjectStoreHandler, ParsedUri,
+    UriScheme,
+};
 
 pub async fn handle_request(
     matches: &clap::ArgMatches,
@@ -74,34 +78,29 @@ async fn handle_get_request(
         UriScheme::S3 | UriScheme::LocalFs => {
             // Handler logic for both S3 and LocalFs
             let handler = ObjectStoreHandler::new(None);
-            if let Err(err) = handler.get_object(&parsed_uri, config, callback).await {
+            if let Err(err) =
+                handler.get_object(&parsed_uri, config, callback).await
+            {
                 eprintln!("Error: {:?}", err);
             }
-        },
+        }
+        #[cfg(feature = "http_client")] // HTTP client feature enabled
         UriScheme::Http | UriScheme::Https => {
-            // Handler logic for HTTP and HTTPS
             let handler = HttpHandler::new(callback);
             if let Err(err) = handler.get(uri).await {
                 eprintln!("Error: {:?}", err);
             }
-            //let result = handler.get(uri).await;
-           // match result {
-           //     Ok(response) => {
-           //         if let Some(data) = response {
-           //             if let Some(callback) = callback {
-           //                 let _ = callback.call(data).await;
-           //             }
-           //         }
-           //     },
-           //     Err(err) => {
-           //         eprintln!("Error: {:?}", err);
-           //     }
-           // }
-        },
+        }
+        #[cfg(not(feature = "http_client"))] // HTTP client feature not enabled
+        UriScheme::Http | UriScheme::Https => {
+            eprintln!(
+                "HTTP and HTTPS support is not enabled. Please enable the \
+                 `http_client` feature to use this functionality."
+            );
+        }
         _ => {
             // Handle unsupported schemes
             eprintln!("Unsupported scheme: {}", parsed_uri.scheme.to_string());
         }
     }
-
 }

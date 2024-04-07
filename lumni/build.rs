@@ -4,8 +4,9 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use std::collections::HashMap;
-
 use serde::Deserialize;
+
+const DEFAULT_VERSION: &str = "0.0.0";
 
 #[derive(Debug, Deserialize)]
 struct AppSpec {
@@ -20,14 +21,10 @@ struct AppInfo {
 }
 
 
-
-const DEFAULT_VERSION: &str = "0.0.0";
-
 fn main() {
     update_build_version();
     generate_app_handler();
 }
-
 
 fn update_build_version() {
     println!("cargo:rerun-if-env-changed=BUILD_VERSION");
@@ -61,7 +58,6 @@ fn update_build_version() {
         }
     }
 }
-
 
 // Generate a function to get app handler based on app_uri
 fn generate_app_handler() {

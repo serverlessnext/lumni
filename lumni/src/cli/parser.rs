@@ -15,7 +15,7 @@ const PROGRAM_NAME: &str = "Lumni";
 
 pub fn run_cli(args: Vec<String>) {
     env_logger::init();
-    let app = Command::new(PROGRAM_NAME)
+    let mut app = Command::new(PROGRAM_NAME)
         .version(env!("CARGO_PKG_VERSION"))
         .arg_required_else_help(true)
         .about(format!(
@@ -32,8 +32,8 @@ pub fn run_cli(args: Vec<String>) {
         .subcommand(query_subcommand()) // "-Q/--query [SELECT,DESCRIBE]"
         .subcommand(ls_subcommand()) // "ls [URI]"
         .subcommand(cp_subcommand()) // "cp" [SOURCE] [TARGET]
-        .subcommand(app_subcommand()); // "app"
-
+        .subcommand(apps_subcommand()) // "app"
+        .allow_external_subcommands(true);
 
     let matches = app.try_get_matches();
 
@@ -44,23 +44,29 @@ pub fn run_cli(args: Vec<String>) {
                 Builder::new_current_thread().enable_all().build().unwrap();
 
             match matches.subcommand() {
-                Some(("-X", matches)) => {
+                Some(("-X", matches)) => {  // request
                     rt.block_on(handle_request(matches, &mut config));
                 }
-                Some(("-Q", matches)) => {
+                Some(("-Q", matches)) => {  // query
                     rt.block_on(handle_query(matches, &mut config));
                 }
-                Some(("ls", matches)) => {
+                Some(("ls", matches)) => {  // list
                     rt.block_on(handle_ls(matches, &mut config));
                 }
-                Some(("cp", matches)) => {
+                Some(("cp", matches)) => {  // copy
                     rt.block_on(handle_cp(matches, &mut config));
                 }
-                Some(("app", matches)) => {
-                    rt.block_on(handle_app(matches, &mut config));
+                Some(("apps", matches)) => {    // show list of apps
+                    rt.block_on(handle_apps(matches, &mut config));
                 }
-                _ => {
-                    eprintln!("No valid subcommand provided");
+                Some((app_name, matches)) => {
+                    // catch all other subcommands as an App
+                    rt.block_on(handle_application(app_name, matches, &mut config));
+                }
+                None => {
+                    // given the `arg_required_else_help(true)` is defined,
+                    // this branch should never be reached
+                    unreachable!("arg_required_else_help(true) not defined")
                 }
             }
         }

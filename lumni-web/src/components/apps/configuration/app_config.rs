@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use uuid::Uuid;
 
 use super::parse_config::{parse_yaml, ConfigYamlType};
-use crate::api::error::Error;
-use crate::api::handler::AppHandler;
+use lumni::api::error::Error;
+use lumni::api::handler::AppHandler;
 use crate::components::apps::get_app_handler;
 use crate::components::forms::builders::ElementBuilder;
 

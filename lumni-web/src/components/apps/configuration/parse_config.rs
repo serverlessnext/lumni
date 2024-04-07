@@ -3,7 +3,7 @@ use std::sync::Arc;
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::api::error::{ApplicationError, Error};
+use lumni::api::error::{ApplicationError, Error};
 use crate::components::forms::builders::ElementBuilder;
 
 pub enum ConfigYamlType {

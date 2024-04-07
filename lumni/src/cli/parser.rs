@@ -7,10 +7,11 @@ use tokio::runtime::Builder;
 
 use super::subcommands::cp::*;
 use super::subcommands::ls::*;
+use super::subcommands::app::*;
 use super::subcommands::query::*;
 use super::subcommands::request::*;
 
-const PROGRAM_NAME: &str = "lumni";
+const PROGRAM_NAME: &str = "Lumni";
 
 pub fn run_cli(args: Vec<String>) {
     env_logger::init();
@@ -18,8 +19,7 @@ pub fn run_cli(args: Vec<String>) {
         .version(env!("CARGO_PKG_VERSION"))
         .arg_required_else_help(true)
         .about(format!(
-            "List objects in an S3 bucket\n\nExample:\n {} ls \
-             s3://bucket-name/ --max-files 100",
+            "{}: explore, process and connect data",
             PROGRAM_NAME
         ))
         .arg(
@@ -31,7 +31,9 @@ pub fn run_cli(args: Vec<String>) {
         .subcommand(request_subcommand()) // "-X/--request [GET,PUT]"
         .subcommand(query_subcommand()) // "-Q/--query [SELECT,DESCRIBE]"
         .subcommand(ls_subcommand()) // "ls [URI]"
-        .subcommand(cp_subcommand()); // "cp" [SOURCE] [TARGET]
+        .subcommand(cp_subcommand()) // "cp" [SOURCE] [TARGET]
+        .subcommand(app_subcommand()); // "app"
+
 
     let matches = app.try_get_matches();
 
@@ -53,6 +55,9 @@ pub fn run_cli(args: Vec<String>) {
                 }
                 Some(("cp", matches)) => {
                     rt.block_on(handle_cp(matches, &mut config));
+                }
+                Some(("app", matches)) => {
+                    rt.block_on(handle_app(matches, &mut config));
                 }
                 _ => {
                     eprintln!("No valid subcommand provided");

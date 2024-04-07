@@ -24,7 +24,8 @@ path = "src/main.rs"
 [features]
 default = ["http_client", "cli"]
 http_client = ["hyper", "hyper-tls", "http-body-util", "hyper-util"]
-cli = ["env_logger", "tokio", "clap" ]
+cli = ["env_logger", "tokio", "clap", "crossterm", "ratatui", "tui-textarea", "arboard" ]
+web = ["console_log"]
 
 
 [dependencies]
@@ -35,19 +36,28 @@ serde_json = { version = "1.0" }
 hmac = { version = "0.11", default-features = false }
 sha2 = { version = "0.9.9", default-features = false }
 regex = { version = "1.8", default-features = false, features = ["std", "unicode"] }
-futures = { version = "0.3", default-features = false }
+futures = { version = "0.3" } # , default-features = false 
 bytes = { version = "1.4", default-features = false }
 sqlparser = { version = "0.43", default-features = false}
 url = "2.3"
-log = "0.4"
 serde-xml-rs = "0.6"
 async-trait = "0.1"
 anyhow = "1.0"
+log = { version = "0.4" }
 
-# feature: cli
+# CLI
 env_logger = { version = "0.9", optional = true }
-tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
+# tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
+tokio = { version = "1.12", default-features = false, features = ["full"], optional = true }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
+crossterm = { version = "0.27", optional = true }
+ratatui = { version = ">=0.23.0, <1", default-features = false, features = ["crossterm"], optional = true }
+tui-textarea = { version = "0.4", optional = true }
+arboard = { version = "3.2", default-features = false, optional = true }
+
+# WEB 
+console_log = { version = "1", optional = true }
+
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

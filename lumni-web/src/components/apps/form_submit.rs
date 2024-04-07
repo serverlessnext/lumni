@@ -8,9 +8,9 @@ use leptos::*;
 use lumni::EnvironmentConfig;
 use uuid::Uuid;
 
-use crate::api::error::*;
-use crate::api::invoke::{Request, Response};
-use crate::api::types::{Data, TableType};
+use lumni::api::error::*;
+use lumni::api::invoke::{Request, Response};
+use lumni::api::types::{Data, TableType};
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::builders::{
     FormBuilder, FormType, SubmitParameters,

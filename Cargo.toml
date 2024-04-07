@@ -28,3 +28,4 @@ opt-level = "z"
 debug = false
 rpath = false
 panic = "abort"
+strip = true

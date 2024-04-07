@@ -8,10 +8,10 @@ use futures::stream::StreamExt;
 use leptos::logging::log;
 use lumni::EnvironmentConfig;
 
-use crate::api::error::*;
-use crate::api::handler::AppHandler;
-use crate::api::invoke::{Request, Response};
-use crate::api::types::{
+use lumni::api::error::*;
+use lumni::api::handler::AppHandler;
+use lumni::api::invoke::{Request, Response};
+use lumni::api::types::{
     Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
 };
 use crate::base::connector::LakestreamHandler;

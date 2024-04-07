@@ -1,4 +1,4 @@
-pub(crate) mod api;
+//pub(crate) mod api;
 pub(crate) mod base;
 pub(crate) mod default;
 pub(crate) mod error;
@@ -26,3 +26,4 @@ pub use table::{
     TableColumnValue, TableRow,
 };
 pub use utils::{ParsedUri, UriScheme};
+pub mod api;

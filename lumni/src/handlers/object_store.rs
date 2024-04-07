@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -211,9 +212,9 @@ impl ObjectStoreHandler {
         max_files: Option<u32>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        // check if the uri has a bucket
-        if parsed_uri.bucket.is_none() {
-            return Err(LakestreamError::NoBucketInUri(parsed_uri.to_string()));
+        if parsed_uri.bucket.is_some() {
+            // should not happen, prefer to panic in case it does
+            panic!("list_buckets called with a bucket uri");
         }
 
         // Clone the original config and update the settings

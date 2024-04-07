@@ -2,6 +2,8 @@ pub mod cp;
 mod cp_handler;
 pub mod ls;
 mod ls_handler;
+pub mod app;
+mod app_handler;
 pub mod query;
 mod query_handler;
 pub mod request;

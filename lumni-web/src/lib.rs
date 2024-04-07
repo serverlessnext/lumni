@@ -1,4 +1,3 @@
-pub(crate) mod api;
 pub(crate) mod apps;
 pub(crate) mod base;
 pub(crate) mod components;

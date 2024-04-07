@@ -1,5 +1,3 @@
-use log::info;
-
 use super::bucket::S3Bucket;
 use super::client_headers::Headers;
 use super::list::create_s3_client;
@@ -15,7 +13,7 @@ pub async fn get_object(
     let s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
-    info!("Getting object: {}", object_key);
+    log::info!("Getting object: {}", object_key);
     let (body_bytes, _updated_s3_client, _status_code, _response_headers) =
         http_with_redirect_handling(
             &s3_client,
@@ -23,7 +21,7 @@ pub async fn get_object(
             "GET",
         )
         .await?;
-    info!(
+    log::info!(
         "Got object: {} of size {} bytes",
         object_key,
         body_bytes.len()

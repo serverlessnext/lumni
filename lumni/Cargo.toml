@@ -47,8 +47,8 @@ log = { version = "0.4" }
 
 # CLI
 env_logger = { version = "0.9", optional = true }
-# tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
-tokio = { version = "1.12", default-features = false, features = ["full"], optional = true }
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
+# tokio = { version = "1.12", default-features = false, features = ["full"], optional = true }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
 crossterm = { version = "0.27", optional = true }
 ratatui = { version = ">=0.23.0, <1", default-features = false, features = ["crossterm"], optional = true }
@@ -76,6 +76,8 @@ wasm-bindgen = "0.2.84"
 
 [build-dependencies]
 toml_edit = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
 
 [dev-dependencies]
 # keep tokio version+features in sync with lumni-cli

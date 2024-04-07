@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::*;
 
-use crate::components::apps::get_available_apps;
+pub use lumni::api::get_available_apps;
 
 #[component]
 pub fn Apps() -> impl IntoView {

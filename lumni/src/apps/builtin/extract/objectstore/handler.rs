@@ -5,17 +5,16 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use leptos::logging::log;
-use lumni::EnvironmentConfig;
+use crate::EnvironmentConfig;
 
-use lumni::api::error::*;
-use lumni::api::handler::AppHandler;
-use lumni::api::invoke::{Request, Response};
-use lumni::api::types::{
+use crate::api::error::*;
+use crate::api::handler::AppHandler;
+use crate::api::invoke::{Request, Response};
+use crate::api::types::{
     Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
 };
 use crate::base::connector::LakestreamHandler;
-use crate::helpers::string_replace::replace_variables_in_string_with_map;
+use crate::utils::string_replace::replace_variables_in_string_with_map;
 
 #[derive(Clone)]
 pub struct Handler;
@@ -50,10 +49,10 @@ pub async fn handle_query(
                 let settings = config.get_settings();
                 let query =
                     replace_variables_in_string_with_map(&query, settings);
-                log!("Query: {}", query);
+                log::info!("Query: {}", query);
                 let handler = LakestreamHandler::new(config);
                 let results = handler.execute_query(query).await;
-                log!("Results: {:?}", results);
+                log::info!("Results: {:?}", results);
 
                 // TODO: wrap results into rows and columns
                 Ok(generate_test_data_row())

@@ -1,4 +1,4 @@
-use ::lumni::{EnvironmentConfig, LakestreamError, ObjectStoreHandler, Table};
+use crate::{EnvironmentConfig, LakestreamError, ObjectStoreHandler, Table};
 
 #[derive(Clone)]
 pub struct LakestreamHandler {

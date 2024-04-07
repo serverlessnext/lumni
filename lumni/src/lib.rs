@@ -1,6 +1,6 @@
 //pub(crate) mod api;
-pub(crate) mod base;
 pub(crate) mod apps;
+pub(crate) mod base;
 pub(crate) mod default;
 pub(crate) mod error;
 pub(crate) mod handlers;

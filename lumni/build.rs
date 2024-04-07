@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::Path;
 
-use std::collections::HashMap;
+use regex::Regex;
 use serde::Deserialize;
 
 const DEFAULT_VERSION: &str = "0.0.0";
@@ -19,7 +20,6 @@ struct AppInfo {
     display_name: String,
     version: String,
 }
-
 
 fn main() {
     update_build_version();
@@ -75,7 +75,20 @@ fn generate_app_handler() {
 
     let mut app_paths = Vec::new();
     let apps_dir = Path::new("src/apps/builtin");
-    traverse_and_generate(&apps_dir, &mut f, &mut app_paths);
+
+    // Compile regex patterns outside of the loop for efficiency
+    let name_pattern = Regex::new(r"^[-a-z0-9]*$").unwrap();
+    let uri_pattern = Regex::new(r"^[-a-z]+::[-a-z0-9]+::[-a-z0-9]+$").unwrap();
+    let version_pattern = Regex::new(r"^[0-9]+\.[0-9]+\.[0-9]+$").unwrap();
+
+    traverse_and_generate(
+        &apps_dir,
+        &mut f,
+        &mut app_paths,
+        &name_pattern,
+        &uri_pattern,
+        &version_pattern,
+    );
 
     writeln!(f, "        _ => None,").unwrap();
     writeln!(f, "    }}").unwrap(); // Closing brace for the match statement
@@ -96,6 +109,9 @@ fn traverse_and_generate(
     path: &Path,
     f: &mut File,
     app_paths: &mut Vec<HashMap<String, String>>,
+    name_pattern: &Regex,
+    uri_pattern: &Regex,
+    version_pattern: &Regex,
 ) {
     if path.is_dir() && path.join("handler.rs").exists() {
         let module_path = path
@@ -117,9 +133,34 @@ fn traverse_and_generate(
             let content = std::fs::read_to_string(&spec_path).unwrap();
             match serde_yaml::from_str::<AppSpec>(&content) {
                 Ok(app_spec) => {
+                    // Validate name
+                    if !name_pattern
+                        .is_match(&app_spec.app_info.name.to_lowercase())
+                    {
+                        panic!(
+                            "Invalid name pattern for '{}'",
+                            app_spec.app_info.name
+                        );
+                    }
+
+                    // Validate __uri__
+                    if !uri_pattern.is_match(&module_path) {
+                        panic!("Invalid __uri__ pattern for '{}'", module_path);
+                    }
+
+                    // Validate version
+                    if !version_pattern.is_match(&app_spec.app_info.version) {
+                        panic!(
+                            "Invalid version pattern for '{}'",
+                            app_spec.app_info.version
+                        );
+                    }
+
                     let mut app_info_map = HashMap::new();
-                    app_info_map
-                        .insert("name".to_string(), app_spec.app_info.name);
+                    app_info_map.insert(
+                        "name".to_string(),
+                        app_spec.app_info.name.to_lowercase(),
+                    );
                     app_info_map.insert(
                         "display_name".to_string(),
                         app_spec.app_info.display_name,
@@ -143,7 +184,14 @@ fn traverse_and_generate(
         }
     } else if path.is_dir() {
         for entry in fs::read_dir(path).unwrap() {
-            traverse_and_generate(&entry.unwrap().path(), f, app_paths);
+            traverse_and_generate(
+                &entry.unwrap().path(),
+                f,
+                app_paths,
+                name_pattern,
+                uri_pattern,
+                version_pattern,
+            );
         }
     }
 }

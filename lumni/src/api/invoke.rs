@@ -1,9 +1,8 @@
 use futures::channel::mpsc;
-use crate::EnvironmentConfig;
 
 use super::error::*;
 use crate::api::types::Data;
-
+use crate::EnvironmentConfig;
 
 #[derive(Debug)]
 pub struct Request {

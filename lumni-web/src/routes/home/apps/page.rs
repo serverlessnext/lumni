@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use leptos::*;
-
 pub use lumni::api::get_available_apps;
 
 #[component]

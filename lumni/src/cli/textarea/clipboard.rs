@@ -1,5 +1,6 @@
-use arboard::Clipboard;
 use std::io::{self, Error, Write};
+
+use arboard::Clipboard;
 
 pub struct ClipboardProvider {
     clipboard: Clipboard,
@@ -13,7 +14,8 @@ impl ClipboardProvider {
 
     pub fn write_line(&mut self, s: &str, append: bool) -> io::Result<()> {
         let new_text = if append {
-            let mut current_text = self.clipboard.get_text().unwrap_or_default();
+            let mut current_text =
+                self.clipboard.get_text().unwrap_or_default();
             if !current_text.is_empty() {
                 current_text.push('\n'); // Ensure newline separation between entries
             }

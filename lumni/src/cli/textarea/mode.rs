@@ -1,6 +1,7 @@
+use std::fmt;
+
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders};
-use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditorMode {
@@ -15,7 +16,9 @@ impl EditorMode {
         let help = match self {
             Self::Normal => "type :q to quit, type i to enter insert mode",
             Self::Insert => "type Esc to back to normal mode",
-            Self::Visual => "type y to yank, type c to cut, type Esc to back to normal mode",
+            Self::Visual => {
+                "type y to yank, type c to cut, type Esc to back to normal mode"
+            }
             //Self::CommandLine => "type Esc to back to normal mode",
         };
         let title = format!("{} ({})", self, help);

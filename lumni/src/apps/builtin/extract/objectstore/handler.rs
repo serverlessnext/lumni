@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use crate::EnvironmentConfig;
 
 use crate::api::error::*;
 use crate::api::handler::AppHandler;
@@ -15,6 +14,7 @@ use crate::api::types::{
 };
 use crate::base::connector::LakestreamHandler;
 use crate::utils::string_replace::replace_variables_in_string_with_map;
+use crate::EnvironmentConfig;
 
 #[derive(Clone)]
 pub struct Handler;
@@ -29,6 +29,16 @@ impl AppHandler for Handler {
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         Box::pin(handle_query(rx))
     }
+
+    fn handle_runtime(
+        &self,
+        _args: Vec<String>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+        Box::pin(async move {
+            Ok(())
+        })
+    }
+    
     fn load_config(&self) -> &str {
         include_str!("spec.yaml")
     }

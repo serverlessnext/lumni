@@ -22,6 +22,17 @@ impl AppHandler for Handler {
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         Box::pin(handle_query(rx))
     }
+
+    fn handle_runtime(
+        &self,
+        args: Vec<String>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+        Box::pin(async move {
+            println!("App initialized with args: {:?}", args);
+            Ok(())
+        })
+    }
+
     fn load_config(&self) -> &str {
         include_str!("spec.yaml")
     }
@@ -33,8 +44,7 @@ pub async fn handle_query(
     if let Some(request) = rx.next().await {
         let tx = request.tx();
 
-        let response =
-            Response::new(Data::Empty);
+        let response = Response::new(Data::Empty);
         tx.unbounded_send(Ok(response)).unwrap();
     }
     Ok(())

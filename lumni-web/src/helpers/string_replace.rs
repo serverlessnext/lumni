@@ -1,4 +1,3 @@
-
 pub fn replace_first_single_colon(s: &str) -> String {
     if let Some(pos) = s.find(':') {
         if pos == s.len() - 1 || s.as_bytes()[pos + 1] != b':' {

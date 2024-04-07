@@ -5,12 +5,12 @@ use futures::stream::StreamExt;
 use leptos::ev::SubmitEvent;
 use leptos::logging::log;
 use leptos::*;
-use lumni::EnvironmentConfig;
-use uuid::Uuid;
-
 use lumni::api::error::*;
 use lumni::api::invoke::{Request, Response};
 use lumni::api::types::{Data, TableType};
+use lumni::EnvironmentConfig;
+use uuid::Uuid;
+
 use crate::components::apps::configuration::AppConfig;
 use crate::components::forms::builders::{
     FormBuilder, FormType, SubmitParameters,

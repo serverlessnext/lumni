@@ -5,9 +5,9 @@ use clap::{Arg, Command};
 use lumni::EnvironmentConfig;
 use tokio::runtime::Builder;
 
+use super::subcommands::app::*;
 use super::subcommands::cp::*;
 use super::subcommands::ls::*;
-use super::subcommands::app::*;
 use super::subcommands::query::*;
 use super::subcommands::request::*;
 
@@ -44,24 +44,33 @@ pub fn run_cli(args: Vec<String>) {
                 Builder::new_current_thread().enable_all().build().unwrap();
 
             match matches.subcommand() {
-                Some(("-X", matches)) => {  // request
+                Some(("-X", matches)) => {
+                    // request
                     rt.block_on(handle_request(matches, &mut config));
                 }
-                Some(("-Q", matches)) => {  // query
+                Some(("-Q", matches)) => {
+                    // query
                     rt.block_on(handle_query(matches, &mut config));
                 }
-                Some(("ls", matches)) => {  // list
+                Some(("ls", matches)) => {
+                    // list
                     rt.block_on(handle_ls(matches, &mut config));
                 }
-                Some(("cp", matches)) => {  // copy
+                Some(("cp", matches)) => {
+                    // copy
                     rt.block_on(handle_cp(matches, &mut config));
                 }
-                Some(("apps", matches)) => {    // show list of apps
+                Some(("apps", matches)) => {
+                    // show list of apps
                     rt.block_on(handle_apps(matches, &mut config));
                 }
                 Some((app_name, matches)) => {
                     // catch all other subcommands as an App
-                    rt.block_on(handle_application(app_name, matches, &mut config));
+                    rt.block_on(handle_application(
+                        app_name,
+                        matches,
+                        &mut config,
+                    ));
                 }
                 None => {
                     // given the `arg_required_else_help(true)` is defined,

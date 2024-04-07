@@ -397,7 +397,9 @@ impl TextAreaHandler {
                     ..
                 } => {
                     // if numeric_input is None, move to beginning of line
-                    if self.numeric_input.is_none() && input.key == Key::Char('0') {
+                    if self.numeric_input.is_none()
+                        && input.key == Key::Char('0')
+                    {
                         self.ta_prompt.move_cursor(CursorMove::Head);
                     } else {
                         match input.key {
@@ -414,8 +416,12 @@ impl TextAreaHandler {
                     ..
                 } => {
                     self.layout_mode = match self.layout_mode {
-                        LayoutMode::HorizontalSplit => LayoutMode::VerticalSplit,
-                        LayoutMode::VerticalSplit => LayoutMode::HorizontalSplit,
+                        LayoutMode::HorizontalSplit => {
+                            LayoutMode::VerticalSplit
+                        }
+                        LayoutMode::VerticalSplit => {
+                            LayoutMode::HorizontalSplit
+                        }
                     };
                 }
                 _ => {} // Ignore other keys in Normal mode
@@ -508,7 +514,9 @@ impl TextAreaHandler {
                     ..
                 } => {
                     // if numeric_input is None, move to beginning of line
-                    if self.numeric_input.is_none() && input.key == Key::Char('0') {
+                    if self.numeric_input.is_none()
+                        && input.key == Key::Char('0')
+                    {
                         self.ta_prompt.move_cursor(CursorMove::Head);
                     } else {
                         match input.key {

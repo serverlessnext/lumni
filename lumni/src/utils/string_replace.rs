@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
-
 pub fn replace_variables_in_string_with_map(
     query: &str,
     vars_map: &HashMap<String, String>,

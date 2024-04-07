@@ -13,6 +13,11 @@ pub trait AppHandler: Send + Sync + 'static {
         rx: mpsc::UnboundedReceiver<Request>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>>;
 
+    fn handle_runtime(
+        &self,
+        args: Vec<String>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
+
     fn handle_query(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
@@ -30,9 +35,8 @@ pub trait AppHandler: Send + Sync + 'static {
         });
 
         // Spawn logic for WASM32 architecture
-        #[cfg(target_arch = "wasm32")] 
+        #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            log::info!("HALLASDASDSADDSADAS");
             let result = processing_future.await;
             if let Err(e) = result {
                 log::error!("Error handling query: {:?}", e);

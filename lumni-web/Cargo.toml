@@ -21,7 +21,6 @@ regex = { version = "1.8", default-features = false, features = ["std", "unicode
 uuid = { version = "1", features = ["v4", "js"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9"
 futures = "0.3"
 
 # debug-assertions

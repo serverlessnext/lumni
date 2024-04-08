@@ -6,6 +6,8 @@ pub enum Error {
     Request(RequestError),
     Runtime(RuntimeError),
     Application(ApplicationError),
+    NotImplemented(String),
+    Message(String),
 }
 
 #[derive(Debug, Clone)]
@@ -29,13 +31,15 @@ pub enum RuntimeError {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Request(req_err) => write!(f, "Request Error: {}", req_err),
+            Error::Request(req_err) => write!(f, "RequestError: {}", req_err),
             Error::Runtime(runtime_err) => {
-                write!(f, "Runtime Error: {}", runtime_err)
+                write!(f, "RuntimeError: {}", runtime_err)
             }
             Error::Application(app_err) => {
-                write!(f, "Application Error: {}", app_err)
+                write!(f, "ApplicationError: {}", app_err)
             }
+            Error::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
+            Error::Message(s) => write!(f, "{}", s),
         }
     }
 }

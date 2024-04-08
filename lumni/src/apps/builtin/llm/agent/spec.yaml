@@ -1,4 +1,4 @@
-app_info:
+package:
   name: "Agent"
   display_name: "Agent"
   version: 0.0.1

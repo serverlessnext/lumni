@@ -18,8 +18,7 @@ impl EditorMode {
             Self::Insert => "type Esc to back to normal mode",
             Self::Visual => {
                 "type y to yank, type c to cut, type Esc to back to normal mode"
-            }
-            //Self::CommandLine => "type Esc to back to normal mode",
+            } //Self::CommandLine => "type Esc to back to normal mode",
         };
         let title = format!("{} ({})", self, help);
         Block::default().borders(Borders::ALL).title(title)

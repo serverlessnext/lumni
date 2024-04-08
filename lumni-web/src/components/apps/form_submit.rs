@@ -97,19 +97,22 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                 },
                 Err(error) => match error {
                     Error::Request(RequestError::QueryInvalid(e)) => {
-                        log::error!("Request Error - Invalid Query: {}", e);
+                        log::error!("RequestError - Invalid Query: {}", e);
                     }
                     Error::Runtime(RuntimeError::Unexpected(e)) => {
-                        log::error!("Runtime Error - Unexpected: {}", e);
+                        log::error!("RuntimeError - Unexpected: {}", e);
                     }
                     Error::Application(ApplicationError::ConfigInvalid(e)) => {
-                        log::error!(
-                            "Application Error - Invalid Config: {}",
-                            e
-                        );
+                        log::error!("ApplicationError - Invalid Config: {}", e);
                     }
                     Error::Application(ApplicationError::Unexpected(e)) => {
-                        log::error!("Application Error - Unexpected: {}", e);
+                        log::error!("ApplicationError - Unexpected: {}", e);
+                    }
+                    Error::NotImplemented(e) => {
+                        log::error!("NotImplemented: {}", e);
+                    }
+                    Error::Message(e) => {
+                        log::error!("{}", e);
                     }
                 },
             }

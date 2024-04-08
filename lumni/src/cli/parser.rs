@@ -3,7 +3,6 @@ use std::env;
 
 use clap::{Arg, Command};
 use lumni::EnvironmentConfig;
-use tokio::runtime::Builder;
 
 use super::subcommands::app::*;
 use super::subcommands::cp::*;
@@ -13,9 +12,9 @@ use super::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "Lumni";
 
-pub fn run_cli(args: Vec<String>) {
+pub async fn run_cli(args: Vec<String>) {
     env_logger::init();
-    let mut app = Command::new(PROGRAM_NAME)
+    let app = Command::new(PROGRAM_NAME)
         .version(env!("CARGO_PKG_VERSION"))
         .arg_required_else_help(true)
         .about(format!(
@@ -40,37 +39,31 @@ pub fn run_cli(args: Vec<String>) {
     match matches {
         Ok(matches) => {
             let mut config = create_initial_config(&matches);
-            let rt =
-                Builder::new_current_thread().enable_all().build().unwrap();
 
             match matches.subcommand() {
                 Some(("-X", matches)) => {
                     // request
-                    rt.block_on(handle_request(matches, &mut config));
+                    handle_request(matches, &mut config).await;
                 }
                 Some(("-Q", matches)) => {
                     // query
-                    rt.block_on(handle_query(matches, &mut config));
+                    handle_query(matches, &mut config).await;
                 }
                 Some(("ls", matches)) => {
                     // list
-                    rt.block_on(handle_ls(matches, &mut config));
+                    handle_ls(matches, &mut config).await;
                 }
                 Some(("cp", matches)) => {
                     // copy
-                    rt.block_on(handle_cp(matches, &mut config));
+                    handle_cp(matches, &mut config).await;
                 }
                 Some(("apps", matches)) => {
                     // show list of apps
-                    rt.block_on(handle_apps(matches, &mut config));
+                    handle_apps(matches, &mut config).await;
                 }
                 Some((app_name, matches)) => {
                     // catch all other subcommands as an App
-                    rt.block_on(handle_application(
-                        app_name,
-                        matches,
-                        &mut config,
-                    ));
+                    handle_application(app_name, matches, &mut config).await;
                 }
                 None => {
                     // given the `arg_required_else_help(true)` is defined,

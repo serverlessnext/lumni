@@ -10,12 +10,12 @@ use serde::Deserialize;
 const DEFAULT_VERSION: &str = "0.0.0";
 
 #[derive(Debug, Deserialize)]
-struct AppSpec {
-    app_info: AppInfo,
+struct ApplicationSpec {
+    package: Option<Package>,
 }
 
 #[derive(Debug, Deserialize)]
-struct AppInfo {
+struct Package {
     name: String,
     display_name: String,
     version: String,
@@ -131,15 +131,17 @@ fn traverse_and_generate(
         let spec_path = path.join("spec.yaml");
         if spec_path.exists() {
             let content = std::fs::read_to_string(&spec_path).unwrap();
-            match serde_yaml::from_str::<AppSpec>(&content) {
+            match serde_yaml::from_str::<ApplicationSpec>(&content) {
                 Ok(app_spec) => {
+                    let package = app_spec.package.unwrap();
+
                     // Validate name
                     if !name_pattern
-                        .is_match(&app_spec.app_info.name.to_lowercase())
+                        .is_match(&package.name.to_lowercase())
                     {
                         panic!(
                             "Invalid name pattern for '{}'",
-                            app_spec.app_info.name
+                            package.name
                         );
                     }
 
@@ -149,25 +151,25 @@ fn traverse_and_generate(
                     }
 
                     // Validate version
-                    if !version_pattern.is_match(&app_spec.app_info.version) {
+                    if !version_pattern.is_match(&package.version) {
                         panic!(
                             "Invalid version pattern for '{}'",
-                            app_spec.app_info.version
+                            package.version
                         );
                     }
 
                     let mut app_info_map = HashMap::new();
                     app_info_map.insert(
                         "name".to_string(),
-                        app_spec.app_info.name.to_lowercase(),
+                        package.name.to_lowercase(),
                     );
                     app_info_map.insert(
                         "display_name".to_string(),
-                        app_spec.app_info.display_name,
+                        package.display_name,
                     );
                     app_info_map.insert(
                         "version".to_string(),
-                        app_spec.app_info.version,
+                        package.version,
                     );
                     app_info_map
                         .insert("__uri__".to_string(), module_path.clone());

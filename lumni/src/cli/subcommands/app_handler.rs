@@ -33,7 +33,14 @@ pub async fn handle_application(
     match app_handler {
         Some(app_handler) => {
             let fake_args = Vec::new();
-            let _ = app_handler.handle_runtime(fake_args).await;
+            let app_run = app_handler.invoke_main(fake_args).await;
+            match app_run {
+                Ok(_) => {} // app ran successfully
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         None => {
             eprintln!("app not found: {}", app);

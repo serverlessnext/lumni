@@ -5,7 +5,8 @@ use lumni::api::get_app_handler;
 use lumni::api::handler::AppHandler;
 use uuid::Uuid;
 
-use super::parse_config::{parse_yaml, ConfigYamlType};
+use super::parse_config::parse_yaml;
+use lumni::api::spec::SpecYamlType;
 use crate::components::forms::builders::ElementBuilder;
 
 pub struct AppConfig {
@@ -61,8 +62,8 @@ impl AppConfig {
         })
     }
 
-    fn load_config(&self) -> &str {
-        self.handler.load_config()
+    fn load_app_specification(&self) -> &str {
+        self.handler.load_specification()
     }
 
     pub fn handler(&self) -> &dyn AppHandler {
@@ -84,13 +85,13 @@ impl AppConfig {
     pub fn configuration_form_elements(
         &self,
     ) -> Result<Vec<ElementBuilder>, Error> {
-        parse_yaml(self.load_config(), ConfigYamlType::ConfigurationEnvironment)
+        parse_yaml(self.load_app_specification(), SpecYamlType::Configuration)
     }
 
     pub fn interface_form_elements(
         &self,
     ) -> Result<Vec<ElementBuilder>, Error> {
-        parse_yaml(self.load_config(), ConfigYamlType::InterfaceForm)
+        parse_yaml(self.load_app_specification(), SpecYamlType::Interface)
     }
 }
 

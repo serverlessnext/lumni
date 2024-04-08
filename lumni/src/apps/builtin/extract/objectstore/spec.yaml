@@ -1,10 +1,10 @@
-app_info:
+package:
   name: "Objectstore"
   display_name: "Objectstore"
   version: 0.0.1
 
 configuration:
-  environment:
+  form_elements:
   - id: "BUCKET_URI"
     type: "PlainText"
     label: "Bucket URI"
@@ -43,7 +43,7 @@ configuration:
       error_message: "Invalid S3 endpoint URL."
 
 interface:
-  form:
+  form_elements:
   - id: "QUERY"
     type: "TextArea"
     label: "Query"

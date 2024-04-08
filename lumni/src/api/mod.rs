@@ -1,6 +1,7 @@
 pub mod error;
 pub mod handler;
 pub mod invoke;
+pub mod spec;
 pub mod types;
 
 use crate::api::handler::AppHandler;
@@ -8,6 +9,20 @@ use crate::api::handler::AppHandler;
 // - fn get_app_handler()
 // - fn get_available_apps()
 include!(concat!(env!("OUT_DIR"), "/generated_modules.rs"));
+
+#[macro_export]
+macro_rules! impl_app_handler {
+    // mandatory boilerplate for the AppHandler trait
+    () => {
+        fn clone_box(&self) -> Box<dyn AppHandler> {
+            Box::new(self.clone())
+        }
+
+        fn load_specification(&self) -> &str {
+            include_str!("spec.yaml")
+        }
+    };
+}
 
 pub fn find_builtin_app(app_name: &str) -> Option<Box<dyn AppHandler>> {
     let app = get_available_apps().into_iter().find(|app| {

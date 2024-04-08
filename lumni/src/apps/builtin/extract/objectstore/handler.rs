@@ -14,37 +14,24 @@ use crate::api::types::{
 };
 use crate::base::connector::LakestreamHandler;
 use crate::utils::string_replace::replace_variables_in_string_with_map;
-use crate::EnvironmentConfig;
+use crate::{impl_app_handler, EnvironmentConfig};
 
 #[derive(Clone)]
 pub struct Handler;
 
 impl AppHandler for Handler {
-    fn clone_box(&self) -> Box<dyn AppHandler> {
-        Box::new(self.clone())
-    }
-    fn process_request(
+    // mandatory boilerplate
+    impl_app_handler!();
+
+    fn incoming_request(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
-        Box::pin(handle_query(rx))
-    }
-
-    fn handle_runtime(
-        &self,
-        _args: Vec<String>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
-        Box::pin(async move {
-            Ok(())
-        })
-    }
-    
-    fn load_config(&self) -> &str {
-        include_str!("spec.yaml")
+        Box::pin(handle_incoming_request(rx))
     }
 }
 
-pub async fn handle_query(
+async fn handle_incoming_request(
     mut rx: mpsc::UnboundedReceiver<Request>,
 ) -> Result<(), Error> {
     if let Some(request) = rx.next().await {

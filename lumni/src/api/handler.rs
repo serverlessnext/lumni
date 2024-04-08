@@ -5,25 +5,48 @@ use futures::channel::mpsc;
 
 use super::error::Error;
 use super::invoke::Request;
+use super::spec::ApplicationSpec;
 
 pub trait AppHandler: Send + Sync + 'static {
+    // handled by the macro impl_app_handler!()
     fn clone_box(&self) -> Box<dyn AppHandler>;
-    fn process_request(
-        &self,
-        rx: mpsc::UnboundedReceiver<Request>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>>;
+    fn load_specification(&self) -> &str;
 
-    fn handle_runtime(
+    // methods the app can implement
+    fn incoming_request(
         &self,
-        args: Vec<String>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
+        _rx: mpsc::UnboundedReceiver<Request>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
+        let package_name = self.package_name();
+        Box::pin(async move {
+            Err(Error::NotImplemented(format!(
+                "Incoming request handling is not implemented for '{}'.",
+                package_name
+            )))
+        })
+    }
 
+    fn invoke_main(
+        &self,
+        _args: Vec<String>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+        let package_name = self.package_name();
+        Box::pin(async move {
+            Err(Error::NotImplemented(format!(
+                "CLI is not implemented for '{}'.",
+                package_name
+            )))
+        })
+    }
+
+    // high-level functions
+    // -- these should typically not need to reimplemented
     fn handle_query(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send>> {
         let (local_tx, local_rx) = futures::channel::oneshot::channel();
-        let processing_future = self.process_request(rx);
+        let processing_future = self.incoming_request(rx);
 
         // Spawn logic for non-WASM32 architectures
         #[cfg(not(target_arch = "wasm32"))]
@@ -49,5 +72,23 @@ pub trait AppHandler: Send + Sync + 'static {
         })
     }
 
-    fn load_config(&self) -> &str;
+    fn package_name(&self) -> String {
+        let spec = serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
+        match spec {
+            Ok(spec) => {
+                let package = spec.package();
+                match package {
+                    Some(package) => package.name().to_string(),
+                    None => {
+                        // this should never happen as the spec is validated at compile time
+                        panic!("Failed to load package name from specification.");
+                    }
+                }
+            }
+            Err(_) => {
+                // this should never happen as the spec is validated at compile time
+                panic!("Failed to load package name from specification.");
+            }
+        }
+    }
 }

@@ -26,6 +26,7 @@ pub trait AppHandler: Send + Sync + 'static {
         })
     }
 
+    //#[cfg(feature = "cli")]
     fn invoke_main(
         &self,
         _args: Vec<String>,
@@ -73,7 +74,8 @@ pub trait AppHandler: Send + Sync + 'static {
     }
 
     fn package_name(&self) -> String {
-        let spec = serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
+        let spec =
+            serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
         match spec {
             Ok(spec) => {
                 let package = spec.package();
@@ -81,7 +83,9 @@ pub trait AppHandler: Send + Sync + 'static {
                     Some(package) => package.name().to_string(),
                     None => {
                         // this should never happen as the spec is validated at compile time
-                        panic!("Failed to load package name from specification.");
+                        panic!(
+                            "Failed to load package name from specification."
+                        );
                     }
                 }
             }

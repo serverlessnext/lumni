@@ -15,11 +15,14 @@ pub struct FileObjectTable {
 }
 
 impl FileObjectTable {
-    pub fn new(selected_columns: &Option<Vec<&str>>) -> Self {
+    pub fn new(
+        selected_columns: &Option<Vec<&str>>,
+        callback: Option<Arc<dyn TableCallback>>,
+    ) -> Self {
         let mut table = Self {
             columns: Vec::new(),
             column_index: HashMap::new(),
-            callback: None,
+            callback,
         };
 
         // Define a list of valid column names

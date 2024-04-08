@@ -1,4 +1,5 @@
 use serde::Deserialize;
+
 use super::error::{ApplicationError, Error};
 
 pub enum SpecYamlType {
@@ -129,7 +130,9 @@ impl YamlValidation {
     }
 }
 
-pub fn parse_yaml_to_root(app_specification: &str) -> Result<ApplicationSpec, Error> {
+pub fn parse_yaml_to_root(
+    app_specification: &str,
+) -> Result<ApplicationSpec, Error> {
     serde_yaml::from_str::<ApplicationSpec>(app_specification).map_err(|_| {
         Error::Application(ApplicationError::ConfigInvalid(
             "Failed to parse YAML".to_string(),

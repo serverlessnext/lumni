@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use lumni::api::error::Error;
 use lumni::api::get_app_handler;
 use lumni::api::handler::AppHandler;
+use lumni::api::spec::SpecYamlType;
 use uuid::Uuid;
 
 use super::parse_config::parse_yaml;
-use lumni::api::spec::SpecYamlType;
 use crate::components::forms::builders::ElementBuilder;
 
 pub struct AppConfig {

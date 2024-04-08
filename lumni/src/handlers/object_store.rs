@@ -80,10 +80,7 @@ impl ObjectStore {
         filter: &Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, LakestreamError> {
-        let mut table = FileObjectTable::new(&selected_columns);
-        if let Some(callback) = callback {
-            table.set_callback(callback);
-        }
+        let mut table = FileObjectTable::new(&selected_columns, callback);
 
         match self {
             ObjectStore::S3Bucket(bucket) => {

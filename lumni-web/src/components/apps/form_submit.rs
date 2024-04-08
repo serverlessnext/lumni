@@ -108,6 +108,12 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     Error::Application(ApplicationError::Unexpected(e)) => {
                         log::error!("ApplicationError - Unexpected: {}", e);
                     }
+                    Error::Application(ApplicationError::Runtime(e)) => {
+                        log::error!("ApplicationError - Runtime: {}", e);
+                    }
+                    Error::Invoke(e) => {
+                        log::error!("InvokeError: {}", e);
+                    }
                     Error::NotImplemented(e) => {
                         log::error!("NotImplemented: {}", e);
                     }

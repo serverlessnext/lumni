@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use lumni::api::error::{ApplicationError, Error};
-use lumni::api::spec::{ApplicationSpec, YamlFormElement, SpecYamlType, parse_yaml_to_root};
+use lumni::api::spec::{
+    parse_yaml_to_root, ApplicationSpec, SpecYamlType, YamlFormElement,
+};
 use regex::Regex;
 
 use crate::components::forms::builders::ElementBuilder;

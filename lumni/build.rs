@@ -136,13 +136,8 @@ fn traverse_and_generate(
                     let package = app_spec.package.unwrap();
 
                     // Validate name
-                    if !name_pattern
-                        .is_match(&package.name.to_lowercase())
-                    {
-                        panic!(
-                            "Invalid name pattern for '{}'",
-                            package.name
-                        );
+                    if !name_pattern.is_match(&package.name.to_lowercase()) {
+                        panic!("Invalid name pattern for '{}'", package.name);
                     }
 
                     // Validate __uri__
@@ -167,10 +162,7 @@ fn traverse_and_generate(
                         "display_name".to_string(),
                         package.display_name,
                     );
-                    app_info_map.insert(
-                        "version".to_string(),
-                        package.version,
-                    );
+                    app_info_map.insert("version".to_string(), package.version);
                     app_info_map
                         .insert("__uri__".to_string(), module_path.clone());
                     app_paths.push(app_info_map);

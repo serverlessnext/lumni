@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 #[cfg(feature = "cli")]
-use super::cli::run_prompter;
+use super::cli::run_cli;
 #[cfg(feature = "cli")]
 use crate::api::error::*;
 use crate::api::handler::AppHandler;
@@ -21,9 +21,9 @@ impl AppHandler for Handler {
     fn invoke_main(
         &self,
         args: Vec<String>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         Box::pin(async move {
-            run_prompter(args).await?;
+            run_cli(args).await?;
             Ok(())
         })
     }

@@ -30,7 +30,7 @@ pub trait AppHandler: Send + Sync + 'static {
     fn invoke_main(
         &self,
         _args: Vec<String>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         let package_name = self.package_name();
         Box::pin(async move {
             Err(Error::NotImplemented(format!(

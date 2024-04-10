@@ -3,3 +3,5 @@ mod handler;
 mod mode;
 
 pub use handler::{LayoutMode, TextAreaHandler};
+
+pub use super::prompt::{PromptLog, run_prompt};

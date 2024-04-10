@@ -1,9 +1,13 @@
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use tui_textarea::{CursorMove, Input, Key, TextArea};
+use tokio::sync::mpsc;
+use tokio::time::{self, Duration};
 
 use super::clipboard::ClipboardProvider;
 use super::mode::EditorMode;
+
+use super::{PromptLog, run_prompt};
 
 enum TextAreaAction {
     Cut,
@@ -20,19 +24,22 @@ pub struct TextAreaHandler {
     clipboard_provider: ClipboardProvider,
     layout_mode: LayoutMode,
     command_line_handler: Option<CommandLine>,
-    ta_prompt: TextArea<'static>,
-    ta_chat_history: TextArea<'static>,
+    ta_prompt_edit: TextArea<'static>,
+    ta_prompt_log: TextArea<'static>,
     ta_command_line: TextArea<'static>,
 }
 
 impl TextAreaHandler {
     pub fn new() -> Self {
-        let mut ta_chat_history = TextArea::default();
-        ta_chat_history.set_block(EditorMode::Normal.block());
+        let mut ta_prompt_log = TextArea::default();
+        ta_prompt_log.set_block(EditorMode::ReadOnly.block());
+        ta_prompt_log.set_cursor_style(EditorMode::ReadOnly.cursor_style());
+        ta_prompt_log.set_placeholder_text("Ready");
 
-        let mut ta_prompt = TextArea::default();
-        ta_prompt.set_block(EditorMode::Normal.block());
-        ta_prompt.set_cursor_style(EditorMode::Normal.cursor_style());
+
+        let mut ta_prompt_edit = TextArea::default();
+        ta_prompt_edit.set_block(EditorMode::Normal.block());
+        ta_prompt_edit.set_cursor_style(EditorMode::Normal.cursor_style());
 
         let mut ta_command_line = TextArea::default();
         ta_command_line.set_cursor_line_style(Style::default());
@@ -45,18 +52,18 @@ impl TextAreaHandler {
             clipboard_provider: ClipboardProvider::new(),
             layout_mode: LayoutMode::HorizontalSplit,
             command_line_handler: None,
-            ta_prompt,
-            ta_chat_history,
+            ta_prompt_edit,
+            ta_prompt_log,
             ta_command_line,
         }
     }
 
-    pub fn ta_prompt(&mut self) -> &mut TextArea<'static> {
-        &mut self.ta_prompt
+    pub fn ta_prompt_edit(&mut self) -> &mut TextArea<'static> {
+        &mut self.ta_prompt_edit
     }
 
-    pub fn ta_chat_history(&mut self) -> &mut TextArea<'static> {
-        &mut self.ta_chat_history
+    pub fn ta_prompt_log(&mut self) -> &mut TextArea<'static> {
+        &mut self.ta_prompt_log
     }
 
     pub fn ta_command_line(&mut self) -> &mut TextArea<'static> {
@@ -93,27 +100,27 @@ impl TextAreaHandler {
     fn handle_position_keys(&mut self, input: &Input) -> bool {
         match input.key {
             Key::Left => {
-                self.ta_prompt.move_cursor(CursorMove::Back);
+                self.ta_prompt_edit.move_cursor(CursorMove::Back);
                 true
             }
             Key::Right => {
-                self.ta_prompt.move_cursor(CursorMove::Forward);
+                self.ta_prompt_edit.move_cursor(CursorMove::Forward);
                 true
             }
             Key::Up => {
-                self.ta_prompt.move_cursor(CursorMove::Up);
+                self.ta_prompt_edit.move_cursor(CursorMove::Up);
                 true
             }
             Key::Down => {
-                self.ta_prompt.move_cursor(CursorMove::Down);
+                self.ta_prompt_edit.move_cursor(CursorMove::Down);
                 true
             }
             Key::Home => {
-                self.ta_prompt.move_cursor(CursorMove::Head);
+                self.ta_prompt_edit.move_cursor(CursorMove::Head);
                 true
             }
             Key::End => {
-                self.ta_prompt.move_cursor(CursorMove::End);
+                self.ta_prompt_edit.move_cursor(CursorMove::End);
                 true
             }
             Key::PageUp => {
@@ -146,15 +153,15 @@ impl TextAreaHandler {
 
     fn set_vim_mode(&mut self, mode: EditorMode) {
         self.mode = mode;
-        self.ta_prompt.set_block(mode.block());
-        self.ta_prompt.set_cursor_style(mode.cursor_style());
+        self.ta_prompt_edit.set_block(mode.block());
+        self.ta_prompt_edit.set_cursor_style(mode.cursor_style());
     }
 
     pub fn yank_to_clipboard(&mut self) {
-        self.ta_prompt.cancel_selection();
+        self.ta_prompt_edit.cancel_selection();
         if let Err(e) = self
             .clipboard_provider
-            .write_line(&self.ta_prompt.yank_text(), false)
+            .write_line(&self.ta_prompt_edit.yank_text(), false)
         {
             eprintln!("Clipboard error: {}", e);
         }
@@ -162,24 +169,24 @@ impl TextAreaHandler {
 
     pub fn paste_from_clipboard(&mut self) {
         if let Ok(text) = self.clipboard_provider.read_text() {
-            self.ta_prompt.set_yank_text(&text); // copy from clipboard
+            self.ta_prompt_edit.set_yank_text(&text); // copy from clipboard
 
             if text.contains("\n") {
                 // go to end of line
-                self.ta_prompt.move_cursor(CursorMove::End);
-                self.ta_prompt.insert_newline();
-                self.ta_prompt.paste();
-                self.ta_prompt.move_cursor(CursorMove::Up);
+                self.ta_prompt_edit.move_cursor(CursorMove::End);
+                self.ta_prompt_edit.insert_newline();
+                self.ta_prompt_edit.paste();
+                self.ta_prompt_edit.move_cursor(CursorMove::Up);
             } else {
-                self.ta_prompt.paste();
+                self.ta_prompt_edit.paste();
             }
         }
     }
 
     fn select_lines(&mut self, action: TextAreaAction) {
         // Start the selection at the head of the current line
-        self.ta_prompt.move_cursor(CursorMove::Head);
-        self.ta_prompt.start_selection();
+        self.ta_prompt_edit.move_cursor(CursorMove::Head);
+        self.ta_prompt_edit.start_selection();
 
         // Determine the number of lines to select based on numeric_input
         let lines_to_select = self
@@ -190,17 +197,17 @@ impl TextAreaHandler {
         // Move down (lines_to_select - 1) times to select the correct number of lines
         // This adjustment ensures we do not select an extra line
         for _ in 0..(lines_to_select - 1) {
-            self.ta_prompt.move_cursor(CursorMove::Down);
+            self.ta_prompt_edit.move_cursor(CursorMove::Down);
         }
         // Extend the selection to the end of the last intended line
-        self.ta_prompt.move_cursor(CursorMove::End);
+        self.ta_prompt_edit.move_cursor(CursorMove::End);
 
         match action {
             TextAreaAction::Cut => {
-                self.ta_prompt.cut();
+                self.ta_prompt_edit.cut();
             }
             TextAreaAction::Copy => {
-                self.ta_prompt.copy();
+                self.ta_prompt_edit.copy();
             }
         }
 
@@ -211,7 +218,7 @@ impl TextAreaHandler {
     }
 
     // Handle input and transition between modes
-    pub fn transition(&mut self, input: &Input) -> bool {
+    pub async fn transition(&mut self, input: &Input) -> bool {
         if let Some(cl) = &mut self.command_line_handler {
             // handle command line mode
             match input {
@@ -223,7 +230,13 @@ impl TextAreaHandler {
                     key: Key::Enter, ..
                 } => {
                     // catch enter key - discontinues cl mode
-                    let status = cl.process_command(&mut self.ta_command_line);
+                    let status = cl
+                        .process_command(
+                            &mut self.ta_command_line,
+                            &self.ta_prompt_edit,
+                            &mut self.ta_prompt_log,
+                        )
+                        .await;
                     if status {
                         return true; // quit application
                     }
@@ -258,14 +271,14 @@ impl TextAreaHandler {
                     ..
                 } => {
                     self.set_vim_mode(EditorMode::Visual);
-                    self.ta_prompt.start_selection(); // Start selection
+                    self.ta_prompt_edit.start_selection(); // Start selection
                 }
                 // Delete character before cursor
                 Input {
                     key: Key::Char('x'),
                     ..
                 } => {
-                    self.ta_prompt.delete_next_char();
+                    self.ta_prompt_edit.delete_next_char();
                 }
                 // :
                 Input {
@@ -279,22 +292,22 @@ impl TextAreaHandler {
                     key: Key::Char('$'),
                     ..
                 } => {
-                    self.ta_prompt.move_cursor(CursorMove::End);
+                    self.ta_prompt_edit.move_cursor(CursorMove::End);
                 }
                 Input {
                     key: Key::Char('G'),
                     ..
                 } => {
-                    self.ta_prompt.move_cursor(CursorMove::Bottom);
-                    self.ta_prompt.move_cursor(CursorMove::End);
+                    self.ta_prompt_edit.move_cursor(CursorMove::Bottom);
+                    self.ta_prompt_edit.move_cursor(CursorMove::End);
                 }
                 Input {
                     key: Key::Char('g'),
                     ..
                 } => {
                     if let Some(Key::Char('g')) = self.last_key {
-                        self.ta_prompt.move_cursor(CursorMove::Top);
-                        self.ta_prompt.move_cursor(CursorMove::Head);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Top);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Head);
                     } else {
                         // Record the first "g" press
                         self.last_key = Some(Key::Char('g'));
@@ -326,23 +339,23 @@ impl TextAreaHandler {
                 Input {
                     key: Key::Delete, ..
                 } => {
-                    self.ta_prompt.delete_next_char();
+                    self.ta_prompt_edit.delete_next_char();
                 }
                 Input {
                     key: Key::Backspace,
                     ..
                 } => {
-                    self.ta_prompt.delete_char();
+                    self.ta_prompt_edit.delete_char();
                 }
                 // Move cursor
                 Input {
                     key: Key::Char('h'),
                     ..
-                } => self.ta_prompt.move_cursor(CursorMove::Back),
+                } => self.ta_prompt_edit.move_cursor(CursorMove::Back),
                 Input {
                     key: Key::Char('l'),
                     ..
-                } => self.ta_prompt.move_cursor(CursorMove::Forward),
+                } => self.ta_prompt_edit.move_cursor(CursorMove::Forward),
                 Input {
                     key: Key::Char('k'),
                     ..
@@ -352,7 +365,7 @@ impl TextAreaHandler {
                         .as_ref()
                         .map_or(1, |n| n.parse::<usize>().unwrap_or(1));
                     for _ in 0..lines_to_move {
-                        self.ta_prompt.move_cursor(CursorMove::Up);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Up);
                     }
                     self.numeric_input = None;
                 }
@@ -365,7 +378,7 @@ impl TextAreaHandler {
                         .as_ref()
                         .map_or(1, |n| n.parse::<usize>().unwrap_or(1));
                     for _ in 0..lines_to_move {
-                        self.ta_prompt.move_cursor(CursorMove::Down);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Down);
                     }
                     self.numeric_input = None;
                 }
@@ -375,14 +388,14 @@ impl TextAreaHandler {
                     ctrl: false,
                     ..
                 } => {
-                    self.ta_prompt.undo();
+                    self.ta_prompt_edit.undo();
                 }
                 Input {
                     key: Key::Char('r'),
                     ctrl: true,
                     ..
                 } => {
-                    self.ta_prompt.redo();
+                    self.ta_prompt_edit.redo();
                 }
                 // Paste yanked text
                 Input {
@@ -400,7 +413,7 @@ impl TextAreaHandler {
                     if self.numeric_input.is_none()
                         && input.key == Key::Char('0')
                     {
-                        self.ta_prompt.move_cursor(CursorMove::Head);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Head);
                     } else {
                         match input.key {
                             Key::Char(c) => {
@@ -428,7 +441,7 @@ impl TextAreaHandler {
             },
             EditorMode::Insert => match input {
                 Input { key: Key::Esc, .. } => {
-                    self.ta_prompt.cancel_selection();
+                    self.ta_prompt_edit.cancel_selection();
                     self.set_vim_mode(EditorMode::Normal);
                 }
                 Input {
@@ -441,27 +454,33 @@ impl TextAreaHandler {
                 _ => {
                     // In Insert mode, most keys should result in text input.
                     // Pass the input to the textarea in your main loop, not here.
-                    self.ta_prompt.input(input.clone());
+                    self.ta_prompt_edit.input(input.clone());
                 }
             },
             EditorMode::Visual => match input {
                 Input { key: Key::Esc, .. } => {
-                    self.ta_prompt.cancel_selection();
+                    self.ta_prompt_edit.cancel_selection();
                     self.set_vim_mode(EditorMode::Normal);
                 }
+                // tab 
+                Input { key: Key::Tab, .. } => {
+                    eprintln!("Tab hit");
+                    //self.ta_prompt_edit.indent();
+                }
+
                 Input {
                     key: Key::Char('$'),
                     ..
                 } => {
-                    self.ta_prompt.move_cursor(CursorMove::End);
+                    self.ta_prompt_edit.move_cursor(CursorMove::End);
                 }
                 Input {
                     key: Key::Char('g'),
                     ..
                 } => {
                     if let Some(Key::Char('g')) = self.last_key {
-                        self.ta_prompt.move_cursor(CursorMove::Top);
-                        self.ta_prompt.move_cursor(CursorMove::Head);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Top);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Head);
                     } else {
                         // Record the first "g" press
                         self.last_key = Some(Key::Char('g'));
@@ -476,7 +495,7 @@ impl TextAreaHandler {
                         .as_ref()
                         .map_or(1, |n| n.parse::<usize>().unwrap_or(1));
                     for _ in 0..lines_to_move {
-                        self.ta_prompt.move_cursor(CursorMove::Up);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Up);
                     }
                     self.numeric_input = None;
                 }
@@ -489,7 +508,7 @@ impl TextAreaHandler {
                         .as_ref()
                         .map_or(1, |n| n.parse::<usize>().unwrap_or(1));
                     for _ in 0..lines_to_move {
-                        self.ta_prompt.move_cursor(CursorMove::Down);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Down);
                     }
                     self.numeric_input = None;
                 }
@@ -497,15 +516,15 @@ impl TextAreaHandler {
                     key: Key::Char('G'),
                     ..
                 } => {
-                    self.ta_prompt.move_cursor(CursorMove::Bottom);
-                    self.ta_prompt.move_cursor(CursorMove::End);
+                    self.ta_prompt_edit.move_cursor(CursorMove::Bottom);
+                    self.ta_prompt_edit.move_cursor(CursorMove::End);
                 }
                 Input {
                     key: Key::Char('y'),
                     ctrl: false,
                     ..
                 } => {
-                    self.ta_prompt.copy();
+                    self.ta_prompt_edit.copy();
                     self.yank_to_clipboard();
                     self.set_vim_mode(EditorMode::Normal);
                 }
@@ -517,7 +536,7 @@ impl TextAreaHandler {
                     if self.numeric_input.is_none()
                         && input.key == Key::Char('0')
                     {
-                        self.ta_prompt.move_cursor(CursorMove::Head);
+                        self.ta_prompt_edit.move_cursor(CursorMove::Head);
                     } else {
                         match input.key {
                             Key::Char(c) => {
@@ -533,7 +552,7 @@ impl TextAreaHandler {
                     ctrl: false,
                     ..
                 } if *c == 'c' || *c == 'x' || *c == 'd' => {
-                    self.ta_prompt.cut();
+                    self.ta_prompt_edit.cut();
                     self.yank_to_clipboard();
                     self.set_vim_mode(EditorMode::Normal);
                 }
@@ -542,20 +561,30 @@ impl TextAreaHandler {
                     ctrl: false,
                     ..
                 } => {
-                    self.ta_prompt.paste();
+                    self.ta_prompt_edit.paste();
                 }
                 _ => {} // Ignore other keys in Visual mode
             },
+            EditorMode::ReadOnly => {
+                // used for Log view 
+                // similar to Visual, except no Cut, Delete, or Paste
+                // requires Tab to switch back to 
+
+            }
         }
         false // Do not quit unless specified
     }
 }
 
-pub struct CommandLine {}
+pub struct CommandLine {
+    prompt_log: PromptLog,
+}
 
 impl CommandLine {
     pub fn new() -> Self {
-        Self {}
+        let instruction = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.".to_string();
+        let prompt_log = PromptLog::new(10, instruction);
+        Self { prompt_log }
     }
 
     pub fn clear(&mut self, command_line: &mut TextArea<'_>) {
@@ -563,20 +592,57 @@ impl CommandLine {
         command_line.cut();
     }
 
-    pub fn process_command(&mut self, command_line: &mut TextArea<'_>) -> bool {
+    pub async fn process_command(
+        &mut self,
+        command_line: &mut TextArea<'_>,
+        ta_prompt_edit: &TextArea<'_>,
+        ta_prompt_log: &mut TextArea<'_>,
+    ) -> bool {
         let command = command_line.lines()[0].to_string();
-        if !command.starts_with(':') {
-            self.clear(command_line);
-            return false;
-        }
+        self.clear(command_line);
 
-        let command_without_colon = command.trim_start_matches(':');
-        match command_without_colon {
-            "q" => true, // Quit by returning true
-            _ => {
-                self.clear(command_line);
-                false // Continue running the application
+        if command.starts_with(':') {
+            match command.trim_start_matches(':') {
+                "q" => return true, // Quit by returning true
+                "w" => {
+                    let question = ta_prompt_edit.lines().join("\n");
+                    // Initiate the streaming response process
+                    let mut response_stream = self.run_prompt(&question).await;
+
+                    while let Some(response) = response_stream.recv().await {
+                        //eprintln!("Response: {}", response);
+                        ta_prompt_log.insert_str(&format!("{}\n", response));
+                        ta_prompt_log.widget();
+                    }
+                },
+                _ => {}, // Handle other commands as needed
             }
         }
+        false // continue running
+    }
+
+    async fn run_prompt(&mut self, _question: &str) -> mpsc::Receiver<String> {
+        // simulated version to test streaming response
+        let (tx, rx) = mpsc::channel(32);
+
+        tokio::spawn(async move {
+            let responses = vec![
+                "Processing your request...",
+                "Fetching data...",
+                "The answer is 42.",
+                "Is there anything else you'd like to know?",
+            ];
+
+            for response in responses {
+                if tx.send(response.to_string()).await.is_err() {
+                    eprintln!("Receiver dropped");
+                    return;
+                }
+                // Simulate delay for streaming
+                time::sleep(Duration::from_secs(1)).await;
+            }
+        });
+
+        rx // Return the receiver to the caller
     }
 }

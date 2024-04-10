@@ -8,6 +8,7 @@ pub enum EditorMode {
     Normal,
     Insert,
     Visual,
+    ReadOnly,
 }
 
 impl EditorMode {
@@ -17,9 +18,15 @@ impl EditorMode {
             Self::Insert => "type Esc to back to normal mode",
             Self::Visual => {
                 "type y to yank, type c to cut, type Esc to back to normal mode"
-            }
+            },
+            Self::ReadOnly => "",
         };
-        let title = format!("{} ({})", self, help);
+
+        let title = if help.is_empty() {
+            format!("{}", self)
+        } else {
+            format!("{} ({})", self, help)
+        };
         Block::default().borders(Borders::ALL).title(title)
     }
 
@@ -28,6 +35,7 @@ impl EditorMode {
             Self::Normal => Color::Reset,
             Self::Insert => Color::LightBlue,
             Self::Visual => Color::LightYellow,
+            Self::ReadOnly => Color::DarkGray,
         };
         Style::default().fg(color).add_modifier(Modifier::REVERSED)
     }
@@ -39,6 +47,7 @@ impl fmt::Display for EditorMode {
             Self::Normal => write!(f, "NORMAL"),
             Self::Insert => write!(f, "INSERT"),
             Self::Visual => write!(f, "VISUAL"),
+            Self::ReadOnly => write!(f, ""),
         }
     }
 }

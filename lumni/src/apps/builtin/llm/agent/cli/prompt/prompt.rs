@@ -93,12 +93,11 @@ pub async fn run_prompt() -> Result<(), Box<dyn Error>> {
     );
     chat.add_exchange(
         "Please tell me the capital of France.".to_string(),
-        "Sure. The capital of France is Paris"
-            .to_string(),
+        "Sure. The capital of France is Paris".to_string(),
     );
 
     // TODO: add token count
-    let n_keep = 100; 
+    let n_keep = 100;
 
     // Create the payload for the API request
     let data_payload = chat.create_payload(n_keep)?;

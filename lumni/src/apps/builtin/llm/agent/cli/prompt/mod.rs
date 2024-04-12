@@ -1,3 +1,3 @@
 mod prompt;
 
-pub use prompt::{PromptLog, run_prompt};
+pub use prompt::{run_prompt, PromptLog};

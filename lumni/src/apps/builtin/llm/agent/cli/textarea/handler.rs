@@ -1,13 +1,16 @@
 use ratatui::layout::Rect;
-use ratatui::style::Style;
 use tui_textarea::{CursorMove, Input, Key, TextArea};
-use tokio::sync::mpsc;
-use tokio::time::{self, Duration};
 
 use super::clipboard::ClipboardProvider;
 use super::mode::EditorMode;
 
-use super::{PromptLog, run_prompt};
+#[derive(Debug, Clone, PartialEq)]
+pub enum TransitionAction {
+    Quit,
+    EditPrompt,
+    CommandLine,
+    WritePrompt(String),
+}
 
 enum TextAreaAction {
     Cut,
@@ -23,27 +26,14 @@ pub struct TextAreaHandler {
     numeric_input: Option<String>,
     clipboard_provider: ClipboardProvider,
     layout_mode: LayoutMode,
-    command_line_handler: Option<CommandLine>,
     ta_prompt_edit: TextArea<'static>,
-    ta_prompt_log: TextArea<'static>,
-    ta_command_line: TextArea<'static>,
 }
 
 impl TextAreaHandler {
     pub fn new() -> Self {
-        let mut ta_prompt_log = TextArea::default();
-        ta_prompt_log.set_block(EditorMode::ReadOnly.block());
-        ta_prompt_log.set_cursor_style(EditorMode::ReadOnly.cursor_style());
-        ta_prompt_log.set_placeholder_text("Ready");
-
-
         let mut ta_prompt_edit = TextArea::default();
         ta_prompt_edit.set_block(EditorMode::Normal.block());
         ta_prompt_edit.set_cursor_style(EditorMode::Normal.cursor_style());
-
-        let mut ta_command_line = TextArea::default();
-        ta_command_line.set_cursor_line_style(Style::default());
-        ta_command_line.set_placeholder_text("Ready");
 
         TextAreaHandler {
             mode: EditorMode::Normal,
@@ -51,31 +41,12 @@ impl TextAreaHandler {
             numeric_input: None,
             clipboard_provider: ClipboardProvider::new(),
             layout_mode: LayoutMode::HorizontalSplit,
-            command_line_handler: None,
             ta_prompt_edit,
-            ta_prompt_log,
-            ta_command_line,
         }
     }
 
     pub fn ta_prompt_edit(&mut self) -> &mut TextArea<'static> {
         &mut self.ta_prompt_edit
-    }
-
-    pub fn ta_prompt_log(&mut self) -> &mut TextArea<'static> {
-        &mut self.ta_prompt_log
-    }
-
-    pub fn ta_command_line(&mut self) -> &mut TextArea<'static> {
-        &mut self.ta_command_line
-    }
-
-    pub fn enable_command_line(&mut self, enable: bool) {
-        if enable {
-            self.command_line_handler = Some(CommandLine::new());
-        } else {
-            self.command_line_handler = None;
-        }
     }
 
     pub fn layout_mode(&self, terminal_size: Rect) -> &LayoutMode {
@@ -88,7 +59,6 @@ impl TextAreaHandler {
             return &LayoutMode::HorizontalSplit;
         }
         return &LayoutMode::VerticalSplit;
-        //&self.layout_mode
     }
 
     fn reset(&mut self) {
@@ -218,41 +188,10 @@ impl TextAreaHandler {
     }
 
     // Handle input and transition between modes
-    pub async fn transition(&mut self, input: &Input) -> bool {
-        if let Some(cl) = &mut self.command_line_handler {
-            // handle command line mode
-            match input {
-                Input { key: Key::Esc, .. } => {
-                    // catch esc key - clear command line
-                    cl.clear(&mut self.ta_command_line)
-                }
-                Input {
-                    key: Key::Enter, ..
-                } => {
-                    // catch enter key - discontinues cl mode
-                    let status = cl
-                        .process_command(
-                            &mut self.ta_command_line,
-                            &self.ta_prompt_edit,
-                            &mut self.ta_prompt_log,
-                        )
-                        .await;
-                    if status {
-                        return true; // quit application
-                    }
-                }
-                _ => {
-                    self.ta_command_line.input(input.clone());
-                    return false; // continue in command line mode
-                }
-            };
-            // exit command line mode
-            self.enable_command_line(false);
-        }
-
+    pub async fn transition(&mut self, input: &Input) -> TransitionAction {
         // handle position keys for non insert mode
         if self.mode != EditorMode::Insert && self.handle_position_keys(input) {
-            return false;
+            return TransitionAction::EditPrompt;
         }
 
         match self.mode {
@@ -285,8 +224,7 @@ impl TextAreaHandler {
                     key: Key::Char(':'),
                     ..
                 } => {
-                    self.ta_command_line.insert_str(":");
-                    self.enable_command_line(true);
+                    return TransitionAction::CommandLine;
                 }
                 Input {
                     key: Key::Char('$'),
@@ -462,7 +400,7 @@ impl TextAreaHandler {
                     self.ta_prompt_edit.cancel_selection();
                     self.set_vim_mode(EditorMode::Normal);
                 }
-                // tab 
+                // tab
                 Input { key: Key::Tab, .. } => {
                     eprintln!("Tab hit");
                     //self.ta_prompt_edit.indent();
@@ -566,83 +504,11 @@ impl TextAreaHandler {
                 _ => {} // Ignore other keys in Visual mode
             },
             EditorMode::ReadOnly => {
-                // used for Log view 
+                // used for Log view
                 // similar to Visual, except no Cut, Delete, or Paste
-                // requires Tab to switch back to 
-
+                // requires Tab to switch back to
             }
         }
-        false // Do not quit unless specified
-    }
-}
-
-pub struct CommandLine {
-    prompt_log: PromptLog,
-}
-
-impl CommandLine {
-    pub fn new() -> Self {
-        let instruction = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.".to_string();
-        let prompt_log = PromptLog::new(10, instruction);
-        Self { prompt_log }
-    }
-
-    pub fn clear(&mut self, command_line: &mut TextArea<'_>) {
-        command_line.select_all();
-        command_line.cut();
-    }
-
-    pub async fn process_command(
-        &mut self,
-        command_line: &mut TextArea<'_>,
-        ta_prompt_edit: &TextArea<'_>,
-        ta_prompt_log: &mut TextArea<'_>,
-    ) -> bool {
-        let command = command_line.lines()[0].to_string();
-        self.clear(command_line);
-
-        if command.starts_with(':') {
-            match command.trim_start_matches(':') {
-                "q" => return true, // Quit by returning true
-                "w" => {
-                    let question = ta_prompt_edit.lines().join("\n");
-                    // Initiate the streaming response process
-                    let mut response_stream = self.run_prompt(&question).await;
-
-                    while let Some(response) = response_stream.recv().await {
-                        //eprintln!("Response: {}", response);
-                        ta_prompt_log.insert_str(&format!("{}\n", response));
-                        ta_prompt_log.widget();
-                    }
-                },
-                _ => {}, // Handle other commands as needed
-            }
-        }
-        false // continue running
-    }
-
-    async fn run_prompt(&mut self, _question: &str) -> mpsc::Receiver<String> {
-        // simulated version to test streaming response
-        let (tx, rx) = mpsc::channel(32);
-
-        tokio::spawn(async move {
-            let responses = vec![
-                "Processing your request...",
-                "Fetching data...",
-                "The answer is 42.",
-                "Is there anything else you'd like to know?",
-            ];
-
-            for response in responses {
-                if tx.send(response.to_string()).await.is_err() {
-                    eprintln!("Receiver dropped");
-                    return;
-                }
-                // Simulate delay for streaming
-                time::sleep(Duration::from_secs(1)).await;
-            }
-        });
-
-        rx // Return the receiver to the caller
+        TransitionAction::EditPrompt
     }
 }

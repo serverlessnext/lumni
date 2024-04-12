@@ -18,7 +18,7 @@ impl EditorMode {
             Self::Insert => "type Esc to back to normal mode",
             Self::Visual => {
                 "type y to yank, type c to cut, type Esc to back to normal mode"
-            },
+            }
             Self::ReadOnly => "",
         };
 

@@ -1,8 +1,7 @@
-
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
-
 use tui_textarea::{Input, Key, TextArea};
+
 use super::{PromptLog, TransitionAction};
 
 pub struct CommandLine {
@@ -62,10 +61,7 @@ pub async fn transition_command_line(
             key: Key::Enter, ..
         } => {
             // process command
-            let response = cl.process_command(
-                command_line,
-                prompt_edit,
-            ).await;
+            let response = cl.process_command(command_line, prompt_edit).await;
             cl.clear(prompt_edit);
             return response;
         }

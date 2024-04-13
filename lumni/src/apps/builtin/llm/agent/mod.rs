@@ -5,6 +5,6 @@ pub use handler::Handler;
 mod cli {
     mod app;
     mod prompt;
-    mod textarea;
+    mod tui;
     pub use app::run_cli;
 }

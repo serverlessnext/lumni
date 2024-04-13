@@ -1,22 +1,12 @@
-use tokio::sync::mpsc;
-use tokio::time::{self, Duration};
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptLog, TransitionAction};
+use super::TransitionAction;
 
-pub struct CommandLine {
-    prompt_log: PromptLog,
-}
+pub struct CommandLine {}
 
 impl CommandLine {
     pub fn new() -> Self {
-        let instruction = "A chat between a curious human and an artificial \
-                           intelligence assistant. The assistant gives \
-                           helpful, detailed, and polite answers to the \
-                           human's questions."
-            .to_string();
-        let prompt_log = PromptLog::new(10, instruction);
-        Self { prompt_log }
+        Self {}
     }
 
     pub fn clear(&mut self, command_line: &mut TextArea<'_>) {

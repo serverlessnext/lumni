@@ -1,3 +1,3 @@
-mod prompt;
+mod session;
 
-pub use prompt::{run_prompt, PromptLog};
+pub use session::ChatSession;

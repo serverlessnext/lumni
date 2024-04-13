@@ -1,11 +1,8 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{
-    Block, Borders, Paragraph, ScrollbarState,
-};
+use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 use textwrap::{wrap, Options, WordSplitter};
-
 
 pub struct PromptLogWindow {
     text: String,

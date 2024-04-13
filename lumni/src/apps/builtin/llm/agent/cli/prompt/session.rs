@@ -1,7 +1,9 @@
 use std::error::Error;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use tokio::sync::mpsc;
 
 #[derive(Serialize, Deserialize)]
 pub struct ChatPayload {
@@ -16,19 +18,82 @@ pub struct ChatPayload {
     stream: bool,
 }
 
-pub struct PromptLog {
+pub struct ChatSession {
     exchanges: Vec<(String, String)>,
     max_history: usize,
     instruction: String,
 }
 
-impl PromptLog {
-    pub fn new(max_history: usize, instruction: String) -> PromptLog {
-        PromptLog {
+impl ChatSession {
+    pub fn new(max_history: usize, instruction: String) -> ChatSession {
+        ChatSession {
             exchanges: Vec::new(),
             max_history,
             instruction,
         }
+    }
+
+    pub fn default() -> ChatSession {
+        ChatSession::new(
+            10,
+            "A chat between a curious human and an artificial intelligence \
+             assistant. The assistant gives helpful, detailed, and polite \
+             answers to the human's questions"
+                .to_string(),
+        )
+    }
+
+    pub async fn message(
+        &self,
+        tx: mpsc::Sender<String>,
+        keep_running: Arc<AtomicBool>,
+        message: String,
+    ) {
+        tokio::spawn(async move {
+            // First, send the initial formatted question
+            let initial_question = format!("Q: {}\nBot:", message);
+            if tx.send(initial_question).await.is_err() {
+                println!("Receiver dropped");
+                return;
+            }
+
+            // Words to simulate a bot's streaming response
+            let response_words = vec![
+                "some",
+                "random",
+                "answer",
+                "to",
+                "simulate",
+                "a",
+                "streaming",
+                "response",
+                "from",
+                "a",
+                "bot",
+            ];
+
+            // Stream each word one by one
+            for word in response_words {
+                if !keep_running.load(Ordering::SeqCst) {
+                    break; // Stop sending if is_running is set to false
+                }
+                let mut response_text = String::from("");
+                response_text.push(' '); // Add a space before each word
+                response_text.push_str(word); // Append the word to the ongoing sentence
+
+                if tx.send(response_text.clone()).await.is_err() {
+                    println!("Receiver dropped");
+                    return;
+                }
+            }
+
+            // Reset is_running after completion
+            keep_running.store(false, Ordering::SeqCst);
+        });
+    }
+
+    pub fn get_history(&self) -> &Vec<(String, String)> {
+        &self.exchanges
     }
 
     pub fn add_exchange(&mut self, question: String, answer: String) {
@@ -43,11 +108,7 @@ impl PromptLog {
         }
     }
 
-    pub fn get_history(&self) -> &Vec<(String, String)> {
-        &self.exchanges
-    }
-
-    pub fn create_final_prompt(&self) -> String {
+    fn create_final_prompt(&self) -> String {
         let mut prompt = format!("{}\n", self.instruction);
         for (question, answer) in &self.exchanges {
             prompt.push_str(&format!(
@@ -58,7 +119,7 @@ impl PromptLog {
         prompt
     }
 
-    pub fn create_payload(
+    fn create_payload(
         &self,
         n_keep: usize,
     ) -> Result<String, serde_json::Error> {
@@ -85,7 +146,7 @@ pub async fn run_prompt() -> Result<(), Box<dyn Error>> {
                        intelligence assistant. The assistant gives helpful, \
                        detailed, and polite answers to the human's questions."
         .to_string();
-    let mut chat = PromptLog::new(10, instruction);
+    let mut chat = ChatSession::new(10, instruction);
 
     chat.add_exchange(
         "Hello, Assistant.".to_string(),

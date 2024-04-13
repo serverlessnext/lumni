@@ -11,105 +11,20 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
-use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::backend::CrosstermBackend;
 use ratatui::style::Style;
-use ratatui::widgets::{
-    Scrollbar, ScrollbarOrientation,
-};
 use ratatui::Terminal;
 use tokio::sync::mpsc;
-use tokio::time::{self, interval, Duration};
+use tokio::time::{interval, Duration};
 use tui_textarea::{Input, TextArea};
 
+use super::prompt::ChatSession;
 use super::tui::{
-    transition_command_line, CommandLine, LayoutMode, TextAreaHandler,
-    TransitionAction, PromptLogWindow,
+    draw_ui, transition_command_line, CommandLine, PromptLogWindow,
+    TextAreaHandler, TransitionAction,
 };
 
-fn draw_ui<B: Backend>(
-    terminal: &mut Terminal<B>,
-    editor: &mut TextAreaHandler,
-    prompt_log: &mut PromptLogWindow,
-    command_line: &TextArea,
-) -> Result<(), io::Error> {
-    terminal.draw(|f| {
-        let terminal_size = f.size();
-        const COMMAND_LINE_HEIGHT: u16 = 3;
-
-        let prompt_log_area;
-        let prompt_edit_area;
-        let prompt_log_area_scrollbar;
-        let command_line_area;
-
-        match editor.layout_mode(terminal_size) {
-            LayoutMode::HorizontalSplit => {
-                let response_height = 8; // minimum height for response
-
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Percentage(40), // max-40% space for prompt (after min space is met)
-                        Constraint::Min(response_height + COMMAND_LINE_HEIGHT), // command-line
-                    ])
-                    .split(terminal_size);
-
-                let bottom_chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(response_height), // Apply directly as no .min() available
-                        Constraint::Length(COMMAND_LINE_HEIGHT),
-                    ])
-                    .split(chunks[1]);
-
-                prompt_edit_area = chunks[0];
-                prompt_log_area = bottom_chunks[0];
-                prompt_log_area_scrollbar = chunks[1];
-                command_line_area = bottom_chunks[1];
-            }
-            LayoutMode::VerticalSplit => {
-                // Apply vertical split logic here
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(0), // container for prompt_edit and prompt_log
-                        Constraint::Length(COMMAND_LINE_HEIGHT), // command line
-                    ])
-                    .split(terminal_size);
-
-                let main_chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Percentage(50), // left half for prompt
-                        Constraint::Percentage(50), // right half for chat history
-                        Constraint::Length(2),      // vertical scrollbar
-                    ])
-                    .split(chunks[0]);
-
-                prompt_edit_area = main_chunks[0];
-                prompt_log_area = main_chunks[1];
-                prompt_log_area_scrollbar = main_chunks[2];
-                command_line_area = chunks[1];
-            }
-        }
-        f.render_widget(editor.ta_prompt_edit().widget(), prompt_edit_area);
-
-        f.render_widget(prompt_log.widget(&prompt_log_area), prompt_log_area);
-        f.render_stateful_widget(
-            Scrollbar::default()
-                .orientation(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("↑"))
-                .end_symbol(Some("↓")),
-            prompt_log_area_scrollbar,
-            &mut prompt_log.vertical_scroll_state(),
-        );
-
-        f.render_widget(command_line.widget(), command_line_area);
-    })?;
-    Ok(())
-}
-
-pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
+pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
@@ -121,6 +36,7 @@ pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let mut editor = TextAreaHandler::new();
 
     let mut prompt_log = PromptLogWindow::new();
+    let chat_session = ChatSession::default();
 
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
@@ -128,7 +44,6 @@ pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(32);
     let mut tick = interval(Duration::from_millis(10));
-    let mut stream_active = false;
 
     let is_running = Arc::new(AtomicBool::new(true));
     let mut current_mode = TransitionAction::EditPrompt;
@@ -149,47 +64,19 @@ pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
                     if let Event::Key(key_event) = event {
                         let input: Input = key_event.into();
-                        current_mode = match current_mode {
-                            TransitionAction::CommandLine => {
-                                // currently in command line mode
-                                match transition_command_line(
-                                    &mut command_line_handler,
-                                    &mut command_line,
-                                    editor.ta_prompt_edit(),
-                                    input.clone()
-                                ).await {
-                                    TransitionAction::Quit => {
-                                        break; // Exit the loop immediately if Quit is returned
-                                    },
-                                    TransitionAction::EditPrompt => TransitionAction::EditPrompt,
-                                    TransitionAction::WritePrompt(prompt) => {
-                                        // Initiate streaming if not already active
-                                        if !stream_active {
-                                            is_running.store(true, Ordering::SeqCst);
-                                            start_streaming(tx.clone(), is_running.clone(), prompt).await;
-                                            stream_active = true;
-                                        }
-                                        TransitionAction::EditPrompt     // Switch to editor mode
-                                    },
-                                    _ => TransitionAction::CommandLine, // Stay in command line mode
-                                }
-                            },
-                            _ => {
-                                // editor mode
-                                match editor.transition(&input).await {
-                                    TransitionAction::Quit => {
-                                        break; // Exit the loop immediately if Quit is returned
-                                    },
-                                    TransitionAction::CommandLine => {
-                                        command_line.insert_str(":");
-                                        stream_active = false; // Stop streaming if command line is activated
-                                        is_running.store(false, Ordering::SeqCst); //reset
-                                        TransitionAction::CommandLine
-                                    },
-                                    _ => TransitionAction::EditPrompt,
-                                }
-                            },
-                        };
+                        current_mode = process_key_event(
+                            input,
+                            current_mode,
+                            &mut command_line_handler,
+                            &mut command_line,
+                            &mut editor,
+                            is_running.clone(),
+                            tx.clone(),
+                            &chat_session,
+                        ).await;
+                        if current_mode == TransitionAction::Quit {
+                            break;
+                        }
                     }
                     redraw_ui = true;   // redraw the UI after each type of event
                 }
@@ -212,43 +99,53 @@ pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn start_streaming(
-    tx: mpsc::Sender<String>,
+async fn process_key_event(
+    input: Input,
+    current_mode: TransitionAction,
+    command_line_handler: &mut CommandLine,
+    command_line: &mut TextArea<'_>,
+    editor: &mut TextAreaHandler,
     is_running: Arc<AtomicBool>,
-    prompt: String,
-) {
-    tokio::spawn(async move {
-        // First, send the initial formatted question
-        let initial_question = format!("Q: {}\nBot:", prompt);
-        if tx.send(initial_question).await.is_err() {
-            println!("Receiver dropped");
-            return;
-        }
-        time::sleep(Duration::from_millis(100)).await; // Simulate a slight delay after the question
-
-        // Words to simulate a bot's streaming response
-        let response_words = vec![
-            "some", "random", "answer", "to", "simulate", "a", "streaming", "response", "from", "a", "bot",
-        ];
-
-        // Stream each word one by one
-        for word in response_words {
-            if !is_running.load(Ordering::SeqCst) {
-                break; // Stop sending if is_running is set to false
+    tx: mpsc::Sender<String>,
+    chat_session: &ChatSession,
+) -> TransitionAction {
+    match current_mode {
+        TransitionAction::CommandLine => {
+            // currently in command line mode
+            match transition_command_line(
+                command_line_handler,
+                command_line,
+                editor.ta_prompt_edit(),
+                input.clone(),
+            )
+            .await
+            {
+                TransitionAction::Quit => TransitionAction::Quit,
+                TransitionAction::EditPrompt => TransitionAction::EditPrompt,
+                TransitionAction::WritePrompt(prompt) => {
+                    // Initiate streaming if not already active
+                    if !is_running.load(Ordering::SeqCst) {
+                        is_running.store(true, Ordering::SeqCst);
+                        chat_session
+                            .message(tx.clone(), is_running.clone(), prompt)
+                            .await;
+                    }
+                    TransitionAction::EditPrompt // Switch to editor mode
+                }
+                _ => TransitionAction::CommandLine, // Stay in command line mode
             }
-            let mut response_text = String::from("");
-            response_text.push(' '); // Add a space before each word
-            response_text.push_str(word); // Append the word to the ongoing sentence
-
-            if tx.send(response_text.clone()).await.is_err() {
-                println!("Receiver dropped");
-                return;
-            }
-            time::sleep(Duration::from_millis(50)).await; // Simulate time between sending each word
         }
-
-        // Reset is_running after completion
-        is_running.store(false, Ordering::SeqCst);
-    });
+        _ => {
+            // editor mode
+            match editor.transition(&input).await {
+                TransitionAction::Quit => TransitionAction::Quit,
+                TransitionAction::CommandLine => {
+                    command_line.insert_str(":");
+                    is_running.store(false, Ordering::SeqCst); //reset
+                    TransitionAction::CommandLine
+                }
+                _ => TransitionAction::EditPrompt,
+            }
+        }
+    }
 }
-

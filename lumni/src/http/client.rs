@@ -3,6 +3,8 @@ use std::convert::Infallible;
 use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
+use std::string::FromUtf8Error;
+use tokio::sync::mpsc;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
 use bytes::{Bytes, BytesMut};
@@ -21,6 +23,7 @@ pub struct HttpResponse {
     status_code: u16,
     headers: HeaderMap,
 }
+
 
 impl HttpResponse {
     pub fn body(&self) -> Option<&Bytes> {
@@ -41,6 +44,7 @@ pub enum HttpClientError {
     ConnectionError(anyhow::Error),
     TimeoutError,
     HttpError(u16, String), // Status code, status text
+    Utf8Error(String),
     Other(AnyhowError),
 }
 
@@ -54,6 +58,7 @@ impl fmt::Display for HttpClientError {
             HttpClientError::HttpError(code, message) => {
                 write!(f, "HTTP error {}: {}", code, message)
             }
+            HttpClientError::Utf8Error(e) => write!(f, "UTF-8 error: {}", e),
             HttpClientError::Other(e) => write!(f, "Other error: {}", e),
         }
     }
@@ -71,6 +76,13 @@ impl From<AnyhowError> for HttpClientError {
     }
 }
 
+impl From<FromUtf8Error> for HttpClientError {
+    fn from(err: FromUtf8Error) -> Self {
+        HttpClientError::Utf8Error(err.to_string())
+    }
+}
+
+
 impl HttpResponse {
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
         if let Some(body) = &self.body {
@@ -83,6 +95,7 @@ impl HttpResponse {
 
 pub type HttpResult = Result<HttpResponse, HttpClientError>;
 
+#[derive(Clone)]
 pub struct HttpClient {
     client: Client<
         HttpsConnector<HttpConnector>,
@@ -118,6 +131,7 @@ impl HttpClient {
         url: &str,
         headers: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
+        tx: Option<mpsc::Sender<String>>,
     ) -> HttpResult {
         let uri = Uri::from_str(url)
             .map_err(|e| HttpClientError::Other(AnyhowError::new(e)))?;
@@ -157,16 +171,31 @@ impl HttpClient {
         let status_code = response.status().as_u16();
         let headers = response.headers().clone();
 
-        let mut body_bytes = BytesMut::new();
-        while let Some(next) = response.frame().await {
-            let frame = next.map_err(|e| anyhow!(e))?;
-            if let Some(chunk) = frame.data_ref() {
-                body_bytes.extend_from_slice(chunk);
+        let body;
+
+        if let Some(tx) = &tx {
+            body = None;
+            while let Some(next) = response.frame().await {
+                let frame = next.map_err(|e| anyhow!(e))?;
+                if let Some(chunk) = frame.data_ref() {
+                    let data_string = String::from_utf8(chunk.to_vec())?;
+                    tx.send(data_string).await.map_err(|_| anyhow!("Failed to send data via channel"))?;
+                }
             }
+        } else {
+            let mut body_bytes = BytesMut::new();
+            while let Some(next) = response.frame().await {
+                let frame = next.map_err(|e| anyhow!(e))?;
+                if let Some(chunk) = frame.data_ref() {
+                    body_bytes.extend_from_slice(chunk);
+                }
+            }
+            body = Some(body_bytes.into());
         }
 
+
         Ok(HttpResponse {
-            body: Some(body_bytes.into()),
+            body,
             status_code,
             headers,
         })
@@ -177,8 +206,9 @@ impl HttpClient {
         url: &str,
         headers: Option<&HashMap<String, String>>,
         params: Option<&HashMap<String, String>>,
+        tx: Option<mpsc::Sender<String>>,
     ) -> HttpResult {
-        self.request("GET", url, headers, None).await
+        self.request("GET", url, headers, None, tx).await
     }
 
     pub async fn post(
@@ -187,8 +217,9 @@ impl HttpClient {
         headers: Option<&HashMap<String, String>>,
         params: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
+        tx: Option<mpsc::Sender<String>>,
     ) -> HttpResult {
-        self.request("POST", url, headers, body).await
+        self.request("POST", url, headers, body, tx).await
     }
 }
 

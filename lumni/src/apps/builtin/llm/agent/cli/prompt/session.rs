@@ -1,9 +1,18 @@
-use std::error::Error;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
+use bytes::Bytes;
+
+use crate::external as lumni;
+use lumni::HttpClient;
+
+use super::responses::ChatCompletionResponse;
+
+// temporary toggle to test streaming version
+const STREAMING_RESPONSE: bool = false;
 
 #[derive(Serialize, Deserialize)]
 pub struct ChatPayload {
@@ -19,6 +28,7 @@ pub struct ChatPayload {
 }
 
 pub struct ChatSession {
+    http_client: HttpClient,
     exchanges: Vec<(String, String)>,
     max_history: usize,
     instruction: String,
@@ -27,6 +37,7 @@ pub struct ChatSession {
 impl ChatSession {
     pub fn new(max_history: usize, instruction: String) -> ChatSession {
         ChatSession {
+            http_client: HttpClient::new(),
             exchanges: Vec::new(),
             max_history,
             instruction,
@@ -44,49 +55,88 @@ impl ChatSession {
     }
 
     pub async fn message(
-        &self,
+        &mut self,
         tx: mpsc::Sender<String>,
         keep_running: Arc<AtomicBool>,
         message: String,
     ) {
+
+        self.add_exchange(
+            "Hello, Assistant.".to_string(),
+            "Hello. How may I help you today?".to_string(),
+        );
+        self.add_exchange(
+            "Please tell me the capital of France.".to_string(),
+          "Sure. The capital of France is Paris".to_string(),
+        );
+
+        let initial_question = format!("Q: {}\nBot:", message);
+        let prompt = self.create_final_prompt(message);
+
+        if tx.send(initial_question).await.is_err() {
+            eprintln!("Receiver dropped");
+            return;
+        }
+        let n_keep = 100;  // This should be calculated based on your needs
+        let data_payload_result = self.create_payload(prompt, n_keep);
+
+        let http_client = self.http_client.clone();
+
         tokio::spawn(async move {
-            // First, send the initial formatted question
-            let initial_question = format!("Q: {}\nBot:", message);
-            if tx.send(initial_question).await.is_err() {
-                println!("Receiver dropped");
-                return;
+            let data_payload = match data_payload_result {
+                Ok(payload) => payload,
+                Err(e) => format!("Failed to create payload: {}", e),
+            };
+
+            let header: HashMap<String, String> = [("Content-Type".to_string(), "application/json".to_string())].iter().cloned().collect();
+
+            let payload_bytes = Bytes::from(data_payload.clone().into_bytes());
+            let response = http_client.post(
+                // TODO: url should be passed as an argument
+                "http://localhost:8080/completion",
+                Some(&header),
+                None,
+                Some(&payload_bytes),
+                if STREAMING_RESPONSE { Some(tx.clone()) } else { None },
+            ).await;
+
+            if STREAMING_RESPONSE {
+                // do nothing: streaming response is passed as-is to the receiver
+                // this is not yet ideal because the json must be parsed to extract the content
+                // will likely need to redesign the current approach
+            } else {
+                match response {
+                    Ok(response) => {
+                        let body = response.body().unwrap();
+                        let response_json = String::from_utf8(body.to_vec()).unwrap();
+
+                        let response_content = match ChatCompletionResponse::extract_content(&response_json) {
+                            Ok(content) => content,
+                            Err(e) => format!("Failed to parse JSON: {}", e),
+                        };
+                        if tx.send(response_content).await.is_err() {
+                            eprintln!("Receiver dropped");
+                        }
+                    }
+                    Err(e) => {
+                        if tx.send(format!("Failed to send request: {}\n", e)).await.is_err() {
+                            eprintln!("Receiver dropped");
+                        }
+                    }
+                }
             }
 
-            // Words to simulate a bot's streaming response
-            let response_words = vec![
-                "some",
-                "random",
-                "answer",
-                "to",
-                "simulate",
-                "a",
-                "streaming",
-                "response",
-                "from",
-                "a",
-                "bot",
-            ];
-
-            // Stream each word one by one
+            let response_words = vec!["Goodbye.".to_string()];
             for word in response_words {
                 if !keep_running.load(Ordering::SeqCst) {
-                    break; // Stop sending if is_running is set to false
+                    break;
                 }
-                let mut response_text = String::from("");
-                response_text.push(' '); // Add a space before each word
-                response_text.push_str(word); // Append the word to the ongoing sentence
-
-                if tx.send(response_text.clone()).await.is_err() {
-                    println!("Receiver dropped");
-                    return;
+                let response_text = format!(" {}", word);
+                if tx.send(response_text).await.is_err() {
+                    eprintln!("Receiver dropped");
+                    break;
                 }
             }
-
             // Reset is_running after completion
             keep_running.store(false, Ordering::SeqCst);
         });
@@ -108,7 +158,7 @@ impl ChatSession {
         }
     }
 
-    fn create_final_prompt(&self) -> String {
+    fn create_final_prompt(&self, question: String) -> String {
         let mut prompt = format!("{}\n", self.instruction);
         for (question, answer) in &self.exchanges {
             prompt.push_str(&format!(
@@ -116,56 +166,28 @@ impl ChatSession {
                 question, answer
             ));
         }
+        prompt.push_str(&format!("\n### Human: {}", question));
         prompt
     }
 
     fn create_payload(
         &self,
+        prompt: String,
         n_keep: usize,
     ) -> Result<String, serde_json::Error> {
-        let prompt = self.create_final_prompt();
-
         let payload = ChatPayload {
             prompt,
             temperature: 0.2,
             top_k: 40,
             top_p: 0.9,
             n_keep,
-            n_predict: 4096,
+            n_predict: 128,
             cache_prompt: true,
             stop: vec!["\n### Human:".to_string()],
-            stream: true,
+            stream: STREAMING_RESPONSE,
         };
 
         serde_json::to_string(&payload)
     }
 }
 
-pub async fn run_prompt() -> Result<(), Box<dyn Error>> {
-    let instruction = "A chat between a curious human and an artificial \
-                       intelligence assistant. The assistant gives helpful, \
-                       detailed, and polite answers to the human's questions."
-        .to_string();
-    let mut chat = ChatSession::new(10, instruction);
-
-    chat.add_exchange(
-        "Hello, Assistant.".to_string(),
-        "Hello. How may I help you today?".to_string(),
-    );
-    chat.add_exchange(
-        "Please tell me the capital of France.".to_string(),
-        "Sure. The capital of France is Paris".to_string(),
-    );
-
-    // TODO: add token count
-    let n_keep = 100;
-
-    // Create the payload for the API request
-    let data_payload = chat.create_payload(n_keep)?;
-    println!("Data payload for API request: {}", data_payload);
-
-    // TODO: integrate with POST request
-    // stream data back
-
-    Ok(())
-}

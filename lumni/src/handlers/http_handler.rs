@@ -20,7 +20,7 @@ impl HttpHandler {
     ) -> Result<Option<Vec<u8>>, LakestreamError> {
         let response = self
             .client
-            .get(url, None, None)
+            .get(url, None, None, None)
             .await
             .map_err(|e| LakestreamError::HttpClientError(e))?;
         let data = response.body();

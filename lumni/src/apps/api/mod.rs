@@ -4,7 +4,7 @@ pub mod invoke;
 pub mod spec;
 pub mod types;
 
-use crate::api::handler::AppHandler;
+use handler::AppHandler;
 // auto-generated via build.rs:
 // - fn get_app_handler()
 // - fn get_available_apps()

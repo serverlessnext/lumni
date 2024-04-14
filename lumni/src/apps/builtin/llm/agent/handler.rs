@@ -1,3 +1,6 @@
+
+use crate::external as lumni;
+
 #[cfg(feature = "cli")]
 use std::future::Future;
 #[cfg(feature = "cli")]
@@ -6,8 +9,8 @@ use std::pin::Pin;
 #[cfg(feature = "cli")]
 use super::cli::run_cli;
 #[cfg(feature = "cli")]
-use crate::api::error::*;
-use crate::api::handler::AppHandler;
+use lumni::api::error::*;
+use lumni::api::handler::AppHandler;
 use crate::impl_app_handler;
 
 #[derive(Clone)]

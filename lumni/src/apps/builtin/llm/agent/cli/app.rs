@@ -36,7 +36,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let mut editor = TextAreaHandler::new();
 
     let mut prompt_log = PromptLogWindow::new();
-    let chat_session = ChatSession::default();
+    let mut chat_session = ChatSession::default();
 
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
@@ -59,7 +59,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                     redraw_ui = false;
                 }
 
-                if poll(Duration::from_millis(50))? {
+                if poll(Duration::from_millis(10))? {
                     let event = read()?;
 
                     if let Event::Key(key_event) = event {
@@ -72,7 +72,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                             &mut editor,
                             is_running.clone(),
                             tx.clone(),
-                            &chat_session,
+                            &mut chat_session,
                         ).await;
                         if current_mode == TransitionAction::Quit {
                             break;
@@ -83,6 +83,10 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
             },
             Some(response) = rx.recv() => {
                 prompt_log.insert_str(&format!("{}", response));
+                // drain all available messages from the channel
+                while let Ok(response) = rx.try_recv() {
+                    prompt_log.insert_str(&response);
+                }
                 redraw_ui = true;
             },
         }
@@ -107,7 +111,7 @@ async fn process_key_event(
     editor: &mut TextAreaHandler,
     is_running: Arc<AtomicBool>,
     tx: mpsc::Sender<String>,
-    chat_session: &ChatSession,
+    chat_session: &mut ChatSession,
 ) -> TransitionAction {
     match current_mode {
         TransitionAction::CommandLine => {

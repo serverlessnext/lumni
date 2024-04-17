@@ -1,9 +1,10 @@
-use hmac::digest::generic_array::typenum::Length;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 use textwrap::{wrap, Options, WordSplitter};
+
+use super::ChatSession;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {
@@ -42,6 +43,7 @@ impl PromptRect {
 }
 
 pub struct PromptLogWindow<'a> {
+    chat_session: ChatSession,
     raw_text: String,            // text as received
     display_text: Vec<Line<'a>>, // text processed for display
     area: PromptRect,
@@ -52,12 +54,17 @@ pub struct PromptLogWindow<'a> {
 impl PromptLogWindow<'_> {
     pub fn new() -> Self {
         Self {
+            chat_session: ChatSession::default(),
             raw_text: String::new(),
             display_text: Vec::new(),
             area: PromptRect::default(),
             vertical_scroll: 0,
             vertical_scroll_state: ScrollbarState::default(),
         }
+    }
+
+    pub fn chat_session(&mut self) -> &mut ChatSession {
+        &mut self.chat_session
     }
 
     pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
@@ -136,6 +143,7 @@ impl PromptLogWindow<'_> {
 
     pub fn insert_str(&mut self, text: &str) {
         self.raw_text.push_str(text);
+        self.chat_session.append_response_buffer(text);
         self.update_display_text();
 
         let length = self.content_length();

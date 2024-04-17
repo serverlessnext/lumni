@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tui_textarea::{Input, TextArea};
 
-use super::prompt::{ChatCompletionResponse, ChatSession};
+use super::prompt::ChatCompletionResponse;
 use super::tui::{
     draw_ui, transition_command_line, CommandLine, PromptLogWindow,
     TextAreaHandler, TransitionAction,
@@ -37,7 +37,6 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let mut editor = TextAreaHandler::new();
 
     let mut prompt_log = PromptLogWindow::new();
-    let mut chat_session = ChatSession::default();
 
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
@@ -74,7 +73,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                                 &mut editor,
                                 is_running.clone(),
                                 tx.clone(),
-                                &mut chat_session,
+                                &mut prompt_log,
                             ).await;
                             if current_mode == TransitionAction::Quit {
                                 break;
@@ -103,18 +102,16 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 }
             },
             Some(response) = rx.recv() => {
-                let buffer = &mut String::new();
                 let response_content = process_response(&response);
                 prompt_log.insert_str(&response_content);
-                buffer.push_str(&response_content);
 
                 // Drain all available messages from the channel
                 while let Ok(response) = rx.try_recv() {
                     let response_content = process_response(&response);
                     prompt_log.insert_str(&response_content);
-                    buffer.push_str(&response_content);
                 }
-
+                // after response is complete, update final exchange
+                prompt_log.chat_session().finalize_exchange();
                 redraw_ui = true;
             },
         }
@@ -139,7 +136,7 @@ async fn process_key_event(
     editor: &mut TextAreaHandler,
     is_running: Arc<AtomicBool>,
     tx: mpsc::Sender<Bytes>,
-    chat_session: &mut ChatSession,
+    prompt_log: &mut PromptLogWindow<'_>,
 ) -> TransitionAction {
     match current_mode {
         TransitionAction::CommandLine => {
@@ -155,6 +152,9 @@ async fn process_key_event(
                 TransitionAction::Quit => TransitionAction::Quit,
                 TransitionAction::EditPrompt => TransitionAction::EditPrompt,
                 TransitionAction::WritePrompt(prompt) => {
+
+                    let chat_session = prompt_log.chat_session();
+
                     // Initiate streaming if not already active
                     if !is_running.load(Ordering::SeqCst) {
                         is_running.store(true, Ordering::SeqCst);

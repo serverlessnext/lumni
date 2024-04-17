@@ -21,56 +21,63 @@ pub fn draw_ui<B: Backend>(
         let prompt_log_area;
         let prompt_edit_area;
         let prompt_log_area_scrollbar;
-        let command_line_area;
+
+        let main_window = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0), // container for prompt_edit and prompt_log
+                Constraint::Length(COMMAND_LINE_HEIGHT), // command line
+            ])
+            .split(terminal_size);
+
+        let command_line_area = main_window[1];
 
         match editor.layout_mode(terminal_size) {
             LayoutMode::HorizontalSplit => {
-                let response_height = 8; // minimum height for response
 
-                let chunks = Layout::default()
+                let prompt_window = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
-                        Constraint::Percentage(40), // max-40% space for prompt (after min space is met)
-                        Constraint::Min(response_height + COMMAND_LINE_HEIGHT), // command-line
+                        Constraint::Percentage(70), // prompt_log
+                        Constraint::Percentage(30), // prompt_edit
                     ])
-                    .split(terminal_size);
+                    .split(main_window[0]);
 
-                let bottom_chunks = Layout::default()
-                    .direction(Direction::Vertical)
+
+                let log_window = Layout::default()
+                    .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Min(response_height), // Apply directly as no .min() available
-                        Constraint::Length(COMMAND_LINE_HEIGHT),
+                        Constraint::Min(10), // chat history
+                        Constraint::Length(2), // vertical scrollbar
                     ])
-                    .split(chunks[1]);
+                    .split(prompt_window[0]);
+                        
+                let edit_window = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Min(10), // prompt
+                        Constraint::Length(2), // vertical scrollbar
+                    ])
+                    .split(prompt_window[1]);
 
-                prompt_edit_area = chunks[0];
-                prompt_log_area = bottom_chunks[0];
-                prompt_log_area_scrollbar = chunks[1];
-                command_line_area = bottom_chunks[1];
+                prompt_log_area = log_window[0];
+                prompt_log_area_scrollbar = log_window[1];
+                prompt_edit_area = edit_window[0];
             }
             LayoutMode::VerticalSplit => {
                 // Apply vertical split logic here
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(0), // container for prompt_edit and prompt_log
-                        Constraint::Length(COMMAND_LINE_HEIGHT), // command line
-                    ])
-                    .split(terminal_size);
-
-                let main_chunks = Layout::default()
+                let prompt_window = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
                         Constraint::Percentage(50), // left half for prompt
                         Constraint::Percentage(50), // right half for chat history
                         Constraint::Length(2),      // vertical scrollbar
                     ])
-                    .split(chunks[0]);
+                    .split(main_window[0]);
 
-                prompt_edit_area = main_chunks[0];
-                prompt_log_area = main_chunks[1];
-                prompt_log_area_scrollbar = main_chunks[2];
-                command_line_area = chunks[1];
+                prompt_edit_area = prompt_window[0];
+                prompt_log_area = prompt_window[1];
+                prompt_log_area_scrollbar = prompt_window[2];
             }
         }
         f.render_widget(editor.ta_prompt_edit().widget(), prompt_edit_area);

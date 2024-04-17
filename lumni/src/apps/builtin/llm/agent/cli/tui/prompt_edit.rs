@@ -55,7 +55,7 @@ impl TextAreaHandler {
         if rows < 20 {
             return &LayoutMode::VerticalSplit;
         }
-        if cols < 120 || cols < 2 * rows {
+        if cols < 160 || cols < 2 * rows {
             return &LayoutMode::HorizontalSplit;
         }
         return &LayoutMode::VerticalSplit;

@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::str::FromStr;
-use std::time::Duration;
 use std::string::FromUtf8Error;
-use tokio::sync::mpsc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
 use bytes::{Bytes, BytesMut};
@@ -17,13 +16,13 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use serde::de::DeserializeOwned;
+use tokio::sync::mpsc;
 
 pub struct HttpResponse {
     body: Option<Bytes>,
     status_code: u16,
     headers: HeaderMap,
 }
-
 
 impl HttpResponse {
     pub fn body(&self) -> Option<&Bytes> {
@@ -81,7 +80,6 @@ impl From<FromUtf8Error> for HttpClientError {
         HttpClientError::Utf8Error(err.to_string())
     }
 }
-
 
 impl HttpResponse {
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
@@ -178,7 +176,9 @@ impl HttpClient {
             while let Some(next) = response.frame().await {
                 let frame = next.map_err(|e| anyhow!(e))?;
                 if let Ok(chunk) = frame.into_data() {
-                    tx.send(chunk).await.map_err(|_| anyhow!("Failed to send data via channel"))?;
+                    tx.send(chunk).await.map_err(|_| {
+                        anyhow!("Failed to send data via channel")
+                    })?;
                 }
             }
         } else {

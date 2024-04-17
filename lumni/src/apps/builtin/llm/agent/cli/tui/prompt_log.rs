@@ -26,7 +26,7 @@ impl PromptRect {
     pub fn update(&mut self, area: &Rect) -> bool {
         // adjust widget area for borders
         // return true if updated, else false
-        let previous = *self;   // copy current state
+        let previous = *self; // copy current state
 
         self.x = area.x;
         self.y = area.y;
@@ -42,8 +42,8 @@ impl PromptRect {
 }
 
 pub struct PromptLogWindow<'a> {
-    raw_text: String,   // text as received
-    display_text: Vec<Line<'a>>,  // text processed for display
+    raw_text: String,            // text as received
+    display_text: Vec<Line<'a>>, // text processed for display
     area: PromptRect,
     vertical_scroll: usize,
     vertical_scroll_state: ScrollbarState,
@@ -59,7 +59,7 @@ impl PromptLogWindow<'_> {
             vertical_scroll_state: ScrollbarState::default(),
         }
     }
-    
+
     pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
         &mut self.vertical_scroll_state
     }
@@ -87,9 +87,10 @@ impl PromptLogWindow<'_> {
         self.update_scroll_state();
     }
 
-
     pub fn update_scroll_state(&mut self) {
-        let display_length = self.content_length().saturating_sub(self.area.height as usize);
+        let display_length = self
+            .content_length()
+            .saturating_sub(self.area.height as usize);
         self.vertical_scroll_state = self
             .vertical_scroll_state
             .content_length(display_length)
@@ -99,7 +100,8 @@ impl PromptLogWindow<'_> {
 
     fn update_display_text(&mut self) -> () {
         let display_width = self.area.width as usize;
-        let processed_text = self.raw_text
+        let processed_text = self
+            .raw_text
             .split('\n')
             .flat_map(|line| {
                 wrap(
@@ -122,7 +124,7 @@ impl PromptLogWindow<'_> {
     pub fn widget(&mut self, area: &Rect) -> Paragraph {
         if self.area.update(area) == true {
             // re-fit text to updated display
-            self.update_display_text();    
+            self.update_display_text();
         }
 
         Paragraph::new(Text::from(self.display_text.clone()))
@@ -138,7 +140,8 @@ impl PromptLogWindow<'_> {
 
         let length = self.content_length();
         let height = self.area.height as usize;
-        self.vertical_scroll = if length > height { length - height } else { 0 };
+        self.vertical_scroll =
+            if length > height { length - height } else { 0 };
         self.update_scroll_state();
     }
 }

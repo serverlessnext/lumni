@@ -1,5 +1,6 @@
-mod session;
 mod responses;
+mod session;
+mod send;
 
-pub use session::ChatSession;
 pub use responses::ChatCompletionResponse;
+pub use session::ChatSession;

@@ -1,10 +1,7 @@
+use std::error::Error;
 
 use bytes::Bytes;
-use serde::{Serialize, Deserialize};
-//use serde_json::Error;
-//use std::str::Utf8Error;
-use std::io;
-use std::error::Error;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChatCompletionResponse {
@@ -21,7 +18,7 @@ impl ChatCompletionResponse {
 
     pub fn extract_content(bytes: &Bytes) -> Result<String, Box<dyn Error>> {
         let text = String::from_utf8(bytes.to_vec())?;
-       
+
         // Check if the string starts with 'data: ' (typical for streaming responses)
         // and strip it if it does
         let json_text = if let Some(json_text) = text.strip_prefix("data: ") {
@@ -35,4 +32,3 @@ impl ChatCompletionResponse {
         Ok(parsed.content)
     }
 }
-

@@ -34,7 +34,6 @@ pub fn draw_ui<B: Backend>(
 
         match editor.layout_mode(terminal_size) {
             LayoutMode::HorizontalSplit => {
-
                 let prompt_window = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
@@ -43,19 +42,18 @@ pub fn draw_ui<B: Backend>(
                     ])
                     .split(main_window[0]);
 
-
                 let log_window = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Min(10), // chat history
+                        Constraint::Min(10),   // chat history
                         Constraint::Length(2), // vertical scrollbar
                     ])
                     .split(prompt_window[0]);
-                        
+
                 let edit_window = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Min(10), // prompt
+                        Constraint::Min(10),   // prompt
                         Constraint::Length(2), // vertical scrollbar
                     ])
                     .split(prompt_window[1]);

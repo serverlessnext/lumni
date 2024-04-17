@@ -1,17 +1,15 @@
-
-use crate::external as lumni;
-
 #[cfg(feature = "cli")]
 use std::future::Future;
 #[cfg(feature = "cli")]
 use std::pin::Pin;
 
 #[cfg(feature = "cli")]
-use super::cli::run_cli;
-#[cfg(feature = "cli")]
 use lumni::api::error::*;
 use lumni::api::handler::AppHandler;
-use crate::impl_app_handler;
+
+#[cfg(feature = "cli")]
+use super::cli::run_cli;
+use crate::{external as lumni, impl_app_handler};
 
 #[derive(Clone)]
 pub struct Handler;

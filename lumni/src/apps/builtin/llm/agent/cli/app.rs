@@ -2,8 +2,8 @@ use std::error::Error;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use bytes::Bytes;
 
+use bytes::Bytes;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
 };
@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tui_textarea::{Input, TextArea};
 
-use super::prompt::{ChatSession, ChatCompletionResponse};
+use super::prompt::{ChatCompletionResponse, ChatSession};
 use super::tui::{
     draw_ui, transition_command_line, CommandLine, PromptLogWindow,
     TextAreaHandler, TransitionAction,
@@ -103,14 +103,18 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 }
             },
             Some(response) = rx.recv() => {
+                let buffer = &mut String::new();
                 let response_content = process_response(&response);
                 prompt_log.insert_str(&response_content);
+                buffer.push_str(&response_content);
 
                 // Drain all available messages from the channel
                 while let Ok(response) = rx.try_recv() {
                     let response_content = process_response(&response);
                     prompt_log.insert_str(&response_content);
+                    buffer.push_str(&response_content);
                 }
+
                 redraw_ui = true;
             },
         }

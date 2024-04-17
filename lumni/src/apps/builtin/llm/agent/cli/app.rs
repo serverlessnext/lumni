@@ -2,9 +2,10 @@ use std::error::Error;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use bytes::Bytes;
 
 use crossterm::event::{
-    poll, read, DisableMouseCapture, EnableMouseCapture, Event,
+    poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -18,7 +19,7 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tui_textarea::{Input, TextArea};
 
-use super::prompt::ChatSession;
+use super::prompt::{ChatSession, ChatCompletionResponse};
 use super::tui::{
     draw_ui, transition_command_line, CommandLine, PromptLogWindow,
     TextAreaHandler, TransitionAction,
@@ -62,30 +63,53 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 if poll(Duration::from_millis(10))? {
                     let event = read()?;
 
-                    if let Event::Key(key_event) = event {
-                        let input: Input = key_event.into();
-                        current_mode = process_key_event(
-                            input,
-                            current_mode,
-                            &mut command_line_handler,
-                            &mut command_line,
-                            &mut editor,
-                            is_running.clone(),
-                            tx.clone(),
-                            &mut chat_session,
-                        ).await;
-                        if current_mode == TransitionAction::Quit {
-                            break;
-                        }
+                    match event {
+                        Event::Key(key_event) => {
+                            let input: Input = key_event.into();
+                            current_mode = process_key_event(
+                                input,
+                                current_mode,
+                                &mut command_line_handler,
+                                &mut command_line,
+                                &mut editor,
+                                is_running.clone(),
+                                tx.clone(),
+                                &mut chat_session,
+                            ).await;
+                            if current_mode == TransitionAction::Quit {
+                                break;
+                            }
+                        },
+                        Event::Mouse(mouse_event) => {
+                            // TODO: should track on which window the cursor actually is
+                            //let mut window = prompt_log;
+                            let window = &mut prompt_log;
+                            match mouse_event.kind {
+                                MouseEventKind::ScrollUp => {
+                                    window.scroll_up();
+                                },
+                                MouseEventKind::ScrollDown => {
+                                    window.scroll_down();
+                                },
+                                MouseEventKind::Down(_) => {
+                                    // eprintln!("Mouse down: {:?}", mouse_event);
+                                },
+                                _ => {} // Other mouse events are ignored
+                            }
+                        },
+                        _ => {} // Other events are ignored
                     }
                     redraw_ui = true;   // redraw the UI after each type of event
                 }
             },
             Some(response) = rx.recv() => {
-                prompt_log.insert_str(&format!("{}", response));
-                // drain all available messages from the channel
+                let response_content = process_response(&response);
+                prompt_log.insert_str(&response_content);
+
+                // Drain all available messages from the channel
                 while let Ok(response) = rx.try_recv() {
-                    prompt_log.insert_str(&response);
+                    let response_content = process_response(&response);
+                    prompt_log.insert_str(&response_content);
                 }
                 redraw_ui = true;
             },
@@ -110,7 +134,7 @@ async fn process_key_event(
     command_line: &mut TextArea<'_>,
     editor: &mut TextAreaHandler,
     is_running: Arc<AtomicBool>,
-    tx: mpsc::Sender<String>,
+    tx: mpsc::Sender<Bytes>,
     chat_session: &mut ChatSession,
 ) -> TransitionAction {
     match current_mode {
@@ -151,5 +175,12 @@ async fn process_key_event(
                 _ => TransitionAction::EditPrompt,
             }
         }
+    }
+}
+
+fn process_response(response: &Bytes) -> String {
+    match ChatCompletionResponse::extract_content(response) {
+        Ok(content) => content,
+        Err(e) => format!("Failed to parse JSON: {}", e),
     }
 }

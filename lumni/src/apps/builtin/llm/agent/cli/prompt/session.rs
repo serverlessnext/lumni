@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use bytes::Bytes;
 
 use crate::external as lumni;
@@ -12,7 +12,7 @@ use lumni::HttpClient;
 use super::responses::ChatCompletionResponse;
 
 // temporary toggle to test streaming version
-const STREAMING_RESPONSE: bool = false;
+const STREAMING_RESPONSE: bool = true;
 
 #[derive(Serialize, Deserialize)]
 pub struct ChatPayload {
@@ -56,7 +56,7 @@ impl ChatSession {
 
     pub async fn message(
         &mut self,
-        tx: mpsc::Sender<String>,
+        tx: mpsc::Sender<Bytes>,
         keep_running: Arc<AtomicBool>,
         message: String,
     ) {
@@ -73,7 +73,9 @@ impl ChatSession {
         let initial_question = format!("Q: {}\nBot:", message);
         let prompt = self.create_final_prompt(message);
 
-        if tx.send(initial_question).await.is_err() {
+        if tx.send(
+            ChatCompletionResponse::to_json_text(&initial_question).into(),
+        ).await.is_err() {
             eprintln!("Receiver dropped");
             return;
         }
@@ -91,7 +93,7 @@ impl ChatSession {
             let header: HashMap<String, String> = [("Content-Type".to_string(), "application/json".to_string())].iter().cloned().collect();
 
             let payload_bytes = Bytes::from(data_payload.clone().into_bytes());
-            let response = http_client.post(
+            let _ = http_client.post(
                 // TODO: url should be passed as an argument
                 "http://localhost:8080/completion",
                 Some(&header),
@@ -100,43 +102,6 @@ impl ChatSession {
                 if STREAMING_RESPONSE { Some(tx.clone()) } else { None },
             ).await;
 
-            if STREAMING_RESPONSE {
-                // do nothing: streaming response is passed as-is to the receiver
-                // this is not yet ideal because the json must be parsed to extract the content
-                // will likely need to redesign the current approach
-            } else {
-                match response {
-                    Ok(response) => {
-                        let body = response.body().unwrap();
-                        let response_json = String::from_utf8(body.to_vec()).unwrap();
-
-                        let response_content = match ChatCompletionResponse::extract_content(&response_json) {
-                            Ok(content) => content,
-                            Err(e) => format!("Failed to parse JSON: {}", e),
-                        };
-                        if tx.send(response_content).await.is_err() {
-                            eprintln!("Receiver dropped");
-                        }
-                    }
-                    Err(e) => {
-                        if tx.send(format!("Failed to send request: {}\n", e)).await.is_err() {
-                            eprintln!("Receiver dropped");
-                        }
-                    }
-                }
-            }
-
-            let response_words = vec!["Goodbye.".to_string()];
-            for word in response_words {
-                if !keep_running.load(Ordering::SeqCst) {
-                    break;
-                }
-                let response_text = format!(" {}", word);
-                if tx.send(response_text).await.is_err() {
-                    eprintln!("Receiver dropped");
-                    break;
-                }
-            }
             // Reset is_running after completion
             keep_running.store(false, Ordering::SeqCst);
         });

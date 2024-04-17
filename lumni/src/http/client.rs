@@ -131,7 +131,7 @@ impl HttpClient {
         url: &str,
         headers: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
-        tx: Option<mpsc::Sender<String>>,
+        tx: Option<mpsc::Sender<Bytes>>,
     ) -> HttpResult {
         let uri = Uri::from_str(url)
             .map_err(|e| HttpClientError::Other(AnyhowError::new(e)))?;
@@ -177,9 +177,8 @@ impl HttpClient {
             body = None;
             while let Some(next) = response.frame().await {
                 let frame = next.map_err(|e| anyhow!(e))?;
-                if let Some(chunk) = frame.data_ref() {
-                    let data_string = String::from_utf8(chunk.to_vec())?;
-                    tx.send(data_string).await.map_err(|_| anyhow!("Failed to send data via channel"))?;
+                if let Ok(chunk) = frame.into_data() {
+                    tx.send(chunk).await.map_err(|_| anyhow!("Failed to send data via channel"))?;
                 }
             }
         } else {
@@ -193,7 +192,6 @@ impl HttpClient {
             body = Some(body_bytes.into());
         }
 
-
         Ok(HttpResponse {
             body,
             status_code,
@@ -205,8 +203,8 @@ impl HttpClient {
         &self,
         url: &str,
         headers: Option<&HashMap<String, String>>,
-        params: Option<&HashMap<String, String>>,
-        tx: Option<mpsc::Sender<String>>,
+        _params: Option<&HashMap<String, String>>,
+        tx: Option<mpsc::Sender<Bytes>>,
     ) -> HttpResult {
         self.request("GET", url, headers, None, tx).await
     }
@@ -215,9 +213,9 @@ impl HttpClient {
         &self,
         url: &str,
         headers: Option<&HashMap<String, String>>,
-        params: Option<&HashMap<String, String>>,
+        _params: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
-        tx: Option<mpsc::Sender<String>>,
+        tx: Option<mpsc::Sender<Bytes>>,
     ) -> HttpResult {
         self.request("POST", url, headers, body, tx).await
     }

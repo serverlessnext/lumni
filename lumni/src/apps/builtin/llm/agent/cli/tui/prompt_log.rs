@@ -44,6 +44,7 @@ impl PromptRect {
 
 pub struct PromptLogWindow<'a> {
     chat_session: ChatSession,
+    buffer_incoming: String,          // incoming response buffer
     raw_text: String,            // text as received
     display_text: Vec<Line<'a>>, // text processed for display
     area: PromptRect,
@@ -55,6 +56,7 @@ impl PromptLogWindow<'_> {
     pub fn new() -> Self {
         Self {
             chat_session: ChatSession::default(),
+            buffer_incoming: String::new(),
             raw_text: String::new(),
             display_text: Vec::new(),
             area: PromptRect::default(),
@@ -107,8 +109,12 @@ impl PromptLogWindow<'_> {
 
     fn update_display_text(&mut self) -> () {
         let display_width = self.area.width as usize;
-        let processed_text = self
-            .raw_text
+        let text = if self.buffer_incoming.is_empty() {
+            self.raw_text.clone()
+        } else {
+            format!("{}\n{}", self.raw_text, self.buffer_incoming)
+        };
+        let processed_text = text
             .split('\n')
             .flat_map(|line| {
                 wrap(
@@ -141,15 +147,25 @@ impl PromptLogWindow<'_> {
             .scroll((self.vertical_scroll as u16, 0))
     }
 
-    pub fn insert_str(&mut self, text: &str) {
-        self.raw_text.push_str(text);
-        self.chat_session.append_response_buffer(text);
+    pub fn update_display(&mut self) {
         self.update_display_text();
-
         let length = self.content_length();
         let height = self.area.height as usize;
         self.vertical_scroll =
             if length > height { length - height } else { 0 };
         self.update_scroll_state();
+    }
+
+    pub fn buffer_incoming_append(&mut self, text: &str) {
+        self.buffer_incoming.push_str(text);
+        self.update_display();
+    }
+
+    pub fn buffer_incoming_flush(&mut self) {
+        let answer = self.buffer_incoming.clone();
+        self.buffer_incoming.clear();
+        self.raw_text.push_str(&answer);
+        self.chat_session().update_last_exchange(answer);
+        self.update_display();
     }
 }

@@ -102,16 +102,29 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
                 }
             },
             Some(response) = rx.recv() => {
-                let response_content = process_response(&response);
-                prompt_log.insert_str(&response_content);
+                let mut final_response = false;
+                let (response_content, is_final) = process_response(&response);
+                prompt_log.buffer_incoming_append(&response_content);
+                final_response = is_final;
 
                 // Drain all available messages from the channel
-                while let Ok(response) = rx.try_recv() {
-                    let response_content = process_response(&response);
-                    prompt_log.insert_str(&response_content);
+                if !final_response {
+                    while let Ok(response) = rx.try_recv() {
+                        let (response_content, is_final) = process_response(&response);
+                        prompt_log.buffer_incoming_append(&response_content);
+
+                        if is_final {
+                            final_response = true;
+                            break;
+                        }
+                    }
+                } 
+
+                // after response is complete, flush buffer to make
+                // the response permanent
+                if final_response {
+                    prompt_log.buffer_incoming_flush();
                 }
-                // after response is complete, update final exchange
-                prompt_log.chat_session().finalize_exchange();
                 redraw_ui = true;
             },
         }
@@ -182,9 +195,9 @@ async fn process_key_event(
     }
 }
 
-fn process_response(response: &Bytes) -> String {
+fn process_response(response: &Bytes) -> (String, bool) {
     match ChatCompletionResponse::extract_content(response) {
-        Ok(content) => content,
-        Err(e) => format!("Failed to parse JSON: {}", e),
+        Ok(chat) => (chat.content, chat.stop),
+        Err(e) => (format!("Failed to parse JSON: {}", e), true)
     }
 }

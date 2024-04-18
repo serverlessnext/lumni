@@ -29,7 +29,6 @@ pub struct ChatPayload {
 pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>,
-    response_buffer:  String, 
     max_history: usize,
     instruction: String,
 }
@@ -39,7 +38,6 @@ impl ChatSession {
         ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
-            response_buffer: String::new(),
             max_history,
             instruction,
         }
@@ -64,19 +62,10 @@ impl ChatSession {
         session
     }
 
-    pub fn append_response_buffer(&mut self, response: &str) {
-        self.response_buffer.push_str(response);
-    }
-
-    pub fn finalize_exchange(&mut self) { 
-        let response = self.response_buffer.clone();
-        // update last exchange
-        let last_exchange = self.exchanges.last_mut().unwrap();
-        last_exchange.1 = response;
-    }
-
-    pub fn reset_response_buffer(&mut self) {
-        self.response_buffer.clear();
+    pub fn update_last_exchange(&mut self, answer: String) {
+        if let Some(last_exchange) = self.exchanges.last_mut() {
+            last_exchange.1 = answer;
+        }
     }
 
     pub async fn message(
@@ -85,7 +74,6 @@ impl ChatSession {
         keep_running: Arc<AtomicBool>,
         question: String,
     ) {
-        self.reset_response_buffer();
     
         let prompt = self.create_final_prompt(question.clone());
         // TODO: check if current last exchange has empty answer

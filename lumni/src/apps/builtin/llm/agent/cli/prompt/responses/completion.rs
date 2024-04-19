@@ -30,6 +30,9 @@ impl ChatCompletionResponse {
         };
         // extract JSON content
         let parsed: ChatCompletionResponse = serde_json::from_str(json_text)?;
+        // overwrite content in parsed
+        //parsed.content = json_text.to_string();
+        //parsed.stop = false;
         Ok(parsed)
     }
 }

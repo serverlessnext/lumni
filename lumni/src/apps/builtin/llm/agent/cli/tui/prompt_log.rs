@@ -1,3 +1,4 @@
+use std::error::Error;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
@@ -63,6 +64,11 @@ impl PromptLogWindow<'_> {
             vertical_scroll: 0,
             vertical_scroll_state: ScrollbarState::default(),
         }
+    }
+
+    pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
+        self.chat_session.init().await?;
+        Ok(())
     }
 
     pub fn chat_session(&mut self) -> &mut ChatSession {

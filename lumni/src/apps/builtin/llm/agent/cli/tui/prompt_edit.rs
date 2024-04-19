@@ -9,7 +9,14 @@ pub enum TransitionAction {
     Quit,
     EditPrompt,
     CommandLine,
-    WritePrompt(String),
+    //WritePrompt(String),
+    Prompt(PromptAction),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PromptAction {
+    Clear,
+    Write(String),
 }
 
 enum TextAreaAction {
@@ -198,6 +205,19 @@ impl TextAreaHandler {
             EditorMode::Normal => match input {
                 Input { key: Key::Esc, .. } => {
                     self.reset();
+                }
+                Input {
+                    key: Key::Enter,
+                    ..
+                } => {
+                    // get all lines
+                    //et lines = self.ta_prompt_edit.lines();
+                    self.ta_prompt_edit.select_all();
+                    self.ta_prompt_edit.cut();
+                    let text = self.ta_prompt_edit.yank_text();
+
+                    //self.ta_prompt_edit.clear();
+                    return TransitionAction::Prompt(PromptAction::Write(text));
                 }
                 Input {
                     key: Key::Char('i'),

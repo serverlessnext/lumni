@@ -22,7 +22,7 @@ use tui_textarea::{Input, TextArea};
 use super::prompt::ChatCompletionResponse;
 use super::tui::{
     draw_ui, transition_command_line, CommandLine, PromptLogWindow,
-    TextAreaHandler, TransitionAction,
+    TextAreaHandler, TransitionAction, PromptAction,
 };
 
 pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
@@ -37,6 +37,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let mut editor = TextAreaHandler::new();
 
     let mut prompt_log = PromptLogWindow::new();
+    prompt_log.init().await?;
 
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
@@ -45,7 +46,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let (tx, mut rx) = mpsc::channel(32);
     let mut tick = interval(Duration::from_millis(10));
 
-    let is_running = Arc::new(AtomicBool::new(true));
+    let is_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = TransitionAction::EditPrompt;
 
     let mut command_line_handler = CommandLine::new();
@@ -164,16 +165,22 @@ async fn process_key_event(
             {
                 TransitionAction::Quit => TransitionAction::Quit,
                 TransitionAction::EditPrompt => TransitionAction::EditPrompt,
-                TransitionAction::WritePrompt(prompt) => {
-
+                TransitionAction::Prompt(prompt_action) => {
                     let chat_session = prompt_log.chat_session();
-
-                    // Initiate streaming if not already active
-                    if !is_running.load(Ordering::SeqCst) {
-                        is_running.store(true, Ordering::SeqCst);
-                        chat_session
-                            .message(tx.clone(), is_running.clone(), prompt)
-                            .await;
+                    match prompt_action {
+                        PromptAction::Write(prompt) => {
+                            // Initiate streaming if not already active
+                            if !is_running.load(Ordering::SeqCst) {
+                                is_running.store(true, Ordering::SeqCst);
+                                chat_session
+                                    .message(tx.clone(), is_running.clone(), prompt)
+                                    .await;
+                            }
+                        },
+                        PromptAction::Clear => {
+                            chat_session.reset();
+                        },
+                        _ => {}
                     }
                     TransitionAction::EditPrompt // Switch to editor mode
                 }
@@ -188,6 +195,25 @@ async fn process_key_event(
                     command_line.insert_str(":");
                     is_running.store(false, Ordering::SeqCst); //reset
                     TransitionAction::CommandLine
+                },
+                TransitionAction::Prompt(prompt_action) => {
+                    let chat_session = prompt_log.chat_session();
+                    match prompt_action {
+                        PromptAction::Write(prompt) => {
+                            // Initiate streaming if not already active
+                            if !is_running.load(Ordering::SeqCst) {
+                                is_running.store(true, Ordering::SeqCst);
+                                chat_session
+                                    .message(tx.clone(), is_running.clone(), prompt)
+                                    .await;
+                            }
+                        },
+                        PromptAction::Clear => {
+                            chat_session.reset();
+                        },
+                        _ => {}
+                    }
+                    TransitionAction::EditPrompt // Switch to editor mode
                 }
                 _ => TransitionAction::EditPrompt,
             }

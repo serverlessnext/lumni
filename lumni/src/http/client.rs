@@ -18,6 +18,7 @@ use hyper_util::rt::TokioExecutor;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 
+#[derive(Debug)]
 pub struct HttpResponse {
     body: Option<Bytes>,
     status_code: u16,

@@ -1,6 +1,6 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::TransitionAction;
+use super::{TransitionAction, PromptAction};
 
 pub struct CommandLine {}
 
@@ -27,8 +27,9 @@ impl CommandLine {
                 "q" => return TransitionAction::Quit,
                 "w" => {
                     let question: String = prompt_edit.lines().join("\n");
-                    return TransitionAction::WritePrompt(question);
+                    return TransitionAction::Prompt(PromptAction::Write(question))
                 }
+                "clear" => return TransitionAction::Prompt(PromptAction::Clear),
                 _ => {} // Handle other commands as needed
             }
         }

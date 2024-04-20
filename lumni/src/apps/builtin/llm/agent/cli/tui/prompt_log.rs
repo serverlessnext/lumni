@@ -1,4 +1,5 @@
 use std::error::Error;
+
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
@@ -45,8 +46,8 @@ impl PromptRect {
 
 pub struct PromptLogWindow<'a> {
     chat_session: ChatSession,
-    buffer_incoming: String,          // incoming response buffer
-    raw_text: String,            // text as received
+    buffer_incoming: String, // incoming response buffer
+    raw_text: String,        // text as received
     display_text: Vec<Line<'a>>, // text processed for display
     area: PromptRect,
     vertical_scroll: usize,
@@ -56,7 +57,7 @@ pub struct PromptLogWindow<'a> {
 impl PromptLogWindow<'_> {
     pub fn new() -> Self {
         Self {
-            chat_session: ChatSession::default(),
+            chat_session: ChatSession::new(),
             buffer_incoming: String::new(),
             raw_text: String::new(),
             display_text: Vec::new(),

@@ -21,8 +21,8 @@ use tui_textarea::{Input, TextArea};
 
 use super::prompt::ChatCompletionResponse;
 use super::tui::{
-    draw_ui, transition_command_line, CommandLine, PromptLogWindow,
-    TextAreaHandler, TransitionAction, PromptAction,
+    draw_ui, transition_command_line, CommandLine, PromptAction,
+    PromptLogWindow, TextAreaHandler, TransitionAction,
 };
 
 async fn prompt_app<B: Backend>(
@@ -97,7 +97,7 @@ async fn prompt_app<B: Backend>(
                 }
             },
             Some(response) = rx.recv() => {
-                let mut final_response = false;
+                let mut final_response;
                 let (response_content, is_final) = process_response(&response);
                 prompt_log.buffer_incoming_append(&response_content);
                 final_response = is_final;
@@ -113,7 +113,7 @@ async fn prompt_app<B: Backend>(
                             break;
                         }
                     }
-                } 
+                }
 
                 // after response is complete, flush buffer to make
                 // the response permanent
@@ -158,14 +158,17 @@ async fn process_key_event(
                             if !is_running.load(Ordering::SeqCst) {
                                 is_running.store(true, Ordering::SeqCst);
                                 chat_session
-                                    .message(tx.clone(), is_running.clone(), prompt)
+                                    .message(
+                                        tx.clone(),
+                                        is_running.clone(),
+                                        prompt,
+                                    )
                                     .await;
                             }
-                        },
+                        }
                         PromptAction::Clear => {
                             chat_session.reset();
-                        },
-                        _ => {}
+                        }
                     }
                     TransitionAction::EditPrompt // Switch to editor mode
                 }
@@ -180,7 +183,7 @@ async fn process_key_event(
                     command_line.insert_str(":");
                     is_running.store(false, Ordering::SeqCst); //reset
                     TransitionAction::CommandLine
-                },
+                }
                 TransitionAction::Prompt(prompt_action) => {
                     let chat_session = prompt_log.chat_session();
                     match prompt_action {
@@ -189,14 +192,17 @@ async fn process_key_event(
                             if !is_running.load(Ordering::SeqCst) {
                                 is_running.store(true, Ordering::SeqCst);
                                 chat_session
-                                    .message(tx.clone(), is_running.clone(), prompt)
+                                    .message(
+                                        tx.clone(),
+                                        is_running.clone(),
+                                        prompt,
+                                    )
                                     .await;
                             }
-                        },
+                        }
                         PromptAction::Clear => {
                             chat_session.reset();
-                        },
-                        _ => {}
+                        }
                     }
                     TransitionAction::EditPrompt // Switch to editor mode
                 }
@@ -209,7 +215,7 @@ async fn process_key_event(
 fn process_response(response: &Bytes) -> (String, bool) {
     match ChatCompletionResponse::extract_content(response) {
         Ok(chat) => (chat.content, chat.stop),
-        Err(e) => (format!("Failed to parse JSON: {}", e), true)
+        Err(e) => (format!("Failed to parse JSON: {}", e), true),
     }
 }
 

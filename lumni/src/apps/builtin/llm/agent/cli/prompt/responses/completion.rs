@@ -18,7 +18,9 @@ impl ChatCompletionResponse {
         serde_json::to_string(&message).unwrap()
     }
 
-    pub fn extract_content(bytes: &Bytes) -> Result<ChatCompletionResponse, Box<dyn Error>> {
+    pub fn extract_content(
+        bytes: &Bytes,
+    ) -> Result<ChatCompletionResponse, Box<dyn Error>> {
         let text = String::from_utf8(bytes.to_vec())?;
 
         // Check if the string starts with 'data: ' (typical for streaming responses)

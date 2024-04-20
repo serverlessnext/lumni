@@ -1,20 +1,38 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::error::Error;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use bytes::Bytes;
+use lumni::HttpClient;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use crate::external as lumni;
-use lumni::HttpClient;
-
 use super::send::send_payload;
+use super::PERSONAS;
+use crate::external as lumni;
 
 #[derive(Deserialize)]
 struct TokenResponse {
     tokens: Vec<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Persona {
+    name: String,
+    system_prompt: String,
+    exchanges: Vec<Exchange>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Exchange {
+    question: String,
+    answer: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Personas {
+    personas: Vec<Persona>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -32,46 +50,46 @@ pub struct ChatPayload {
 
 pub struct ChatSession {
     http_client: HttpClient,
-    exchanges: Vec<(String, String)>,
+    exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
-    instruction: String,
+    instruction: String, // system
     n_keep: usize,
 }
 
 impl ChatSession {
-    pub fn new(max_history: usize, instruction: String) -> ChatSession {
-
+    pub fn new() -> ChatSession {
         ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
-            max_history,
-            instruction,
+            max_history: 20, // TODO: base on max tokens
+            instruction: "".to_string(),
             n_keep: 0,
         }
     }
 
-    pub fn default() -> ChatSession {
-        let mut session = ChatSession::new(
-            10,
-            "A chat between a curious human and an artificial intelligence \
-             assistant. The assistant gives helpful, detailed, and polite \
-             answers to the human's questions"
-                .to_string(),
-        );
-        session.add_exchange(
-            "Hello, Assistant.".to_string(),
-            "Hello. How may I help you today?".to_string(),
-        );
-
-
-        session.add_exchange(
-            "Please tell me the capital of France.".to_string(),
-            "Sure. The capital of France is Paris".to_string(),
-        );
-        session
-    }
-
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
+        let selected_persona = "Default";
+        let personas: Personas = serde_yaml::from_str(PERSONAS)?;
+
+        // Find the selected persona by name
+        if let Some(persona) = personas
+            .personas
+            .into_iter()
+            .find(|p| p.name == selected_persona)
+        {
+            // Set session instruction from persona's system prompt
+            self.instruction = persona.system_prompt;
+
+            // Load predefined exchanges from persona
+            self.exchanges = persona
+                .exchanges
+                .into_iter()
+                .map(|exchange| (exchange.question, exchange.answer))
+                .collect();
+        } else {
+            return Err("Selected persona not found in the dataset".into());
+        }
+
         self.tokenize_and_set_n_keep().await?;
         Ok(())
     }
@@ -86,16 +104,23 @@ impl ChatSession {
         }
     }
 
-
-    pub async fn tokenize_and_set_n_keep(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn tokenize_and_set_n_keep(
+        &mut self,
+    ) -> Result<(), Box<dyn Error>> {
         let url = "http://localhost:8080/tokenize";
-        let body_content = serde_json::json!({ "content": self.instruction }).to_string();
+        let body_content =
+            serde_json::json!({ "content": self.instruction }).to_string();
         let body = Bytes::from(body_content);
-        
-        let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "application/json".to_string());
 
-        match self.http_client.post(url, Some(&headers), None, Some(&body), None).await {
+        let mut headers = HashMap::new();
+        headers
+            .insert("Content-Type".to_string(), "application/json".to_string());
+
+        match self
+            .http_client
+            .post(url, Some(&headers), None, Some(&body), None)
+            .await
+        {
             Ok(http_response) => {
                 match http_response.json::<TokenResponse>() {
                     Ok(response) => {
@@ -103,17 +128,17 @@ impl ChatSession {
                         self.n_keep = response.tokens.len();
                         log::debug!("n_keep set to {}", self.n_keep);
                         Ok(())
-                    },
+                    }
                     Err(e) => {
                         eprintln!("Failed to parse JSON response: {}", e);
-                        Err(format!("Failed to parse JSON response: {}", e).into())
+                        Err(format!("Failed to parse JSON response: {}", e)
+                            .into())
                     }
                 }
-            },
-            Err(e) => Err(format!("HTTP request failed: {}", e).into())
+            }
+            Err(e) => Err(format!("HTTP request failed: {}", e).into()),
         }
     }
-
 
     pub async fn message(
         &mut self,
@@ -121,7 +146,6 @@ impl ChatSession {
         keep_running: Arc<AtomicBool>,
         question: String,
     ) {
-    
         let prompt = self.create_final_prompt(question.clone());
         // TODO: check if current last exchange has empty answer
         // if so -- overwrite it with the new question
@@ -141,10 +165,6 @@ impl ChatSession {
             )
             .await;
         }
-    }
-
-    pub fn get_history(&self) -> &Vec<(String, String)> {
-        &self.exchanges
     }
 
     pub fn add_exchange(&mut self, question: String, answer: String) {

@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::Command;
 
 pub use super::app_handler::{handle_application, handle_apps};
 

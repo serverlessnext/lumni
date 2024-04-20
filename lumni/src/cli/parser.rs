@@ -12,7 +12,7 @@ use super::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "Lumni";
 
-pub async fn run_cli(args: Vec<String>) {
+pub async fn run_cli(_args: Vec<String>) {
     env_logger::init();
     let app = Command::new(PROGRAM_NAME)
         .version(env!("CARGO_PKG_VERSION"))

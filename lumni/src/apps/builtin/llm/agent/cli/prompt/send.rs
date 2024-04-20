@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use bytes::Bytes;
+use lumni::HttpClient;
 use tokio::sync::mpsc;
 
-use crate::external as lumni;
-use lumni::HttpClient;
 use super::responses::ChatCompletionResponse;
+use crate::external as lumni;
 
 pub async fn send_payload(
     url: String,

@@ -431,6 +431,7 @@ impl ObjectStoreHandler {
     }
 }
 
+#[allow(dead_code)]
 #[async_trait(?Send)]
 pub trait ObjectStoreBackend: Send {
     fn new(config: EnvironmentConfig) -> Result<Self, LakestreamError>

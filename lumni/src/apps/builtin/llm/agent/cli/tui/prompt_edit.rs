@@ -207,8 +207,7 @@ impl TextAreaHandler {
                     self.reset();
                 }
                 Input {
-                    key: Key::Enter,
-                    ..
+                    key: Key::Enter, ..
                 } => {
                     // get all lines
                     //et lines = self.ta_prompt_edit.lines();
@@ -523,11 +522,6 @@ impl TextAreaHandler {
                 }
                 _ => {} // Ignore other keys in Visual mode
             },
-            EditorMode::ReadOnly => {
-                // used for Log view
-                // similar to Visual, except no Cut, Delete, or Paste
-                // requires Tab to switch back to
-            }
         }
         TransitionAction::EditPrompt
     }

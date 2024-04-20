@@ -12,7 +12,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
-use ratatui::backend::CrosstermBackend;
+use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
 use tokio::sync::mpsc;
@@ -25,15 +25,9 @@ use super::tui::{
     TextAreaHandler, TransitionAction, PromptAction,
 };
 
-pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-
-    enable_raw_mode()?;
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
+async fn prompt_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+) -> Result<(), Box<dyn Error>> {
     let mut editor = TextAreaHandler::new();
 
     let mut prompt_log = PromptLogWindow::new();
@@ -56,7 +50,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
         tokio::select! {
             _ = tick.tick() => {
                 if redraw_ui {
-                    draw_ui(&mut terminal, &mut editor, &mut prompt_log, &command_line)?;
+                    draw_ui(terminal, &mut editor, &mut prompt_log, &command_line)?;
                     redraw_ui = false;
                 }
 
@@ -130,15 +124,6 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
             },
         }
     }
-
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
     Ok(())
 }
 
@@ -226,4 +211,46 @@ fn process_response(response: &Bytes) -> (String, bool) {
         Ok(chat) => (chat.content, chat.stop),
         Err(e) => (format!("Failed to parse JSON: {}", e), true)
     }
+}
+
+pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+
+    // Enable raw mode and setup the screen
+    if let Err(e) = enable_raw_mode() {
+        return Err(e.into());
+    }
+    if let Err(e) = execute!(stdout, EnterAlternateScreen, EnableMouseCapture) {
+        let _ = disable_raw_mode();
+        return Err(e.into());
+    }
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = match Terminal::new(backend) {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = disable_raw_mode();
+            let _ = execute!(
+                io::stdout(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            );
+            return Err(e.into());
+        }
+    };
+
+    // Run the application logic and capture the result
+    let result = prompt_app(&mut terminal).await;
+
+    // Regardless of the result, perform cleanup
+    let _ = disable_raw_mode();
+    let _ = execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    );
+    let _ = terminal.show_cursor();
+
+    result.map_err(Into::into)
 }

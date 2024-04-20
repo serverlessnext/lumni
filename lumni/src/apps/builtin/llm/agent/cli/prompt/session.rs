@@ -18,9 +18,10 @@ struct TokenResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct Persona {
+struct Prompt {
     name: String,
-    system_prompt: String,
+    system_prompt: Option<String>,
+    user_prompt: Option<String>,
     exchanges: Option<Vec<Exchange>>,
 }
 
@@ -28,11 +29,6 @@ struct Persona {
 struct Exchange {
     question: String,
     answer: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct Personas {
-    personas: Vec<Persona>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -53,6 +49,7 @@ pub struct ChatSession {
     exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
     instruction: String, // system
+    user_prompt: Option<String>,    // put question in {{ USER_QUESTION }}
     n_keep: usize,
 }
 
@@ -63,28 +60,35 @@ impl ChatSession {
             exchanges: Vec::new(),
             max_history: 20, // TODO: base on max tokens
             instruction: "".to_string(),
+            user_prompt: None,
             n_keep: 0,
         }
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
+        //let selected_persona = "Summarizer";
         let selected_persona = "Default";
-        let personas: Personas = serde_yaml::from_str(PERSONAS)?;
+        let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
 
         // Find the selected persona by name
-        if let Some(persona) = personas
-            .personas
+        if let Some(prompt) = prompts
             .into_iter()
             .find(|p| p.name == selected_persona)
         {
             // Set session instruction from persona's system prompt
-            self.instruction = persona.system_prompt;
+            if let Some(system_prompt) = prompt.system_prompt {
+                self.instruction = system_prompt;
+            }
 
             // Load predefined exchanges from persona if available
-            if let Some(exchanges) = persona.exchanges {
+            if let Some(exchanges) = prompt.exchanges {
                 self.exchanges = exchanges.into_iter()
                     .map(|exchange| (exchange.question, exchange.answer))
                     .collect();
+            }
+
+            if let Some(user_prompt) = prompt.user_prompt {
+                self.user_prompt = Some(user_prompt);
             }
         } else {
             return Err("Selected persona not found in the dataset".into());
@@ -101,15 +105,18 @@ impl ChatSession {
     pub fn update_last_exchange(&mut self, answer: String) {
         if let Some(last_exchange) = self.exchanges.last_mut() {
             last_exchange.1 = answer;
+            self.trim_history();
         }
     }
-
+    
     pub async fn tokenize_and_set_n_keep(
         &mut self,
     ) -> Result<(), Box<dyn Error>> {
         let url = "http://localhost:8080/tokenize";
-        let body_content =
-            serde_json::json!({ "content": self.instruction }).to_string();
+        //let body_content =
+        //    serde_json::json!({ "content": self.instruction }).to_string();
+        let body_content = serde_json::json!({ "content": format!("<|start_header_id|>system<|end_header_id|>\n{}\n<|eot_id|>", self.instruction) }).to_string();
+            
         let body = Bytes::from(body_content);
 
         let mut headers = HashMap::new();
@@ -146,10 +153,8 @@ impl ChatSession {
         keep_running: Arc<AtomicBool>,
         question: String,
     ) {
-        let prompt = self.create_final_prompt(question.clone());
-        // TODO: check if current last exchange has empty answer
-        // if so -- overwrite it with the new question
-        self.add_exchange(question, "".to_string());
+
+        let prompt = self.create_final_prompt(question);
 
         let n_keep = self.n_keep;
         let data_payload = self.create_payload(prompt, n_keep);
@@ -169,7 +174,6 @@ impl ChatSession {
 
     pub fn add_exchange(&mut self, question: String, answer: String) {
         self.exchanges.push((question, answer));
-        self.trim_history();
     }
 
     fn trim_history(&mut self) {
@@ -179,18 +183,49 @@ impl ChatSession {
         }
     }
 
-    fn create_final_prompt(&self, question: String) -> String {
-        let mut prompt = format!("{}\n", self.instruction);
-        for (question, answer) in &self.exchanges {
-            prompt.push_str(&format!(
-                "\n### Human: {}\n### Assistant: {}",
-                question, answer
-            ));
+   // fn create_final_prompt(&self, question: String) -> String {
+        //let mut prompt = format!("{}\n", self.instruction);
+        //for (question, answer) in &self.exchanges {
+            //prompt.push_str(&format!(
+                //"\n### Human: {}\n### Assistant: {}",
+                //question, answer
+            //));
+        //}
+        //prompt.push_str(&format!("\n### Human: {}", question));
+        //prompt
+    //}
+
+    pub fn create_final_prompt(&mut self, user_question: String) -> String {   
+        let user_question = user_question.trim();   
+        let mut prompt = String::new();
+
+        // Add system prompt
+        if !self.instruction.is_empty() {
+            prompt.push_str(&format!("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{}<|eot_id|>\n", self.instruction));
         }
-        prompt.push_str(&format!("\n### Human: {}", question));
+
+        // Iterate through existing exchanges to build context
+        for (user_msg, model_answer) in &self.exchanges {
+            prompt.push_str(&format!("<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{}\n<|eot_id|>\n", user_msg, model_answer));
+        }
+
+        let user_question = if user_question.is_empty() {
+            "continue".to_string()
+        } else {
+            if self.user_prompt.is_some() {
+                self.user_prompt.as_ref().unwrap().replace("{{ USER_QUESTION }}", user_question)
+            } else {
+                user_question.to_string()
+            }
+        };
+
+        // Add the current user question without an assistant's answer
+        prompt.push_str(&format!("<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n", user_question));
+        // Add the current user question without an assistant's answer
+        self.add_exchange(user_question, "".to_string());
         prompt
     }
-
+    
     fn create_payload(
         &self,
         prompt: String,
@@ -202,9 +237,10 @@ impl ChatSession {
             top_k: 40,
             top_p: 0.9,
             n_keep,
-            n_predict: 4096,
+            n_predict: 512,
             cache_prompt: true,
-            stop: vec!["\n### Human:".to_string()],
+            //stop: vec!["\n### Human:".to_string()],
+            stop: vec!["<|end_of_text|>".to_string(), "<|eot_id|>".to_string()],
             stream: true,
         };
 

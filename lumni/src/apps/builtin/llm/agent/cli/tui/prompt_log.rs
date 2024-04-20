@@ -169,9 +169,10 @@ impl PromptLogWindow<'_> {
     }
 
     pub fn buffer_incoming_flush(&mut self) {
-        let answer = self.buffer_incoming.clone();
+        let answer = self.buffer_incoming.clone().trim().to_string();
         self.buffer_incoming.clear();
         self.raw_text.push_str(&answer);
+        log::debug!("Buffer flushed: {}", answer);
         self.chat_session().update_last_exchange(answer);
         self.update_display();
     }

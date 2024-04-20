@@ -21,7 +21,7 @@ struct TokenResponse {
 struct Persona {
     name: String,
     system_prompt: String,
-    exchanges: Vec<Exchange>,
+    exchanges: Option<Vec<Exchange>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,12 +80,12 @@ impl ChatSession {
             // Set session instruction from persona's system prompt
             self.instruction = persona.system_prompt;
 
-            // Load predefined exchanges from persona
-            self.exchanges = persona
-                .exchanges
-                .into_iter()
-                .map(|exchange| (exchange.question, exchange.answer))
-                .collect();
+            // Load predefined exchanges from persona if available
+            if let Some(exchanges) = persona.exchanges {
+                self.exchanges = exchanges.into_iter()
+                    .map(|exchange| (exchange.question, exchange.answer))
+                    .collect();
+            }
         } else {
             return Err("Selected persona not found in the dataset".into());
         }

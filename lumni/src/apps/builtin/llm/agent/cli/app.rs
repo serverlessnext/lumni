@@ -4,13 +4,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
+use crossterm::cursor::Show;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
 };
-use crossterm::{
-    execute,
-    cursor::Show,
-};
+use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
@@ -23,7 +21,9 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, timeout, Duration};
 use tui_textarea::{Input, TextArea};
 
-use super::prompt::ChatCompletionResponse;
+use super::prompt::{
+    process_prompt, process_prompt_response,
+};
 use super::tui::{
     draw_ui, transition_command_line, CommandLine, PromptAction,
     PromptLogWindow, TextAreaHandler, TransitionAction,
@@ -103,7 +103,7 @@ async fn prompt_app<B: Backend>(
             Some(response) = rx.recv() => {
                 let mut final_response;
                 log::debug!("Received response: {:?}", response);
-                let (response_content, is_final) = process_response(&response);
+                let (response_content, is_final) = process_prompt_response(&response);
                 prompt_log.buffer_incoming_append(&response_content);
                 final_response = is_final;
 
@@ -111,7 +111,7 @@ async fn prompt_app<B: Backend>(
                 if !final_response {
                     while let Ok(response) = rx.try_recv() {
                         log::debug!("Received response: {:?}", response);
-                        let (response_content, is_final) = process_response(&response);
+                        let (response_content, is_final) = process_prompt_response(&response);
                         prompt_log.buffer_incoming_append(&response_content);
 
                         if is_final {
@@ -218,13 +218,6 @@ async fn process_key_event(
     }
 }
 
-fn process_response(response: &Bytes) -> (String, bool) {
-    match ChatCompletionResponse::extract_content(response) {
-        Ok(chat) => (chat.content, chat.stop),
-        Err(e) => (format!("Failed to parse JSON: {}", e), true),
-    }
-}
-
 async fn read_initial_byte(
     reader: &mut BufReader<tokio::io::Stdin>,
 ) -> Result<Option<u8>, io::Error> {
@@ -255,18 +248,21 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let initial_byte = read_initial_byte(&mut reader).await?;
 
     if let Some(byte) = initial_byte {
-        let mut all_input = String::new();
+        let mut stdin_input = String::new();
         if let Ok(initial_char) = String::from_utf8(vec![byte]) {
-            all_input.push_str(&initial_char);
+            stdin_input.push_str(&initial_char);
         }
 
         // Continue reading from stdin
         let mut lines = reader.lines();
         while let Some(line) = lines.next_line().await? {
-            all_input.push_str(&line);
-            all_input.push('\n'); // Maintain line breaks if needed
+            stdin_input.push_str(&line);
+            stdin_input.push('\n'); // Maintain line breaks if needed
         }
-        println!("Processed input: {}", all_input.trim_end());
+
+        let keep_running = Arc::new(AtomicBool::new(true));
+        process_prompt(stdin_input.trim_end().to_string(), keep_running).await;
+
         Ok(())
     } else {
         let mut stdout = io::stdout().lock();

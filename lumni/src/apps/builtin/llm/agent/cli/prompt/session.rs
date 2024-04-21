@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::atomic::AtomicBool;
+use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use super::send::send_payload;
-use super::PERSONAS;
+use super::{ChatCompletionResponse, PERSONAS};
 use crate::external as lumni;
 
 #[derive(Deserialize)]
@@ -66,8 +67,8 @@ impl ChatSession {
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
-        //let selected_persona = "Summarizer";
-        let selected_persona = "Default";
+        let selected_persona = "Summarizer";
+        //let selected_persona = "Default";
         let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
 
         // Find the selected persona by name
@@ -276,5 +277,42 @@ impl ChatSession {
         };
 
         serde_json::to_string(&payload)
+    }
+}
+
+pub async fn process_prompt(question: String, keep_running: Arc<AtomicBool>) {
+    let mut chat_session = ChatSession::new();
+    chat_session.init().await.unwrap();
+
+    let (tx, rx) = mpsc::channel(32);
+    chat_session
+        .message(tx, keep_running.clone(), question)
+        .await;
+
+    handle_response(rx, keep_running).await;
+}
+
+async fn handle_response(
+    mut rx: mpsc::Receiver<Bytes>,
+    keep_running: Arc<AtomicBool>,
+) {
+    while keep_running.load(Ordering::Relaxed) {
+        while let Some(response) = rx.recv().await {
+            let (response_content, is_final) =
+                process_prompt_response(&response);
+            print!("{}", response_content);
+            io::stdout().flush().expect("Failed to flush stdout");
+
+            if is_final {
+                break;
+            }
+        }
+    }
+}
+
+pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
+    match ChatCompletionResponse::extract_content(response) {
+        Ok(chat) => (chat.content, chat.stop),
+        Err(e) => (format!("Failed to parse JSON: {}", e), true),
     }
 }

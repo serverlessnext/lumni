@@ -10,8 +10,8 @@ use super::{LayoutMode, PromptLogWindow, TextAreaHandler};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
-    editor: &mut TextAreaHandler,
-    prompt_log: &mut PromptLogWindow,
+    editor_window: &mut TextAreaHandler,
+    response_window: &mut PromptLogWindow,
     command_line: &TextArea,
 ) -> Result<(), io::Error> {
     terminal.draw(|f| {
@@ -32,7 +32,7 @@ pub fn draw_ui<B: Backend>(
 
         let command_line_area = main_window[1];
 
-        match editor.layout_mode(terminal_size) {
+        match editor_window.layout_mode(terminal_size) {
             LayoutMode::HorizontalSplit => {
                 let prompt_window = Layout::default()
                     .direction(Direction::Vertical)
@@ -72,22 +72,20 @@ pub fn draw_ui<B: Backend>(
                         Constraint::Length(2),      // vertical scrollbar
                     ])
                     .split(main_window[0]);
-
                 prompt_edit_area = prompt_window[0];
                 prompt_log_area = prompt_window[1];
                 prompt_log_area_scrollbar = prompt_window[2];
             }
         }
-        f.render_widget(editor.ta_prompt_edit().widget(), prompt_edit_area);
-
-        f.render_widget(prompt_log.widget(&prompt_log_area), prompt_log_area);
+        f.render_widget(editor_window.ta_prompt_edit().widget(), prompt_edit_area);
+        f.render_widget(response_window.widget(&prompt_log_area), prompt_log_area);
         f.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓")),
             prompt_log_area_scrollbar,
-            &mut prompt_log.vertical_scroll_state(),
+            &mut response_window.vertical_scroll_state(),
         );
 
         f.render_widget(command_line.widget(), command_line_area);

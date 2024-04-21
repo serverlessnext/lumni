@@ -1,6 +1,6 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptAction, TransitionAction};
+use super::{PromptLogWindow, PromptAction, TransitionAction};
 
 pub struct CommandLine {}
 
@@ -37,14 +37,15 @@ impl CommandLine {
                 _ => {} // Handle other commands as needed
             }
         }
-        TransitionAction::EditPrompt
+        TransitionAction::PromptWindow
     }
 }
 
 pub async fn transition_command_line(
     cl: &mut CommandLine,
     command_line: &mut TextArea<'_>,
-    prompt_edit: &mut TextArea<'_>,
+    editor_window: &mut TextArea<'_>,
+    response_window: &mut PromptLogWindow<'_>,
     input: Input,
 ) -> TransitionAction {
     match input {
@@ -56,8 +57,8 @@ pub async fn transition_command_line(
             key: Key::Enter, ..
         } => {
             // process command
-            let response = cl.process_command(command_line, prompt_edit).await;
-            cl.clear(prompt_edit);
+            let response = cl.process_command(command_line, editor_window).await;
+            cl.clear(editor_window);
             return response;
         }
         _ => {
@@ -67,5 +68,9 @@ pub async fn transition_command_line(
         }
     };
     // exit command line mode
-    return TransitionAction::EditPrompt;
+    if response_window.is_active() {
+        TransitionAction::ResponseWindow
+    } else {
+        TransitionAction::PromptWindow
+    }
 }

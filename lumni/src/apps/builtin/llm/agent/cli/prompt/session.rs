@@ -67,8 +67,8 @@ impl ChatSession {
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
-        let selected_persona = "Summarizer";
-        //let selected_persona = "Default";
+        //let selected_persona = "Summarizer";
+        let selected_persona = "Default";
         let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
 
         // Find the selected persona by name

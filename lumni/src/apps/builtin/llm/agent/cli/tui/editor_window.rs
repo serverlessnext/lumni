@@ -1,4 +1,5 @@
 use ratatui::layout::Rect;
+use ratatui::style::Style;
 use tui_textarea::{CursorMove, Input, Key, TextArea};
 
 use super::clipboard::ClipboardProvider;
@@ -7,9 +8,9 @@ use super::mode::EditorMode;
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransitionAction {
     Quit,
-    EditPrompt,
+    PromptWindow,
+    ResponseWindow,
     CommandLine,
-    //WritePrompt(String),
     Prompt(PromptAction),
 }
 
@@ -56,6 +57,10 @@ impl TextAreaHandler {
         &mut self.ta_prompt_edit
     }
 
+    pub fn mode(&self) -> EditorMode {
+        self.mode
+    }
+
     pub fn layout_mode(&self, terminal_size: Rect) -> &LayoutMode {
         let rows = terminal_size.height;
         let cols = terminal_size.width;
@@ -68,10 +73,22 @@ impl TextAreaHandler {
         return &LayoutMode::VerticalSplit;
     }
 
-    fn reset(&mut self) {
-        self.mode = EditorMode::Normal;
+    pub fn set_active(&mut self, active: bool) {
+        self.mode = if active {
+            EditorMode::Normal
+        } else {
+            EditorMode::InActive
+        };
+        self.ta_prompt_edit.set_cursor_style(self.mode.cursor_style());
+        self.ta_prompt_edit.set_block(self.mode.block());
+        self.ta_prompt_edit.set_cursor_line_style(Style::default());
+
         self.last_key = None;
         self.numeric_input = None;
+    }
+
+    fn reset(&mut self) {
+        self.set_active(false);
     }
 
     fn handle_position_keys(&mut self, input: &Input) -> bool {
@@ -198,7 +215,7 @@ impl TextAreaHandler {
     pub async fn transition(&mut self, input: &Input) -> TransitionAction {
         // handle position keys for non insert mode
         if self.mode != EditorMode::Insert && self.handle_position_keys(input) {
-            return TransitionAction::EditPrompt;
+            return TransitionAction::PromptWindow;
         }
 
         match self.mode {
@@ -210,12 +227,10 @@ impl TextAreaHandler {
                     key: Key::Enter, ..
                 } => {
                     // get all lines
-                    //et lines = self.ta_prompt_edit.lines();
                     self.ta_prompt_edit.select_all();
                     self.ta_prompt_edit.cut();
                     let text = self.ta_prompt_edit.yank_text();
 
-                    //self.ta_prompt_edit.clear();
                     return TransitionAction::Prompt(PromptAction::Write(text));
                 }
                 Input {
@@ -419,12 +434,6 @@ impl TextAreaHandler {
                     self.ta_prompt_edit.cancel_selection();
                     self.set_vim_mode(EditorMode::Normal);
                 }
-                // tab
-                Input { key: Key::Tab, .. } => {
-                    eprintln!("Tab hit");
-                    //self.ta_prompt_edit.indent();
-                }
-
                 Input {
                     key: Key::Char('$'),
                     ..
@@ -522,7 +531,8 @@ impl TextAreaHandler {
                 }
                 _ => {} // Ignore other keys in Visual mode
             },
+            EditorMode::InActive => {}
         }
-        TransitionAction::EditPrompt
+        TransitionAction::PromptWindow
     }
 }

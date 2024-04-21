@@ -8,6 +8,7 @@ pub enum EditorMode {
     Normal,
     Insert,
     Visual,
+    InActive,
 }
 
 impl EditorMode {
@@ -17,7 +18,9 @@ impl EditorMode {
             Self::Insert => "type Esc to back to normal mode",
             Self::Visual => {
                 "type y to yank, type c to cut, type Esc to back to normal mode"
-            }
+            },
+            // InActive is just disabled Normal mode
+            Self::InActive => "type :q to quit, type i to enter insert mode"
         };
 
         let title = if help.is_empty() {
@@ -30,9 +33,10 @@ impl EditorMode {
 
     pub fn cursor_style(&self) -> Style {
         let color = match self {
-            Self::Normal => Color::Reset,
+            Self::Normal => Color::LightGreen,
             Self::Insert => Color::LightBlue,
             Self::Visual => Color::LightYellow,
+            _ => return Style::default(),
         };
         Style::default().fg(color).add_modifier(Modifier::REVERSED)
     }
@@ -44,6 +48,7 @@ impl fmt::Display for EditorMode {
             Self::Normal => write!(f, "NORMAL"),
             Self::Insert => write!(f, "INSERT"),
             Self::Visual => write!(f, "VISUAL"),
+            Self::InActive => write!(f, "NORMAL"),  // InActive is just disabled Normal mode
         }
     }
 }

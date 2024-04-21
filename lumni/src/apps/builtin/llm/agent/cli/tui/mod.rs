@@ -2,14 +2,18 @@ mod clipboard;
 mod command_line;
 mod draw;
 mod mode;
-mod prompt_edit;
-mod prompt_log;
+mod cursor;
+mod key_event;
+mod editor_window;
+mod response_window;
 
-pub use command_line::{transition_command_line, CommandLine};
+pub use command_line::CommandLine;
 pub use draw::draw_ui;
-pub use prompt_edit::{
+pub use editor_window::{
     LayoutMode, PromptAction, TextAreaHandler, TransitionAction,
 };
-pub use prompt_log::PromptLogWindow;
-
+pub use mode::EditorMode;
+pub use cursor::{Cursor, MoveCursor};
+pub use response_window::PromptLogWindow;
 pub use super::prompt::ChatSession;
+pub use key_event::process_key_event;

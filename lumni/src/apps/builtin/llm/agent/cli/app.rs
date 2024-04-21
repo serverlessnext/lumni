@@ -7,7 +7,10 @@ use bytes::Bytes;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
 };
-use crossterm::execute;
+use crossterm::{
+    execute,
+    cursor::Show,
+};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
@@ -15,8 +18,9 @@ use crossterm::terminal::{
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, timeout, Duration};
 use tui_textarea::{Input, TextArea};
 
 use super::prompt::ChatCompletionResponse;
@@ -98,6 +102,7 @@ async fn prompt_app<B: Backend>(
             },
             Some(response) = rx.recv() => {
                 let mut final_response;
+                log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_response(&response);
                 prompt_log.buffer_incoming_append(&response_content);
                 final_response = is_final;
@@ -105,6 +110,7 @@ async fn prompt_app<B: Backend>(
                 // Drain all available messages from the channel
                 if !final_response {
                     while let Ok(response) = rx.try_recv() {
+                        log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_response(&response);
                         prompt_log.buffer_incoming_append(&response_content);
 
@@ -219,44 +225,91 @@ fn process_response(response: &Bytes) -> (String, bool) {
     }
 }
 
+async fn read_initial_byte(
+    reader: &mut BufReader<tokio::io::Stdin>,
+) -> Result<Option<u8>, io::Error> {
+    let mut buffer = [0; 1];
+    let initial_read =
+        timeout(Duration::from_millis(10), reader.read(&mut buffer)).await;
+
+    match initial_read {
+        Ok(Ok(count)) if count > 0 => {
+            // Data was immediately available via stdin, likely non-interactive
+            Ok(Some(buffer[0])) // Return the read byte
+        }
+        Ok(Ok(_)) | Err(_) => {
+            // No data was read or timeout occurred, likely interactive
+            Ok(None)
+        }
+        Ok(Err(e)) => {
+            // Handle errors from the read operation
+            Err(e)
+        }
+    }
+}
+
 pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
+    let stdin = tokio::io::stdin();
 
-    // Enable raw mode and setup the screen
-    if let Err(e) = enable_raw_mode() {
-        return Err(e.into());
-    }
-    if let Err(e) = execute!(stdout, EnterAlternateScreen, EnableMouseCapture) {
-        let _ = disable_raw_mode();
-        return Err(e.into());
-    }
+    let mut reader = BufReader::new(stdin);
+    let initial_byte = read_initial_byte(&mut reader).await?;
 
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = match Terminal::new(backend) {
-        Ok(t) => t,
-        Err(e) => {
-            let _ = disable_raw_mode();
-            let _ = execute!(
-                io::stdout(),
-                LeaveAlternateScreen,
-                DisableMouseCapture
-            );
+    if let Some(byte) = initial_byte {
+        let mut all_input = String::new();
+        if let Ok(initial_char) = String::from_utf8(vec![byte]) {
+            all_input.push_str(&initial_char);
+        }
+
+        // Continue reading from stdin
+        let mut lines = reader.lines();
+        while let Some(line) = lines.next_line().await? {
+            all_input.push_str(&line);
+            all_input.push('\n'); // Maintain line breaks if needed
+        }
+        println!("Processed input: {}", all_input.trim_end());
+        Ok(())
+    } else {
+        let mut stdout = io::stdout().lock();
+
+        // Enable raw mode and setup the screen
+        if let Err(e) = enable_raw_mode() {
+            execute!(stdout, Show, LeaveAlternateScreen)?;
             return Err(e.into());
         }
-    };
 
-    // Run the application logic and capture the result
-    let result = prompt_app(&mut terminal).await;
+        if let Err(e) =
+            execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+        {
+            let _ = disable_raw_mode();
+            return Err(e.into());
+        }
 
-    // Regardless of the result, perform cleanup
-    let _ = disable_raw_mode();
-    let _ = execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    );
-    let _ = terminal.show_cursor();
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = match Terminal::new(backend) {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = disable_raw_mode();
+                let _ = execute!(
+                    io::stdout(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                );
+                return Err(e.into());
+            }
+        };
 
-    result.map_err(Into::into)
+        // Run the application logic and capture the result
+        let result = prompt_app(&mut terminal).await;
+
+        // Regardless of the result, perform cleanup
+        let _ = disable_raw_mode();
+        let _ = execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        );
+        let _ = terminal.show_cursor();
+
+        result.map_err(Into::into)
+    }
 }

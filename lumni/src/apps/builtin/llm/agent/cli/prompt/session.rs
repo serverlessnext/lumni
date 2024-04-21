@@ -48,8 +48,8 @@ pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
-    instruction: String, // system
-    user_prompt: Option<String>,    // put question in {{ USER_QUESTION }}
+    instruction: String,         // system
+    user_prompt: Option<String>, // put question in {{ USER_QUESTION }}
     n_keep: usize,
 }
 
@@ -71,9 +71,8 @@ impl ChatSession {
         let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
 
         // Find the selected persona by name
-        if let Some(prompt) = prompts
-            .into_iter()
-            .find(|p| p.name == selected_persona)
+        if let Some(prompt) =
+            prompts.into_iter().find(|p| p.name == selected_persona)
         {
             // Set session instruction from persona's system prompt
             if let Some(system_prompt) = prompt.system_prompt {
@@ -82,7 +81,8 @@ impl ChatSession {
 
             // Load predefined exchanges from persona if available
             if let Some(exchanges) = prompt.exchanges {
-                self.exchanges = exchanges.into_iter()
+                self.exchanges = exchanges
+                    .into_iter()
                     .map(|exchange| (exchange.question, exchange.answer))
                     .collect();
             }
@@ -108,7 +108,7 @@ impl ChatSession {
             self.trim_history();
         }
     }
-    
+
     pub async fn tokenize_and_set_n_keep(
         &mut self,
     ) -> Result<(), Box<dyn Error>> {
@@ -116,7 +116,7 @@ impl ChatSession {
         //let body_content =
         //    serde_json::json!({ "content": self.instruction }).to_string();
         let body_content = serde_json::json!({ "content": format!("<|start_header_id|>system<|end_header_id|>\n{}\n<|eot_id|>", self.instruction) }).to_string();
-            
+
         let body = Bytes::from(body_content);
 
         let mut headers = HashMap::new();
@@ -153,7 +153,6 @@ impl ChatSession {
         keep_running: Arc<AtomicBool>,
         question: String,
     ) {
-
         let prompt = self.create_final_prompt(question);
 
         let n_keep = self.n_keep;
@@ -183,49 +182,81 @@ impl ChatSession {
         }
     }
 
-   // fn create_final_prompt(&self, question: String) -> String {
-        //let mut prompt = format!("{}\n", self.instruction);
-        //for (question, answer) in &self.exchanges {
-            //prompt.push_str(&format!(
-                //"\n### Human: {}\n### Assistant: {}",
-                //question, answer
-            //));
-        //}
-        //prompt.push_str(&format!("\n### Human: {}", question));
-        //prompt
+    // fn create_final_prompt(&self, question: String) -> String {
+    //let mut prompt = format!("{}\n", self.instruction);
+    //for (question, answer) in &self.exchanges {
+    //prompt.push_str(&format!(
+    //"\n### Human: {}\n### Assistant: {}",
+    //question, answer
+    //));
+    //}
+    //prompt.push_str(&format!("\n### Human: {}", question));
+    //prompt
     //}
 
-    pub fn create_final_prompt(&mut self, user_question: String) -> String {   
-        let user_question = user_question.trim();   
-        let mut prompt = String::new();
-
-        // Add system prompt
-        if !self.instruction.is_empty() {
-            prompt.push_str(&format!("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{}<|eot_id|>\n", self.instruction));
-        }
-
-        // Iterate through existing exchanges to build context
-        for (user_msg, model_answer) in &self.exchanges {
-            prompt.push_str(&format!("<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{}\n<|eot_id|>\n", user_msg, model_answer));
-        }
-
+    pub fn create_final_prompt(&mut self, user_question: String) -> String {
+        let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
         } else {
             if self.user_prompt.is_some() {
-                self.user_prompt.as_ref().unwrap().replace("{{ USER_QUESTION }}", user_question)
+                self.user_prompt
+                    .as_ref()
+                    .unwrap()
+                    .replace("{{ USER_QUESTION }}", user_question)
             } else {
                 user_question.to_string()
             }
         };
 
+        let mut prompt = String::new();
+
+        // https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py#L202
+
+        //        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        //
+        //        You are a helpful assistant<|eot_id|><|start_header_id|>user<|end_header_id|>
+        //
+        //        {prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+        // Add system prompt
+        if !self.instruction.is_empty() {
+            prompt.push_str(&format!(
+                "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\\
+                 n{}<|eot_id|>\n",
+                self.instruction
+            ));
+        }
+
+        // Iterate through existing exchanges to build context
+        // TODO: keep track of user/ assistant in the exchange
+        for (user_msg, model_answer) in &self.exchanges {
+            prompt.push_str(&format!(
+                "<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\\
+                 n<|start_header_id|>assistant<|end_header_id|>\n{}\\
+                 n<|eot_id|>\n",
+                user_msg, model_answer
+            ));
+        }
+
         // Add the current user question without an assistant's answer
-        prompt.push_str(&format!("<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n", user_question));
+        prompt.push_str(&format!(
+            "<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n",
+            user_question
+        ));
         // Add the current user question without an assistant's answer
-        self.add_exchange(user_question, "".to_string());
+
+        // if last exchange has an empty answer, overwrite it with the current user question
+        if let Some(last_exchange) = self.exchanges.last_mut() {
+            if last_exchange.1.is_empty() {
+                last_exchange.1 = user_question.clone();
+            } else {
+                self.add_exchange(user_question.clone(), "".to_string());
+            }
+        }
         prompt
     }
-    
+
     fn create_payload(
         &self,
         prompt: String,

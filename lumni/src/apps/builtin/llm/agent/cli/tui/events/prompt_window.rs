@@ -1,13 +1,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+
 use bytes::Bytes;
 use crossterm::event::KeyEvent;
+use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
-use super::{WindowEvent, PromptLogWindow, PromptAction,
-    TextAreaHandler,
-};
+use super::{PromptAction, PromptLogWindow, TextAreaHandler, WindowEvent};
 
 pub async fn handle_prompt_window_event(
     key_event: KeyEvent,
@@ -31,11 +30,7 @@ pub async fn handle_prompt_window_event(
                     if !is_running.load(Ordering::SeqCst) {
                         is_running.store(true, Ordering::SeqCst);
                         chat_session
-                            .message(
-                                tx.clone(),
-                                is_running.clone(),
-                                prompt,
-                            )
+                            .message(tx.clone(), is_running.clone(), prompt)
                             .await;
                     }
                 }
@@ -45,7 +40,6 @@ pub async fn handle_prompt_window_event(
             }
             WindowEvent::PromptWindow // Switch to prompt window
         }
-        _ => WindowEvent::PromptWindow
+        _ => WindowEvent::PromptWindow,
     }
-
 }

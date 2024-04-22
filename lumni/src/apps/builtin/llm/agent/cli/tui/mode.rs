@@ -18,9 +18,9 @@ impl EditorMode {
             Self::Insert => "type Esc to back to normal mode",
             Self::Visual => {
                 "type y to yank, type c to cut, type Esc to back to normal mode"
-            },
+            }
             // InActive is just disabled Normal mode
-            Self::InActive => "type :q to quit, type i to enter insert mode"
+            Self::InActive => "type :q to quit, type i to enter insert mode",
         };
 
         let title = if help.is_empty() {
@@ -48,7 +48,7 @@ impl fmt::Display for EditorMode {
             Self::Normal => write!(f, "NORMAL"),
             Self::Insert => write!(f, "INSERT"),
             Self::Visual => write!(f, "VISUAL"),
-            Self::InActive => write!(f, "NORMAL"),  // InActive is just disabled Normal mode
+            Self::InActive => write!(f, "NORMAL"), // InActive is just disabled Normal mode
         }
     }
 }

@@ -1,6 +1,6 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptLogWindow, PromptAction, WindowEvent};
+use super::{PromptAction, PromptLogWindow, WindowEvent};
 
 pub struct CommandLine {}
 
@@ -27,13 +27,9 @@ impl CommandLine {
                 "q" => return WindowEvent::Quit,
                 "w" => {
                     let question: String = prompt_edit.lines().join("\n");
-                    return WindowEvent::Prompt(PromptAction::Write(
-                        question,
-                    ));
+                    return WindowEvent::Prompt(PromptAction::Write(question));
                 }
-                "clear" => {
-                    return WindowEvent::Prompt(PromptAction::Clear)
-                }
+                "clear" => return WindowEvent::Prompt(PromptAction::Clear),
                 _ => {} // Handle other commands as needed
             }
         }
@@ -57,7 +53,8 @@ pub async fn transition_command_line(
             key: Key::Enter, ..
         } => {
             // process command
-            let response = cl.process_command(command_line, editor_window).await;
+            let response =
+                cl.process_command(command_line, editor_window).await;
             cl.clear(editor_window);
             return response;
         }

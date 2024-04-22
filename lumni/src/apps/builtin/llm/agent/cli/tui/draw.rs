@@ -77,8 +77,14 @@ pub fn draw_ui<B: Backend>(
                 prompt_log_area_scrollbar = prompt_window[2];
             }
         }
-        f.render_widget(editor_window.ta_prompt_edit().widget(), prompt_edit_area);
-        f.render_widget(response_window.widget(&prompt_log_area), prompt_log_area);
+        f.render_widget(
+            editor_window.ta_prompt_edit().widget(),
+            prompt_edit_area,
+        );
+        f.render_widget(
+            response_window.widget(&prompt_log_area),
+            prompt_log_area,
+        );
         f.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)

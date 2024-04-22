@@ -1,4 +1,3 @@
-
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use textwrap::{wrap, Options, WordSplitter};
@@ -6,9 +5,8 @@ use textwrap::{wrap, Options, WordSplitter};
 use super::response_window::PromptRect;
 use super::{Cursor, MoveCursor};
 
-
 #[derive(Debug, Clone)]
-pub struct TextBuffer <'a> {
+pub struct TextBuffer<'a> {
     buffer_incoming: String, // incoming response buffer
     raw_text: String,
     display_text: Vec<Line<'a>>,
@@ -18,7 +16,7 @@ pub struct TextBuffer <'a> {
     vertical_scroll: usize,
 }
 
-impl TextBuffer <'_> {
+impl TextBuffer<'_> {
     pub fn new() -> Self {
         Self {
             buffer_incoming: String::new(),
@@ -65,26 +63,33 @@ impl TextBuffer <'_> {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
-        self.cursor.move_cursor(direction.clone(), self.get_max_col(), self.get_max_row());
+        self.cursor.move_cursor(
+            direction.clone(),
+            self.get_max_col(),
+            self.get_max_row(),
+        );
 
         if self.is_cursor_enabled {
             match direction {
                 MoveCursor::Up => {
                     if self.cursor.row < self.vertical_scroll as u16 {
                         if self.vertical_scroll > 0 {
-                            self.vertical_scroll -= 1;  // Scroll up if not already at the top
+                            self.vertical_scroll -= 1; // Scroll up if not already at the top
                         }
                     }
-                },
+                }
                 MoveCursor::Down => {
                     let visible_rows = area.height() as usize;
-                    if self.cursor.row >= (self.vertical_scroll + visible_rows) as u16 {
+                    if self.cursor.row
+                        >= (self.vertical_scroll + visible_rows) as u16
+                    {
                         let content_length = self.content_length();
-                        if self.vertical_scroll < content_length - visible_rows {
-                            self.vertical_scroll += 1;  // Scroll down if not already at the bottom
+                        if self.vertical_scroll < content_length - visible_rows
+                        {
+                            self.vertical_scroll += 1; // Scroll down if not already at the bottom
                         }
                     }
-                },
+                }
                 _ => {} // No scrolling necessary for left/right movement
             }
 
@@ -99,7 +104,8 @@ impl TextBuffer <'_> {
         // Get the current row where the cursor is located.
         if let Some(line) = self.display_text.get(self.cursor.row as usize) {
             // Return the length of the line, considering all spans.
-            line.spans.iter()
+            line.spans
+                .iter()
                 .map(|span| span.content.len() as u16) // Calculate the length of each span
                 .sum() // Sum up the lengths of all spans
         } else {
@@ -116,40 +122,65 @@ impl TextBuffer <'_> {
         let text = if self.buffer_incoming.is_empty() {
             self.raw_text.clone()
         } else {
-            let combined_text = format!("{}\n{}", self.raw_text, self.buffer_incoming);
+            let combined_text =
+                format!("{}\n{}", self.raw_text, self.buffer_incoming);
             combined_text
         };
 
         let mut new_display_text = Vec::new();
-        self.highlighted_text.clear();  // Clear existing highlighted text
+        self.highlighted_text.clear(); // Clear existing highlighted text
         let mut current_row = 0;
 
-        let (start_row, start_col, end_row, end_col) = if self.cursor.row < self.cursor.fixed_row || 
-            (self.cursor.row == self.cursor.fixed_row && self.cursor.col < self.cursor.fixed_col) {
-            (self.cursor.row as usize, self.cursor.col as usize, self.cursor.fixed_row as usize, self.cursor.fixed_col as usize)
+        let (start_row, start_col, end_row, end_col) = if self.cursor.row
+            < self.cursor.fixed_row
+            || (self.cursor.row == self.cursor.fixed_row
+                && self.cursor.col < self.cursor.fixed_col)
+        {
+            (
+                self.cursor.row as usize,
+                self.cursor.col as usize,
+                self.cursor.fixed_row as usize,
+                self.cursor.fixed_col as usize,
+            )
         } else {
-            (self.cursor.fixed_row as usize, self.cursor.fixed_col as usize, self.cursor.row as usize, self.cursor.col as usize)
+            (
+                self.cursor.fixed_row as usize,
+                self.cursor.fixed_col as usize,
+                self.cursor.row as usize,
+                self.cursor.col as usize,
+            )
         };
 
         for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
                 line,
-                Options::new(display_width).word_splitter(WordSplitter::NoHyphenation),
+                Options::new(display_width)
+                    .word_splitter(WordSplitter::NoHyphenation),
             );
             for wrapped_line in wrapped_lines {
                 let mut spans = Vec::new();
                 let chars: Vec<char> = wrapped_line.chars().collect();
 
                 for (j, ch) in chars.into_iter().enumerate() {
-                    let should_highlight = 
-                        (current_row > start_row && current_row < end_row) ||
-                        (current_row == start_row && current_row == end_row && j >= start_col && j <= end_col) ||
-                        (current_row == start_row && j >= start_col && current_row < end_row) ||
-                        (current_row == end_row && j <= end_col && current_row > start_row);
+                    let should_highlight = (current_row > start_row
+                        && current_row < end_row)
+                        || (current_row == start_row
+                            && current_row == end_row
+                            && j >= start_col
+                            && j <= end_col)
+                        || (current_row == start_row
+                            && j >= start_col
+                            && current_row < end_row)
+                        || (current_row == end_row
+                            && j <= end_col
+                            && current_row > start_row);
 
                     if should_highlight {
-                        spans.push(Span::styled(ch.to_string(), Style::default().bg(Color::Blue)));
-                        self.highlighted_text.push(ch);  // Append highlighted character to the buffer
+                        spans.push(Span::styled(
+                            ch.to_string(),
+                            Style::default().bg(Color::Blue),
+                        ));
+                        self.highlighted_text.push(ch); // Append highlighted character to the buffer
                     } else {
                         spans.push(Span::raw(ch.to_string()));
                     }
@@ -174,8 +205,7 @@ impl TextBuffer <'_> {
             }
             //self.update_scroll_state();
             true
-        }
-        else {
+        } else {
             false
         }
     }
@@ -191,5 +221,4 @@ impl TextBuffer <'_> {
     pub fn content_length(&self) -> usize {
         self.display_text.len()
     }
-
 }

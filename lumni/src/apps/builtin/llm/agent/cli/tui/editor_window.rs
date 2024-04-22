@@ -3,8 +3,8 @@ use ratatui::style::Style;
 use tui_textarea::{CursorMove, Input, Key, TextArea};
 
 use super::clipboard::ClipboardProvider;
+use super::events::{PromptAction, WindowEvent};
 use super::mode::EditorMode;
-use super::events::{WindowEvent, PromptAction};
 
 enum TextAreaAction {
     Cut,
@@ -65,7 +65,8 @@ impl TextAreaHandler {
         } else {
             EditorMode::InActive
         };
-        self.ta_prompt_edit.set_cursor_style(self.mode.cursor_style());
+        self.ta_prompt_edit
+            .set_cursor_style(self.mode.cursor_style());
         self.ta_prompt_edit.set_block(self.mode.block());
         self.ta_prompt_edit.set_cursor_line_style(Style::default());
 

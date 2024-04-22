@@ -5,8 +5,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
-use super::ChatSession;
-use super::{MoveCursor, TextBuffer};
+use super::{ChatSession, MoveCursor, TextBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {
@@ -111,7 +110,8 @@ impl PromptLogWindow<'_> {
     }
 
     pub fn update_scroll_state(&mut self) {
-        let display_length = self.text_buffer
+        let display_length = self
+            .text_buffer
             .content_length()
             .saturating_sub(self.area.height as usize);
         self.vertical_scroll_state = self
@@ -128,7 +128,11 @@ impl PromptLogWindow<'_> {
         }
 
         Paragraph::new(Text::from(self.text_buffer.display_text()))
-            .block(Block::default().title(format!("active = {}", self.is_active)).borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(format!("active = {}", self.is_active))
+                    .borders(Borders::ALL),
+            )
             .style(Style::default().fg(Color::White).bg(Color::Black))
             .alignment(Alignment::Left)
             .scroll((self.text_buffer.vertical_scroll() as u16, 0))
@@ -138,9 +142,11 @@ impl PromptLogWindow<'_> {
         self.text_buffer.update_display_text(&self.area);
         let length = self.text_buffer.content_length();
         let height = self.area.height as usize;
-        self.text_buffer.set_vertical_scroll(
-            if length > height { length - height } else { 0 }
-        );
+        self.text_buffer.set_vertical_scroll(if length > height {
+            length - height
+        } else {
+            0
+        });
         self.update_scroll_state();
     }
 

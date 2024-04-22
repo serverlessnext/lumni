@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use crossterm::cursor::Show;
 use crossterm::event::{
-    poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
-    KeyCode,
+    poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
+    MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -21,13 +21,10 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, timeout, Duration};
 use tui_textarea::TextArea;
 
-use super::prompt::{
-    process_prompt, process_prompt_response,
-};
+use super::prompt::{process_prompt, process_prompt_response};
 use super::tui::{
-    draw_ui, CommandLine, process_key_event,
-    PromptLogWindow, TextAreaHandler, WindowEvent,
-    EditorMode,
+    draw_ui, process_key_event, CommandLine, EditorMode, PromptLogWindow,
+    TextAreaHandler, WindowEvent,
 };
 
 async fn prompt_app<B: Backend>(

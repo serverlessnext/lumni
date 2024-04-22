@@ -1,20 +1,15 @@
-
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
-use bytes::Bytes;
 
-use super::{PromptLogWindow, TextAreaHandler, 
-    WindowEvent,
-    CommandLine,
-};
-
-use super::response_window::handle_response_window_event;
 use super::command_line::handle_command_line_event;
 use super::prompt_window::handle_prompt_window_event;
+use super::response_window::handle_response_window_event;
+use super::{CommandLine, PromptLogWindow, TextAreaHandler, WindowEvent};
 
 pub async fn process_key_event(
     key_event: KeyEvent,
@@ -36,16 +31,15 @@ pub async fn process_key_event(
                 command_line,
                 tx,
                 is_running,
-            ).await
-        }
-        WindowEvent::ResponseWindow => {
-            handle_response_window_event(
-                key_event,
-                response_window,
-                command_line,
-                is_running,
             )
-        },
+            .await
+        }
+        WindowEvent::ResponseWindow => handle_response_window_event(
+            key_event,
+            response_window,
+            command_line,
+            is_running,
+        ),
         WindowEvent::PromptWindow => {
             handle_prompt_window_event(
                 key_event,
@@ -54,7 +48,8 @@ pub async fn process_key_event(
                 command_line,
                 tx,
                 is_running,
-            ).await
+            )
+            .await
         }
         _ => current_mode,
     }

@@ -1,8 +1,10 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
 use crossterm::event::{KeyCode, KeyEvent};
 use tui_textarea::TextArea;
-use super::{WindowEvent, MoveCursor, PromptLogWindow};
+
+use super::{MoveCursor, PromptLogWindow, WindowEvent};
 
 // Function to handle key events in the response window
 pub fn handle_response_window_event(
@@ -34,6 +36,6 @@ pub fn handle_response_window_event(
             WindowEvent::ResponseWindow
         }
         // Default to stay in the same mode if no relevant key is pressed
-        _ => WindowEvent::ResponseWindow
+        _ => WindowEvent::ResponseWindow,
     }
 }

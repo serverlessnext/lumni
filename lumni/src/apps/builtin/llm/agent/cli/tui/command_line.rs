@@ -1,6 +1,6 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptLogWindow, PromptAction, TransitionAction};
+use super::{PromptLogWindow, PromptAction, WindowEvent};
 
 pub struct CommandLine {}
 
@@ -18,26 +18,26 @@ impl CommandLine {
         &mut self,
         command_line: &mut TextArea<'_>,
         prompt_edit: &TextArea<'_>,
-    ) -> TransitionAction {
+    ) -> WindowEvent {
         let command = command_line.lines()[0].to_string();
         self.clear(command_line);
 
         if command.starts_with(':') {
             match command.trim_start_matches(':') {
-                "q" => return TransitionAction::Quit,
+                "q" => return WindowEvent::Quit,
                 "w" => {
                     let question: String = prompt_edit.lines().join("\n");
-                    return TransitionAction::Prompt(PromptAction::Write(
+                    return WindowEvent::Prompt(PromptAction::Write(
                         question,
                     ));
                 }
                 "clear" => {
-                    return TransitionAction::Prompt(PromptAction::Clear)
+                    return WindowEvent::Prompt(PromptAction::Clear)
                 }
                 _ => {} // Handle other commands as needed
             }
         }
-        TransitionAction::PromptWindow
+        WindowEvent::PromptWindow
     }
 }
 
@@ -47,7 +47,7 @@ pub async fn transition_command_line(
     editor_window: &mut TextArea<'_>,
     response_window: &mut PromptLogWindow<'_>,
     input: Input,
-) -> TransitionAction {
+) -> WindowEvent {
     match input {
         Input { key: Key::Esc, .. } => {
             // catch esc key - clear command line
@@ -64,13 +64,13 @@ pub async fn transition_command_line(
         _ => {
             command_line.input(input.clone());
             // continue Command Line mode
-            return TransitionAction::CommandLine;
+            return WindowEvent::CommandLine;
         }
     };
     // exit command line mode
     if response_window.is_active() {
-        TransitionAction::ResponseWindow
+        WindowEvent::ResponseWindow
     } else {
-        TransitionAction::PromptWindow
+        WindowEvent::PromptWindow
     }
 }

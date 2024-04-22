@@ -26,7 +26,7 @@ use super::prompt::{
 };
 use super::tui::{
     draw_ui, CommandLine, process_key_event,
-    PromptLogWindow, TextAreaHandler, TransitionAction,
+    PromptLogWindow, TextAreaHandler, WindowEvent,
     EditorMode,
 };
 
@@ -46,7 +46,7 @@ async fn prompt_app<B: Backend>(
     let mut tick = interval(Duration::from_millis(10));
 
     let is_running = Arc::new(AtomicBool::new(false));
-    let mut current_mode = TransitionAction::PromptWindow;
+    let mut current_mode = WindowEvent::PromptWindow;
 
     let mut command_line_handler = CommandLine::new();
     let mut redraw_ui = true;
@@ -68,20 +68,20 @@ async fn prompt_app<B: Backend>(
                             if key_event.code == KeyCode::Tab {
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
-                                    TransitionAction::PromptWindow => {
+                                    WindowEvent::PromptWindow => {
                                         if editor_window.mode() == EditorMode::Insert {
                                             // tab is locked to prompt window when in insert mode
-                                            TransitionAction::PromptWindow
+                                            WindowEvent::PromptWindow
                                         } else {
                                             editor_window.set_active(false);
                                             response_window.set_active(true);
-                                            TransitionAction::ResponseWindow
+                                            WindowEvent::ResponseWindow
                                         }
                                     }
-                                    TransitionAction::ResponseWindow => {
+                                    WindowEvent::ResponseWindow => {
                                         response_window.set_active(false);
                                         editor_window.set_active(true);
-                                        TransitionAction::PromptWindow
+                                        WindowEvent::PromptWindow
                                     }
                                     _ => current_mode,
                                 };
@@ -99,7 +99,7 @@ async fn prompt_app<B: Backend>(
                                 tx.clone(),
                                 &mut response_window,
                             ).await;
-                            if current_mode == TransitionAction::Quit {
+                            if current_mode == WindowEvent::Quit {
                                 break;
                             }
                         },

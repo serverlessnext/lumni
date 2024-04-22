@@ -4,21 +4,7 @@ use tui_textarea::{CursorMove, Input, Key, TextArea};
 
 use super::clipboard::ClipboardProvider;
 use super::mode::EditorMode;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TransitionAction {
-    Quit,
-    PromptWindow,
-    ResponseWindow,
-    CommandLine,
-    Prompt(PromptAction),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PromptAction {
-    Clear,
-    Write(String),
-}
+use super::events::{WindowEvent, PromptAction};
 
 enum TextAreaAction {
     Cut,
@@ -212,10 +198,10 @@ impl TextAreaHandler {
     }
 
     // Handle input and transition between modes
-    pub async fn transition(&mut self, input: &Input) -> TransitionAction {
+    pub async fn transition(&mut self, input: &Input) -> WindowEvent {
         // handle position keys for non insert mode
         if self.mode != EditorMode::Insert && self.handle_position_keys(input) {
-            return TransitionAction::PromptWindow;
+            return WindowEvent::PromptWindow;
         }
 
         match self.mode {
@@ -231,7 +217,7 @@ impl TextAreaHandler {
                     self.ta_prompt_edit.cut();
                     let text = self.ta_prompt_edit.yank_text();
 
-                    return TransitionAction::Prompt(PromptAction::Write(text));
+                    return WindowEvent::Prompt(PromptAction::Write(text));
                 }
                 Input {
                     key: Key::Char('i'),
@@ -258,7 +244,7 @@ impl TextAreaHandler {
                     key: Key::Char(':'),
                     ..
                 } => {
-                    return TransitionAction::CommandLine;
+                    return WindowEvent::CommandLine;
                 }
                 Input {
                     key: Key::Char('$'),
@@ -533,6 +519,6 @@ impl TextAreaHandler {
             },
             EditorMode::InActive => {}
         }
-        TransitionAction::PromptWindow
+        WindowEvent::PromptWindow
     }
 }

@@ -11,11 +11,13 @@ pub enum MoveCursor {
 pub struct Cursor {
     pub col: u16,
     pub row: u16,
+    pub fixed_col: u16, // fixed column for anchor
+    pub fixed_row: u16, // fixed row for anchor
 }
 
 impl Cursor {
     pub fn new(col: u16, row: u16) -> Self {
-        Cursor { col, row }
+        Cursor { col, row, fixed_col: col, fixed_row: row }
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor, max_col: u16, max_row: u16) {
@@ -25,5 +27,10 @@ impl Cursor {
             MoveCursor::Up => if self.row > 0 { self.row -= 1 },
             MoveCursor::Down => if self.row < max_row { self.row += 1 },
         }
+    }
+
+    pub fn set_fixed_position(&mut self) {
+        self.fixed_col = self.col;
+        self.fixed_row = self.row;
     }
 }

@@ -50,6 +50,7 @@ pub struct PromptLogWindow<'a> {
     buffer_incoming: String, // incoming response buffer
     raw_text: String,        // text as received
     display_text: Vec<Line<'a>>, // text processed for display
+    highlighted_text: String, // text with highlighted cursor
     area: PromptRect,
     is_active: bool,
     is_cursor_enabled: bool,
@@ -65,6 +66,7 @@ impl PromptLogWindow<'_> {
             buffer_incoming: String::new(),
             raw_text: String::new(),
             display_text: Vec::new(),
+            highlighted_text: String::new(),
             area: PromptRect::default(),
             is_active: false,
             is_cursor_enabled: true,
@@ -85,6 +87,10 @@ impl PromptLogWindow<'_> {
 
     pub fn is_active(&self) -> bool {
         self.is_active
+    }
+
+    pub fn highlighted_text(&self) -> &str {
+        &self.highlighted_text
     }
 
     pub fn chat_session(&mut self) -> &mut ChatSession {
@@ -177,41 +183,51 @@ impl PromptLogWindow<'_> {
         let text = if self.buffer_incoming.is_empty() {
             self.raw_text.clone()
         } else {
-            format!("{}\n{}", self.raw_text, self.buffer_incoming)
+            let combined_text = format!("{}\n{}", self.raw_text, self.buffer_incoming);
+            combined_text
         };
 
         let mut new_display_text = Vec::new();
-        let mut current_row = 0;  // Tracks the visual row considering wrapped lines
+        self.highlighted_text.clear();  // Clear existing highlighted text
+        let mut current_row = 0;
 
-        // Wrap and process each line
-        for (logical_row, line) in text.split('\n').enumerate() {
+        let (start_row, start_col, end_row, end_col) = if self.cursor.row < self.cursor.fixed_row || 
+            (self.cursor.row == self.cursor.fixed_row && self.cursor.col < self.cursor.fixed_col) {
+            (self.cursor.row as usize, self.cursor.col as usize, self.cursor.fixed_row as usize, self.cursor.fixed_col as usize)
+        } else {
+            (self.cursor.fixed_row as usize, self.cursor.fixed_col as usize, self.cursor.row as usize, self.cursor.col as usize)
+        };
+
+        for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
                 line,
                 Options::new(display_width).word_splitter(WordSplitter::NoHyphenation),
             );
             for wrapped_line in wrapped_lines {
-                let is_cursor_line = self.is_cursor_enabled && current_row == self.cursor.row as usize;
                 let mut spans = Vec::new();
+                let chars: Vec<char> = wrapped_line.chars().collect();
 
-                if is_cursor_line {
-                    let chars: Vec<char> = wrapped_line.chars().collect();
-                    for (j, ch) in chars.into_iter().enumerate() {
-                        if j == self.cursor.col as usize {
-                            // Apply a different style if this character is at the cursor position
-                            spans.push(Span::styled(ch.to_string(), Style::default().fg(Color::Red)));
-                        } else {
-                            spans.push(Span::raw(ch.to_string()));
-                        }
+                for (j, ch) in chars.into_iter().enumerate() {
+                    let should_highlight = 
+                        (current_row > start_row && current_row < end_row) ||
+                        (current_row == start_row && current_row == end_row && j >= start_col && j <= end_col) ||
+                        (current_row == start_row && j >= start_col && current_row < end_row) ||
+                        (current_row == end_row && j <= end_col && current_row > start_row);
+
+                    if should_highlight {
+                        spans.push(Span::styled(ch.to_string(), Style::default().bg(Color::Blue)));
+                        self.highlighted_text.push(ch);  // Append highlighted character to the buffer
+                    } else {
+                        spans.push(Span::raw(ch.to_string()));
                     }
-                } else {
-                    // When cursor is not on this line, add the whole wrapped line as a single Span
-                    spans.push(Span::raw(wrapped_line.to_string()));
                 }
                 new_display_text.push(Line::from(spans));
-                current_row += 1;  // Increment the visual row counter after processing a wrapped line
+                current_row += 1;
             }
-        }       self.display_text = new_display_text;
+        }
+        self.display_text = new_display_text;
     }
+
 
     pub fn update_scroll_state(&mut self) {
         let display_length = self

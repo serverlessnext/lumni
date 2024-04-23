@@ -45,6 +45,14 @@ impl KeyTrack {
     }
 
     pub fn update_key(&mut self, key_event: KeyEvent) {
+        if let KeyCode::Char(c) = self.current_key.code {
+            // Only update the previous_char if the current key was a character
+            self.previous_char = Some(c.to_string());
+        } else {
+            // Reset previous character if the current key isn't a character
+            self.previous_char = None;
+        }
+
         // Updates the key tracking state based on the current key event
         self.current_key = key_event;
         if let KeyCode::Char(c) = key_event.code {
@@ -61,12 +69,8 @@ impl KeyTrack {
                     }
                 }
             } else {
-                self.previous_char = Some(c.to_string()); // Track previous character
                 self.numeric_input = None; // Reset numeric input
             }
-        } else {
-            // Reset previous character if the current key isn't a character
-            self.previous_char = None;
         }
     }
 }

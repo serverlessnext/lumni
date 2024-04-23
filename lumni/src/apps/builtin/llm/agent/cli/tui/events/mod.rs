@@ -5,6 +5,7 @@ mod response_window;
 
 pub use key_event::KeyEventHandler;
 
+pub use super::clipboard::ClipboardProvider;
 pub use super::command_line::{transition_command_line, CommandLine};
 pub use super::response_window::PromptLogWindow;
 pub use super::{MoveCursor, TextAreaHandler};

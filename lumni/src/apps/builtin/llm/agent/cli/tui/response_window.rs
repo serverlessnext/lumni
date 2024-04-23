@@ -105,6 +105,10 @@ impl PromptLogWindow<'_> {
         &mut self.chat_session
     }
 
+    pub fn text_buffer(&mut self) -> &TextBuffer {
+        &self.text_buffer
+    }
+
     pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
         &mut self.vertical_scroll_state
     }

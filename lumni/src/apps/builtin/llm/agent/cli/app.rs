@@ -23,7 +23,7 @@ use tui_textarea::TextArea;
 
 use super::prompt::{process_prompt, process_prompt_response};
 use super::tui::{
-    draw_ui, process_key_event, CommandLine, EditorMode, PromptLogWindow,
+    draw_ui, CommandLine, EditorMode, KeyEventHandler, PromptLogWindow,
     TextAreaHandler, WindowEvent,
 };
 
@@ -45,6 +45,7 @@ async fn prompt_app<B: Backend>(
     let is_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = WindowEvent::PromptWindow;
 
+    let mut key_event_handler = KeyEventHandler::new();
     let mut command_line_handler = CommandLine::new();
     let mut redraw_ui = true;
 
@@ -85,8 +86,7 @@ async fn prompt_app<B: Backend>(
                             }
 
 
-                            current_mode = process_key_event(
-                                //input,
+                            current_mode = key_event_handler.process_key(
                                 key_event,
                                 current_mode,
                                 &mut command_line_handler,

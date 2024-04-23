@@ -2,17 +2,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
+use super::key_event::KeyTrack;
 use super::{
     transition_command_line, CommandLine, PromptAction, PromptLogWindow,
     TextAreaHandler, WindowEvent,
 };
 
 pub async fn handle_command_line_event(
-    key_event: KeyEvent,
+    key_track: &KeyTrack,
     command_line_handler: &mut CommandLine,
     response_window: &mut PromptLogWindow<'_>,
     editor_window: &mut TextAreaHandler,
@@ -20,6 +20,7 @@ pub async fn handle_command_line_event(
     tx: mpsc::Sender<Bytes>,
     is_running: Arc<AtomicBool>,
 ) -> WindowEvent {
+    let key_event = key_track.current_key();
     match transition_command_line(
         command_line_handler,
         command_line,

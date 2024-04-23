@@ -1,18 +1,20 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyCode;
 use tui_textarea::TextArea;
 
+use super::key_event::KeyTrack;
 use super::{MoveCursor, PromptLogWindow, WindowEvent};
 
-// Function to handle key events in the response window
 pub fn handle_response_window_event(
-    key_event: KeyEvent,
+    key_track: &KeyTrack,
     response_window: &mut PromptLogWindow,
     command_line: &mut TextArea<'_>,
     _is_running: Arc<AtomicBool>,
 ) -> WindowEvent {
+    let key_event = key_track.current_key();
+
     match key_event.code {
         KeyCode::Char(':') => {
             // Switch to command line mode on ":" key press

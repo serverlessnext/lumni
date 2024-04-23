@@ -6,16 +6,19 @@ use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
+use super::key_event::KeyTrack;
 use super::{PromptAction, PromptLogWindow, TextAreaHandler, WindowEvent};
 
 pub async fn handle_prompt_window_event(
-    key_event: KeyEvent,
+    key_track: &KeyTrack,
     response_window: &mut PromptLogWindow<'_>,
     editor_window: &mut TextAreaHandler,
     command_line: &mut TextArea<'_>,
     tx: mpsc::Sender<Bytes>,
     is_running: Arc<AtomicBool>,
 ) -> WindowEvent {
+    let key_event = key_track.current_key();
+
     match editor_window.transition(&key_event.into()).await {
         WindowEvent::Quit => WindowEvent::Quit,
         WindowEvent::CommandLine => {

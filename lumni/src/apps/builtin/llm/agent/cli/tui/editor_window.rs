@@ -4,7 +4,7 @@ use tui_textarea::{CursorMove, Input, Key, TextArea};
 
 use super::clipboard::ClipboardProvider;
 use super::events::{PromptAction, WindowEvent};
-use super::mode::EditorMode;
+use super::windows::{WindowKind, WindowStyle, WindowType};
 
 enum TextAreaAction {
     Cut,
@@ -15,7 +15,7 @@ pub enum LayoutMode {
     VerticalSplit,
 }
 pub struct TextAreaHandler {
-    mode: EditorMode,
+    mode: WindowStyle,
     last_key: Option<Key>,
     numeric_input: Option<String>,
     clipboard_provider: ClipboardProvider,
@@ -26,11 +26,13 @@ pub struct TextAreaHandler {
 impl TextAreaHandler {
     pub fn new() -> Self {
         let mut ta_prompt_edit = TextArea::default();
-        ta_prompt_edit.set_block(EditorMode::Normal.block());
-        ta_prompt_edit.set_cursor_style(EditorMode::Normal.cursor_style());
+        let window_type =
+            WindowType::new(WindowKind::PromptWindow, WindowStyle::Normal);
+        ta_prompt_edit.set_block(WindowStyle::Normal.block(window_type));
+        ta_prompt_edit.set_cursor_style(WindowStyle::Normal.cursor_style());
 
         TextAreaHandler {
-            mode: EditorMode::Normal,
+            mode: WindowStyle::Normal,
             last_key: None,
             numeric_input: None,
             clipboard_provider: ClipboardProvider::new(),
@@ -43,7 +45,7 @@ impl TextAreaHandler {
         &mut self.ta_prompt_edit
     }
 
-    pub fn mode(&self) -> EditorMode {
+    pub fn mode(&self) -> WindowStyle {
         self.mode
     }
 
@@ -61,21 +63,18 @@ impl TextAreaHandler {
 
     pub fn set_active(&mut self, active: bool) {
         self.mode = if active {
-            EditorMode::Normal
+            WindowStyle::Normal
         } else {
-            EditorMode::InActive
+            WindowStyle::InActive
         };
         self.ta_prompt_edit
             .set_cursor_style(self.mode.cursor_style());
-        self.ta_prompt_edit.set_block(self.mode.block());
+        let window_type = WindowType::new(WindowKind::PromptWindow, self.mode);
+        self.ta_prompt_edit.set_block(self.mode.block(window_type));
         self.ta_prompt_edit.set_cursor_line_style(Style::default());
 
         self.last_key = None;
         self.numeric_input = None;
-    }
-
-    fn reset(&mut self) {
-        self.set_active(false);
     }
 
     fn handle_position_keys(&mut self, input: &Input) -> bool {
@@ -132,9 +131,10 @@ impl TextAreaHandler {
         }
     }
 
-    fn set_vim_mode(&mut self, mode: EditorMode) {
+    fn set_vim_mode(&mut self, mode: WindowStyle) {
         self.mode = mode;
-        self.ta_prompt_edit.set_block(mode.block());
+        let window_type = WindowType::new(WindowKind::PromptWindow, mode);
+        self.ta_prompt_edit.set_block(mode.block(window_type));
         self.ta_prompt_edit.set_cursor_style(mode.cursor_style());
     }
 
@@ -201,15 +201,14 @@ impl TextAreaHandler {
     // Handle input and transition between modes
     pub async fn transition(&mut self, input: &Input) -> WindowEvent {
         // handle position keys for non insert mode
-        if self.mode != EditorMode::Insert && self.handle_position_keys(input) {
+        if self.mode != WindowStyle::Insert && self.handle_position_keys(input)
+        {
             return WindowEvent::PromptWindow;
         }
 
         match self.mode {
-            EditorMode::Normal => match input {
-                Input { key: Key::Esc, .. } => {
-                    self.reset();
-                }
+            WindowStyle::Normal => match input {
+                Input { key: Key::Esc, .. } => {}
                 Input {
                     key: Key::Enter, ..
                 } => {
@@ -224,13 +223,13 @@ impl TextAreaHandler {
                     key: Key::Char('i'),
                     ..
                 } => {
-                    self.set_vim_mode(EditorMode::Insert);
+                    self.set_vim_mode(WindowStyle::Insert);
                 }
                 Input {
                     key: Key::Char('v'),
                     ..
                 } => {
-                    self.set_vim_mode(EditorMode::Visual);
+                    self.set_vim_mode(WindowStyle::Visual);
                     self.ta_prompt_edit.start_selection(); // Start selection
                 }
                 // Delete character before cursor
@@ -398,10 +397,10 @@ impl TextAreaHandler {
                 }
                 _ => {} // Ignore other keys in Normal mode
             },
-            EditorMode::Insert => match input {
+            WindowStyle::Insert => match input {
                 Input { key: Key::Esc, .. } => {
                     self.ta_prompt_edit.cancel_selection();
-                    self.set_vim_mode(EditorMode::Normal);
+                    self.set_vim_mode(WindowStyle::Normal);
                 }
                 Input {
                     key: Key::Char('v'),
@@ -416,10 +415,10 @@ impl TextAreaHandler {
                     self.ta_prompt_edit.input(input.clone());
                 }
             },
-            EditorMode::Visual => match input {
+            WindowStyle::Visual => match input {
                 Input { key: Key::Esc, .. } => {
                     self.ta_prompt_edit.cancel_selection();
-                    self.set_vim_mode(EditorMode::Normal);
+                    self.set_vim_mode(WindowStyle::Normal);
                 }
                 Input {
                     key: Key::Char('$'),
@@ -479,7 +478,7 @@ impl TextAreaHandler {
                 } => {
                     self.ta_prompt_edit.copy();
                     self.yank_to_clipboard();
-                    self.set_vim_mode(EditorMode::Normal);
+                    self.set_vim_mode(WindowStyle::Normal);
                 }
                 Input {
                     key: Key::Char('0'..='9'),
@@ -507,7 +506,7 @@ impl TextAreaHandler {
                 } if *c == 'c' || *c == 'x' || *c == 'd' => {
                     self.ta_prompt_edit.cut();
                     self.yank_to_clipboard();
-                    self.set_vim_mode(EditorMode::Normal);
+                    self.set_vim_mode(WindowStyle::Normal);
                 }
                 Input {
                     key: Key::Char('p'),
@@ -518,7 +517,7 @@ impl TextAreaHandler {
                 }
                 _ => {} // Ignore other keys in Visual mode
             },
-            EditorMode::InActive => {}
+            WindowStyle::InActive => {}
         }
         WindowEvent::PromptWindow
     }

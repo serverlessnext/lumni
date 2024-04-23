@@ -5,19 +5,22 @@ use crossterm::event::KeyCode;
 use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
-
-use super::{MoveCursor, PromptLogWindow, WindowEvent, ClipboardProvider};
+use super::{
+    ClipboardProvider, MoveCursor, ResponseWindow, TextWindowExt, WindowEvent,
+};
 
 pub fn handle_response_window_event(
     key_track: &KeyTrack,
-    response_window: &mut PromptLogWindow,
+    response_window: &mut ResponseWindow,
     command_line: &mut TextArea<'_>,
     _is_running: Arc<AtomicBool>,
 ) -> WindowEvent {
     let key_event = key_track.current_key();
 
     match key_event.code {
-        KeyCode::Char(c) => handle_char_key(c, key_track, response_window, command_line),
+        KeyCode::Char(c) => {
+            handle_char_key(c, key_track, response_window, command_line)
+        }
         KeyCode::Right => {
             response_window.move_cursor(MoveCursor::Right);
             WindowEvent::ResponseWindow
@@ -43,7 +46,7 @@ pub fn handle_response_window_event(
 fn handle_char_key(
     character: char,
     key_track: &KeyTrack,
-    response_window: &mut PromptLogWindow,
+    response_window: &mut ResponseWindow,
     command_line: &mut TextArea<'_>,
 ) -> WindowEvent {
     match character {
@@ -60,23 +63,21 @@ fn handle_char_key(
                 yank_highlighted_text(response_window);
             }
             WindowEvent::ResponseWindow
-        },
+        }
         ':' => {
             // Switch to command line mode on ":" key press
             command_line.insert_str(":");
             WindowEvent::CommandLine
-        },
+        }
         _ => WindowEvent::ResponseWindow,
     }
 }
 
-fn yank_highlighted_text(response_window: &mut PromptLogWindow) {
+fn yank_highlighted_text(response_window: &mut ResponseWindow) {
     let text = response_window.text_buffer().highlighted_text();
     let mut clipboard = ClipboardProvider::new();
 
-    if let Err(e) = clipboard.write_line(text, false)
-    {
+    if let Err(e) = clipboard.write_line(text, false) {
         eprintln!("Clipboard error: {}", e);
     }
-
 }

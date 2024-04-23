@@ -7,14 +7,16 @@ use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
 use super::{
-    transition_command_line, CommandLine, PromptAction, PromptLogWindow,
+    transition_command_line, CommandLine, PromptAction, ResponseWindow,
     TextAreaHandler, WindowEvent,
 };
+use crate::apps::builtin::llm::agent::cli::tui::ChatSession;
 
 pub async fn handle_command_line_event(
     key_track: &KeyTrack,
     command_line_handler: &mut CommandLine,
-    response_window: &mut PromptLogWindow<'_>,
+    response_window: &mut ResponseWindow<'_>,
+    chat_session: &mut ChatSession,
     editor_window: &mut TextAreaHandler,
     command_line: &mut TextArea<'_>,
     tx: mpsc::Sender<Bytes>,
@@ -34,7 +36,6 @@ pub async fn handle_command_line_event(
         WindowEvent::PromptWindow => WindowEvent::PromptWindow,
         WindowEvent::ResponseWindow => WindowEvent::ResponseWindow,
         WindowEvent::Prompt(prompt_action) => {
-            let chat_session = response_window.chat_session();
             match prompt_action {
                 PromptAction::Write(prompt) => {
                     // Initiate streaming if not already active

@@ -1,11 +1,9 @@
-use std::error::Error;
-
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
-use super::{ChatSession, MoveCursor, TextBuffer};
+use super::{MoveCursor, TextBuffer, WindowKind, WindowStyle, WindowType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {
@@ -51,36 +49,23 @@ impl PromptRect {
     }
 }
 
-pub struct PromptLogWindow<'a> {
-    chat_session: ChatSession,
+pub struct TextWindow<'a> {
     text_buffer: TextBuffer<'a>,
     area: PromptRect,
     is_active: bool,
     vertical_scroll_state: ScrollbarState,
+    window_type: WindowType,
 }
 
-impl PromptLogWindow<'_> {
-    pub fn new() -> Self {
+impl TextWindow<'_> {
+    pub fn new(window_type: WindowType) -> Self {
         Self {
-            chat_session: ChatSession::new(),
             text_buffer: TextBuffer::new(),
             area: PromptRect::default(),
             is_active: false,
             vertical_scroll_state: ScrollbarState::default(),
+            window_type,
         }
-    }
-
-    pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
-        self.chat_session.init().await?;
-        Ok(())
-    }
-
-    pub fn set_active(&mut self, active: bool) {
-        self.is_active = active;
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.is_active
     }
 
     pub fn scroll_up(&mut self) {
@@ -99,10 +84,6 @@ impl PromptLogWindow<'_> {
         self.text_buffer.move_cursor(direction, &self.area);
         // Update display or scroll state as needed here.
         self.update_display();
-    }
-
-    pub fn chat_session(&mut self) -> &mut ChatSession {
-        &mut self.chat_session
     }
 
     pub fn text_buffer(&mut self) -> &TextBuffer {
@@ -134,8 +115,9 @@ impl PromptLogWindow<'_> {
         Paragraph::new(Text::from(self.text_buffer.display_text()))
             .block(
                 Block::default()
-                    .title(format!("active = {}", self.is_active))
-                    .borders(Borders::ALL),
+                    .title(format!("{}", self.window_type.description()))
+                    .borders(Borders::ALL)
+                    .border_style(self.window_type.style().border_style()),
             )
             .style(Style::default().fg(Color::White).bg(Color::Black))
             .alignment(Alignment::Left)
@@ -159,13 +141,82 @@ impl PromptLogWindow<'_> {
         self.update_display();
     }
 
-    pub fn buffer_incoming_flush(&mut self) {
-        let answer = self.text_buffer.buffer_incoming().trim().to_string();
+    pub fn buffer_incoming_flush(&mut self) -> String {
+        let text = self.text_buffer.buffer_incoming().trim().to_string();
 
         self.text_buffer.flush_incoming_buffer();
+        text
+    }
+}
 
-        log::debug!("Buffer flushed: {}", answer);
-        self.chat_session().update_last_exchange(answer);
-        self.update_display();
+impl ResponseWindow<'_> {
+    pub fn text_buffer(&mut self) -> &TextBuffer {
+        self.base.text_buffer()
+    }
+    pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
+        self.get_base().vertical_scroll_state()
+    }
+    pub fn widget(&mut self, area: &Rect) -> Paragraph {
+        self.get_base().widget(area)
+    }
+}
+
+pub trait TextWindowExt<'a> {
+    fn get_base(&mut self) -> &mut TextWindow<'a>;
+
+    fn scroll_up(&mut self) {
+        self.get_base().scroll_up();
+    }
+
+    fn scroll_down(&mut self) {
+        self.get_base().scroll_down();
+    }
+
+    fn move_cursor(&mut self, direction: MoveCursor) {
+        self.get_base().move_cursor(direction);
+    }
+
+    fn buffer_incoming_append(&mut self, text: &str) {
+        self.get_base().buffer_incoming_append(text);
+    }
+
+    fn buffer_incoming_flush(&mut self) -> String {
+        self.get_base().buffer_incoming_flush()
+    }
+}
+
+pub struct ResponseWindow<'a> {
+    base: TextWindow<'a>,
+    is_active: bool,
+}
+
+impl ResponseWindow<'_> {
+    pub fn new() -> Self {
+        let window_type =
+            WindowType::new(WindowKind::ResponseWindow, WindowStyle::InActive);
+        Self {
+            base: TextWindow::new(window_type),
+            is_active: false,
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        // change style based on active state
+        if active {
+            self.base.window_type.set_style(WindowStyle::Normal);
+        } else {
+            self.base.window_type.set_style(WindowStyle::InActive);
+        }
+        self.is_active = active;
+    }
+}
+
+impl<'a> TextWindowExt<'a> for ResponseWindow<'a> {
+    fn get_base(&mut self) -> &mut TextWindow<'a> {
+        &mut self.base
     }
 }

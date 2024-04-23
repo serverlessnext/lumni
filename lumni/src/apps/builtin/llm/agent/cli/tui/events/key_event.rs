@@ -9,7 +9,9 @@ use tui_textarea::TextArea;
 use super::command_line::handle_command_line_event;
 use super::prompt_window::handle_prompt_window_event;
 use super::response_window::handle_response_window_event;
-use super::{CommandLine, PromptLogWindow, TextAreaHandler, WindowEvent};
+use super::{
+    ChatSession, CommandLine, ResponseWindow, TextAreaHandler, WindowEvent,
+};
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -96,7 +98,8 @@ impl KeyEventHandler {
         editor_window: &mut TextAreaHandler,
         is_running: Arc<AtomicBool>,
         tx: mpsc::Sender<Bytes>,
-        response_window: &mut PromptLogWindow<'_>,
+        response_window: &mut ResponseWindow<'_>,
+        chat_session: &mut ChatSession,
     ) -> WindowEvent {
         self.key_track.update_key(key_event);
 
@@ -106,6 +109,7 @@ impl KeyEventHandler {
                     &self.key_track,
                     command_line_handler,
                     response_window,
+                    chat_session,
                     editor_window,
                     command_line,
                     tx,
@@ -122,7 +126,7 @@ impl KeyEventHandler {
             WindowEvent::PromptWindow => {
                 handle_prompt_window_event(
                     &self.key_track,
-                    response_window,
+                    chat_session,
                     editor_window,
                     command_line,
                     tx,

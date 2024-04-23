@@ -6,12 +6,12 @@ use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 use tui_textarea::TextArea;
 
-use super::{LayoutMode, PromptLogWindow, TextAreaHandler};
+use super::{LayoutMode, ResponseWindow, TextAreaHandler, TextWindowExt};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
     editor_window: &mut TextAreaHandler,
-    response_window: &mut PromptLogWindow,
+    response_window: &mut ResponseWindow,
     command_line: &TextArea,
 ) -> Result<(), io::Error> {
     terminal.draw(|f| {

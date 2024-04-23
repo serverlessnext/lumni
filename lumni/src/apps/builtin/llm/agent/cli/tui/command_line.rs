@@ -1,6 +1,6 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptAction, PromptLogWindow, WindowEvent};
+use super::{PromptAction, ResponseWindow, TextWindowExt, WindowEvent};
 
 pub struct CommandLine {}
 
@@ -41,7 +41,7 @@ pub async fn transition_command_line(
     cl: &mut CommandLine,
     command_line: &mut TextArea<'_>,
     editor_window: &mut TextArea<'_>,
-    response_window: &mut PromptLogWindow<'_>,
+    response_window: &mut ResponseWindow<'_>,
     input: Input,
 ) -> WindowEvent {
     match input {

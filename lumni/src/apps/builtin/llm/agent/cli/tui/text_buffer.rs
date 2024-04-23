@@ -94,7 +94,7 @@ impl TextBuffer<'_> {
             }
 
             // Re-update the display text to reflect the scroll change if necessary
-            if (prev_col != self.cursor.col || prev_row != self.cursor.row) {
+            if prev_col != self.cursor.col || prev_row != self.cursor.row {
                 self.update_display_text(area); // Re-highlight cursor on new position
             }
         }
@@ -203,7 +203,6 @@ impl TextBuffer<'_> {
             } else {
                 self.vertical_scroll = end_scroll;
             }
-            //self.update_scroll_state();
             true
         } else {
             false

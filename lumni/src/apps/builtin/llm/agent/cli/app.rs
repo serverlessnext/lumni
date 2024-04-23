@@ -21,10 +21,10 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, timeout, Duration};
 use tui_textarea::TextArea;
 
-use super::prompt::{process_prompt, process_prompt_response};
+use super::prompt::{process_prompt, process_prompt_response, ChatSession};
 use super::tui::{
-    draw_ui, CommandLine, EditorMode, KeyEventHandler, PromptLogWindow,
-    TextAreaHandler, WindowEvent,
+    draw_ui, CommandLine, KeyEventHandler, ResponseWindow, TextAreaHandler,
+    TextWindowExt, WindowEvent, WindowStyle,
 };
 
 async fn prompt_app<B: Backend>(
@@ -32,8 +32,9 @@ async fn prompt_app<B: Backend>(
 ) -> Result<(), Box<dyn Error>> {
     let mut editor_window = TextAreaHandler::new();
 
-    let mut response_window = PromptLogWindow::new();
-    response_window.init().await?;
+    let mut chat_session = ChatSession::new();
+    chat_session.init().await?;
+    let mut response_window = ResponseWindow::new();
 
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
@@ -67,7 +68,7 @@ async fn prompt_app<B: Backend>(
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
                                     WindowEvent::PromptWindow => {
-                                        if editor_window.mode() == EditorMode::Insert {
+                                        if editor_window.mode() == WindowStyle::Insert {
                                             // tab is locked to prompt window when in insert mode
                                             WindowEvent::PromptWindow
                                         } else {
@@ -95,6 +96,7 @@ async fn prompt_app<B: Backend>(
                                 is_running.clone(),
                                 tx.clone(),
                                 &mut response_window,
+                                &mut chat_session,
                             ).await;
                             if current_mode == WindowEvent::Quit {
                                 break;
@@ -146,7 +148,8 @@ async fn prompt_app<B: Backend>(
                 // after response is complete, flush buffer to make
                 // the response permanent
                 if final_response {
-                    response_window.buffer_incoming_flush();
+                    let answer = response_window.buffer_incoming_flush();
+                    chat_session.update_last_exchange(answer);
                 }
                 redraw_ui = true;
             },

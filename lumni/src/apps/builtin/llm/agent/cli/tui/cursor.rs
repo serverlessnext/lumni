@@ -18,6 +18,7 @@ pub struct Cursor {
     fixed_row: u16, // fixed row for anchor
     show_cursor: bool,  // show current cursor position
     is_highlighting_enabled: bool,
+    desired_col: u16, // Desired column position, independent of actual line length
 }
 
 impl Cursor {
@@ -29,6 +30,7 @@ impl Cursor {
             fixed_row: row,
             show_cursor: true,
             is_highlighting_enabled: false,
+            desired_col: col, // Initially, desired column is same as starting column
         }
     }
 
@@ -59,14 +61,40 @@ impl Cursor {
         max_row: u16,
     ) {
         match direction {
-            MoveCursor::Right => if self.col < max_col { self.col += 1; },
-            MoveCursor::Left => if self.col > 0 { self.col -= 1; },
-            MoveCursor::Up => if self.row > 0 { self.row -= 1; },
-            MoveCursor::Down => if self.row < max_row { self.row += 1; },
-            MoveCursor::BeginLine => self.col = 0,
-            MoveCursor::EndLine => self.col = max_col,
-            MoveCursor::TopOfFile => { self.row = 0; self.col = 0 },
-            MoveCursor::EndOfFile => { self.row = max_row; self.col = 0 },
+            MoveCursor::Right => {
+                if self.col < max_col { 
+                    self.col += 1;
+                }
+                self.desired_col = self.col;
+            },
+            MoveCursor::Left => {
+                if self.col > 0 {
+                    self.col -= 1; 
+                }
+                self.desired_col = self.col;
+            },
+            MoveCursor::Up => {
+                if self.row > 0 {
+                    self.row -= 1;
+                    self.col = std::cmp::min(self.desired_col, max_col);
+                }
+            },
+            MoveCursor::Down => {
+                if self.row < max_row {
+                    self.row += 1;
+                    self.col = std::cmp::min(self.desired_col, max_col);
+                }
+            },
+            MoveCursor::BeginLine => {
+                self.col = 0;
+                self.desired_col = self.col;
+            },
+            MoveCursor::EndLine => {
+                self.col = max_col;
+                self.desired_col = self.col;
+            },
+            MoveCursor::TopOfFile => { self.row = 0; self.col = 0; self.desired_col = self.col},
+            MoveCursor::EndOfFile => { self.row = max_row; self.col = 0; self.desired_col = self.col},
         }
     }
 

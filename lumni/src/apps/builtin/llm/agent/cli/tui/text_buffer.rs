@@ -72,10 +72,17 @@ impl TextBuffer<'_> {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
+        let max_row = self.get_max_row();
+        let next_row = match direction {
+            MoveCursor::Up => self.cursor.row.saturating_sub(1),
+            MoveCursor::Down => std::cmp::min(self.cursor.row + 1, max_row),
+            _ => self.cursor.row,  // No change for left/right movements
+        };
+
         self.cursor.move_cursor(
             direction.clone(),
-            self.get_max_col(),
-            self.get_max_row(),
+            self.get_max_col(next_row as usize),
+            max_row,
         );
 
         if self.cursor.show_cursor() {
@@ -119,9 +126,9 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
-    fn get_max_col(&self) -> u16 {
+    fn get_max_col(&self, row: usize) -> u16 {
         // Get the current row where the cursor is located.
-        if let Some(line) = self.display_text.get(self.cursor.row as usize) {
+        if let Some(line) = self.display_text.get(row) {
             // Return the length of the line, considering all spans.
             line.spans
                 .iter()

@@ -1,6 +1,6 @@
+use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::layout::Rect;
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::response_window::PromptRect;

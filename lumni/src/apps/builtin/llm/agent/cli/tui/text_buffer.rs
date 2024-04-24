@@ -71,7 +71,17 @@ impl TextBuffer<'_> {
         self.vertical_scroll
     }
 
-    pub fn set_vertical_scroll(&mut self, scroll: usize) {
+    pub fn set_vertical_scroll(&mut self) {
+
+        //self.text_buffer.update_display_text();
+        let length = self.content_length();
+        let height = self.area.height() as usize;
+        let scroll = if length > height {
+            length - height
+        } else {
+            0
+        };
+
         self.vertical_scroll = scroll;
     }
 

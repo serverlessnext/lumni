@@ -73,8 +73,6 @@ impl<'a>TextWindow<'a> {
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
         self.text_buffer.move_cursor(direction);
-        // Update display or scroll state as needed here.
-        self.update_display();
     }
 
     pub fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
@@ -99,21 +97,14 @@ impl<'a>TextWindow<'a> {
             .scroll((self.text_buffer.vertical_scroll() as u16, 0))
     }
 
-    pub fn update_display(&mut self) {
-        self.text_buffer.update_display_text();
-        let length = self.text_buffer.content_length();
-        let height = self.text_buffer.area().height as usize;
-        self.text_buffer.set_vertical_scroll(if length > height {
-            length - height
-        } else {
-            0
-        });
-        self.text_buffer.update_scroll_state();
-    }
-
     pub fn buffer_incoming_append(&mut self, text: &str) {
         self.text_buffer.push_incoming_text(text);
-        self.update_display();
+        // TODO: while this seems to work, this appears to be somewhat 
+        // inconsistent with how we update in text_buffer 
+        // must be checked more thoroughly and refactored properly
+        self.text_buffer.update_display_text();
+        self.text_buffer.set_vertical_scroll();
+        self.text_buffer.update_scroll_state();
     }
 
     pub fn buffer_incoming_flush(&mut self) -> String {

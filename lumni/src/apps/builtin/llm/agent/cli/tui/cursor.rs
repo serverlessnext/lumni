@@ -12,6 +12,7 @@ pub struct Cursor {
     pub row: u16,
     pub fixed_col: u16, // fixed column for anchor
     pub fixed_row: u16, // fixed row for anchor
+    pub is_highlighting_enabled: bool,
 }
 
 impl Cursor {
@@ -21,7 +22,12 @@ impl Cursor {
             row,
             fixed_col: col,
             fixed_row: row,
+            is_highlighting_enabled: true,
         }
+    }
+
+    pub fn toggle_highlighting(&mut self) {
+        self.is_highlighting_enabled = !self.is_highlighting_enabled;
     }
 
     pub fn move_cursor(
@@ -57,5 +63,48 @@ impl Cursor {
     pub fn set_fixed_position(&mut self) {
         self.fixed_col = self.col;
         self.fixed_row = self.row;
+    }
+
+    pub fn get_highlight_bounds(&self) -> (usize, usize, usize, usize) {
+        // Determine the correct order for start and end positions
+        if self.row < self.fixed_row
+            || (self.row == self.fixed_row && self.col < self.fixed_col)
+        {
+            (
+                self.row as usize,
+                self.col as usize,
+                self.fixed_row as usize,
+                self.fixed_col as usize,
+            )
+        } else {
+            (
+                self.fixed_row as usize,
+                self.fixed_col as usize,
+                self.row as usize,
+                self.col as usize,
+            )
+        }
+    }
+
+    pub fn should_highlight(
+        &self,
+        current_row: usize,
+        j: usize,
+        start_row: usize,
+        start_col: usize,
+        end_row: usize,
+        end_col: usize,
+    ) -> bool {
+        (current_row > start_row && current_row < end_row)
+            || (current_row == start_row
+                && current_row == end_row
+                && j >= start_col
+                && j <= end_col)
+            || (current_row == start_row
+                && j >= start_col
+                && current_row < end_row)
+            || (current_row == end_row
+                && j <= end_col
+                && current_row > start_row)
     }
 }

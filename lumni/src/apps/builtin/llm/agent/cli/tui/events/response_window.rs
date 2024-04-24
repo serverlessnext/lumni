@@ -64,6 +64,11 @@ fn handle_char_key(
             }
             WindowEvent::ResponseWindow
         }
+        'v' => {
+            // enable visual mode
+            response_window.toggle_highlighting();
+            WindowEvent::ResponseWindow
+        }
         ':' => {
             // Switch to command line mode on ":" key press
             command_line.insert_str(":");

@@ -3,7 +3,6 @@ use std::fmt;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowKind {
     ResponseWindow,
@@ -20,11 +19,13 @@ impl WindowType {
     pub fn new(kind: WindowKind, style: WindowStyle) -> Self {
         WindowType { kind, style }
     }
-    
+
     // Function to provide a specific description for each window type
     pub fn description(&self) -> &str {
         match self.kind {
-            WindowKind::ResponseWindow => "Response: View results and feedback here",
+            WindowKind::ResponseWindow => {
+                "Response: View results and feedback here"
+            }
             WindowKind::PromptWindow => "Prompt: Enter your data",
             WindowKind::CommandLine => "",
         }
@@ -47,7 +48,6 @@ impl WindowType {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowStyle {
     Normal,
@@ -66,10 +66,21 @@ impl WindowStyle {
 
     pub fn border_title(&self, window_type: WindowType) -> String {
         let base_title = match self {
-            WindowStyle::Normal => format!("{} - type :q to quit, type i to enter insert mode", window_type.description()),
-            WindowStyle::Insert => format!("Insert Mode - type Esc to back to normal mode"),
-            WindowStyle::Visual => format!("Visual Mode - type y to yank, type c to cut, type Esc to back to normal mode"),
-            WindowStyle::InActive => format!("{} - type :q to quit, type i to enter insert mode", window_type.description()),
+            WindowStyle::Normal => format!(
+                "{} - type :q to quit, type i to enter insert mode",
+                window_type.description()
+            ),
+            WindowStyle::Insert => {
+                format!("Insert Mode - type Esc to back to normal mode")
+            }
+            WindowStyle::Visual => format!(
+                "Visual Mode - type y to yank, type c to cut, type Esc to \
+                 back to normal mode"
+            ),
+            WindowStyle::InActive => format!(
+                "{} - type :q to quit, type i to enter insert mode",
+                window_type.description()
+            ),
         };
 
         base_title

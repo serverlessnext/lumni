@@ -51,8 +51,6 @@ impl PromptRect {
 
 pub struct TextWindow<'a> {
     text_buffer: TextBuffer<'a>,
-    area: PromptRect,
-    is_active: bool,
     vertical_scroll_state: ScrollbarState,
     window_type: WindowType,
 }
@@ -61,8 +59,6 @@ impl TextWindow<'_> {
     pub fn new(window_type: WindowType) -> Self {
         Self {
             text_buffer: TextBuffer::new(),
-            area: PromptRect::default(),
-            is_active: false,
             vertical_scroll_state: ScrollbarState::default(),
             window_type,
         }
@@ -75,13 +71,13 @@ impl TextWindow<'_> {
     }
 
     pub fn scroll_down(&mut self) {
-        if self.text_buffer.scroll_down(&self.area) {
+        if self.text_buffer.scroll_down() {
             self.update_scroll_state();
         }
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
-        self.text_buffer.move_cursor(direction, &self.area);
+        self.text_buffer.move_cursor(direction);
         // Update display or scroll state as needed here.
         self.update_display();
     }
@@ -98,18 +94,18 @@ impl TextWindow<'_> {
         let display_length = self
             .text_buffer
             .content_length()
-            .saturating_sub(self.area.height as usize);
+            .saturating_sub(self.text_buffer.area().height as usize);
         self.vertical_scroll_state = self
             .vertical_scroll_state
             .content_length(display_length)
-            .viewport_content_length(self.area.height.into())
+            .viewport_content_length(self.text_buffer.area().height.into())
             .position(self.text_buffer.vertical_scroll());
     }
 
     pub fn widget(&mut self, area: &Rect) -> Paragraph {
-        if self.area.update(area) == true {
+        if self.text_buffer.update_area(area) == true {
             // re-fit text to updated display
-            self.text_buffer.update_display_text(&self.area);
+            self.text_buffer.update_display_text();
         }
 
         Paragraph::new(Text::from(self.text_buffer.display_text()))
@@ -125,9 +121,9 @@ impl TextWindow<'_> {
     }
 
     pub fn update_display(&mut self) {
-        self.text_buffer.update_display_text(&self.area);
+        self.text_buffer.update_display_text();
         let length = self.text_buffer.content_length();
-        let height = self.area.height as usize;
+        let height = self.text_buffer.area().height as usize;
         self.text_buffer.set_vertical_scroll(if length > height {
             length - height
         } else {
@@ -182,6 +178,10 @@ pub trait TextWindowExt<'a> {
 
     fn buffer_incoming_flush(&mut self) -> String {
         self.get_base().buffer_incoming_flush()
+    }
+
+    fn toggle_highlighting(&mut self) {
+        self.get_base().text_buffer.toggle_highlighting();
     }
 }
 

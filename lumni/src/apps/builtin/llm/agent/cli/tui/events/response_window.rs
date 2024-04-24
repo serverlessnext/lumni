@@ -6,7 +6,8 @@ use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
 use super::{
-    ClipboardProvider, MoveCursor, ResponseWindow, TextWindowExt, WindowEvent,
+    ClipboardProvider, MoveCursor, ResponseWindow, 
+    TextWindowExt, WindowEvent, WindowTrait,
 };
 
 pub fn handle_response_window_event(
@@ -19,28 +20,28 @@ pub fn handle_response_window_event(
 
     match key_event.code {
         KeyCode::Char(c) => {
-            handle_char_key(c, key_track, response_window, command_line)
+            return handle_char_key(c, key_track, response_window, command_line);
+        }
+        KeyCode::Esc => {
+            response_window.set_normal_mode();
         }
         KeyCode::Right => {
             response_window.move_cursor(MoveCursor::Right);
-            WindowEvent::ResponseWindow
         }
         KeyCode::Left => {
             response_window.move_cursor(MoveCursor::Left);
-            WindowEvent::ResponseWindow
         }
         KeyCode::Up => {
             response_window.move_cursor(MoveCursor::Up);
-            WindowEvent::ResponseWindow
         }
         KeyCode::Down => {
             response_window.move_cursor(MoveCursor::Down);
-            WindowEvent::ResponseWindow
         }
 
         // Default to stay in the same mode if no relevant key is pressed
-        _ => WindowEvent::ResponseWindow,
+        _ => {}
     }
+    WindowEvent::ResponseWindow
 }
 
 fn handle_char_key(
@@ -50,10 +51,11 @@ fn handle_char_key(
     command_line: &mut TextArea<'_>,
 ) -> WindowEvent {
     match character {
+        '0' => { response_window.move_cursor(MoveCursor::BeginLine); }
+        '$' => { response_window.move_cursor(MoveCursor::EndLine); }
         'y' => {
             // Check if the last command was also 'y'
             if let Some(prev) = key_track.previous_char() {
-                eprintln!("Previous char: {}", prev);
                 if prev == "y" {
                     // TODO: Implement yank_line
                 } else {
@@ -62,20 +64,25 @@ fn handle_char_key(
             } else {
                 yank_highlighted_text(response_window);
             }
-            WindowEvent::ResponseWindow
         }
-        'v' => {
-            // enable visual mode
-            response_window.toggle_highlighting();
-            WindowEvent::ResponseWindow
+        'g' => {
+            // Check if the last command was also 'g'
+            if let Some(prev) = key_track.previous_char() {
+                if prev == "g" {
+                    response_window.move_cursor(MoveCursor::TopOfFile);
+                }
+            }
         }
+        'G' => { response_window.move_cursor(MoveCursor::EndOfFile); }
+        'v' => { response_window.toggle_highlighting(); }  // enable visual mode
         ':' => {
             // Switch to command line mode on ":" key press
             command_line.insert_str(":");
-            WindowEvent::CommandLine
+            return WindowEvent::CommandLine;
         }
-        _ => WindowEvent::ResponseWindow,
+        _ => {} 
     }
+    WindowEvent::ResponseWindow
 }
 
 fn yank_highlighted_text(response_window: &mut ResponseWindow) {

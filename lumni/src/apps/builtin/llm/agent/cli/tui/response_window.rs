@@ -49,6 +49,7 @@ impl PromptRect {
     }
 }
 
+
 pub struct TextWindow<'a> {
     text_buffer: TextBuffer<'a>,
     vertical_scroll_state: ScrollbarState,
@@ -145,16 +146,11 @@ impl TextWindow<'_> {
     }
 }
 
-impl ResponseWindow<'_> {
-    pub fn text_buffer(&mut self) -> &TextBuffer {
-        self.base.text_buffer()
-    }
-    pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
-        self.get_base().vertical_scroll_state()
-    }
-    pub fn widget(&mut self, area: &Rect) -> Paragraph {
-        self.get_base().widget(area)
-    }
+pub trait WindowTrait {
+    fn text_buffer(&mut self) -> &TextBuffer;
+    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState;
+    fn widget(&mut self, area: &Rect) -> Paragraph;
+    fn set_normal_mode(&mut self);
 }
 
 pub trait TextWindowExt<'a> {
@@ -183,11 +179,33 @@ pub trait TextWindowExt<'a> {
     fn toggle_highlighting(&mut self) {
         self.get_base().text_buffer.toggle_highlighting();
     }
+
+    fn set_highlighting(&mut self, enable: bool) {
+        self.get_base().text_buffer.set_highlighting(enable);
+    }
 }
 
 pub struct ResponseWindow<'a> {
     base: TextWindow<'a>,
     is_active: bool,
+}
+
+impl WindowTrait for ResponseWindow<'_> {
+    fn text_buffer(&mut self) -> &TextBuffer {
+        self.base.text_buffer()
+    }
+
+    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
+        self.get_base().vertical_scroll_state()
+    }
+
+    fn widget(&mut self, area: &Rect) -> Paragraph {
+        self.get_base().widget(area)
+    }
+
+    fn set_normal_mode(&mut self) {
+        self.set_highlighting(false);
+    }
 }
 
 impl ResponseWindow<'_> {

@@ -13,7 +13,7 @@ pub use cursor::{Cursor, MoveCursor};
 pub use draw::draw_ui;
 pub use editor_window::{LayoutMode, TextAreaHandler};
 pub use events::{KeyEventHandler, PromptAction, WindowEvent};
-pub use response_window::{ResponseWindow, TextWindowExt};
+pub use response_window::{ResponseWindow, TextWindowExt, WindowTrait};
 pub use text_buffer::TextBuffer;
 pub use windows::{WindowKind, WindowStyle, WindowType};
 

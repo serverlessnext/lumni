@@ -14,7 +14,6 @@ pub struct TextBuffer<'a> {
     display_text: Vec<Line<'a>>,
     highlighted_text: String,
     cursor: Cursor,
-    is_cursor_enabled: bool,
     vertical_scroll: usize,
 }
 
@@ -27,7 +26,6 @@ impl TextBuffer<'_> {
             display_text: Vec::new(),
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
-            is_cursor_enabled: true,
             vertical_scroll: 0,
         }
     }
@@ -80,7 +78,7 @@ impl TextBuffer<'_> {
             self.get_max_row(),
         );
 
-        if self.is_cursor_enabled {
+        if self.cursor.show_cursor() {
             match direction {
                 MoveCursor::Up => {
                     if self.cursor.row < self.vertical_scroll as u16 {
@@ -116,6 +114,11 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
+    pub fn set_highlighting(&mut self, enable: bool) {
+        self.cursor.set_highlighting(enable);
+        self.update_display_text();
+    }
+
     fn get_max_col(&self) -> u16 {
         // Get the current row where the cursor is located.
         if let Some(line) = self.display_text.get(self.cursor.row as usize) {
@@ -123,7 +126,8 @@ impl TextBuffer<'_> {
             line.spans
                 .iter()
                 .map(|span| span.content.len() as u16) // Calculate the length of each span
-                .sum() // Sum up the lengths of all spans
+                .sum::<u16>()   // Sum up the lengths of all spans
+                .saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
         } else {
             0 // If for some reason the line doesn't exist, return 0
         }
@@ -145,58 +149,39 @@ impl TextBuffer<'_> {
         self.highlighted_text.clear(); // Clear existing highlighted text
         let mut current_row = 0;
 
-        // Only apply highlighting logic if highlighting is enabled
-        if self.cursor.is_highlighting_enabled {
-            let (start_row, start_col, end_row, end_col) =
-                self.cursor.get_highlight_bounds();
-
-            for (_logical_row, line) in text.split('\n').enumerate() {
-                let wrapped_lines = wrap(
-                    line,
-                    Options::new(display_width)
-                        .word_splitter(WordSplitter::NoHyphenation),
-                );
-                for wrapped_line in wrapped_lines {
-                    let mut spans = Vec::new();
-                    let chars: Vec<char> = wrapped_line.chars().collect();
-
-                    for (j, ch) in chars.into_iter().enumerate() {
-                        let should_highlight = self.cursor.should_highlight(
-                            current_row,
-                            j,
-                            start_row,
-                            start_col,
-                            end_row,
-                            end_col,
-                        );
-
-                        if should_highlight {
-                            spans.push(Span::styled(
-                                ch.to_string(),
-                                Style::default().bg(Color::Blue),
-                            ));
-                            self.highlighted_text.push(ch);
-                        } else {
-                            spans.push(Span::raw(ch.to_string()));
-                        }
-                    }
-                    new_display_text.push(Line::from(spans));
-                    current_row += 1;
-                }
-            }
+        // Determine the highlight bounds if highlighting is enabled
+        let (start_row, start_col, end_row, end_col) = if self.cursor.is_highlighting_enabled() {
+            self.cursor.get_highlight_bounds()
         } else {
-            // Handle non-highlighted text generation
-            for (_logical_row, line) in text.split('\n').enumerate() {
-                let wrapped_lines = wrap(
-                    line,
-                    Options::new(display_width)
-                        .word_splitter(WordSplitter::NoHyphenation),
-                );
-                for wrapped_line in wrapped_lines {
-                    new_display_text
-                        .push(Line::from(Span::raw(wrapped_line.to_string())));
-                    current_row += 1;
+            (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
+        };
+
+        for (_logical_row, line) in text.split('\n').enumerate() {
+            let wrapped_lines = wrap(
+                line,
+                Options::new(display_width).word_splitter(WordSplitter::NoHyphenation),
+            );
+            for wrapped_line in wrapped_lines {
+                let mut spans = Vec::new();
+                let chars: Vec<char> = wrapped_line.chars().collect();
+
+                for (j, ch) in chars.into_iter().enumerate() {
+                    let should_highlight = self.cursor.should_highlight(
+                        current_row, j, start_row, start_col, end_row, end_col,
+                    ) || (self.cursor.show_cursor() && current_row == self.cursor.row as usize && j == self.cursor.col as usize);
+
+                    if should_highlight {
+                        spans.push(Span::styled(
+                            ch.to_string(),
+                            Style::default().bg(Color::Blue),
+                        ));
+                        self.highlighted_text.push(ch); // Append highlighted character to the buffer
+                    } else {
+                        spans.push(Span::raw(ch.to_string()));
+                    }
                 }
+                new_display_text.push(Line::from(spans));
+                current_row += 1;
             }
         }
         self.display_text = new_display_text;

@@ -4,15 +4,20 @@ pub enum MoveCursor {
     Left,
     Up,
     Down,
+    BeginLine,
+    EndLine,
+    TopOfFile,
+    EndOfFile,
 }
 
 #[derive(Debug, Clone)]
 pub struct Cursor {
     pub col: u16,
     pub row: u16,
-    pub fixed_col: u16, // fixed column for anchor
-    pub fixed_row: u16, // fixed row for anchor
-    pub is_highlighting_enabled: bool,
+    fixed_col: u16, // fixed column for anchor
+    fixed_row: u16, // fixed row for anchor
+    show_cursor: bool,  // show current cursor position
+    is_highlighting_enabled: bool,
 }
 
 impl Cursor {
@@ -22,12 +27,29 @@ impl Cursor {
             row,
             fixed_col: col,
             fixed_row: row,
-            is_highlighting_enabled: true,
+            show_cursor: true,
+            is_highlighting_enabled: false,
         }
     }
 
+    pub fn show_cursor(&mut self) -> bool {
+        self.show_cursor
+    }
+
+    pub fn is_highlighting_enabled(&self) -> bool {
+        self.is_highlighting_enabled
+    }
+
     pub fn toggle_highlighting(&mut self) {
+        if !self.is_highlighting_enabled {
+            // mark current position as new fixed position
+            self.set_fixed_position();
+        }
         self.is_highlighting_enabled = !self.is_highlighting_enabled;
+    }
+
+    pub fn set_highlighting(&mut self, enable: bool) {
+        self.is_highlighting_enabled = enable;
     }
 
     pub fn move_cursor(
@@ -37,26 +59,14 @@ impl Cursor {
         max_row: u16,
     ) {
         match direction {
-            MoveCursor::Right => {
-                if self.col < max_col {
-                    self.col += 1
-                }
-            }
-            MoveCursor::Left => {
-                if self.col > 0 {
-                    self.col -= 1
-                }
-            }
-            MoveCursor::Up => {
-                if self.row > 0 {
-                    self.row -= 1
-                }
-            }
-            MoveCursor::Down => {
-                if self.row < max_row {
-                    self.row += 1
-                }
-            }
+            MoveCursor::Right => if self.col < max_col { self.col += 1; },
+            MoveCursor::Left => if self.col > 0 { self.col -= 1; },
+            MoveCursor::Up => if self.row > 0 { self.row -= 1; },
+            MoveCursor::Down => if self.row < max_row { self.row += 1; },
+            MoveCursor::BeginLine => self.col = 0,
+            MoveCursor::EndLine => self.col = max_col,
+            MoveCursor::TopOfFile => { self.row = 0; self.col = 0 },
+            MoveCursor::EndOfFile => { self.row = max_row; self.col = 0 },
         }
     }
 

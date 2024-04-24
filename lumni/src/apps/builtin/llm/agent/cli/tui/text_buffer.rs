@@ -1,6 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
+use ratatui::widgets::ScrollbarState;
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::response_window::PromptRect;
@@ -15,6 +16,7 @@ pub struct TextBuffer<'a> {
     highlighted_text: String,
     cursor: Cursor,
     vertical_scroll: usize,
+    vertical_scroll_state: ScrollbarState,
 }
 
 impl TextBuffer<'_> {
@@ -27,6 +29,7 @@ impl TextBuffer<'_> {
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
             vertical_scroll: 0,
+            vertical_scroll_state: ScrollbarState::default(),
         }
     }
 
@@ -40,6 +43,10 @@ impl TextBuffer<'_> {
 
     pub fn buffer_incoming(&self) -> &str {
         &self.buffer_incoming
+    }
+
+    pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
+        &mut self.vertical_scroll_state
     }
 
     pub fn push_incoming_text(&mut self, text: &str) {
@@ -99,7 +106,7 @@ impl TextBuffer<'_> {
                     if self.cursor.row
                         >= (self.vertical_scroll + visible_rows) as u16
                     {
-                        let content_length = self.content_length();
+                        let content_length = self.display_text.len();
                         if self.vertical_scroll < content_length - visible_rows
                         {
                             self.vertical_scroll += 1; // Scroll down if not already at the bottom
@@ -112,6 +119,7 @@ impl TextBuffer<'_> {
             // Re-update the display text to reflect the scroll change if necessary
             if prev_col != self.cursor.col || prev_row != self.cursor.row {
                 self.update_display_text(); // Re-highlight cursor on new position
+                self.update_scroll_state();
             }
         }
     }
@@ -194,8 +202,8 @@ impl TextBuffer<'_> {
         self.display_text = new_display_text;
     }
 
-    pub fn scroll_down(&mut self) -> bool {
-        let content_length = self.content_length();
+    pub fn scroll_down(&mut self) {
+        let content_length = self.display_text.len();
         let area_height = self.area.height() as usize;
         let end_scroll = content_length.saturating_sub(area_height);
         if content_length > area_height {
@@ -205,20 +213,28 @@ impl TextBuffer<'_> {
             } else {
                 self.vertical_scroll = end_scroll;
             }
-            true
-        } else {
-            false
+            self.update_scroll_state();
+        } 
+    }
+
+    pub fn scroll_up(&mut self) {
+        if self.vertical_scroll != 0 {
+            self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
+            self.update_scroll_state();
         }
     }
 
-    pub fn scroll_up(&mut self) -> bool {
-        if self.vertical_scroll == 0 {
-            return false;
-        }
-        self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
-        //self.update_scroll_state();
-        true
+    pub fn update_scroll_state(&mut self) {
+        let display_length = self
+            .display_text.len()
+            .saturating_sub(self.area.height() as usize);
+        self.vertical_scroll_state = self
+            .vertical_scroll_state
+            .content_length(display_length)
+            .viewport_content_length(self.area.height().into())
+            .position(self.vertical_scroll());
     }
+
     pub fn content_length(&self) -> usize {
         self.display_text.len()
     }

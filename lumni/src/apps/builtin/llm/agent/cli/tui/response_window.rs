@@ -52,29 +52,23 @@ impl PromptRect {
 
 pub struct TextWindow<'a> {
     text_buffer: TextBuffer<'a>,
-    vertical_scroll_state: ScrollbarState,
     window_type: WindowType,
 }
 
-impl TextWindow<'_> {
+impl<'a>TextWindow<'a> {
     pub fn new(window_type: WindowType) -> Self {
         Self {
             text_buffer: TextBuffer::new(),
-            vertical_scroll_state: ScrollbarState::default(),
             window_type,
         }
     }
 
     pub fn scroll_up(&mut self) {
-        if self.text_buffer.scroll_up() {
-            self.update_scroll_state();
-        }
+        self.text_buffer.scroll_up();
     }
 
     pub fn scroll_down(&mut self) {
-        if self.text_buffer.scroll_down() {
-            self.update_scroll_state();
-        }
+        self.text_buffer.scroll_down();
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
@@ -83,24 +77,8 @@ impl TextWindow<'_> {
         self.update_display();
     }
 
-    pub fn text_buffer(&mut self) -> &TextBuffer {
-        &self.text_buffer
-    }
-
-    pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
-        &mut self.vertical_scroll_state
-    }
-
-    pub fn update_scroll_state(&mut self) {
-        let display_length = self
-            .text_buffer
-            .content_length()
-            .saturating_sub(self.text_buffer.area().height as usize);
-        self.vertical_scroll_state = self
-            .vertical_scroll_state
-            .content_length(display_length)
-            .viewport_content_length(self.text_buffer.area().height.into())
-            .position(self.text_buffer.vertical_scroll());
+    pub fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
+        &mut self.text_buffer
     }
 
     pub fn widget(&mut self, area: &Rect) -> Paragraph {
@@ -130,7 +108,7 @@ impl TextWindow<'_> {
         } else {
             0
         });
-        self.update_scroll_state();
+        self.text_buffer.update_scroll_state();
     }
 
     pub fn buffer_incoming_append(&mut self, text: &str) {
@@ -144,13 +122,6 @@ impl TextWindow<'_> {
         self.text_buffer.flush_incoming_buffer();
         text
     }
-}
-
-pub trait WindowTrait {
-    fn text_buffer(&mut self) -> &TextBuffer;
-    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState;
-    fn widget(&mut self, area: &Rect) -> Paragraph;
-    fn set_normal_mode(&mut self);
 }
 
 pub trait TextWindowExt<'a> {
@@ -185,18 +156,25 @@ pub trait TextWindowExt<'a> {
     }
 }
 
+pub trait WindowTrait<'a> {
+    fn text_buffer(&mut self) -> &mut TextBuffer<'a>;
+    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState;
+    fn widget(&mut self, area: &Rect) -> Paragraph;
+    fn set_normal_mode(&mut self);
+}
+
 pub struct ResponseWindow<'a> {
     base: TextWindow<'a>,
     is_active: bool,
 }
 
-impl WindowTrait for ResponseWindow<'_> {
-    fn text_buffer(&mut self) -> &TextBuffer {
-        self.base.text_buffer()
+impl<'a> WindowTrait<'a> for ResponseWindow<'a> {
+    fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
+        self.get_base().text_buffer()
     }
 
     fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
-        self.get_base().vertical_scroll_state()
+        self.text_buffer().vertical_scroll_state()
     }
 
     fn widget(&mut self, area: &Rect) -> Paragraph {

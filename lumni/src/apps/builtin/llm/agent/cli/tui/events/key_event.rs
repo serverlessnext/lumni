@@ -16,7 +16,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
     previous_char: Option<String>,
-    numeric_input: Option<String>,
+    numeric_input: NumericInput,
     current_key: KeyEvent,
 }
 
@@ -24,7 +24,7 @@ impl KeyTrack {
     pub fn new() -> Self {
         KeyTrack {
             previous_char: None,
-            numeric_input: None,
+            numeric_input: NumericInput::new(),
             current_key: KeyEvent::new(KeyCode::Null, KeyModifiers::NONE),
         }
     }
@@ -33,17 +33,13 @@ impl KeyTrack {
         self.previous_char.as_deref()
     }
 
-    pub fn numeric_input(&self) -> Option<&str> {
-        self.numeric_input.as_deref()
-    }
-
     pub fn current_key(&self) -> KeyEvent {
         self.current_key
     }
 
     pub fn reset(&mut self) {
         self.previous_char = None;
-        self.numeric_input = None;
+        self.numeric_input = NumericInput::new();
     }
 
     pub fn update_key(&mut self, key_event: KeyEvent) {
@@ -51,7 +47,6 @@ impl KeyTrack {
             // Only update the previous_char if the current key was a character
             self.previous_char = Some(c.to_string());
         } else {
-            // Reset previous character if the current key isn't a character
             self.previous_char = None;
         }
 
@@ -59,23 +54,67 @@ impl KeyTrack {
         self.current_key = key_event;
         if let KeyCode::Char(c) = key_event.code {
             if c.is_ascii_digit() {
-                // Track numeric input
-                if c == '0' && self.numeric_input.is_none() {
-                    // Ignore leading zeros
-                } else {
-                    // Append to or initialize numeric input
-                    if let Some(ref mut num_input) = self.numeric_input {
-                        num_input.push(c);
-                    } else {
-                        self.numeric_input = Some(c.to_string());
-                    }
-                }
+                self.numeric_input.append_digit(c);
             } else {
-                self.numeric_input = None; // Reset numeric input
+                self.numeric_input.save_numeric_input();
+                self.previous_char = Some(c.to_string());
             }
         }
     }
+
+    pub fn retrieve_and_reset_numeric_input(&mut self) -> usize {
+        self.numeric_input.retrieve_and_reset()
+    }
+
 }
+
+#[derive(Debug, Clone)]
+pub struct NumericInput {
+    buffer: Option<String>,
+    last_confirmed_input: Option<usize>,
+}
+
+impl NumericInput {
+    pub fn new() -> Self {
+        NumericInput {
+            buffer: None,
+            last_confirmed_input: None,
+        }
+    }
+
+    pub fn append_digit(&mut self, digit: char) {
+        if let Some(buffer) = &mut self.buffer {
+            buffer.push(digit);
+        } else {
+            self.buffer = Some(digit.to_string());
+        }
+    }
+
+    pub fn save_numeric_input(&mut self) {
+        if let Some(num_str) = &self.buffer {
+            if let Ok(num) = num_str.parse::<usize>() {
+                self.last_confirmed_input = Some(num);
+            }
+        }
+        self.buffer = None;  // Always clear the buffer after saving or attempting to save.
+    }
+
+    pub fn retrieve_and_reset(&mut self) -> usize {
+        let num = self.last_confirmed_input.take().unwrap_or(1);
+        self.last_confirmed_input = None;  // Reset the stored value after retrieval.
+        num
+    }
+
+    pub fn clear(&mut self) {
+        self.buffer = None;
+    }
+
+    pub fn reset(&mut self) {
+        self.last_confirmed_input = None;
+        self.clear();
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct KeyEventHandler {
@@ -118,7 +157,7 @@ impl KeyEventHandler {
                 .await
             }
             WindowEvent::ResponseWindow => handle_response_window_event(
-                &self.key_track,
+                &mut self.key_track,
                 response_window,
                 command_line,
                 is_running,

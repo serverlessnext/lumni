@@ -8,6 +8,8 @@ pub enum MoveCursor {
     EndLine,
     TopOfFile,
     EndOfFile,
+    LinesForward(u16),
+    LinesBackward(u16),
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +97,14 @@ impl Cursor {
             },
             MoveCursor::TopOfFile => { self.row = 0; self.col = 0; self.desired_col = self.col},
             MoveCursor::EndOfFile => { self.row = max_row; self.col = 0; self.desired_col = self.col},
+            MoveCursor::LinesBackward(n) => {
+                self.row = self.row.saturating_sub(n);
+                self.col = std::cmp::min(self.desired_col, max_col);
+            },
+            MoveCursor::LinesForward(n) => {
+                self.row = std::cmp::min(self.row.saturating_add(n), max_row); 
+                self.col = std::cmp::min(self.desired_col, max_col);
+            },
         }
     }
 

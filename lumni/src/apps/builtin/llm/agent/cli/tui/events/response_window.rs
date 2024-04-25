@@ -11,7 +11,7 @@ use super::{
 };
 
 pub fn handle_response_window_event(
-    key_track: &KeyTrack,
+    key_track: &mut KeyTrack,
     response_window: &mut ResponseWindow,
     command_line: &mut TextArea<'_>,
     _is_running: Arc<AtomicBool>,
@@ -46,13 +46,35 @@ pub fn handle_response_window_event(
 
 fn handle_char_key(
     character: char,
-    key_track: &KeyTrack,
+    key_track: &mut KeyTrack,
     response_window: &mut ResponseWindow,
     command_line: &mut TextArea<'_>,
 ) -> WindowEvent {
     match character {
         '0' => { response_window.move_cursor(MoveCursor::BeginLine); }
         '$' => { response_window.move_cursor(MoveCursor::EndLine); }
+        'h' => { response_window.move_cursor(MoveCursor::Left); }
+        'l' => { response_window.move_cursor(MoveCursor::Right); }
+        'g' => {
+            // Check if the last command was also 'g'
+            if let Some(prev) = key_track.previous_char() {
+                if prev == "g" {
+                    response_window.move_cursor(MoveCursor::TopOfFile);
+                }
+            }
+        }
+        'G' => { response_window.move_cursor(MoveCursor::EndOfFile); }
+        'j' => {
+            let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
+            eprintln!("move: {}", lines_to_move);
+            response_window.move_cursor(MoveCursor::LinesForward(lines_to_move));
+        }
+        'k' => {
+            let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
+            eprintln!("move: {}", lines_to_move);
+            response_window.move_cursor(MoveCursor::LinesBackward(lines_to_move));
+        }
+        'v' => { response_window.toggle_highlighting(); }  // enable visual mode
         'y' => {
             // Check if the last command was also 'y'
             if let Some(prev) = key_track.previous_char() {
@@ -65,16 +87,6 @@ fn handle_char_key(
                 yank_highlighted_text(response_window);
             }
         }
-        'g' => {
-            // Check if the last command was also 'g'
-            if let Some(prev) = key_track.previous_char() {
-                if prev == "g" {
-                    response_window.move_cursor(MoveCursor::TopOfFile);
-                }
-            }
-        }
-        'G' => { response_window.move_cursor(MoveCursor::EndOfFile); }
-        'v' => { response_window.toggle_highlighting(); }  // enable visual mode
         ':' => {
             // Switch to command line mode on ":" key press
             command_line.insert_str(":");

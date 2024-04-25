@@ -3,7 +3,8 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
-use super::{MoveCursor, TextBuffer, WindowKind, WindowStyle, WindowType};
+use super::{MoveCursor, WindowKind, WindowStyle, WindowType};
+use super::text_buffer::TextBuffer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {

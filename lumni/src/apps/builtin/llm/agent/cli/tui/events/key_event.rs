@@ -44,20 +44,19 @@ impl KeyTrack {
 
     pub fn update_key(&mut self, key_event: KeyEvent) {
         if let KeyCode::Char(c) = self.current_key.code {
-            // Only update the previous_char if the current key was a character
+            // copy previous key_event to previous_char
             self.previous_char = Some(c.to_string());
         } else {
             self.previous_char = None;
         }
 
-        // Updates the key tracking state based on the current key event
+        // /update current key with the new key_event 
         self.current_key = key_event;
         if let KeyCode::Char(c) = key_event.code {
             if c.is_ascii_digit() {
                 self.numeric_input.append_digit(c);
             } else {
                 self.numeric_input.save_numeric_input();
-                self.previous_char = Some(c.to_string());
             }
         }
     }

@@ -7,13 +7,14 @@ use textwrap::{wrap, Options, WordSplitter};
 use super::response_window::PromptRect;
 use super::{Cursor, MoveCursor};
 
+
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
     area: PromptRect,
-    buffer_incoming: String, // incoming response buffer
-    raw_text: String,
-    display_text: Vec<Line<'a>>,
-    highlighted_text: String,
+    buffer_cache: String,       // incoming text buffer (collect stream parts here)
+    buffer_processed: String,   // processed (finalized) text
+    display_text: Vec<Line<'a>>,    // generated text used for display
+    highlighted_text: String,   // highlighted text -- used for copying to clipboard
     cursor: Cursor,
     vertical_scroll: usize,
     vertical_scroll_state: ScrollbarState,
@@ -23,9 +24,9 @@ impl TextBuffer<'_> {
     pub fn new() -> Self {
         Self {
             area: PromptRect::default(),
-            buffer_incoming: String::new(),
-            raw_text: String::new(),
-            display_text: Vec::new(),
+            buffer_cache: String::new(),
+            buffer_processed: String::new(),
+            display_text: Vec::new(), 
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
             vertical_scroll: 0,
@@ -33,16 +34,12 @@ impl TextBuffer<'_> {
         }
     }
 
-    pub fn area(&self) -> &PromptRect {
-        &self.area
-    }
-
     pub fn update_area(&mut self, area: &Rect) -> bool {
         self.area.update(area)
     }
 
     pub fn buffer_incoming(&self) -> &str {
-        &self.buffer_incoming
+        &self.buffer_cache
     }
 
     pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
@@ -50,13 +47,13 @@ impl TextBuffer<'_> {
     }
 
     pub fn push_incoming_text(&mut self, text: &str) {
-        self.buffer_incoming.push_str(text);
+        self.buffer_cache.push_str(text);
     }
 
     pub fn flush_incoming_buffer(&mut self) {
         // copy buffer to text
-        self.raw_text.push_str(&self.buffer_incoming);
-        self.buffer_incoming.clear();
+        self.buffer_processed.push_str(&self.buffer_cache);
+        self.buffer_cache.clear();
     }
 
     pub fn display_text(&self) -> Vec<Line> {
@@ -64,6 +61,7 @@ impl TextBuffer<'_> {
     }
 
     pub fn highlighted_text(&self) -> &str {
+        // Return the highlighted text - e.g. for copying to clipboard
         &self.highlighted_text
     }
 
@@ -164,10 +162,10 @@ impl TextBuffer<'_> {
 
     pub fn update_display_text(&mut self) {
         let display_width = self.area.width() as usize;
-        let text = if self.buffer_incoming.is_empty() {
-            self.raw_text.clone()
+        let text = if self.buffer_cache.is_empty() {
+            self.buffer_processed.clone()
         } else {
-            format!("{}\n{}", self.raw_text, self.buffer_incoming)
+            format!("{}\n{}", self.buffer_processed, self.buffer_cache)
         };
 
         let mut new_display_text = Vec::new();
@@ -181,33 +179,57 @@ impl TextBuffer<'_> {
             (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
         };
 
+        let mut line_has_content = false;
+
         for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
                 line,
                 Options::new(display_width).word_splitter(WordSplitter::NoHyphenation),
             );
-            for wrapped_line in wrapped_lines {
-                let mut spans = Vec::new();
-                let chars: Vec<char> = wrapped_line.chars().collect();
 
-                for (j, ch) in chars.into_iter().enumerate() {
-                    let should_highlight = self.cursor.should_highlight(
-                        current_row, j, start_row, start_col, end_row, end_col,
-                    ) || (self.cursor.show_cursor() && current_row == self.cursor.row as usize && j == self.cursor.col as usize);
-
-                    if should_highlight {
-                        spans.push(Span::styled(
-                            ch.to_string(),
-                            Style::default().bg(Color::Blue),
-                        ));
-                        self.highlighted_text.push(ch); // Append highlighted character to the buffer
-                    } else {
-                        spans.push(Span::raw(ch.to_string()));
-                    }
+            if wrapped_lines.is_empty() {
+                // Handle empty lines specifically
+                if current_row == self.cursor.row as usize {
+                    let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
+                    new_display_text.push(Line::from(spans));
+                    line_has_content = true;
+                } else {
+                    new_display_text.push(Line::from(Span::raw("")));
                 }
-                new_display_text.push(Line::from(spans));
-                current_row += 1;
+            } else {
+                for wrapped_line in wrapped_lines {
+                    let mut spans = Vec::new();
+                    let chars: Vec<char> = wrapped_line.chars().collect();
+
+                    for (j, ch) in chars.into_iter().enumerate() {
+                        let should_highlight = self.cursor.should_highlight(
+                            current_row, j, start_row, start_col, end_row, end_col,
+                        ) || (self.cursor.show_cursor() && current_row == self.cursor.row as usize && j == self.cursor.col as usize);
+
+                        if should_highlight {
+                            spans.push(Span::styled(
+                                ch.to_string(),
+                                Style::default().bg(Color::Blue),
+                            ));
+                            // Append highlighted character to the buffer
+                            self.highlighted_text.push(ch); 
+                        } else {
+                            spans.push(Span::raw(ch.to_string()));
+                        }
+                    }
+                    if spans.is_empty() && current_row == self.cursor.row as usize {
+                        // Ensure cursor visibility on lines with no characters
+                        spans.push(Span::styled(" ", Style::default().bg(Color::Blue)));
+                    }
+                    new_display_text.push(Line::from(spans));
+                    current_row += 1;
+                }
             }
+        }
+        if !line_has_content && current_row == self.cursor.row as usize {
+            // This condition is specifically for the last empty line where the cursor might be
+            let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
+            new_display_text.push(Line::from(spans));
         }
         self.display_text = new_display_text;
     }

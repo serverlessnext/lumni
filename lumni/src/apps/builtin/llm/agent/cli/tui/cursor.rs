@@ -85,6 +85,10 @@ impl Cursor {
                 if self.row < max_row {
                     self.row += 1;
                     self.col = std::cmp::min(self.desired_col, max_col);
+                } else {
+                    // go to end of line
+                    self.col = max_col;
+                    self.desired_col = self.col;
                 }
             },
             MoveCursor::BeginLine => {

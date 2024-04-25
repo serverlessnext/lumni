@@ -6,7 +6,7 @@ use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 use tui_textarea::TextArea;
 
-use super::{LayoutMode, ResponseWindow, TextAreaHandler, WindowTrait};
+use super::{LayoutMode, ResponseWindow, TextAreaHandler, TextWindowTrait};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -91,7 +91,7 @@ pub fn draw_ui<B: Backend>(
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓")),
             prompt_log_area_scrollbar,
-            &mut response_window.vertical_scroll_state(),
+            &mut response_window.vertical_scroll_bar_state(),
         );
 
         f.render_widget(command_line.widget(), command_line_area);

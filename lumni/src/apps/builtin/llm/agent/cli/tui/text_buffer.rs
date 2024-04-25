@@ -16,8 +16,8 @@ pub struct TextBuffer<'a> {
     display_text: Vec<Line<'a>>,    // generated text used for display
     highlighted_text: String,   // highlighted text -- used for copying to clipboard
     cursor: Cursor,
-    vertical_scroll: usize,
-    vertical_scroll_state: ScrollbarState,
+    vertical_scroll: usize,     // vertical scroll position (line index)
+    vertical_scroll_bar_state: ScrollbarState,  // visual state of the scrollbar
 }
 
 impl TextBuffer<'_> {
@@ -30,7 +30,7 @@ impl TextBuffer<'_> {
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
             vertical_scroll: 0,
-            vertical_scroll_state: ScrollbarState::default(),
+            vertical_scroll_bar_state: ScrollbarState::default(),
         }
     }
 
@@ -42,12 +42,14 @@ impl TextBuffer<'_> {
         &self.buffer_cache
     }
 
-    pub fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
-        &mut self.vertical_scroll_state
+    pub fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState {
+        &mut self.vertical_scroll_bar_state
     }
 
     pub fn push_incoming_text(&mut self, text: &str) {
         self.buffer_cache.push_str(text);
+        self.update_display_text();
+        self.move_cursor(MoveCursor::EndOfFile);
     }
 
     pub fn flush_incoming_buffer(&mut self) {
@@ -69,18 +71,17 @@ impl TextBuffer<'_> {
         self.vertical_scroll
     }
 
-    pub fn set_vertical_scroll(&mut self) {
-
-        //self.text_buffer.update_display_text();
-        let length = self.content_length();
-        let height = self.area.height() as usize;
-        let scroll = if length > height {
-            length - height
+    fn scroll_to_cursor(&mut self) {
+        let cursor_row = self.cursor.row as usize;
+        let visible_rows = self.area.height() as usize;
+        let scroll = if cursor_row >= visible_rows {
+            cursor_row - visible_rows + 1
         } else {
             0
         };
 
         self.vertical_scroll = scroll;
+        self.update_scroll_bar();
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
@@ -101,33 +102,12 @@ impl TextBuffer<'_> {
         );
 
         if self.cursor.show_cursor() {
-            match direction {
-                MoveCursor::Up => {
-                    if self.cursor.row < self.vertical_scroll as u16 {
-                        if self.vertical_scroll > 0 {
-                            self.vertical_scroll -= 1; // Scroll up if not already at the top
-                        }
-                    }
-                }
-                MoveCursor::Down => {
-                    let visible_rows = self.area.height() as usize;
-                    if self.cursor.row
-                        >= (self.vertical_scroll + visible_rows) as u16
-                    {
-                        let content_length = self.display_text.len();
-                        if self.vertical_scroll < content_length - visible_rows
-                        {
-                            self.vertical_scroll += 1; // Scroll down if not already at the bottom
-                        }
-                    }
-                }
-                _ => {} // No scrolling necessary for left/right movement
-            }
-
             // Re-update the display text to reflect the scroll change if necessary
             if prev_col != self.cursor.col || prev_row != self.cursor.row {
                 self.update_display_text(); // Re-highlight cursor on new position
-                self.update_scroll_state();
+                if prev_row != self.cursor.row {
+                    self.scroll_to_cursor();
+                }
             }
         }
     }
@@ -245,29 +225,25 @@ impl TextBuffer<'_> {
             } else {
                 self.vertical_scroll = end_scroll;
             }
-            self.update_scroll_state();
+            self.update_scroll_bar();
         } 
     }
 
     pub fn scroll_up(&mut self) {
         if self.vertical_scroll != 0 {
             self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
-            self.update_scroll_state();
+            self.update_scroll_bar();
         }
     }
 
-    pub fn update_scroll_state(&mut self) {
+    fn update_scroll_bar(&mut self) {
         let display_length = self
             .display_text.len()
             .saturating_sub(self.area.height() as usize);
-        self.vertical_scroll_state = self
-            .vertical_scroll_state
+        self.vertical_scroll_bar_state = self
+            .vertical_scroll_bar_state
             .content_length(display_length)
             .viewport_content_length(self.area.height().into())
             .position(self.vertical_scroll());
-    }
-
-    pub fn content_length(&self) -> usize {
-        self.display_text.len()
     }
 }

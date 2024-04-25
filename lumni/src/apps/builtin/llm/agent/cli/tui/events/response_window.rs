@@ -7,7 +7,7 @@ use tui_textarea::TextArea;
 use super::key_event::KeyTrack;
 use super::{
     ClipboardProvider, MoveCursor, ResponseWindow, 
-    TextWindowExt, WindowEvent, WindowTrait,
+    TextWindowExt, WindowEvent, TextWindowTrait,
 };
 
 pub fn handle_response_window_event(
@@ -66,12 +66,10 @@ fn handle_char_key(
         'G' => { response_window.move_cursor(MoveCursor::EndOfFile); }
         'j' => {
             let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
-            eprintln!("move: {}", lines_to_move);
             response_window.move_cursor(MoveCursor::LinesForward(lines_to_move));
         }
         'k' => {
             let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
-            eprintln!("move: {}", lines_to_move);
             response_window.move_cursor(MoveCursor::LinesBackward(lines_to_move));
         }
         'v' => { response_window.toggle_highlighting(); }  // enable visual mode

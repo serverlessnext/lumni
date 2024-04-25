@@ -100,12 +100,6 @@ impl<'a>TextWindow<'a> {
 
     pub fn buffer_incoming_append(&mut self, text: &str) {
         self.text_buffer.push_incoming_text(text);
-        // TODO: while this seems to work, this appears to be somewhat 
-        // inconsistent with how we update in text_buffer 
-        // must be checked more thoroughly and refactored properly
-        self.text_buffer.update_display_text();
-        self.text_buffer.set_vertical_scroll();
-        self.text_buffer.update_scroll_state();
     }
 
     pub fn buffer_incoming_flush(&mut self) -> String {
@@ -148,9 +142,9 @@ pub trait TextWindowExt<'a> {
     }
 }
 
-pub trait WindowTrait<'a> {
+pub trait TextWindowTrait<'a> {
     fn text_buffer(&mut self) -> &mut TextBuffer<'a>;
-    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState;
+    fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState;
     fn widget(&mut self, area: &Rect) -> Paragraph;
     fn set_normal_mode(&mut self);
 }
@@ -160,13 +154,13 @@ pub struct ResponseWindow<'a> {
     is_active: bool,
 }
 
-impl<'a> WindowTrait<'a> for ResponseWindow<'a> {
+impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
     fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
         self.get_base().text_buffer()
     }
 
-    fn vertical_scroll_state(&mut self) -> &mut ScrollbarState {
-        self.text_buffer().vertical_scroll_state()
+    fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState {
+        self.text_buffer().vertical_scroll_bar_state()
     }
 
     fn widget(&mut self, area: &Rect) -> Paragraph {

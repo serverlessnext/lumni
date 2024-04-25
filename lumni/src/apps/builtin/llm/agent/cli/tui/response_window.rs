@@ -3,8 +3,8 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
-use super::{MoveCursor, WindowKind, WindowStyle, WindowType};
 use super::text_buffer::TextBuffer;
+use super::{MoveCursor, WindowKind, WindowStyle, WindowType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {
@@ -50,13 +50,12 @@ impl PromptRect {
     }
 }
 
-
 pub struct TextWindow<'a> {
     text_buffer: TextBuffer<'a>,
     window_type: WindowType,
 }
 
-impl<'a>TextWindow<'a> {
+impl<'a> TextWindow<'a> {
     pub fn new(window_type: WindowType) -> Self {
         Self {
             text_buffer: TextBuffer::new(),

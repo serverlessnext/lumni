@@ -6,8 +6,8 @@ use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
 use super::{
-    ClipboardProvider, MoveCursor, ResponseWindow, 
-    TextWindowExt, WindowEvent, TextWindowTrait,
+    ClipboardProvider, MoveCursor, ResponseWindow, TextWindowExt,
+    TextWindowTrait, WindowEvent,
 };
 
 pub fn handle_response_window_event(
@@ -20,7 +20,12 @@ pub fn handle_response_window_event(
 
     match key_event.code {
         KeyCode::Char(c) => {
-            return handle_char_key(c, key_track, response_window, command_line);
+            return handle_char_key(
+                c,
+                key_track,
+                response_window,
+                command_line,
+            );
         }
         KeyCode::Esc => {
             response_window.set_normal_mode();
@@ -51,10 +56,18 @@ fn handle_char_key(
     command_line: &mut TextArea<'_>,
 ) -> WindowEvent {
     match character {
-        '0' => { response_window.move_cursor(MoveCursor::BeginLine); }
-        '$' => { response_window.move_cursor(MoveCursor::EndLine); }
-        'h' => { response_window.move_cursor(MoveCursor::Left); }
-        'l' => { response_window.move_cursor(MoveCursor::Right); }
+        '0' => {
+            response_window.move_cursor(MoveCursor::BeginLine);
+        }
+        '$' => {
+            response_window.move_cursor(MoveCursor::EndLine);
+        }
+        'h' => {
+            response_window.move_cursor(MoveCursor::Left);
+        }
+        'l' => {
+            response_window.move_cursor(MoveCursor::Right);
+        }
         'g' => {
             // Check if the last command was also 'g'
             if let Some(prev) = key_track.previous_char() {
@@ -63,16 +76,24 @@ fn handle_char_key(
                 }
             }
         }
-        'G' => { response_window.move_cursor(MoveCursor::EndOfFile); }
+        'G' => {
+            response_window.move_cursor(MoveCursor::EndOfFile);
+        }
         'j' => {
-            let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
-            response_window.move_cursor(MoveCursor::LinesForward(lines_to_move));
+            let lines_to_move =
+                key_track.retrieve_and_reset_numeric_input() as u16;
+            response_window
+                .move_cursor(MoveCursor::LinesForward(lines_to_move));
         }
         'k' => {
-            let lines_to_move = key_track.retrieve_and_reset_numeric_input() as u16;
-            response_window.move_cursor(MoveCursor::LinesBackward(lines_to_move));
+            let lines_to_move =
+                key_track.retrieve_and_reset_numeric_input() as u16;
+            response_window
+                .move_cursor(MoveCursor::LinesBackward(lines_to_move));
         }
-        'v' => { response_window.toggle_highlighting(); }  // enable visual mode
+        'v' => {
+            response_window.toggle_highlighting();
+        } // enable visual mode
         'y' => {
             // Check if the last command was also 'y'
             if let Some(prev) = key_track.previous_char() {
@@ -90,7 +111,7 @@ fn handle_char_key(
             command_line.insert_str(":");
             return WindowEvent::CommandLine;
         }
-        _ => {} 
+        _ => {}
     }
     WindowEvent::ResponseWindow
 }

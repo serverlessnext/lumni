@@ -50,7 +50,7 @@ impl KeyTrack {
             self.previous_char = None;
         }
 
-        // /update current key with the new key_event 
+        // /update current key with the new key_event
         self.current_key = key_event;
         if let KeyCode::Char(c) = key_event.code {
             if c.is_ascii_digit() {
@@ -64,7 +64,6 @@ impl KeyTrack {
     pub fn retrieve_and_reset_numeric_input(&mut self) -> usize {
         self.numeric_input.retrieve_and_reset()
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -95,12 +94,12 @@ impl NumericInput {
                 self.last_confirmed_input = Some(num);
             }
         }
-        self.buffer = None;  // Always clear the buffer after saving or attempting to save.
+        self.buffer = None; // Always clear the buffer after saving or attempting to save.
     }
 
     pub fn retrieve_and_reset(&mut self) -> usize {
         let num = self.last_confirmed_input.take().unwrap_or(1);
-        self.last_confirmed_input = None;  // Reset the stored value after retrieval.
+        self.last_confirmed_input = None; // Reset the stored value after retrieval.
         num
     }
 
@@ -113,7 +112,6 @@ impl NumericInput {
         self.clear();
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct KeyEventHandler {

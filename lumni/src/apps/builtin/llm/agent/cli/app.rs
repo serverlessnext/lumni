@@ -161,7 +161,7 @@ pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
-            // attempt to use in non interactive mode 
+            // attempt to use in non interactive mode
             process_non_interactive_input().await
         }
     }

@@ -7,17 +7,16 @@ use textwrap::{wrap, Options, WordSplitter};
 use super::response_window::PromptRect;
 use super::{Cursor, MoveCursor};
 
-
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
     area: PromptRect,
-    buffer_cache: String,       // incoming text buffer (collect stream parts here)
-    buffer_processed: String,   // processed (finalized) text
-    display_text: Vec<Line<'a>>,    // generated text used for display
-    highlighted_text: String,   // highlighted text -- used for copying to clipboard
+    buffer_cache: String, // incoming text buffer (collect stream parts here)
+    buffer_processed: String, // processed (finalized) text
+    display_text: Vec<Line<'a>>, // generated text used for display
+    highlighted_text: String, // highlighted text -- used for copying to clipboard
     cursor: Cursor,
-    vertical_scroll: usize,     // vertical scroll position (line index)
-    vertical_scroll_bar_state: ScrollbarState,  // visual state of the scrollbar
+    vertical_scroll: usize, // vertical scroll position (line index)
+    vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
 }
 
 impl TextBuffer<'_> {
@@ -26,7 +25,7 @@ impl TextBuffer<'_> {
             area: PromptRect::default(),
             buffer_cache: String::new(),
             buffer_processed: String::new(),
-            display_text: Vec::new(), 
+            display_text: Vec::new(),
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
             vertical_scroll: 0,
@@ -49,7 +48,7 @@ impl TextBuffer<'_> {
     pub fn push_incoming_text(&mut self, text: &str) {
         self.buffer_cache.push_str(text);
         self.update_display_text();
-        self.move_cursor(MoveCursor::EndOfFile);
+        self.move_cursor(MoveCursor::EndOfFileEndOfLine);
     }
 
     pub fn flush_incoming_buffer(&mut self) {
@@ -88,17 +87,9 @@ impl TextBuffer<'_> {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
-        let max_row = self.get_max_row();
-        let next_row = match direction {
-            MoveCursor::Up => self.cursor.row.saturating_sub(1),
-            MoveCursor::Down => std::cmp::min(self.cursor.row + 1, max_row),
-            _ => self.cursor.row,  // No change for left/right movements
-        };
-
         self.cursor.move_cursor(
-            direction.clone(),
-            self.get_max_col(next_row as usize),
-            max_row,
+            direction,
+            &self.display_text, // pass display text to cursor for bounds checking
         );
 
         if self.cursor.show_cursor() {
@@ -122,24 +113,6 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
-    fn get_max_col(&self, row: usize) -> u16 {
-        // Get the current row where the cursor is located.
-        if let Some(line) = self.display_text.get(row) {
-            // Return the length of the line, considering all spans.
-            line.spans
-                .iter()
-                .map(|span| span.content.len() as u16) // Calculate the length of each span
-                .sum::<u16>()   // Sum up the lengths of all spans
-                .saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
-        } else {
-            0 // If for some reason the line doesn't exist, return 0
-        }
-    }
-
-    fn get_max_row(&self) -> u16 {
-        self.display_text.len() as u16 - 1
-    }
-
     pub fn update_display_text(&mut self) {
         let display_width = self.area.width() as usize;
         let text = if self.buffer_cache.is_empty() {
@@ -153,24 +126,29 @@ impl TextBuffer<'_> {
         let mut current_row = 0;
 
         // Determine the highlight bounds if highlighting is enabled
-        let (start_row, start_col, end_row, end_col) = if self.cursor.is_highlighting_enabled() {
-            self.cursor.get_highlight_bounds()
-        } else {
-            (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
-        };
+        let (start_row, start_col, end_row, end_col) =
+            if self.cursor.is_highlighting_enabled() {
+                self.cursor.get_highlight_bounds()
+            } else {
+                (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
+            };
 
         let mut line_has_content = false;
 
         for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
                 line,
-                Options::new(display_width).word_splitter(WordSplitter::NoHyphenation),
+                Options::new(display_width)
+                    .word_splitter(WordSplitter::NoHyphenation),
             );
 
             if wrapped_lines.is_empty() {
                 // Handle empty lines specifically
                 if current_row == self.cursor.row as usize {
-                    let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
+                    let spans = vec![Span::styled(
+                        " ",
+                        Style::default().bg(Color::Blue),
+                    )];
                     new_display_text.push(Line::from(spans));
                     line_has_content = true;
                 } else {
@@ -183,8 +161,15 @@ impl TextBuffer<'_> {
 
                     for (j, ch) in chars.into_iter().enumerate() {
                         let should_highlight = self.cursor.should_highlight(
-                            current_row, j, start_row, start_col, end_row, end_col,
-                        ) || (self.cursor.show_cursor() && current_row == self.cursor.row as usize && j == self.cursor.col as usize);
+                            current_row,
+                            j,
+                            start_row,
+                            start_col,
+                            end_row,
+                            end_col,
+                        ) || (self.cursor.show_cursor()
+                            && current_row == self.cursor.row as usize
+                            && j == self.cursor.col as usize);
 
                         if should_highlight {
                             spans.push(Span::styled(
@@ -192,14 +177,19 @@ impl TextBuffer<'_> {
                                 Style::default().bg(Color::Blue),
                             ));
                             // Append highlighted character to the buffer
-                            self.highlighted_text.push(ch); 
+                            self.highlighted_text.push(ch);
                         } else {
                             spans.push(Span::raw(ch.to_string()));
                         }
                     }
-                    if spans.is_empty() && current_row == self.cursor.row as usize {
+                    if spans.is_empty()
+                        && current_row == self.cursor.row as usize
+                    {
                         // Ensure cursor visibility on lines with no characters
-                        spans.push(Span::styled(" ", Style::default().bg(Color::Blue)));
+                        spans.push(Span::styled(
+                            " ",
+                            Style::default().bg(Color::Blue),
+                        ));
                     }
                     new_display_text.push(Line::from(spans));
                     current_row += 1;
@@ -208,7 +198,8 @@ impl TextBuffer<'_> {
         }
         if !line_has_content && current_row == self.cursor.row as usize {
             // This condition is specifically for the last empty line where the cursor might be
-            let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
+            let spans =
+                vec![Span::styled(" ", Style::default().bg(Color::Blue))];
             new_display_text.push(Line::from(spans));
         }
         self.display_text = new_display_text;
@@ -226,7 +217,7 @@ impl TextBuffer<'_> {
                 self.vertical_scroll = end_scroll;
             }
             self.update_scroll_bar();
-        } 
+        }
     }
 
     pub fn scroll_up(&mut self) {
@@ -238,7 +229,8 @@ impl TextBuffer<'_> {
 
     fn update_scroll_bar(&mut self) {
         let display_length = self
-            .display_text.len()
+            .display_text
+            .len()
             .saturating_sub(self.area.height() as usize);
         self.vertical_scroll_bar_state = self
             .vertical_scroll_bar_state

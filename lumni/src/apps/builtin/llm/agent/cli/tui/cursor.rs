@@ -1,3 +1,5 @@
+use ratatui::text::Line;
+
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
     Right,
@@ -8,6 +10,7 @@ pub enum MoveCursor {
     EndLine,
     TopOfFile,
     EndOfFile,
+    EndOfFileEndOfLine,
     LinesForward(u16),
     LinesBackward(u16),
 }
@@ -16,9 +19,9 @@ pub enum MoveCursor {
 pub struct Cursor {
     pub col: u16,
     pub row: u16,
-    fixed_col: u16, // fixed column for anchor
-    fixed_row: u16, // fixed row for anchor
-    show_cursor: bool,  // show current cursor position
+    fixed_col: u16,    // fixed column for anchor
+    fixed_row: u16,    // fixed row for anchor
+    show_cursor: bool, // show current cursor position
     is_highlighting_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
 }
@@ -59,56 +62,74 @@ impl Cursor {
     pub fn move_cursor(
         &mut self,
         direction: MoveCursor,
-        max_col: u16,
-        max_row: u16,
+        display_text: &[Line],
     ) {
+        let max_row = get_max_row(display_text);
         match direction {
             MoveCursor::Right => {
-                if self.col < max_col { 
+                let max_col = get_max_col(self.row, display_text);
+                if self.col < max_col {
                     self.col += 1;
                 }
                 self.desired_col = self.col;
-            },
+            }
             MoveCursor::Left => {
                 if self.col > 0 {
-                    self.col -= 1; 
+                    self.col -= 1;
                 }
                 self.desired_col = self.col;
-            },
+            }
             MoveCursor::Up => {
                 if self.row > 0 {
                     self.row -= 1;
+                    let max_col = get_max_col(self.row, display_text);
                     self.col = std::cmp::min(self.desired_col, max_col);
                 }
-            },
+            }
             MoveCursor::Down => {
                 if self.row < max_row {
                     self.row += 1;
+                    let max_col = get_max_col(self.row, display_text);
                     self.col = std::cmp::min(self.desired_col, max_col);
                 } else {
                     // go to end of line
-                    self.col = max_col;
+                    self.col = get_max_col(self.row, display_text);
                     self.desired_col = self.col;
                 }
-            },
+            }
             MoveCursor::BeginLine => {
                 self.col = 0;
                 self.desired_col = self.col;
-            },
+            }
             MoveCursor::EndLine => {
-                self.col = max_col;
+                self.col = get_max_col(self.row, display_text);
                 self.desired_col = self.col;
-            },
-            MoveCursor::TopOfFile => { self.row = 0; self.col = 0; self.desired_col = self.col},
-            MoveCursor::EndOfFile => { self.row = max_row; self.col = 0; self.desired_col = self.col},
+            }
+            MoveCursor::TopOfFile => {
+                self.row = 0;
+                self.col = 0;
+                self.desired_col = self.col
+            }
+            MoveCursor::EndOfFile => {
+                self.row = max_row;
+                self.col = 0;
+                self.desired_col = self.col
+            }
+            MoveCursor::EndOfFileEndOfLine => {
+                self.row = max_row;
+                self.col = get_max_col(self.row, display_text);
+                self.desired_col = self.col;
+            }
             MoveCursor::LinesBackward(n) => {
                 self.row = self.row.saturating_sub(n);
+                let max_col = get_max_col(self.row, display_text);
                 self.col = std::cmp::min(self.desired_col, max_col);
-            },
+            }
             MoveCursor::LinesForward(n) => {
-                self.row = std::cmp::min(self.row.saturating_add(n), max_row); 
+                self.row = std::cmp::min(self.row.saturating_add(n), max_row);
+                let max_col = get_max_col(self.row, display_text);
                 self.col = std::cmp::min(self.desired_col, max_col);
-            },
+            }
         }
     }
 
@@ -159,4 +180,22 @@ impl Cursor {
                 && j <= end_col
                 && current_row > start_row)
     }
+}
+
+fn get_max_col(row: u16, display_text: &[Line]) -> u16 {
+    // Get the current row where the cursor is located.
+    if let Some(line) = display_text.get(row as usize) {
+        // Return the length of the line, considering all spans.
+        line.spans
+            .iter()
+            .map(|span| span.content.len() as u16) // Calculate the length of each span
+            .sum::<u16>() // Sum up the lengths of all spans
+            .saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
+    } else {
+        0 // If for some reason the line doesn't exist, return 0
+    }
+}
+
+fn get_max_row(display_text: &[Line]) -> u16 {
+    display_text.len() as u16 - 1
 }

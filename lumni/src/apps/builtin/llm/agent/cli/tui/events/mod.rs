@@ -7,10 +7,9 @@ pub use key_event::KeyEventHandler;
 
 pub use super::clipboard::ClipboardProvider;
 pub use super::command_line::{transition_command_line, CommandLine};
-pub use super::response_window::{
-    ResponseWindow, TextWindowExt, TextWindowTrait,
-};
-pub use super::{ChatSession, MoveCursor, TextAreaHandler};
+pub use super::components::{MoveCursor, TextWindowTrait};
+pub use super::response_window::ResponseWindow;
+pub use super::{ChatSession, TextAreaHandler};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {

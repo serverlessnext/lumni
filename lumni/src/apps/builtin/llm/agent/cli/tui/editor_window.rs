@@ -3,8 +3,8 @@ use ratatui::style::Style;
 use tui_textarea::{CursorMove, Input, Key, TextArea};
 
 use super::clipboard::ClipboardProvider;
+use super::components::{WindowKind, WindowStyle, WindowType};
 use super::events::{PromptAction, WindowEvent};
-use super::windows::{WindowKind, WindowStyle, WindowType};
 
 enum TextAreaAction {
     Cut,

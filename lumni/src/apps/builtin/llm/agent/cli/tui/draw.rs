@@ -6,7 +6,9 @@ use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 use tui_textarea::TextArea;
 
-use super::{LayoutMode, ResponseWindow, TextAreaHandler, TextWindowTrait};
+use super::components::TextWindowTrait;
+use super::editor_window::LayoutMode;
+use super::{ResponseWindow, TextAreaHandler};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,

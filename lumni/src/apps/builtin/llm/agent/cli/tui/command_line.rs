@@ -1,6 +1,7 @@
 use tui_textarea::{Input, Key, TextArea};
 
-use super::{PromptAction, ResponseWindow, TextWindowExt, WindowEvent};
+use super::events::PromptAction;
+use super::{ResponseWindow, WindowEvent};
 
 pub struct CommandLine {}
 

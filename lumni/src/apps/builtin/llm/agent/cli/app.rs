@@ -24,7 +24,7 @@ use tui_textarea::TextArea;
 use super::prompt::{process_prompt, process_prompt_response, ChatSession};
 use super::tui::{
     draw_ui, CommandLine, KeyEventHandler, ResponseWindow, TextAreaHandler,
-    TextWindowExt, WindowEvent, WindowStyle,
+    TextWindowTrait, WindowEvent, WindowStyle,
 };
 
 async fn prompt_app<B: Backend>(

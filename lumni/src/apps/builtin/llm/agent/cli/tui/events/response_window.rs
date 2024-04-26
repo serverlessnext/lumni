@@ -6,8 +6,7 @@ use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
 use super::{
-    ClipboardProvider, MoveCursor, ResponseWindow, TextWindowExt,
-    TextWindowTrait, WindowEvent,
+    ClipboardProvider, MoveCursor, ResponseWindow, TextWindowTrait, WindowEvent,
 };
 
 pub fn handle_response_window_event(

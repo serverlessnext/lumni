@@ -1,18 +1,16 @@
-use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{self, ScrollbarState};
 use textwrap::{wrap, Options, WordSplitter};
 
+use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::{InsertMode, PieceTable};
-use super::{Cursor, MoveCursor, PromptRect};
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
-    text: PieceTable, // text buffer
+    text: PieceTable,            // text buffer
     display_text: Vec<Line<'a>>, // text (e.g. wrapped,  highlighted) for display
-    display_width: usize, // width of the display area
-    selected_text: String, // currently selected text
+    display_width: usize,        // width of the display area
+    selected_text: String,       // currently selected text
     cursor: Cursor,
 }
 
@@ -57,7 +55,7 @@ impl TextBuffer<'_> {
         // Return the highlighted text - e.g. for copying to clipboard
         &self.selected_text
     }
-    
+
     pub fn cursor_position(&self) -> (u16, u16) {
         (self.cursor.col, self.cursor.row)
     }

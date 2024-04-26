@@ -1,7 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::ScrollbarState;
+use ratatui::widgets::{self, ScrollbarState};
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::piece_table::{InsertMode, PieceTable};
@@ -9,34 +9,26 @@ use super::{Cursor, MoveCursor, PromptRect};
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
-    area: PromptRect,
     text: PieceTable, // text buffer
     display_text: Vec<Line<'a>>, // text (e.g. wrapped,  highlighted) for display
+    display_width: usize, // width of the display area
     selected_text: String, // currently selected text
     cursor: Cursor,
-    vertical_scroll: usize, // vertical scroll position (line index)
-    vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
 }
 
 impl TextBuffer<'_> {
     pub fn new() -> Self {
         Self {
-            area: PromptRect::default(),
             text: PieceTable::new(""),
             display_text: Vec::new(),
+            display_width: 0,
             selected_text: String::new(),
             cursor: Cursor::new(0, 0),
-            vertical_scroll: 0,
-            vertical_scroll_bar_state: ScrollbarState::default(),
         }
     }
 
-    pub fn update_area(&mut self, area: &Rect) -> bool {
-        self.area.update(area)
-    }
-
-    pub fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState {
-        &mut self.vertical_scroll_bar_state
+    pub fn set_width(&mut self, width: usize) {
+        self.display_width = width;
     }
 
     pub fn text_insert_create(&mut self, mode: InsertMode) {
@@ -57,29 +49,20 @@ impl TextBuffer<'_> {
         self.display_text.clone()
     }
 
+    pub fn display_text_len(&self) -> usize {
+        self.display_text.len()
+    }
+
     pub fn selected_text(&self) -> &str {
         // Return the highlighted text - e.g. for copying to clipboard
         &self.selected_text
     }
-
-    pub fn vertical_scroll(&self) -> usize {
-        self.vertical_scroll
+    
+    pub fn cursor_position(&self) -> (u16, u16) {
+        (self.cursor.col, self.cursor.row)
     }
 
-    fn scroll_to_cursor(&mut self) {
-        let cursor_row = self.cursor.row as usize;
-        let visible_rows = self.area.height() as usize;
-        let scroll = if cursor_row >= visible_rows {
-            cursor_row - visible_rows + 1
-        } else {
-            0
-        };
-
-        self.vertical_scroll = scroll;
-        self.update_scroll_bar();
-    }
-
-    pub fn move_cursor(&mut self, direction: MoveCursor) {
+    pub fn move_cursor(&mut self, direction: MoveCursor) -> (bool, bool) {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
@@ -88,15 +71,14 @@ impl TextBuffer<'_> {
             &self.display_text, // pass display text to cursor for bounds checking
         );
 
-        if self.cursor.show_cursor() {
-            // Re-update the display text to reflect the scroll change if necessary
-            if prev_col != self.cursor.col || prev_row != self.cursor.row {
-                self.update_display_text(); // Re-highlight cursor on new position
-                if prev_row != self.cursor.row {
-                    self.scroll_to_cursor();
-                }
-            }
+        let column_changed = prev_col != self.cursor.col;
+        let row_changed = prev_row != self.cursor.row;
+
+        if self.cursor.show_cursor() && (column_changed || row_changed) {
+            // update the display text to reflect the change
+            self.update_display_text();
         }
+        (column_changed, row_changed)
     }
 
     pub fn toggle_selection(&mut self) {
@@ -110,7 +92,6 @@ impl TextBuffer<'_> {
     }
 
     pub fn update_display_text(&mut self) {
-        let display_width = self.area.width() as usize;
         let text = self.text.content();
 
         let mut new_display_text = Vec::new();
@@ -130,7 +111,7 @@ impl TextBuffer<'_> {
         for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
                 line,
-                Options::new(display_width)
+                Options::new(self.display_width)
                     .word_splitter(WordSplitter::NoHyphenation),
             );
 
@@ -195,39 +176,5 @@ impl TextBuffer<'_> {
             new_display_text.push(Line::from(spans));
         }
         self.display_text = new_display_text;
-    }
-
-    pub fn scroll_down(&mut self) {
-        let content_length = self.display_text.len();
-        let area_height = self.area.height() as usize;
-        let end_scroll = content_length.saturating_sub(area_height);
-        if content_length > area_height {
-            // scrolling enabled when content length exceeds area height
-            if self.vertical_scroll + 10 <= end_scroll {
-                self.vertical_scroll += 10;
-            } else {
-                self.vertical_scroll = end_scroll;
-            }
-            self.update_scroll_bar();
-        }
-    }
-
-    pub fn scroll_up(&mut self) {
-        if self.vertical_scroll != 0 {
-            self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
-            self.update_scroll_bar();
-        }
-    }
-
-    fn update_scroll_bar(&mut self) {
-        let display_length = self
-            .display_text
-            .len()
-            .saturating_sub(self.area.height() as usize);
-        self.vertical_scroll_bar_state = self
-            .vertical_scroll_bar_state
-            .content_length(display_length)
-            .viewport_content_length(self.area.height().into())
-            .position(self.vertical_scroll());
     }
 }

@@ -4,14 +4,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::ScrollbarState;
 use textwrap::{wrap, Options, WordSplitter};
 
-use super::response_window::PromptRect;
-use super::{Cursor, MoveCursor};
+use super::piece_table::{InsertMode, PieceTable};
+use super::{Cursor, MoveCursor, PromptRect};
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
     area: PromptRect,
-    buffer_cache: String, // incoming text buffer (collect stream parts here)
-    buffer_processed: String, // processed (finalized) text
+    text: PieceTable, // replaced buffer_cache and buffer_processed
     display_text: Vec<Line<'a>>, // generated text used for display
     highlighted_text: String, // highlighted text -- used for copying to clipboard
     cursor: Cursor,
@@ -23,8 +22,7 @@ impl TextBuffer<'_> {
     pub fn new() -> Self {
         Self {
             area: PromptRect::default(),
-            buffer_cache: String::new(),
-            buffer_processed: String::new(),
+            text: PieceTable::new(""),
             display_text: Vec::new(),
             highlighted_text: String::new(),
             cursor: Cursor::new(0, 0),
@@ -37,24 +35,22 @@ impl TextBuffer<'_> {
         self.area.update(area)
     }
 
-    pub fn buffer_incoming(&self) -> &str {
-        &self.buffer_cache
-    }
-
     pub fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState {
         &mut self.vertical_scroll_bar_state
     }
 
-    pub fn push_incoming_text(&mut self, text: &str) {
-        self.buffer_cache.push_str(text);
+    pub fn text_insert_create(&mut self, mode: InsertMode) {
+        self.text.start_insert_cache(mode);
+    }
+
+    pub fn text_insert_add(&mut self, text: &str) {
+        self.text.cache_insert(text);
         self.update_display_text();
         self.move_cursor(MoveCursor::EndOfFileEndOfLine);
     }
 
-    pub fn flush_incoming_buffer(&mut self) {
-        // copy buffer to text
-        self.buffer_processed.push_str(&self.buffer_cache);
-        self.buffer_cache.clear();
+    pub fn text_insert_commit(&mut self) -> String {
+        self.text.commit_insert_cache()
     }
 
     pub fn display_text(&self) -> Vec<Line> {
@@ -115,11 +111,7 @@ impl TextBuffer<'_> {
 
     pub fn update_display_text(&mut self) {
         let display_width = self.area.width() as usize;
-        let text = if self.buffer_cache.is_empty() {
-            self.buffer_processed.clone()
-        } else {
-            format!("{}\n{}", self.buffer_processed, self.buffer_cache)
-        };
+        let text = self.text.content();
 
         let mut new_display_text = Vec::new();
         self.highlighted_text.clear(); // Clear existing highlighted text

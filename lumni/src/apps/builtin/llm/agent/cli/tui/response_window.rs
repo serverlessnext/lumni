@@ -3,8 +3,9 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
-use super::text_buffer::TextBuffer;
-use super::{MoveCursor, WindowKind, WindowStyle, WindowType};
+use super::{
+    InsertMode, MoveCursor, TextBuffer, WindowKind, WindowStyle, WindowType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptRect {
@@ -97,15 +98,16 @@ impl<'a> TextWindow<'a> {
             .scroll((self.text_buffer.vertical_scroll() as u16, 0))
     }
 
-    pub fn buffer_incoming_append(&mut self, text: &str) {
-        self.text_buffer.push_incoming_text(text);
+    pub fn text_insert_create(&mut self, mode: InsertMode) {
+        self.text_buffer.text_insert_create(mode);
     }
 
-    pub fn buffer_incoming_flush(&mut self) -> String {
-        let text = self.text_buffer.buffer_incoming().trim().to_string();
+    pub fn text_insert_add(&mut self, text: &str) {
+        self.text_buffer.text_insert_add(text);
+    }
 
-        self.text_buffer.flush_incoming_buffer();
-        text
+    pub fn text_insert_commit(&mut self) -> String {
+        self.text_buffer.text_insert_commit()
     }
 }
 
@@ -124,12 +126,16 @@ pub trait TextWindowExt<'a> {
         self.get_base().move_cursor(direction);
     }
 
-    fn buffer_incoming_append(&mut self, text: &str) {
-        self.get_base().buffer_incoming_append(text);
+    fn text_insert_create(&mut self, mode: InsertMode) {
+        self.get_base().text_insert_create(mode);
     }
 
-    fn buffer_incoming_flush(&mut self) -> String {
-        self.get_base().buffer_incoming_flush()
+    fn text_insert_add(&mut self, text: &str) {
+        self.get_base().text_insert_add(text);
+    }
+
+    fn text_insert_commit(&mut self) -> String {
+        self.get_base().text_insert_commit()
     }
 
     fn toggle_highlighting(&mut self) {

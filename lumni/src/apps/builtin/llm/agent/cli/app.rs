@@ -123,7 +123,7 @@ async fn prompt_app<B: Backend>(
                 let mut final_response;
                 log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_prompt_response(&response);
-                response_window.buffer_incoming_append(&response_content);
+                response_window.text_insert_add(&response_content);
                 final_response = is_final;
 
                 // Drain all available messages from the channel
@@ -131,7 +131,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(response) = rx.try_recv() {
                         log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_prompt_response(&response);
-                        response_window.buffer_incoming_append(&response_content);
+                        response_window.text_insert_add(&response_content);
 
                         if is_final {
                             final_response = true;
@@ -143,7 +143,7 @@ async fn prompt_app<B: Backend>(
                 // after response is complete, flush buffer to make
                 // the response permanent
                 if final_response {
-                    let answer = response_window.buffer_incoming_flush();
+                    let answer = response_window.text_insert_commit();
                     chat_session.update_last_exchange(answer);
                 }
                 redraw_ui = true;

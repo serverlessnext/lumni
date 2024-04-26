@@ -6,8 +6,8 @@ pub enum MoveCursor {
     Left,
     Up,
     Down,
-    BeginLine,
-    EndLine,
+    StartOfLine,
+    EndOfLine,
     TopOfFile,
     EndOfFile,
     EndOfFileEndOfLine,
@@ -22,7 +22,7 @@ pub struct Cursor {
     fixed_col: u16,    // fixed column for anchor
     fixed_row: u16,    // fixed row for anchor
     show_cursor: bool, // show current cursor position
-    is_highlighting_enabled: bool,
+    selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
 }
 
@@ -34,7 +34,7 @@ impl Cursor {
             fixed_col: col,
             fixed_row: row,
             show_cursor: true,
-            is_highlighting_enabled: false,
+            selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
         }
     }
@@ -43,20 +43,20 @@ impl Cursor {
         self.show_cursor
     }
 
-    pub fn is_highlighting_enabled(&self) -> bool {
-        self.is_highlighting_enabled
+    pub fn selection_enabled(&self) -> bool {
+        self.selection_enabled
     }
 
-    pub fn toggle_highlighting(&mut self) {
-        if !self.is_highlighting_enabled {
+    pub fn toggle_selection(&mut self) {
+        if !self.selection_enabled {
             // mark current position as new fixed position
             self.set_fixed_position();
         }
-        self.is_highlighting_enabled = !self.is_highlighting_enabled;
+        self.selection_enabled = !self.selection_enabled;
     }
 
-    pub fn set_highlighting(&mut self, enable: bool) {
-        self.is_highlighting_enabled = enable;
+    pub fn set_selection(&mut self, enable: bool) {
+        self.selection_enabled = enable;
     }
 
     pub fn move_cursor(
@@ -97,11 +97,11 @@ impl Cursor {
                     self.desired_col = self.col;
                 }
             }
-            MoveCursor::BeginLine => {
+            MoveCursor::StartOfLine => {
                 self.col = 0;
                 self.desired_col = self.col;
             }
-            MoveCursor::EndLine => {
+            MoveCursor::EndOfLine => {
                 self.col = get_max_col(self.row, display_text);
                 self.desired_col = self.col;
             }
@@ -138,7 +138,7 @@ impl Cursor {
         self.fixed_row = self.row;
     }
 
-    pub fn get_highlight_bounds(&self) -> (usize, usize, usize, usize) {
+    pub fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
         // Determine the correct order for start and end positions
         if self.row < self.fixed_row
             || (self.row == self.fixed_row && self.col < self.fixed_col)
@@ -159,7 +159,7 @@ impl Cursor {
         }
     }
 
-    pub fn should_highlight(
+    pub fn should_select(
         &self,
         current_row: usize,
         j: usize,

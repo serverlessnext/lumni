@@ -57,10 +57,10 @@ fn handle_char_key(
 ) -> WindowEvent {
     match character {
         '0' => {
-            response_window.move_cursor(MoveCursor::BeginLine);
+            response_window.move_cursor(MoveCursor::StartOfLine);
         }
         '$' => {
-            response_window.move_cursor(MoveCursor::EndLine);
+            response_window.move_cursor(MoveCursor::EndOfLine);
         }
         'h' => {
             response_window.move_cursor(MoveCursor::Left);
@@ -92,7 +92,7 @@ fn handle_char_key(
                 .move_cursor(MoveCursor::LinesBackward(lines_to_move));
         }
         'v' => {
-            response_window.toggle_highlighting();
+            response_window.toggle_selection();
         } // enable visual mode
         'y' => {
             // Check if the last command was also 'y'
@@ -117,7 +117,7 @@ fn handle_char_key(
 }
 
 fn yank_highlighted_text(response_window: &mut ResponseWindow) {
-    let text = response_window.text_buffer().highlighted_text();
+    let text = response_window.text_buffer().selected_text();
     let mut clipboard = ClipboardProvider::new();
 
     if let Err(e) = clipboard.write_line(text, false) {

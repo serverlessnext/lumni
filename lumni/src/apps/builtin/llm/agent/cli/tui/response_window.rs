@@ -138,12 +138,12 @@ pub trait TextWindowExt<'a> {
         self.get_base().text_insert_commit()
     }
 
-    fn toggle_highlighting(&mut self) {
-        self.get_base().text_buffer.toggle_highlighting();
+    fn toggle_selection(&mut self) {
+        self.get_base().text_buffer.toggle_selection();
     }
 
-    fn set_highlighting(&mut self, enable: bool) {
-        self.get_base().text_buffer.set_highlighting(enable);
+    fn set_selection(&mut self, enable: bool) {
+        self.get_base().text_buffer.set_selection(enable);
     }
 }
 
@@ -173,7 +173,7 @@ impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
     }
 
     fn set_normal_mode(&mut self) {
-        self.set_highlighting(false);
+        self.set_selection(false);
     }
 }
 

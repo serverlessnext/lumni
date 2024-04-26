@@ -10,9 +10,9 @@ use super::{Cursor, MoveCursor, PromptRect};
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
     area: PromptRect,
-    text: PieceTable, // replaced buffer_cache and buffer_processed
-    display_text: Vec<Line<'a>>, // generated text used for display
-    highlighted_text: String, // highlighted text -- used for copying to clipboard
+    text: PieceTable, // text buffer
+    display_text: Vec<Line<'a>>, // text (e.g. wrapped,  highlighted) for display
+    selected_text: String, // currently selected text
     cursor: Cursor,
     vertical_scroll: usize, // vertical scroll position (line index)
     vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
@@ -24,7 +24,7 @@ impl TextBuffer<'_> {
             area: PromptRect::default(),
             text: PieceTable::new(""),
             display_text: Vec::new(),
-            highlighted_text: String::new(),
+            selected_text: String::new(),
             cursor: Cursor::new(0, 0),
             vertical_scroll: 0,
             vertical_scroll_bar_state: ScrollbarState::default(),
@@ -57,9 +57,9 @@ impl TextBuffer<'_> {
         self.display_text.clone()
     }
 
-    pub fn highlighted_text(&self) -> &str {
+    pub fn selected_text(&self) -> &str {
         // Return the highlighted text - e.g. for copying to clipboard
-        &self.highlighted_text
+        &self.selected_text
     }
 
     pub fn vertical_scroll(&self) -> usize {
@@ -99,13 +99,13 @@ impl TextBuffer<'_> {
         }
     }
 
-    pub fn toggle_highlighting(&mut self) {
-        self.cursor.toggle_highlighting();
+    pub fn toggle_selection(&mut self) {
+        self.cursor.toggle_selection();
         self.update_display_text();
     }
 
-    pub fn set_highlighting(&mut self, enable: bool) {
-        self.cursor.set_highlighting(enable);
+    pub fn set_selection(&mut self, enable: bool) {
+        self.cursor.set_selection(enable);
         self.update_display_text();
     }
 
@@ -114,13 +114,13 @@ impl TextBuffer<'_> {
         let text = self.text.content();
 
         let mut new_display_text = Vec::new();
-        self.highlighted_text.clear(); // Clear existing highlighted text
+        self.selected_text.clear(); // clear text selection
         let mut current_row = 0;
 
         // Determine the highlight bounds if highlighting is enabled
         let (start_row, start_col, end_row, end_col) =
-            if self.cursor.is_highlighting_enabled() {
-                self.cursor.get_highlight_bounds()
+            if self.cursor.selection_enabled() {
+                self.cursor.get_selection_bounds()
             } else {
                 (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
             };
@@ -152,7 +152,7 @@ impl TextBuffer<'_> {
                     let chars: Vec<char> = wrapped_line.chars().collect();
 
                     for (j, ch) in chars.into_iter().enumerate() {
-                        let should_highlight = self.cursor.should_highlight(
+                        let should_select = self.cursor.should_select(
                             current_row,
                             j,
                             start_row,
@@ -163,13 +163,13 @@ impl TextBuffer<'_> {
                             && current_row == self.cursor.row as usize
                             && j == self.cursor.col as usize);
 
-                        if should_highlight {
+                        if should_select {
                             spans.push(Span::styled(
                                 ch.to_string(),
                                 Style::default().bg(Color::Blue),
                             ));
                             // Append highlighted character to the buffer
-                            self.highlighted_text.push(ch);
+                            self.selected_text.push(ch);
                         } else {
                             spans.push(Span::raw(ch.to_string()));
                         }

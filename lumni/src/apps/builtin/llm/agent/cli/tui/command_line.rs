@@ -1,7 +1,7 @@
 use tui_textarea::{Input, Key, TextArea};
 
 use super::events::PromptAction;
-use super::{ResponseWindow, WindowEvent, TextWindowTrait};
+use super::{PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent};
 
 pub struct CommandLine {}
 
@@ -18,7 +18,7 @@ impl CommandLine {
     pub async fn process_command(
         &mut self,
         command_line: &mut TextArea<'_>,
-        prompt_edit: &TextArea<'_>,
+        prompt_window: &mut PromptWindow<'_>,
     ) -> WindowEvent {
         let command = command_line.lines()[0].to_string();
         self.clear(command_line);
@@ -27,7 +27,7 @@ impl CommandLine {
             match command.trim_start_matches(':') {
                 "q" => return WindowEvent::Quit,
                 "w" => {
-                    let question: String = prompt_edit.lines().join("\n");
+                    let question = prompt_window.text_buffer().to_string();
                     return WindowEvent::Prompt(PromptAction::Write(question));
                 }
                 "clear" => return WindowEvent::Prompt(PromptAction::Clear),
@@ -41,7 +41,7 @@ impl CommandLine {
 pub async fn transition_command_line(
     cl: &mut CommandLine,
     command_line: &mut TextArea<'_>,
-    editor_window: &mut TextArea<'_>,
+    prompt_window: &mut PromptWindow<'_>,
     response_window: &mut ResponseWindow<'_>,
     input: Input,
 ) -> WindowEvent {
@@ -55,8 +55,8 @@ pub async fn transition_command_line(
         } => {
             // process command
             let response =
-                cl.process_command(command_line, editor_window).await;
-            cl.clear(editor_window);
+                cl.process_command(command_line, prompt_window).await;
+            prompt_window.text_empty();
             return response;
         }
         _ => {

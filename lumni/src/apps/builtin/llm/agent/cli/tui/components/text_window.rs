@@ -26,7 +26,11 @@ impl<'a> TextWindow<'a> {
         }
     }
 
-    pub fn get_window_style(&self) -> WindowStyle {
+    pub fn window_type(&self) -> WindowType {
+        self.window_type
+    }
+
+    pub fn window_style(&self) -> WindowStyle {
         self.window_type.style()
     }
 
@@ -111,7 +115,9 @@ impl<'a> TextWindow<'a> {
             .scroll((self.vertical_scroll as u16, 0))
     }
 
-    pub fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState {
+    pub fn vertical_scroll_bar_state<'b>(
+        &'b mut self,
+    ) -> &'b mut ScrollbarState {
         &mut self.vertical_scroll_bar_state
     }
 
@@ -132,21 +138,31 @@ impl<'a> TextWindow<'a> {
 pub trait TextWindowTrait<'a> {
     fn base(&mut self) -> &mut TextWindow<'a>;
 
-    fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> where 'a: 'b {
+    fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b>
+    where
+        'a: 'b,
+    {
         let base = self.base();
         base.widget(area)
     }
 
-    fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState where 'a: 'b {
+    fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState
+    where
+        'a: 'b,
+    {
         self.base().vertical_scroll_bar_state()
-    }    
+    }
 
     fn set_window_style(&mut self, style: WindowStyle) {
         self.base().set_window_style(style);
     }
 
-    fn get_window_style(&mut self) -> WindowStyle {
-        self.base().get_window_style()
+    fn window_type(&mut self) -> WindowType {
+        self.base().window_type()
+    }
+
+    fn window_style(&mut self) -> WindowStyle {
+        self.base().window_style()
     }
 
     fn scroll_up(&mut self) {
@@ -173,10 +189,6 @@ pub trait TextWindowTrait<'a> {
         self.base().text_insert_commit()
     }
 
-    fn toggle_selection(&mut self) {
-        self.base().text_buffer.toggle_selection();
-    }
-
     fn set_selection(&mut self, enable: bool) {
         self.base().text_buffer.set_selection(enable);
     }
@@ -185,27 +197,60 @@ pub trait TextWindowTrait<'a> {
         self.base().text_buffer()
     }
 
+    fn text_undo(&mut self) {
+        self.base().text_buffer.undo();
+    }
+
+    fn text_redo(&mut self) {
+        self.base().text_buffer.redo();
+    }
+
+    fn text_empty(&mut self) {
+        self.base().text_buffer.empty();
+    }
+
     fn is_active(&mut self) -> bool {
-        self.get_window_style() != WindowStyle::InActive
+        self.window_style() != WindowStyle::InActive
     }
 
     fn set_style_normal(&mut self) {
         self.set_window_style(WindowStyle::Normal);
     }
 
+    fn set_style_visual(&mut self) {
+        self.set_window_style(WindowStyle::Visual);
+    }
+
+    fn is_style_insert(&mut self) -> bool {
+        self.window_style() == WindowStyle::Insert
+    }
+
     fn set_style_insert(&mut self) {
         self.set_window_style(WindowStyle::Insert);
     }
 
-    fn set_style_visual(&mut self) {
-        self.set_window_style(WindowStyle::Visual);
+    fn toggle_visual_mode(&mut self) {
+        // if visual mode is enabled, set to normal mode
+        if self.window_style() == WindowStyle::Visual {
+            self.base().text_buffer.set_selection(false);
+            self.set_style_normal();
+        } else {
+            self.set_style_visual();
+            self.base().text_buffer.set_selection(true);
+        }
     }
 
     fn set_style_inactive(&mut self) {
         self.set_window_style(WindowStyle::InActive);
     }
-    
+
     fn set_normal_mode(&mut self) {
         self.set_selection(false);
+        self.set_style_normal();
+    }
+
+    fn set_insert_mode(&mut self) {
+        self.set_selection(false);
+        self.set_style_insert();
     }
 }

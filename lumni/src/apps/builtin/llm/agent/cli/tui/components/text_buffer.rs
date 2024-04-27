@@ -25,6 +25,15 @@ impl TextBuffer<'_> {
         }
     }
 
+    pub fn empty(&mut self) {
+        self.display_text.clear();
+        self.selected_text.clear();
+        self.cursor.reset();
+        self.text.empty();
+        // update display
+        self.update_display_text();
+    }
+
     pub fn set_width(&mut self, width: usize) {
         self.display_width = width;
     }
@@ -77,11 +86,6 @@ impl TextBuffer<'_> {
             self.update_display_text();
         }
         (column_changed, row_changed)
-    }
-
-    pub fn toggle_selection(&mut self) {
-        self.cursor.toggle_selection();
-        self.update_display_text();
     }
 
     pub fn set_selection(&mut self, enable: bool) {
@@ -174,5 +178,19 @@ impl TextBuffer<'_> {
             new_display_text.push(Line::from(spans));
         }
         self.display_text = new_display_text;
+    }
+
+    pub fn undo(&mut self) {
+        self.text.undo();
+        self.update_display_text();
+    }
+
+    pub fn redo(&mut self) {
+        self.text.redo();
+        self.update_display_text();
+    }
+
+    pub fn to_string(&self) -> String {
+        self.text.content()
     }
 }

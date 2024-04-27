@@ -7,15 +7,20 @@ use ratatui::Terminal;
 use tui_textarea::TextArea;
 
 use super::components::TextWindowTrait;
-use super::editor_window::LayoutMode;
-use super::{ResponseWindow, TextAreaHandler};
+use super::{PromptWindow, ResponseWindow};
+
+pub enum LayoutMode {
+    HorizontalSplit,
+    VerticalSplit,
+}
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
-    editor_window: &mut TextAreaHandler,
+    prompt_window: &mut PromptWindow,
     response_window: &mut ResponseWindow,
     command_line: &TextArea,
 ) -> Result<(), io::Error> {
+    let layout_mode = LayoutMode::HorizontalSplit;
     terminal.draw(|f| {
         let terminal_size = f.size();
         const COMMAND_LINE_HEIGHT: u16 = 3;
@@ -34,7 +39,9 @@ pub fn draw_ui<B: Backend>(
 
         let command_line_area = main_window[1];
 
-        match editor_window.layout_mode(terminal_size) {
+        // TODO: check if we actually want to switch layout_mode
+        //match prompt_window.layout_mode(terminal_size) {
+        match layout_mode {
             LayoutMode::HorizontalSplit => {
                 let prompt_window = Layout::default()
                     .direction(Direction::Vertical)
@@ -80,7 +87,7 @@ pub fn draw_ui<B: Backend>(
             }
         }
         f.render_widget(
-            editor_window.ta_prompt_edit().widget(),
+            prompt_window.widget(&prompt_edit_area),
             prompt_edit_area,
         );
         f.render_widget(

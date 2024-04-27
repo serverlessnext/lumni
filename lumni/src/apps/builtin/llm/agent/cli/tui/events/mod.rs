@@ -1,15 +1,15 @@
 mod command_line;
 mod key_event;
-mod prompt_window;
-mod response_window;
+mod text_window_event;
 
 pub use key_event::KeyEventHandler;
 
-pub use super::clipboard::ClipboardProvider;
-pub use super::command_line::{transition_command_line, CommandLine};
-pub use super::components::{MoveCursor, TextWindowTrait};
-pub use super::response_window::ResponseWindow;
-pub use super::{ChatSession, TextAreaHandler};
+use super::clipboard::ClipboardProvider;
+use super::command_line::{transition_command_line, CommandLine};
+use super::components::{MoveCursor, TextWindowTrait, WindowKind};
+use super::prompt_window::PromptWindow;
+use super::response_window::ResponseWindow;
+use super::ChatSession;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {

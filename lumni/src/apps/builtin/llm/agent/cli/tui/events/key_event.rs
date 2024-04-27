@@ -6,11 +6,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
-use super::command_line::handle_command_line_event;
-use super::prompt_window::handle_prompt_window_event;
-use super::response_window::handle_response_window_event;
+use super::command_line::{handle_command_line_event, send_prompt};
+use super::text_window_event::handle_text_window_event;
 use super::{
-    ChatSession, CommandLine, ResponseWindow, TextAreaHandler, WindowEvent,
+    ChatSession, CommandLine, PromptWindow,
+    ResponseWindow, WindowEvent, TextWindowTrait,
 };
 
 #[derive(Debug, Clone)]
@@ -131,7 +131,7 @@ impl KeyEventHandler {
         current_mode: WindowEvent,
         command_line_handler: &mut CommandLine,
         command_line: &mut TextArea<'_>,
-        editor_window: &mut TextAreaHandler,
+        prompt_window: &mut PromptWindow<'_>,
         is_running: Arc<AtomicBool>,
         tx: mpsc::Sender<Bytes>,
         response_window: &mut ResponseWindow<'_>,
@@ -146,29 +146,35 @@ impl KeyEventHandler {
                     command_line_handler,
                     response_window,
                     chat_session,
-                    editor_window,
+                    prompt_window,
                     command_line,
                     tx,
                     is_running,
                 )
                 .await
             }
-            WindowEvent::ResponseWindow => handle_response_window_event(
+            WindowEvent::ResponseWindow => handle_text_window_event(
                 &mut self.key_track,
                 response_window,
                 command_line,
                 is_running,
             ),
             WindowEvent::PromptWindow => {
-                handle_prompt_window_event(
-                    &self.key_track,
-                    chat_session,
-                    editor_window,
+                if self.key_track.current_key().code == KeyCode::Enter {
+                    if !prompt_window.is_style_insert() {
+                        // Enter key pressed in non-insert mode
+                        let question = prompt_window.text_buffer().to_string();
+                        send_prompt(chat_session, tx, is_running, question).await;
+                        prompt_window.text_empty();
+                        return WindowEvent::PromptWindow;
+                    }
+                }
+                handle_text_window_event(
+                    &mut self.key_track,
+                    prompt_window,
                     command_line,
-                    tx,
                     is_running,
                 )
-                .await
             }
             _ => current_mode,
         }

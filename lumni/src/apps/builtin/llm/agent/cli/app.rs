@@ -23,17 +23,21 @@ use tui_textarea::TextArea;
 
 use super::prompt::{process_prompt, process_prompt_response, ChatSession};
 use super::tui::{
-    draw_ui, CommandLine, KeyEventHandler, ResponseWindow, TextAreaHandler,
-    TextWindowTrait, WindowEvent, WindowStyle,
+    draw_ui, CommandLine, KeyEventHandler, PromptWindow, ResponseWindow,
+    TextWindowTrait, WindowEvent,
 };
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut editor_window = TextAreaHandler::new();
+    //let mut editor_window = TextAreaHandler::new();
     let mut chat_session = ChatSession::new();
     chat_session.init().await?;
+
     let mut response_window = ResponseWindow::new();
+    let mut prompt_window = PromptWindow::new();
+    prompt_window.set_normal_mode();
+
     let mut command_line = TextArea::default();
     command_line.set_cursor_line_style(Style::default());
     command_line.set_placeholder_text("Ready");
@@ -49,7 +53,7 @@ async fn prompt_app<B: Backend>(
         tokio::select! {
             _ = tick.tick() => {
                 if redraw_ui {
-                    draw_ui(terminal, &mut editor_window, &mut response_window, &command_line)?;
+                    draw_ui(terminal, &mut prompt_window, &mut response_window, &command_line)?;
                     redraw_ui = false;
                 }
 
@@ -58,23 +62,23 @@ async fn prompt_app<B: Backend>(
 
                     match event {
                         Event::Key(key_event) => {
-
                             if key_event.code == KeyCode::Tab {
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
+
                                     WindowEvent::PromptWindow => {
-                                        if editor_window.mode() == WindowStyle::Insert {
+                                        if prompt_window.is_style_insert() {
                                             // tab is locked to prompt window when in insert mode
                                             WindowEvent::PromptWindow
                                         } else {
-                                            editor_window.set_active(false);
+                                            prompt_window.set_style_inactive();
                                             response_window.set_style_normal();
                                             WindowEvent::ResponseWindow
                                         }
                                     }
                                     WindowEvent::ResponseWindow => {
                                         response_window.set_style_inactive();
-                                        editor_window.set_active(true);
+                                        prompt_window.set_style_normal();
                                         WindowEvent::PromptWindow
                                     }
                                     _ => current_mode,
@@ -87,7 +91,7 @@ async fn prompt_app<B: Backend>(
                                 current_mode,
                                 &mut command_line_handler,
                                 &mut command_line,
-                                &mut editor_window,
+                                &mut prompt_window,
                                 is_running.clone(),
                                 tx.clone(),
                                 &mut response_window,

@@ -43,6 +43,10 @@ impl WindowType {
         }
     }
 
+    pub fn kind(&self) -> WindowKind {
+        self.kind
+    }
+
     pub fn style(&self) -> WindowStyle {
         self.style
     }

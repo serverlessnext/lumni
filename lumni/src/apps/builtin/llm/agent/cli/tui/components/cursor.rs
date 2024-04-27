@@ -39,6 +39,16 @@ impl Cursor {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.col = 0;
+        self.row = 0;
+        self.fixed_col = 0;
+        self.fixed_row = 0;
+        self.show_cursor = true;
+        self.selection_enabled = false;
+        self.desired_col = 0;
+    }
+
     pub fn show_cursor(&mut self) -> bool {
         self.show_cursor
     }
@@ -47,15 +57,10 @@ impl Cursor {
         self.selection_enabled
     }
 
-    pub fn toggle_selection(&mut self) {
-        if !self.selection_enabled {
-            // mark current position as new fixed position
+    pub fn set_selection(&mut self, enable: bool) {
+        if enable {
             self.set_fixed_position();
         }
-        self.selection_enabled = !self.selection_enabled;
-    }
-
-    pub fn set_selection(&mut self, enable: bool) {
         self.selection_enabled = enable;
     }
 

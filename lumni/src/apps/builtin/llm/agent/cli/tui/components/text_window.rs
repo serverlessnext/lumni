@@ -34,10 +34,6 @@ impl<'a> TextWindow<'a> {
         self.window_type.set_style(style);
     }
 
-    pub fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState {
-        &mut self.vertical_scroll_bar_state
-    }
-
     fn scroll_to_cursor(&mut self) {
         let (_, cursor_row) = self.text_buffer.cursor_position();
         let visible_rows = self.area.height();
@@ -96,7 +92,7 @@ impl<'a> TextWindow<'a> {
         &mut self.text_buffer
     }
 
-    pub fn widget(&mut self, area: &Rect) -> Paragraph {
+    pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
         if self.area.update(area) == true {
             // re-fit text to updated display
             self.text_buffer.set_width(self.area.width() as usize);
@@ -115,6 +111,10 @@ impl<'a> TextWindow<'a> {
             .scroll((self.vertical_scroll as u16, 0))
     }
 
+    pub fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState {
+        &mut self.vertical_scroll_bar_state
+    }
+
     pub fn text_insert_create(&mut self, mode: InsertMode) {
         self.text_buffer.text_insert_create(mode);
     }
@@ -130,52 +130,59 @@ impl<'a> TextWindow<'a> {
 }
 
 pub trait TextWindowTrait<'a> {
-    fn get_base(&mut self) -> &mut TextWindow<'a>;
-    fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState;
-    fn widget(&mut self, area: &Rect) -> Paragraph;
+    fn base(&mut self) -> &mut TextWindow<'a>;
+
+    fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> where 'a: 'b {
+        let base = self.base();
+        base.widget(area)
+    }
+
+    fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState where 'a: 'b {
+        self.base().vertical_scroll_bar_state()
+    }    
 
     fn set_window_style(&mut self, style: WindowStyle) {
-        self.get_base().set_window_style(style);
+        self.base().set_window_style(style);
     }
 
     fn get_window_style(&mut self) -> WindowStyle {
-        self.get_base().get_window_style()
+        self.base().get_window_style()
     }
 
     fn scroll_up(&mut self) {
-        self.get_base().scroll_up();
+        self.base().scroll_up();
     }
 
     fn scroll_down(&mut self) {
-        self.get_base().scroll_down();
+        self.base().scroll_down();
     }
 
     fn move_cursor(&mut self, direction: MoveCursor) {
-        self.get_base().move_cursor(direction);
+        self.base().move_cursor(direction);
     }
 
     fn text_insert_create(&mut self, mode: InsertMode) {
-        self.get_base().text_insert_create(mode);
+        self.base().text_insert_create(mode);
     }
 
     fn text_insert_add(&mut self, text: &str) {
-        self.get_base().text_insert_add(text);
+        self.base().text_insert_add(text);
     }
 
     fn text_insert_commit(&mut self) -> String {
-        self.get_base().text_insert_commit()
+        self.base().text_insert_commit()
     }
 
     fn toggle_selection(&mut self) {
-        self.get_base().text_buffer.toggle_selection();
+        self.base().text_buffer.toggle_selection();
     }
 
     fn set_selection(&mut self, enable: bool) {
-        self.get_base().text_buffer.set_selection(enable);
+        self.base().text_buffer.set_selection(enable);
     }
 
     fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
-        self.get_base().text_buffer()
+        self.base().text_buffer()
     }
 
     fn is_active(&mut self) -> bool {

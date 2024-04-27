@@ -1,4 +1,5 @@
 use ratatui::text::Line;
+
 use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]

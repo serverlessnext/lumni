@@ -9,8 +9,8 @@ use tui_textarea::TextArea;
 use super::command_line::{handle_command_line_event, send_prompt};
 use super::text_window_event::handle_text_window_event;
 use super::{
-    ChatSession, CommandLine, PromptWindow,
-    ResponseWindow, WindowEvent, TextWindowTrait,
+    ChatSession, CommandLine, PromptWindow, ResponseWindow, TextWindowTrait,
+    WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -164,7 +164,8 @@ impl KeyEventHandler {
                     if !prompt_window.is_style_insert() {
                         // Enter key pressed in non-insert mode
                         let question = prompt_window.text_buffer().to_string();
-                        send_prompt(chat_session, tx, is_running, question).await;
+                        send_prompt(chat_session, tx, is_running, question)
+                            .await;
                         prompt_window.text_empty();
                         return WindowEvent::PromptWindow;
                     }

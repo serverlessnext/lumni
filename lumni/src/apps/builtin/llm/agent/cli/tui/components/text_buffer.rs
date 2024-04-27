@@ -3,8 +3,8 @@ use ratatui::text::{Line, Span};
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::cursor::{Cursor, MoveCursor};
-use super::window_type::WindowStyle;
 use super::piece_table::{InsertMode, PieceTable};
+use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
@@ -120,7 +120,10 @@ impl TextBuffer<'_> {
 
             if wrapped_lines.is_empty() {
                 if current_row == self.cursor.row as usize {
-                    let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
+                    let spans = vec![Span::styled(
+                        " ",
+                        Style::default().bg(Color::Blue),
+                    )];
                     new_display_text.push(Line::from(spans));
                 } else {
                     new_display_text.push(Line::from(Span::raw("")));
@@ -159,20 +162,30 @@ impl TextBuffer<'_> {
             }
         }
 
-        // Handle cursor visibility in insert mode at the end of the last processed line
-        if self.cursor.style() == WindowStyle::Insert && self.cursor.row as usize == current_row - 1 {
+        // Conditionally style the cursor space if the cursor is in insert mode and at the end of the line
+        if self.cursor.style() == WindowStyle::Insert
+            && self.cursor.row as usize == current_row - 1
+        {
             if let Some(last_line) = new_display_text.last_mut() {
-                last_line.spans.push(Span::styled(" ", Style::default().bg(Color::Yellow)));  // Append a styled space
-            } else {
-                // This handles the case where there might be absolutely no lines (empty text)
-                new_display_text.push(Line::from(vec![Span::styled(" ", Style::default().bg(Color::Blue))]));
+                // add empty space to the end of the line
+                last_line.spans.push(Span::raw(" "));
+                let line_length = last_line
+                    .spans
+                    .iter()
+                    .map(|span| span.content.len())
+                    .sum::<usize>();
+                if self.cursor.col as usize == line_length - 1 {
+                    // Adjust for zero-index and added space
+                    if let Some(last_span) = last_line.spans.last_mut() {
+                        // Style the last space as the cursor
+                        last_span.style = Style::default().bg(Color::Yellow);
+                    }
+                }
             }
         }
 
-
         self.display_text = new_display_text;
     }
-
 
     pub fn undo(&mut self) {
         self.text.undo();

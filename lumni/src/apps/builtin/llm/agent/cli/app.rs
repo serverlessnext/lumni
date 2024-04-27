@@ -68,12 +68,12 @@ async fn prompt_app<B: Backend>(
                                             WindowEvent::PromptWindow
                                         } else {
                                             editor_window.set_active(false);
-                                            response_window.set_active(true);
+                                            response_window.set_style_normal();
                                             WindowEvent::ResponseWindow
                                         }
                                     }
                                     WindowEvent::ResponseWindow => {
-                                        response_window.set_active(false);
+                                        response_window.set_style_inactive();
                                         editor_window.set_active(true);
                                         WindowEvent::PromptWindow
                                     }

@@ -10,14 +10,18 @@ pub enum WindowKind {
     CommandLine,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowType {
     kind: WindowKind,
     style: WindowStyle,
 }
 
 impl WindowType {
-    pub fn new(kind: WindowKind, style: WindowStyle) -> Self {
-        WindowType { kind, style }
+    pub fn new(kind: WindowKind) -> Self {
+        WindowType {
+            kind,
+            style: WindowStyle::InActive,
+        }
     }
 
     // Function to provide a specific description for each window type
@@ -43,8 +47,9 @@ impl WindowType {
         self.style
     }
 
-    pub fn set_style(&mut self, style: WindowStyle) {
+    pub fn set_style(&mut self, style: WindowStyle) -> Self {
         self.style = style;
+        *self
     }
 }
 

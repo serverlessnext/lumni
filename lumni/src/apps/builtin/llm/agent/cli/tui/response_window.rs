@@ -7,7 +7,6 @@ use super::components::{
 
 pub struct ResponseWindow<'a> {
     base: TextWindow<'a>,
-    is_active: bool,
 }
 
 impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
@@ -24,31 +23,10 @@ impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
 
 impl ResponseWindow<'_> {
     pub fn new() -> Self {
-        let window_type =
-            WindowType::new(WindowKind::ResponseWindow, WindowStyle::InActive);
+        let window_type = WindowType::new(WindowKind::ResponseWindow)
+            .set_style(WindowStyle::InActive);
         Self {
             base: TextWindow::new(window_type),
-            is_active: false,
         }
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.is_active
-    }
-
-    pub fn set_active(&mut self, active: bool) {
-        // change style based on active state
-        if active {
-            self.base.set_window_style(WindowStyle::Normal);
-        } else {
-            self.base.set_window_style(WindowStyle::InActive);
-        }
-        self.is_active = active;
     }
 }
-
-//impl<'a> TextWindowBaseTrait<'a> for ResponseWindow<'a> {
-//    fn get_base(&mut self) -> &mut TextWindow<'a> {
-//        &mut self.base
-//    }
-//}

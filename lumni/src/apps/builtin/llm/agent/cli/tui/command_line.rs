@@ -1,7 +1,7 @@
 use tui_textarea::{Input, Key, TextArea};
 
 use super::events::PromptAction;
-use super::{ResponseWindow, WindowEvent};
+use super::{ResponseWindow, WindowEvent, TextWindowTrait};
 
 pub struct CommandLine {}
 
@@ -67,6 +67,7 @@ pub async fn transition_command_line(
     };
     // exit command line mode
     if response_window.is_active() {
+        // return to response window if its active
         WindowEvent::ResponseWindow
     } else {
         WindowEvent::PromptWindow

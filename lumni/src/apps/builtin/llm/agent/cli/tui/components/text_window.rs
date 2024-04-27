@@ -26,6 +26,10 @@ impl<'a> TextWindow<'a> {
         }
     }
 
+    pub fn get_window_style(&self) -> WindowStyle {
+        self.window_type.style()
+    }
+
     pub fn set_window_style(&mut self, style: WindowStyle) {
         self.window_type.set_style(style);
     }
@@ -130,6 +134,14 @@ pub trait TextWindowTrait<'a> {
     fn vertical_scroll_bar_state(&mut self) -> &mut ScrollbarState;
     fn widget(&mut self, area: &Rect) -> Paragraph;
 
+    fn set_window_style(&mut self, style: WindowStyle) {
+        self.get_base().set_window_style(style);
+    }
+
+    fn get_window_style(&mut self) -> WindowStyle {
+        self.get_base().get_window_style()
+    }
+
     fn scroll_up(&mut self) {
         self.get_base().scroll_up();
     }
@@ -162,11 +174,31 @@ pub trait TextWindowTrait<'a> {
         self.get_base().text_buffer.set_selection(enable);
     }
 
-    fn set_normal_mode(&mut self) {
-        self.set_selection(false);
-    }
-
     fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
         self.get_base().text_buffer()
+    }
+
+    fn is_active(&mut self) -> bool {
+        self.get_window_style() != WindowStyle::InActive
+    }
+
+    fn set_style_normal(&mut self) {
+        self.set_window_style(WindowStyle::Normal);
+    }
+
+    fn set_style_insert(&mut self) {
+        self.set_window_style(WindowStyle::Insert);
+    }
+
+    fn set_style_visual(&mut self) {
+        self.set_window_style(WindowStyle::Visual);
+    }
+
+    fn set_style_inactive(&mut self) {
+        self.set_window_style(WindowStyle::InActive);
+    }
+    
+    fn set_normal_mode(&mut self) {
+        self.set_selection(false);
     }
 }

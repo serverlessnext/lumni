@@ -26,8 +26,8 @@ pub struct TextAreaHandler {
 impl TextAreaHandler {
     pub fn new() -> Self {
         let mut ta_prompt_edit = TextArea::default();
-        let window_type =
-            WindowType::new(WindowKind::PromptWindow, WindowStyle::Normal);
+        let window_type = WindowType::new(WindowKind::PromptWindow)
+            .set_style(WindowStyle::Normal);
         ta_prompt_edit.set_block(WindowStyle::Normal.block(window_type));
         ta_prompt_edit.set_cursor_style(WindowStyle::Normal.cursor_style());
 
@@ -69,7 +69,9 @@ impl TextAreaHandler {
         };
         self.ta_prompt_edit
             .set_cursor_style(self.mode.cursor_style());
-        let window_type = WindowType::new(WindowKind::PromptWindow, self.mode);
+        let window_type =
+            WindowType::new(WindowKind::PromptWindow).set_style(self.mode);
+
         self.ta_prompt_edit.set_block(self.mode.block(window_type));
         self.ta_prompt_edit.set_cursor_line_style(Style::default());
 
@@ -133,7 +135,8 @@ impl TextAreaHandler {
 
     fn set_vim_mode(&mut self, mode: WindowStyle) {
         self.mode = mode;
-        let window_type = WindowType::new(WindowKind::PromptWindow, mode);
+        let window_type =
+            WindowType::new(WindowKind::PromptWindow).set_style(self.mode);
         self.ta_prompt_edit.set_block(mode.block(window_type));
         self.ta_prompt_edit.set_cursor_style(mode.cursor_style());
     }

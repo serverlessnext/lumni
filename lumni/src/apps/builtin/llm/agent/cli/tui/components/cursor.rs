@@ -1,4 +1,5 @@
 use ratatui::text::Line;
+use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
@@ -24,6 +25,7 @@ pub struct Cursor {
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
+    window_style: WindowStyle,
 }
 
 impl Cursor {
@@ -36,6 +38,7 @@ impl Cursor {
             show_cursor: true,
             selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
+            window_style: WindowStyle::Normal,
         }
     }
 
@@ -47,6 +50,14 @@ impl Cursor {
         self.show_cursor = true;
         self.selection_enabled = false;
         self.desired_col = 0;
+    }
+
+    pub fn style(&self) -> WindowStyle {
+        self.window_style
+    }
+
+    pub fn set_style(&mut self, style: WindowStyle) {
+        self.window_style = style;
     }
 
     pub fn show_cursor(&mut self) -> bool {

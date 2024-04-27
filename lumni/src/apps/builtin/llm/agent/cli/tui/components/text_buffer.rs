@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span};
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::cursor::{Cursor, MoveCursor};
+use super::window_type::WindowStyle;
 use super::piece_table::{InsertMode, PieceTable};
 
 #[derive(Debug, Clone)]
@@ -36,6 +37,10 @@ impl TextBuffer<'_> {
 
     pub fn set_width(&mut self, width: usize) {
         self.display_width = width;
+    }
+
+    pub fn set_cursor_style(&mut self, style: WindowStyle) {
+        self.cursor.set_style(style);
     }
 
     pub fn text_insert_create(&mut self, mode: InsertMode) {
@@ -95,20 +100,16 @@ impl TextBuffer<'_> {
 
     pub fn update_display_text(&mut self) {
         let text = self.text.content();
-
         let mut new_display_text = Vec::new();
-        self.selected_text.clear(); // clear text selection
+        self.selected_text.clear();
         let mut current_row = 0;
 
-        // Determine the highlight bounds if highlighting is enabled
         let (start_row, start_col, end_row, end_col) =
             if self.cursor.selection_enabled() {
                 self.cursor.get_selection_bounds()
             } else {
                 (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
             };
-
-        let mut line_has_content = false;
 
         for (_logical_row, line) in text.split('\n').enumerate() {
             let wrapped_lines = wrap(
@@ -118,17 +119,13 @@ impl TextBuffer<'_> {
             );
 
             if wrapped_lines.is_empty() {
-                // Handle empty lines specifically
                 if current_row == self.cursor.row as usize {
-                    let spans = vec![Span::styled(
-                        " ",
-                        Style::default().bg(Color::Blue),
-                    )];
+                    let spans = vec![Span::styled(" ", Style::default().bg(Color::Blue))];
                     new_display_text.push(Line::from(spans));
-                    line_has_content = true;
                 } else {
                     new_display_text.push(Line::from(Span::raw("")));
                 }
+                current_row += 1; // move to next line
             } else {
                 for wrapped_line in wrapped_lines {
                     let mut spans = Vec::new();
@@ -151,34 +148,31 @@ impl TextBuffer<'_> {
                                 ch.to_string(),
                                 Style::default().bg(Color::Blue),
                             ));
-                            // Append highlighted character to the buffer
                             self.selected_text.push(ch);
                         } else {
                             spans.push(Span::raw(ch.to_string()));
                         }
                     }
-                    if spans.is_empty()
-                        && current_row == self.cursor.row as usize
-                    {
-                        // Ensure cursor visibility on lines with no characters
-                        spans.push(Span::styled(
-                            " ",
-                            Style::default().bg(Color::Blue),
-                        ));
-                    }
                     new_display_text.push(Line::from(spans));
-                    current_row += 1;
+                    current_row += 1; // move to next line after processing current line
                 }
             }
         }
-        if !line_has_content && current_row == self.cursor.row as usize {
-            // This condition is specifically for the last empty line where the cursor might be
-            let spans =
-                vec![Span::styled(" ", Style::default().bg(Color::Blue))];
-            new_display_text.push(Line::from(spans));
+
+        // Handle cursor visibility in insert mode at the end of the last processed line
+        if self.cursor.style() == WindowStyle::Insert && self.cursor.row as usize == current_row - 1 {
+            if let Some(last_line) = new_display_text.last_mut() {
+                last_line.spans.push(Span::styled(" ", Style::default().bg(Color::Yellow)));  // Append a styled space
+            } else {
+                // This handles the case where there might be absolutely no lines (empty text)
+                new_display_text.push(Line::from(vec![Span::styled(" ", Style::default().bg(Color::Blue))]));
+            }
         }
+
+
         self.display_text = new_display_text;
     }
+
 
     pub fn undo(&mut self) {
         self.text.undo();

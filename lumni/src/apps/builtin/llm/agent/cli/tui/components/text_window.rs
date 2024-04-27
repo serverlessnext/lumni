@@ -36,6 +36,7 @@ impl<'a> TextWindow<'a> {
 
     pub fn set_window_style(&mut self, style: WindowStyle) {
         self.window_type.set_style(style);
+        self.text_buffer.set_cursor_style(style);
     }
 
     fn scroll_to_cursor(&mut self) {

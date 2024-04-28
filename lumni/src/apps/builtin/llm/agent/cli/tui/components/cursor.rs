@@ -27,6 +27,7 @@ pub struct Cursor {
     selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
     window_style: WindowStyle,
+    real_position: usize, // real position of the cursor in the text buffer
 }
 
 impl Cursor {
@@ -40,6 +41,7 @@ impl Cursor {
             selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
             window_style: WindowStyle::Normal,
+            real_position: 0,
         }
     }
 
@@ -51,10 +53,15 @@ impl Cursor {
         self.show_cursor = true;
         self.selection_enabled = false;
         self.desired_col = 0;
+        self.real_position = 0;
     }
 
     pub fn style(&self) -> WindowStyle {
         self.window_style
+    }
+
+    pub fn real_position(&self) -> usize {
+        self.real_position
     }
 
     pub fn set_style(&mut self, style: WindowStyle) {
@@ -196,6 +203,36 @@ impl Cursor {
             || (current_row == end_row
                 && j <= end_col
                 && current_row > start_row)
+    }
+
+    pub fn update_real_position(
+        &mut self,
+        display_text: &[Line],
+        added_characters: usize,
+    ) {
+        // compute the cursor position within underlying text,
+        // excluding characters added for wrapping
+        let mut position = 0;
+        for (index, line) in display_text.iter().enumerate() {
+            if index < self.row as usize {
+                position += line
+                    .spans
+                    .iter()
+                    .map(|span| span.content.len())
+                    .sum::<usize>();
+                position += 1; // account for newline character
+            } else if index == self.row as usize {
+                position += self.col as usize; // add columns for the current row
+                break;
+            }
+        }
+        // Subtract characters added for display purposes
+        if position < added_characters {
+            // this should never happen, and if it does panic as it means our logic
+            // for computing the real position is incorrect
+            panic!("Real position is less than added characters");
+        }
+        self.real_position = position - added_characters;
     }
 }
 

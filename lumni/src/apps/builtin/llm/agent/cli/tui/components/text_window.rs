@@ -122,10 +122,6 @@ impl<'a> TextWindow<'a> {
         &mut self.vertical_scroll_bar_state
     }
 
-    pub fn text_insert_create(&mut self, mode: InsertMode) {
-        self.text_buffer.text_insert_create(mode);
-    }
-
     pub fn text_insert_add(&mut self, text: &str) {
         self.text_buffer.text_insert_add(text);
         self.scroll_to_cursor();
@@ -133,6 +129,11 @@ impl<'a> TextWindow<'a> {
 
     pub fn text_insert_commit(&mut self) -> String {
         self.text_buffer.text_insert_commit()
+    }
+
+    pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
+        self.text_buffer.text_delete(include_cursor, count);
+        self.scroll_to_cursor();
     }
 }
 
@@ -178,16 +179,22 @@ pub trait TextWindowTrait<'a> {
         self.base().move_cursor(direction);
     }
 
-    fn text_insert_create(&mut self, mode: InsertMode) {
-        self.base().text_insert_create(mode);
-    }
-
     fn text_insert_add(&mut self, text: &str) {
         self.base().text_insert_add(text);
     }
 
     fn text_insert_commit(&mut self) -> String {
         self.base().text_insert_commit()
+    }
+
+    fn text_delete_char(&mut self) {
+        // single-char delete on cursor position
+        self.base().text_delete(true, 1);
+    }
+
+    fn text_delete_backspace(&mut self) {
+        // single-char backspace, move cursor to the left
+        self.base().text_delete(false, 1);
     }
 
     fn set_selection(&mut self, enable: bool) {

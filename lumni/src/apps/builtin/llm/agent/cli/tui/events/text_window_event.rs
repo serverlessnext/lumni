@@ -48,7 +48,17 @@ where
         KeyCode::Down => {
             window.move_cursor(MoveCursor::Down);
         }
-        // Default to stay in the same mode if no relevant key is pressed
+        KeyCode::Backspace => {
+            if window.is_style_insert() {
+                window.text_delete_backspace();
+            }
+        }
+        KeyCode::Delete => {
+            if window.is_style_insert() {
+                window.text_delete_char();
+            }
+        }
+        // Default to stay in the s mode if no relevant key is pressed
         _ => {}
     }
 

@@ -19,8 +19,9 @@ pub struct PieceTable {
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     insert_cache: String, // Temporary buffer for caching many (small) insertions
     cache_insert_idx: Option<usize>, // The index at which to commit the cached inserts
-    undo_stack: Vec<Action>,         // Stack for undoing actions
-    redo_stack: Vec<Action>,         // Stack for redoing actions
+    //delete_cache: Option<(usize, usize)>, // Optional tuple for a pending deletion
+    undo_stack: Vec<Action>, // Stack for undoing actions
+    redo_stack: Vec<Action>, // Stack for redoing actions
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +49,7 @@ impl PieceTable {
             }],
             insert_cache: String::new(),
             cache_insert_idx: None,
+            //delete_cache: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -64,11 +66,12 @@ impl PieceTable {
         });
         self.insert_cache.clear();
         self.cache_insert_idx = None;
+        //self.delete_cache = None;
         self.undo_stack.clear();
         self.redo_stack.clear();
     }
 
-    pub fn insert(&mut self, idx: usize, text: &str, is_redo: bool) {
+    fn insert(&mut self, idx: usize, text: &str, is_redo: bool) {
         let add_start = self.add.len();
         self.add.push_str(text);
         let mut new_pieces = Vec::new();
@@ -139,6 +142,11 @@ impl PieceTable {
     pub fn delete(&mut self, idx: usize, length: usize) {
         let mut offset = 0;
         let mut new_pieces = vec![];
+
+        // Ensure all inserts are committed before proceeding with deletion
+        if !self.insert_cache.is_empty() {
+            self.commit_insert_cache();
+        }
 
         let mut i = 0;
         while i < self.pieces.len() {
@@ -260,7 +268,7 @@ impl PieceTable {
         self.pieces.iter().map(|p| p.length).sum()
     }
 
-    pub fn start_insert_cache(&mut self, mode: InsertMode) {
+    fn start_insert_cache(&mut self, mode: InsertMode) {
         match mode {
             InsertMode::Append => {
                 // Set the index to the current length of content
@@ -275,6 +283,7 @@ impl PieceTable {
     }
 
     pub fn cache_insert(&mut self, text: &str) {
+        // collect (small) insertions to be committed in a single insert operation
         if self.cache_insert_idx.is_none() {
             // Automatically start an append cache if no index has been set
             self.start_insert_cache(InsertMode::Append);
@@ -310,6 +319,7 @@ impl PieceTable {
         // Append the new piece to the pieces list.
         self.pieces.push(new_piece);
     }
+
     pub fn content(&self) -> String {
         // Collect the content of each piece into a single string
         let mut content_string = self

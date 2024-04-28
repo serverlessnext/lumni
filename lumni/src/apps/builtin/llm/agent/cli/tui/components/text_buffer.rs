@@ -43,15 +43,33 @@ impl TextBuffer<'_> {
         self.cursor.set_style(style);
     }
 
-    pub fn text_insert_create(&mut self, mode: InsertMode) {
-        self.text.start_insert_cache(mode);
-    }
-
     pub fn text_insert_add(&mut self, text: &str) {
         self.text.cache_insert(text);
         self.update_display_text();
         self.move_cursor(MoveCursor::EndOfFileEndOfLine);
     }
+
+    pub fn text_delete(&mut self, include_cursor: bool, _count: usize) {
+        // ignore count for now -- only delete one character
+        let idx = self.cursor.real_position();
+        if include_cursor {
+            self.text.delete(idx, 1);
+        } else {
+            if idx > 0 {
+                self.text.delete(idx - 1, 1);
+            } else {
+                return;
+            }
+        }
+        // move cursor to the left on successful delete
+        let (column_changed, row_changed) = self.move_cursor(MoveCursor::Left);
+        if !column_changed && !row_changed {
+            // move_cursor only updates on column or row change
+            // so if we are at the beginning of the line,
+            // we need to update the display here
+            self.update_display_text();
+        }
+}
 
     pub fn text_insert_commit(&mut self) -> String {
         self.text.commit_insert_cache()
@@ -125,7 +143,8 @@ impl TextBuffer<'_> {
                 );
             }
         }
-
+        self.cursor
+            .update_real_position(&self.display_text, added_characters);
         self.update_cursor_style_in_insert_mode(current_row);
     }
 
@@ -171,6 +190,9 @@ impl TextBuffer<'_> {
             let mut spans = Vec::new();
             let chars: Vec<char> = wrapped_line.chars().collect();
 
+            // Track characters added for each line wrapped
+            let original_line_length = chars.len();
+
             for (j, ch) in chars.into_iter().enumerate() {
                 let should_select = self.cursor.should_select(
                     local_row, j, start_row, start_col, end_row, end_col,
@@ -188,9 +210,17 @@ impl TextBuffer<'_> {
                     spans.push(Span::raw(ch.to_string()));
                 }
             }
+
+            // Calculate added characters due to line wrapping
+            let displayed_line_length =
+                spans.iter().map(|span| span.content.len()).sum::<usize>();
+            if displayed_line_length > original_line_length {
+                *added_characters +=
+                    displayed_line_length - original_line_length;
+            }
+
             self.display_text.push(Line::from(spans));
             local_row += 1;
-            *added_characters += 1;
         }
 
         local_row

@@ -100,91 +100,123 @@ impl TextBuffer<'_> {
 
     pub fn update_display_text(&mut self) {
         let text = self.text.content();
-        let mut new_display_text = Vec::new();
+        self.display_text.clear();
         self.selected_text.clear();
         let mut current_row = 0;
 
-        let (start_row, start_col, end_row, end_col) =
-            if self.cursor.selection_enabled() {
-                self.cursor.get_selection_bounds()
-            } else {
-                (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
-            };
+        // Number of characters added to the display text
+        // this is required to calculate the real position in the text
+        let mut added_characters = 0;
 
-        for (_logical_row, line) in text.split('\n').enumerate() {
-            let wrapped_lines = wrap(
-                line,
-                Options::new(self.display_width)
-                    .word_splitter(WordSplitter::NoHyphenation),
-            );
+        let selection_bounds = self.get_selection_bounds();
 
+        for line in text.split('\n') {
+            let wrapped_lines = self.wrap_text(line);
             if wrapped_lines.is_empty() {
-                if current_row == self.cursor.row as usize {
-                    let spans = vec![Span::styled(
-                        " ",
-                        Style::default().bg(Color::Blue),
-                    )];
-                    new_display_text.push(Line::from(spans));
-                } else {
-                    new_display_text.push(Line::from(Span::raw("")));
-                }
+                self.handle_empty_line(current_row);
+                added_characters += 1; // account for the newline character
                 current_row += 1; // move to next line
             } else {
-                for wrapped_line in wrapped_lines {
-                    let mut spans = Vec::new();
-                    let chars: Vec<char> = wrapped_line.chars().collect();
-
-                    for (j, ch) in chars.into_iter().enumerate() {
-                        let should_select = self.cursor.should_select(
-                            current_row,
-                            j,
-                            start_row,
-                            start_col,
-                            end_row,
-                            end_col,
-                        ) || (self.cursor.show_cursor()
-                            && current_row == self.cursor.row as usize
-                            && j == self.cursor.col as usize);
-
-                        if should_select {
-                            spans.push(Span::styled(
-                                ch.to_string(),
-                                Style::default().bg(Color::Blue),
-                            ));
-                            self.selected_text.push(ch);
-                        } else {
-                            spans.push(Span::raw(ch.to_string()));
-                        }
-                    }
-                    new_display_text.push(Line::from(spans));
-                    current_row += 1; // move to next line after processing current line
-                }
+                current_row = self.process_wrapped_lines(
+                    wrapped_lines,
+                    current_row,
+                    &selection_bounds,
+                    &mut added_characters,
+                );
             }
         }
 
-        // Conditionally style the cursor space if the cursor is in insert mode and at the end of the line
+        self.update_cursor_style_in_insert_mode(current_row);
+    }
+
+    fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
+        if self.cursor.selection_enabled() {
+            self.cursor.get_selection_bounds()
+        } else {
+            (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
+        }
+    }
+
+    fn wrap_text(&self, line: &str) -> Vec<String> {
+        wrap(
+            line,
+            Options::new(self.display_width)
+                .word_splitter(WordSplitter::NoHyphenation),
+        )
+        .into_iter()
+        .map(|cow| cow.into_owned())
+        .collect()
+    }
+
+    fn handle_empty_line(&mut self, current_row: usize) {
+        if current_row == self.cursor.row as usize {
+            let span = Span::styled(" ", Style::default().bg(Color::Blue));
+            self.display_text.push(Line::from(span));
+        } else {
+            self.display_text.push(Line::from(Span::raw("")));
+        }
+    }
+
+    fn process_wrapped_lines(
+        &mut self,
+        wrapped_lines: Vec<String>,
+        current_row: usize,
+        selection_bounds: &(usize, usize, usize, usize),
+        added_characters: &mut usize,
+    ) -> usize {
+        let (start_row, start_col, end_row, end_col) = *selection_bounds;
+        let mut local_row = current_row;
+
+        for wrapped_line in wrapped_lines {
+            let mut spans = Vec::new();
+            let chars: Vec<char> = wrapped_line.chars().collect();
+
+            for (j, ch) in chars.into_iter().enumerate() {
+                let should_select = self.cursor.should_select(
+                    local_row, j, start_row, start_col, end_row, end_col,
+                ) || (self.cursor.show_cursor()
+                    && local_row == self.cursor.row as usize
+                    && j == self.cursor.col as usize);
+
+                if should_select {
+                    spans.push(Span::styled(
+                        ch.to_string(),
+                        Style::default().bg(Color::Blue),
+                    ));
+                    self.selected_text.push(ch);
+                } else {
+                    spans.push(Span::raw(ch.to_string()));
+                }
+            }
+            self.display_text.push(Line::from(spans));
+            local_row += 1;
+            *added_characters += 1;
+        }
+
+        local_row
+    }
+
+    fn update_cursor_style_in_insert_mode(&mut self, current_row: usize) {
         if self.cursor.style() == WindowStyle::Insert
             && self.cursor.row as usize == current_row - 1
         {
-            if let Some(last_line) = new_display_text.last_mut() {
-                // add empty space to the end of the line
+            if let Some(last_line) = self.display_text.last_mut() {
                 last_line.spans.push(Span::raw(" "));
                 let line_length = last_line
                     .spans
                     .iter()
                     .map(|span| span.content.len())
                     .sum::<usize>();
-                if self.cursor.col as usize == line_length - 1 {
-                    // Adjust for zero-index and added space
+                if (self.cursor.col as usize) < (line_length - 1) {
+                    last_line.spans[self.cursor.col as usize].style =
+                        Style::default().bg(Color::Yellow);
+                } else {
                     if let Some(last_span) = last_line.spans.last_mut() {
-                        // Style the last space as the cursor
                         last_span.style = Style::default().bg(Color::Yellow);
                     }
                 }
             }
         }
-
-        self.display_text = new_display_text;
     }
 
     pub fn undo(&mut self) {

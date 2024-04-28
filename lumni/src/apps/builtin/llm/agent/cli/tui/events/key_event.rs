@@ -160,10 +160,13 @@ impl KeyEventHandler {
                 is_running,
             ),
             WindowEvent::PromptWindow => {
+                // catch Enter key press in prompt window
                 if self.key_track.current_key().code == KeyCode::Enter {
-                    if !prompt_window.is_style_insert() {
-                        // Enter key pressed in non-insert mode
-                        let question = prompt_window.text_buffer().to_string();
+                    let question = prompt_window.text_buffer().to_string();
+                    // send prompt if not editing, or if the last character is a space
+                    if !prompt_window.is_style_insert()
+                        || question.chars().last() == Some(' ')
+                    {
                         send_prompt(chat_session, tx, is_running, question)
                             .await;
                         prompt_window.text_empty();

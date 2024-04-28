@@ -69,7 +69,7 @@ impl TextBuffer<'_> {
             // we need to update the display here
             self.update_display_text();
         }
-}
+    }
 
     pub fn text_insert_commit(&mut self) -> String {
         self.text.commit_insert_cache()

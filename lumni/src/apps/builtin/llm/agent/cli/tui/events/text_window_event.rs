@@ -49,12 +49,12 @@ where
             window.move_cursor(MoveCursor::Down);
         }
         KeyCode::Backspace => {
-            if window.is_style_insert() {
+            if window.window_type().is_editable() {
                 window.text_delete_backspace();
             }
         }
         KeyCode::Delete => {
-            if window.is_style_insert() {
+            if window.window_type().is_editable() {
                 window.text_delete_char();
             }
         }

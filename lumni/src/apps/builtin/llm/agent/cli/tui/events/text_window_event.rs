@@ -37,16 +37,21 @@ where
             window.set_normal_mode();
         }
         KeyCode::Right => {
-            window.move_cursor(MoveCursor::Right);
+            window.move_cursor(MoveCursor::Right(1));
         }
         KeyCode::Left => {
-            window.move_cursor(MoveCursor::Left);
+            window.move_cursor(MoveCursor::Left(1));
         }
         KeyCode::Up => {
-            window.move_cursor(MoveCursor::Up);
+            window.move_cursor(MoveCursor::Up(1));
         }
         KeyCode::Down => {
-            window.move_cursor(MoveCursor::Down);
+            window.move_cursor(MoveCursor::Down(1));
+        }
+        KeyCode::Enter => {
+            if window.window_type().is_editable() {
+                window.text_insert_add("\n");
+            }
         }
         KeyCode::Backspace => {
             if window.window_type().is_editable() {
@@ -86,10 +91,10 @@ where
             window.move_cursor(MoveCursor::EndOfLine);
         }
         'h' => {
-            window.move_cursor(MoveCursor::Left);
+            window.move_cursor(MoveCursor::Left(1));
         }
         'l' => {
-            window.move_cursor(MoveCursor::Right);
+            window.move_cursor(MoveCursor::Right(1));
         }
         'g' => {
             // Check if the last command was also 'g'
@@ -105,12 +110,12 @@ where
         'j' => {
             let lines_to_move =
                 key_track.retrieve_and_reset_numeric_input() as u16;
-            window.move_cursor(MoveCursor::LinesForward(lines_to_move));
+            window.move_cursor(MoveCursor::Down(lines_to_move));
         }
         'k' => {
             let lines_to_move =
                 key_track.retrieve_and_reset_numeric_input() as u16;
-            window.move_cursor(MoveCursor::LinesBackward(lines_to_move));
+            window.move_cursor(MoveCursor::Up(lines_to_move));
         }
         'v' => {
             // enable visual mode

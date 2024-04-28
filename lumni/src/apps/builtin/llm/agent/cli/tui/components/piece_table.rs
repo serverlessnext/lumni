@@ -140,32 +140,27 @@ impl PieceTable {
     }
 
     pub fn delete(&mut self, idx: usize, length: usize) {
+//        eprintln!("delete({}, {})", idx, length);
         let mut offset = 0;
         let mut new_pieces = vec![];
 
-        // Ensure all inserts are committed before proceeding with deletion
         if !self.insert_cache.is_empty() {
             self.commit_insert_cache();
         }
 
-        let mut i = 0;
-        while i < self.pieces.len() {
-            let piece = &self.pieces[i]; // Temporarily borrow piece
-            let end_idx = offset + piece.length;
+        for (i, piece) in self.pieces.iter().enumerate() {
+            let piece_end = offset + piece.length;
 
-            if end_idx <= idx {
-                // No deletion needed, just add the piece to new_pieces
+            if piece_end <= idx {
                 new_pieces.push(piece.clone());
-            } else if offset >= idx + length {
-                // All remaining pieces are added to new_pieces without modification
+            } else if offset > idx + length {
                 new_pieces.extend_from_slice(&self.pieces[i..]);
                 break;
             } else {
                 let start_overlap = std::cmp::max(idx, offset);
-                let end_overlap = std::cmp::min(idx + length, end_idx);
+                let end_overlap = std::cmp::min(idx + length, piece_end);
 
                 if start_overlap > offset {
-                    // Add the part of the piece before the deletion
                     new_pieces.push(Piece {
                         source: piece.source.clone(),
                         start: piece.start,
@@ -173,21 +168,17 @@ impl PieceTable {
                     });
                 }
 
-                if end_overlap < end_idx {
-                    // Add the part of the piece after the deletion
+                if end_overlap < piece_end {
                     new_pieces.push(Piece {
                         source: piece.source.clone(),
                         start: piece.start + (end_overlap - offset),
-                        length: end_idx - end_overlap,
+                        length: piece_end - end_overlap,
                     });
                 }
             }
 
             offset += piece.length;
-            i += 1;
         }
-
-        // Replace the old pieces with new_pieces
         self.pieces = new_pieces;
     }
 

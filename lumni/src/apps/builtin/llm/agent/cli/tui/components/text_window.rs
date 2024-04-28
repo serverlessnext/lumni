@@ -5,7 +5,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::prompt_rect::PromptRect;
-use super::{InsertMode, TextBuffer, WindowStyle, WindowType};
+use super::{TextBuffer, WindowStyle, WindowType};
 
 pub struct TextWindow<'a> {
     area: PromptRect,

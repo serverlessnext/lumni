@@ -4,17 +4,15 @@ use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
-    Right,
-    Left,
-    Up,
-    Down,
+    Right(u16),
+    Left(u16),
+    Up(u16),
+    Down(u16),
     StartOfLine,
     EndOfLine,
     TopOfFile,
     EndOfFile,
     EndOfFileEndOfLine,
-    LinesForward(u16),
-    LinesBackward(u16),
 }
 
 #[derive(Debug, Clone)]
@@ -90,35 +88,61 @@ impl Cursor {
     ) {
         let max_row = get_max_row(display_text);
         match direction {
-            MoveCursor::Right => {
+            MoveCursor::Right(steps) => {
+                // Move the cursor to the right by the specified number of characters
+                for _ in 0..steps {
+                    let max_col = get_max_col(self.row, display_text);
+                    if self.col < max_col {
+                        self.col += 1;
+                    } else if self.row < get_max_row(display_text) {
+                        // Move to the beginning of the next line
+                        self.row += 1;
+                        self.col = 0;
+                    }
+                }
+                self.desired_col = self.col;
+            }
+            MoveCursor::Left(chars) => {
+                // Move the cursor to the left by the specified number of characters
+                for _ in 0..chars {
+                    if self.col > 0 {
+                        self.col -= 1;
+                    } else if self.row > 0 {
+                        // Move to the end of the previous line
+                        self.row -= 1;
+                        self.col = get_max_col(self.row, display_text);
+                    }
+                }
+            }
+            MoveCursor::Up(lines) => {
+                let current_row = self.row;
+                let new_row = self.row.saturating_sub(lines);
+                self.row = new_row;
+
                 let max_col = get_max_col(self.row, display_text);
-                if self.col < max_col {
-                    self.col += 1;
-                }
-                self.desired_col = self.col;
-            }
-            MoveCursor::Left => {
-                if self.col > 0 {
-                    self.col -= 1;
-                }
-                self.desired_col = self.col;
-            }
-            MoveCursor::Up => {
-                if self.row > 0 {
-                    self.row -= 1;
-                    let max_col = get_max_col(self.row, display_text);
-                    self.col = std::cmp::min(self.desired_col, max_col);
+                self.col = std::cmp::min(self.desired_col, max_col);
+
+                // If moving up a single line and the cursor cannot move further up,
+                // ensure the cursor moves to the start of the line
+                if lines == 1 && new_row == 0 && current_row == new_row {
+                    self.col = 0;
+                    self.desired_col = 0;
                 }
             }
-            MoveCursor::Down => {
-                if self.row < max_row {
-                    self.row += 1;
-                    let max_col = get_max_col(self.row, display_text);
-                    self.col = std::cmp::min(self.desired_col, max_col);
-                } else {
-                    // go to end of line
-                    self.col = get_max_col(self.row, display_text);
-                    self.desired_col = self.col;
+            MoveCursor::Down(lines) => {
+                let current_row = self.row;
+                let new_row =
+                    std::cmp::min(self.row.saturating_add(lines), max_row);
+                self.row = new_row;
+
+                let max_col = get_max_col(self.row, display_text);
+                self.col = std::cmp::min(self.desired_col, max_col);
+
+                // when moving down a single line, and cant move further,
+                // move cursor to the end of the line
+                if lines == 1 && new_row == max_row && current_row == new_row {
+                    self.col = max_col;
+                    self.desired_col = max_col;
                 }
             }
             MoveCursor::StartOfLine => {
@@ -143,16 +167,6 @@ impl Cursor {
                 self.row = max_row;
                 self.col = get_max_col(self.row, display_text);
                 self.desired_col = self.col;
-            }
-            MoveCursor::LinesBackward(n) => {
-                self.row = self.row.saturating_sub(n);
-                let max_col = get_max_col(self.row, display_text);
-                self.col = std::cmp::min(self.desired_col, max_col);
-            }
-            MoveCursor::LinesForward(n) => {
-                self.row = std::cmp::min(self.row.saturating_add(n), max_row);
-                let max_col = get_max_col(self.row, display_text);
-                self.col = std::cmp::min(self.desired_col, max_col);
             }
         }
     }
@@ -230,7 +244,9 @@ impl Cursor {
         if position < added_characters {
             // this should never happen, and if it does panic as it means our logic
             // for computing the real position is incorrect
-            panic!("Real position is less than added characters");
+            // panic!("Real position is less than added characters");
+            self.real_position = 0;
+            eprintln!("Real position is less than added characters");
         }
         self.real_position = position - added_characters;
     }

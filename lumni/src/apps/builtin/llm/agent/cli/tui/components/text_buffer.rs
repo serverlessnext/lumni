@@ -49,26 +49,46 @@ impl TextBuffer<'_> {
         self.move_cursor(MoveCursor::EndOfFileEndOfLine);
     }
 
-    pub fn text_delete(&mut self, include_cursor: bool, _count: usize) {
-        // ignore count for now -- only delete one character
+    pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
         let idx = self.cursor.real_position();
-        if include_cursor {
-            self.text.delete(idx, 1);
+        if count == 0 {
+            return;
+        } // Early exit if no characters to delete
+
+        let start_idx = if include_cursor {
+            idx
+        } else if idx > 0 {
+            idx - 1
         } else {
-            if idx > 0 {
-                self.text.delete(idx - 1, 1);
+            return;
+        };
+    
+        let end_idx =
+            std::cmp::min(start_idx + count, self.text.content().len());
+
+        // Check for newline deletion and cursor adjustment
+        let deleted_text = &self.text.content()[start_idx..end_idx];
+        let newline_count = deleted_text.matches('\n').count();
+        let is_newline_at_end = deleted_text.ends_with('\n');
+
+        // Move cursor appropriately
+        if newline_count > 0 {
+            if is_newline_at_end {
+                // delete newline character + last character of previous line
+                self.text.delete(start_idx.saturating_sub(1), count + 1);
             } else {
-                return;
+                panic!("Not yet implemented multi line deletion")
             }
+        } else {
+            // delete the selected text
+            self.text.delete(start_idx, count);
         }
-        // move cursor to the left on successful delete
-        let (column_changed, row_changed) = self.move_cursor(MoveCursor::Left);
-        if !column_changed && !row_changed {
-            // move_cursor only updates on column or row change
-            // so if we are at the beginning of the line,
-            // we need to update the display here
-            self.update_display_text();
-        }
+        self.cursor.move_cursor(
+            MoveCursor::Left(count as u16),
+            &self.display_text,
+        );
+
+        self.update_display_text();
     }
 
     pub fn text_insert_commit(&mut self) -> String {
@@ -145,7 +165,7 @@ impl TextBuffer<'_> {
         }
         self.cursor
             .update_real_position(&self.display_text, added_characters);
-        self.update_cursor_style_in_insert_mode(current_row);
+        self.update_cursor_style_in_insert_mode();
     }
 
     fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
@@ -226,23 +246,34 @@ impl TextBuffer<'_> {
         local_row
     }
 
-    fn update_cursor_style_in_insert_mode(&mut self, current_row: usize) {
-        if self.cursor.style() == WindowStyle::Insert
-            && self.cursor.row as usize == current_row - 1
-        {
-            if let Some(last_line) = self.display_text.last_mut() {
-                last_line.spans.push(Span::raw(" "));
-                let line_length = last_line
+    fn update_cursor_style_in_insert_mode(&mut self) {
+        // apply yellow background to cursor's current position
+        // add a virtual space at the end of the line to enable appending characters
+        if self.cursor.style() == WindowStyle::Insert {
+            if let Some(current_line) =
+                self.display_text.get_mut(self.cursor.row as usize)
+            {
+                if current_line.spans.last().map_or(true, |span| !span.content.ends_with(" ")) {
+                    // add a space at the end of the line, to enable appending characters at the end
+                    current_line.spans.push(Span::raw(" "));
+                }
+
+                let line_length = current_line
                     .spans
                     .iter()
                     .map(|span| span.content.len())
                     .sum::<usize>();
-                if (self.cursor.col as usize) < (line_length - 1) {
-                    last_line.spans[self.cursor.col as usize].style =
-                        Style::default().bg(Color::Yellow);
-                } else {
-                    if let Some(last_span) = last_line.spans.last_mut() {
+
+                // Style the cursor's current position within the line
+                if (self.cursor.col as usize) >= line_length.saturating_sub(1) {
+                    if let Some(last_span) = current_line.spans.last_mut() {
                         last_span.style = Style::default().bg(Color::Yellow);
+                    }
+                } else {
+                    if let Some(span) =
+                        current_line.spans.get_mut(self.cursor.col as usize)
+                    {
+                        span.style = Style::default().bg(Color::Yellow);
                     }
                 }
             }

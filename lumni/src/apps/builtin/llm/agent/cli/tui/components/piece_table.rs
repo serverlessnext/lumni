@@ -19,7 +19,6 @@ pub struct PieceTable {
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     insert_cache: String, // Temporary buffer for caching many (small) insertions
     cache_insert_idx: Option<usize>, // The index at which to commit the cached inserts
-    //delete_cache: Option<(usize, usize)>, // Optional tuple for a pending deletion
     undo_stack: Vec<Action>, // Stack for undoing actions
     redo_stack: Vec<Action>, // Stack for redoing actions
 }
@@ -49,7 +48,6 @@ impl PieceTable {
             }],
             insert_cache: String::new(),
             cache_insert_idx: None,
-            //delete_cache: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -273,24 +271,35 @@ impl PieceTable {
     }
 
     pub fn cache_insert(&mut self, text: &str, idx: Option<usize>) {
-        // collect (small) insertions to be committed in a single insert operation
-        if self.cache_insert_idx.is_none() {
-            // no existing index, start a new cache
-            if let Some(idx) = idx {
-                self.start_insert_cache(InsertMode::Insert(idx));
-            } else {
-                // start an append cache if no index has been set
+        // Determine the current end index of the cached content
+        let current_end_idx = self.cache_insert_idx.map_or(None, |start_idx| Some(start_idx + self.insert_cache.len()));
+
+        match (idx, current_end_idx) {
+            (Some(new_idx), Some(end_idx)) if new_idx == end_idx => {
+                // If the new index matches exactly where the current cache ends, just append
+                self.insert_cache.push_str(text);
+            },
+            (Some(new_idx), _) => {
+                // If there's a new index that doesn't align or if the cache is empty
+                if !self.insert_cache.is_empty() {
+                    self.commit_insert_cache();
+                }
+                self.start_insert_cache(InsertMode::Insert(new_idx));
+                self.insert_cache.push_str(text);
+            },
+            (None, Some(_)) => {
+                // If no specific index is provided but a cache exists, append to it
+                self.insert_cache.push_str(text);
+            },
+            (None, None) => {
+                // If no specific index and no existing cache, start appending at the end of the content
                 self.start_insert_cache(InsertMode::Append);
+                self.insert_cache.push_str(text);
             }
-        } else if let Some(idx) = idx {
-            // index is provided
-            // write existing cache to the content
-            self.commit_insert_cache();
-            // start a new cache at the specified index
-            self.start_insert_cache(InsertMode::Insert(idx));
         }
-        self.insert_cache.push_str(text);
     }
+
+
 
     pub fn commit_insert_cache(&mut self) -> String {
         if let Some(idx) = self.cache_insert_idx {

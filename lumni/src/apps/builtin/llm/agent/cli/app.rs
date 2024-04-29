@@ -157,7 +157,7 @@ async fn prompt_app<B: Backend>(
     Ok(())
 }
 
-pub async fn run_cli(_args: Vec<String>) -> Result<(), Box<dyn Error>> {
+pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session

@@ -49,42 +49,52 @@ impl TextBuffer<'_> {
         self.move_cursor(MoveCursor::EndOfFileEndOfLine);
     }
 
-    pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
-        let idx = self.cursor.real_position();
-        if count == 0 {
-            return;
-        } // Early exit if no characters to delete
+    pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
+        // get current cursor position in the underlying (unwrapped) text buffer
+        let idx = self.cursor.real_position();  
+        if char_count == 0 {
+            return; // nothing to delete
+        } 
 
         let start_idx = if include_cursor {
-            idx
+            idx //  start at the highlighed (cursor) character
         } else if idx > 0 {
-            idx - 1
+            idx - 1 // start at the character before the cursor
         } else {
             return;
         };
     
         let end_idx =
-            std::cmp::min(start_idx + count, self.text.content().len());
-
-        // Check for newline deletion and cursor adjustment
-        let deleted_text = &self.text.content()[start_idx..end_idx];
-        let newline_count = deleted_text.matches('\n').count();
-        let is_newline_at_end = deleted_text.ends_with('\n');
+            std::cmp::min(start_idx + char_count, self.text.content().len());
 
         // Move cursor appropriately
-        if newline_count > 0 {
-            if is_newline_at_end {
-                // delete newline character + last character of previous line
-                self.text.delete(start_idx.saturating_sub(1), count + 1);
+        if char_count == 1 {
+            // handle backspace separately as it has different user expectations,
+            // particulary on deleting of characters at the end of the line
+
+            // get additional character before the start_idx to check for starting newline
+            let deleted_text = &self.text.content()[start_idx.saturating_sub(1)..end_idx];
+
+            if deleted_text.ends_with('\n') {
+                if deleted_text.starts_with("\n") {
+                    // case with continguos newlines -- delete only given char_count
+                    self.text.delete(start_idx, char_count);
+                } else {
+                    // delete last character(s) from previous line + newline
+                    // move index one character back to include the additional newline delete
+                    self.text.delete(start_idx.saturating_sub(1), char_count + 1);
+                }
             } else {
-                panic!("Not yet implemented multi line deletion")
+                // delete character within the line
+                self.text.delete(start_idx, char_count);
             }
         } else {
             // delete the selected text
-            self.text.delete(start_idx, count);
+            // TODO: should still test multi-line delete
+            self.text.delete(start_idx, char_count);
         }
         self.cursor.move_cursor(
-            MoveCursor::Left(count as u16),
+            MoveCursor::Left(char_count as u16),
             &self.display_text,
         );
 

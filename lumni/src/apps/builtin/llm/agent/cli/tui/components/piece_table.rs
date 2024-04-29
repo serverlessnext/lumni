@@ -140,7 +140,6 @@ impl PieceTable {
     }
 
     pub fn delete(&mut self, idx: usize, length: usize) {
-//        eprintln!("delete({}, {})", idx, length);
         let mut offset = 0;
         let mut new_pieces = vec![];
 
@@ -273,11 +272,22 @@ impl PieceTable {
         self.insert_cache.clear();
     }
 
-    pub fn cache_insert(&mut self, text: &str) {
+    pub fn cache_insert(&mut self, text: &str, idx: Option<usize>) {
         // collect (small) insertions to be committed in a single insert operation
         if self.cache_insert_idx.is_none() {
-            // Automatically start an append cache if no index has been set
-            self.start_insert_cache(InsertMode::Append);
+            // no existing index, start a new cache
+            if let Some(idx) = idx {
+                self.start_insert_cache(InsertMode::Insert(idx));
+            } else {
+                // start an append cache if no index has been set
+                self.start_insert_cache(InsertMode::Append);
+            }
+        } else if let Some(idx) = idx {
+            // index is provided
+            // write existing cache to the content
+            self.commit_insert_cache();
+            // start a new cache at the specified index
+            self.start_insert_cache(InsertMode::Insert(idx));
         }
         self.insert_cache.push_str(text);
     }

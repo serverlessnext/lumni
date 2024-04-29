@@ -44,9 +44,11 @@ impl TextBuffer<'_> {
     }
 
     pub fn text_insert_add(&mut self, text: &str) {
-        self.text.cache_insert(text);
+        // get current cursor position in the underlying (unwrapped) text buffer
+        let idx = self.cursor.real_position();
+        self.text.cache_insert(text, Some(idx));
         self.update_display_text();
-        self.move_cursor(MoveCursor::EndOfFileEndOfLine);
+        self.move_cursor(MoveCursor::Right(text.len() as u16));
     }
 
     pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
@@ -67,7 +69,6 @@ impl TextBuffer<'_> {
         let end_idx =
             std::cmp::min(start_idx + char_count, self.text.content().len());
 
-        // Move cursor appropriately
         if char_count == 1 {
             // handle backspace separately as it has different user expectations,
             // particulary on deleting of characters at the end of the line
@@ -93,6 +94,8 @@ impl TextBuffer<'_> {
             // TODO: should still test multi-line delete
             self.text.delete(start_idx, char_count);
         }
+        
+        // Move cursor appropriately
         self.cursor.move_cursor(
             MoveCursor::Left(char_count as u16),
             &self.display_text,

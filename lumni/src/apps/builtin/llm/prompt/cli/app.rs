@@ -158,6 +158,12 @@ async fn prompt_app<B: Backend>(
 }
 
 pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
+    // lumni prompt --assistant summarizer --model llama3
+    // --model llama3  // model hint
+    // --assistant summarizer  // assistant
+    // --options temperature=1,max_tokens=100,stop_sequence="\\n"  // model options
+    // 
+
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session

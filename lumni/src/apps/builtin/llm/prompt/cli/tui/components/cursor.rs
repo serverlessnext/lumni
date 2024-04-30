@@ -245,10 +245,9 @@ impl Cursor {
             // this should never happen, and if it does panic as it means our logic
             // for computing the real position is incorrect
             // panic!("Real position is less than added characters");
-            self.real_position = 0;
             eprintln!("Real position is less than added characters");
         }
-        self.real_position = position - added_characters;
+        self.real_position = position.saturating_sub(added_characters);
     }
 }
 
@@ -260,7 +259,7 @@ fn get_max_col(row: u16, display_text: &[Line]) -> u16 {
             .iter()
             .map(|span| span.content.len() as u16) // Calculate the length of each span
             .sum::<u16>() // Sum up the lengths of all spans
-            .saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
+            //.saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
     } else {
         0 // If for some reason the line doesn't exist, return 0
     }

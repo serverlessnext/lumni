@@ -19,7 +19,6 @@ where
     T: TextWindowTrait<'a>,
 {
     let key_event = key_track.current_key();
-
     match key_event.code {
         KeyCode::Char(c) => {
             // check mode

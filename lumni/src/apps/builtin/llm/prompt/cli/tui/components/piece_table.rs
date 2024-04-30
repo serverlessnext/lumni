@@ -1,5 +1,7 @@
 use std::mem;
 
+use ratatui::text;
+
 #[derive(Clone, Debug, PartialEq)]
 enum Action {
     Insert { index: usize, length: usize },
@@ -280,12 +282,23 @@ impl PieceTable {
                 self.insert_cache.push_str(text);
             },
             (Some(new_idx), _) => {
-                // If there's a new index that doesn't align or if the cache is empty
                 if !self.insert_cache.is_empty() {
                     self.commit_insert_cache();
                 }
-                self.start_insert_cache(InsertMode::Insert(new_idx));
-                self.insert_cache.push_str(text);
+
+                let initial_text: String;
+                if self.committed_content_length() < new_idx {
+                    // insert exceeds the current content length, fill with spaces
+                    let diff = new_idx - self.committed_content_length();
+                    let fill_text = " ".repeat(diff);
+                    self.start_insert_cache(InsertMode::Insert(self.committed_content_length()));
+                    initial_text = format!("{}{}", fill_text, text);
+                } else {
+                    self.start_insert_cache(InsertMode::Insert(new_idx));
+                    initial_text = text.to_string();
+                }
+
+                self.insert_cache.push_str(&initial_text);
             },
             (None, Some(_)) => {
                 // If no specific index is provided but a cache exists, append to it
@@ -298,8 +311,6 @@ impl PieceTable {
             }
         }
     }
-
-
 
     pub fn commit_insert_cache(&mut self) -> String {
         if let Some(idx) = self.cache_insert_idx {

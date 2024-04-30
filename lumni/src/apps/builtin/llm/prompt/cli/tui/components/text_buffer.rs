@@ -151,6 +151,7 @@ impl TextBuffer<'_> {
 
     pub fn update_display_text(&mut self) {
         let text = self.text.content();
+
         self.display_text.clear();
         self.selected_text.clear();
         let mut current_row = 0;
@@ -160,7 +161,7 @@ impl TextBuffer<'_> {
         let mut added_characters = 0;
 
         let selection_bounds = self.get_selection_bounds();
-
+        
         for line in text.split('\n') {
             let wrapped_lines = self.wrap_text(line);
             if wrapped_lines.is_empty() {
@@ -176,8 +177,9 @@ impl TextBuffer<'_> {
                 );
             }
         }
+
         self.cursor
-            .update_real_position(&self.display_text, added_characters);
+            .update_real_position(&self.display_text, added_characters); //trailing_spaces);
         self.update_cursor_style_in_insert_mode();
     }
 
@@ -266,6 +268,8 @@ impl TextBuffer<'_> {
             if let Some(current_line) =
                 self.display_text.get_mut(self.cursor.row as usize)
             {
+                // TODO: this still has a cosmetic bug where the cursor is not displayed 
+                // correctly in case there is a trailing space in the line
                 if current_line.spans.last().map_or(true, |span| !span.content.ends_with(" ")) {
                     // add a space at the end of the line, to enable appending characters at the end
                     current_line.spans.push(Span::raw(" "));

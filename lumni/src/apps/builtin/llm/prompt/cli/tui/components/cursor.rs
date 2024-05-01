@@ -1,5 +1,6 @@
 use ratatui::text::Line;
 
+use super::text_buffer::TextDisplay;
 use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
@@ -84,20 +85,22 @@ impl Cursor {
     pub fn move_cursor(
         &mut self,
         direction: MoveCursor,
-        display_text: &[Line],
+        display: &TextDisplay,
     ) {
-        let max_row = get_max_row(display_text);
+        let max_row = get_max_row(display.lines());
         match direction {
             MoveCursor::Right(steps) => {
                 // Move the cursor to the right by the specified number of characters
                 for _ in 0..steps {
-                    let max_col = get_max_col(self.row, display_text);
+                    let max_col = display.get_max_col(self.row);
                     if self.col < max_col {
                         self.col += 1;
-                    } else if self.row < get_max_row(display_text) {
+                    } else if self.row < get_max_row(display.lines()) {
                         // Move to the beginning of the next line
                         self.row += 1;
                         self.col = 0;
+                    } else {
+                        // cursor is at the end of the last line
                     }
                 }
                 self.desired_col = self.col;
@@ -110,7 +113,7 @@ impl Cursor {
                     } else if self.row > 0 {
                         // Move to the end of the previous line
                         self.row -= 1;
-                        self.col = get_max_col(self.row, display_text);
+                        self.col = display.get_max_col(self.row);
                     }
                 }
             }
@@ -119,7 +122,7 @@ impl Cursor {
                 let new_row = self.row.saturating_sub(lines);
                 self.row = new_row;
 
-                let max_col = get_max_col(self.row, display_text);
+                let max_col = display.get_max_col(self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // If moving up a single line and the cursor cannot move further up,
@@ -135,7 +138,7 @@ impl Cursor {
                     std::cmp::min(self.row.saturating_add(lines), max_row);
                 self.row = new_row;
 
-                let max_col = get_max_col(self.row, display_text);
+                let max_col = display.get_max_col(self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // when moving down a single line, and cant move further,
@@ -150,7 +153,7 @@ impl Cursor {
                 self.desired_col = self.col;
             }
             MoveCursor::EndOfLine => {
-                self.col = get_max_col(self.row, display_text);
+                self.col = display.get_max_col(self.row);
                 self.desired_col = self.col;
             }
             MoveCursor::TopOfFile => {
@@ -165,7 +168,7 @@ impl Cursor {
             }
             MoveCursor::EndOfFileEndOfLine => {
                 self.row = max_row;
-                self.col = get_max_col(self.row, display_text);
+                self.col = display.get_max_col(self.row);
                 self.desired_col = self.col;
             }
         }
@@ -221,13 +224,13 @@ impl Cursor {
 
     pub fn update_real_position(
         &mut self,
-        display_text: &[Line],
+        display: &TextDisplay,
         added_characters: usize,
     ) {
         // compute the cursor position within underlying text,
         // excluding characters added for wrapping
         let mut position = 0;
-        for (index, line) in display_text.iter().enumerate() {
+        for (index, line) in display.lines().iter().enumerate() {
             if index < self.row as usize {
                 position += line
                     .spans
@@ -240,6 +243,7 @@ impl Cursor {
                 break;
             }
         }
+
         // Subtract characters added for display purposes
         if position < added_characters {
             // this should never happen, and if it does panic as it means our logic
@@ -248,20 +252,6 @@ impl Cursor {
             eprintln!("Real position is less than added characters");
         }
         self.real_position = position.saturating_sub(added_characters);
-    }
-}
-
-fn get_max_col(row: u16, display_text: &[Line]) -> u16 {
-    // Get the current row where the cursor is located.
-    if let Some(line) = display_text.get(row as usize) {
-        // Return the length of the line, considering all spans.
-        line.spans
-            .iter()
-            .map(|span| span.content.len() as u16) // Calculate the length of each span
-            .sum::<u16>() // Sum up the lengths of all spans
-            //.saturating_sub(1) // Subtract 1 because the cursor is 0-indexed
-    } else {
-        0 // If for some reason the line doesn't exist, return 0
     }
 }
 

@@ -44,17 +44,6 @@ impl Cursor {
         }
     }
 
-    pub fn reset(&mut self) {
-        self.col = 0;
-        self.row = 0;
-        self.fixed_col = 0;
-        self.fixed_row = 0;
-        self.show_cursor = false;
-        self.selection_enabled = false;
-        self.desired_col = 0;
-        self.real_position = 0;
-    }
-
     pub fn real_position(&self) -> usize {
         self.real_position
     }

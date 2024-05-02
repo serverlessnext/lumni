@@ -62,6 +62,7 @@ impl<'a> TextDisplay<'a> {
 
     pub fn clear(&mut self) {
         self.lines.clear();
+        self.trailing_spaces = 0;
     }
 }
 
@@ -71,6 +72,7 @@ pub struct TextBuffer<'a> {
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     selected_text: String,    // currently selected text
     cursor: Cursor,
+    is_editable: bool,
 }
 
 impl TextBuffer<'_> {
@@ -80,6 +82,7 @@ impl TextBuffer<'_> {
             display: TextDisplay::new(0),
             selected_text: String::new(),
             cursor: Cursor::new(0, 0, is_editable),
+            is_editable,
         }
     }
 
@@ -94,7 +97,7 @@ impl TextBuffer<'_> {
     pub fn empty(&mut self) {
         self.display.clear();
         self.selected_text.clear();
-        self.cursor.reset();
+        self.cursor = Cursor::new(0, 0, self.is_editable);
         self.text.empty();
         // update display
         self.update_display_text();
@@ -194,7 +197,7 @@ impl TextBuffer<'_> {
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
-        if self.cursor.show_cursor() && (column_changed || row_changed) {
+        if column_changed || row_changed {
             // update the display text to reflect the change
             self.update_display_text();
         }

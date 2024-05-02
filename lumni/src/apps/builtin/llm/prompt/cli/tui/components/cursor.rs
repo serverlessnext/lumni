@@ -30,13 +30,13 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new(col: u16, row: u16) -> Self {
+    pub fn new(col: u16, row: u16, show_cursor: bool) -> Self {
         Cursor {
             col,
             row,
             fixed_col: col,
             fixed_row: row,
-            show_cursor: true,
+            show_cursor,
             selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
             window_style: WindowStyle::Normal,
@@ -49,22 +49,18 @@ impl Cursor {
         self.row = 0;
         self.fixed_col = 0;
         self.fixed_row = 0;
-        self.show_cursor = true;
+        self.show_cursor = false;
         self.selection_enabled = false;
         self.desired_col = 0;
         self.real_position = 0;
-    }
-
-    pub fn style(&self) -> WindowStyle {
-        self.window_style
     }
 
     pub fn real_position(&self) -> usize {
         self.real_position
     }
 
-    pub fn set_style(&mut self, style: WindowStyle) {
-        self.window_style = style;
+    pub fn set_visibility(&mut self, visible: bool) {
+        self.show_cursor = visible;
     }
 
     pub fn show_cursor(&mut self) -> bool {

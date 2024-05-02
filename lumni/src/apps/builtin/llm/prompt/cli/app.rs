@@ -65,7 +65,6 @@ async fn prompt_app<B: Backend>(
                             if key_event.code == KeyCode::Tab {
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
-
                                     WindowEvent::PromptWindow => {
                                         if prompt_window.is_style_insert() {
                                             // tab is locked to prompt window when in insert mode
@@ -162,7 +161,7 @@ pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     // --model llama3  // model hint
     // --assistant summarizer  // assistant
     // --options temperature=1,max_tokens=100,stop_sequence="\\n"  // model options
-    // 
+    //
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

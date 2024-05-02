@@ -30,7 +30,8 @@ pub async fn handle_application(
         Some(app_handler) => {
             // convert ArgMatches to Vec<String>, this allows Apps to choose/ implement
             // their own argument parser
-            let app_arguments = matches.get_raw("")
+            let app_arguments = matches
+                .get_raw("")
                 .unwrap_or_default()
                 .map(|os_str| os_str.to_str().unwrap_or("[Invalid UTF-8]"))
                 .map(String::from)

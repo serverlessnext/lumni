@@ -62,6 +62,12 @@ where
                 window.text_delete_char();
             }
         }
+        KeyCode::Home => {
+            window.move_cursor(MoveCursor::StartOfLine);
+        }
+        KeyCode::End => {
+            window.move_cursor(MoveCursor::EndOfLine);
+        }
         // Default to stay in the s mode if no relevant key is pressed
         _ => {}
     }

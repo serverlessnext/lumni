@@ -21,8 +21,8 @@ pub struct PieceTable {
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     insert_cache: String, // Temporary buffer for caching many (small) insertions
     cache_insert_idx: Option<usize>, // The index at which to commit the cached inserts
-    undo_stack: Vec<Action>, // Stack for undoing actions
-    redo_stack: Vec<Action>, // Stack for redoing actions
+    undo_stack: Vec<Action>,         // Stack for undoing actions
+    redo_stack: Vec<Action>,         // Stack for redoing actions
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -274,13 +274,15 @@ impl PieceTable {
 
     pub fn cache_insert(&mut self, text: &str, idx: Option<usize>) {
         // Determine the current end index of the cached content
-        let current_end_idx = self.cache_insert_idx.map_or(None, |start_idx| Some(start_idx + self.insert_cache.len()));
+        let current_end_idx = self.cache_insert_idx.map_or(None, |start_idx| {
+            Some(start_idx + self.insert_cache.len())
+        });
 
         match (idx, current_end_idx) {
             (Some(new_idx), Some(end_idx)) if new_idx == end_idx => {
                 // If the new index matches exactly where the current cache ends, just append
                 self.insert_cache.push_str(text);
-            },
+            }
             (Some(new_idx), _) => {
                 if !self.insert_cache.is_empty() {
                     self.commit_insert_cache();
@@ -291,7 +293,9 @@ impl PieceTable {
                     // insert exceeds the current content length, fill with spaces
                     let diff = new_idx - self.committed_content_length();
                     let fill_text = " ".repeat(diff);
-                    self.start_insert_cache(InsertMode::Insert(self.committed_content_length()));
+                    self.start_insert_cache(InsertMode::Insert(
+                        self.committed_content_length(),
+                    ));
                     initial_text = format!("{}{}", fill_text, text);
                 } else {
                     self.start_insert_cache(InsertMode::Insert(new_idx));
@@ -299,11 +303,11 @@ impl PieceTable {
                 }
 
                 self.insert_cache.push_str(&initial_text);
-            },
+            }
             (None, Some(_)) => {
                 // If no specific index is provided but a cache exists, append to it
                 self.insert_cache.push_str(text);
-            },
+            }
             (None, None) => {
                 // If no specific index and no existing cache, start appending at the end of the content
                 self.start_insert_cache(InsertMode::Append);

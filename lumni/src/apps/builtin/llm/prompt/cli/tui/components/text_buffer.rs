@@ -8,7 +8,7 @@ use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
-    lines: Vec<Line<'a>>,  // Text (e.g., wrapped, highlighted) for display
+    lines: Vec<Line<'a>>, // Text (e.g., wrapped, highlighted) for display
     trailing_spaces: usize, // Number of trailing spaces to consider for cursor calculations
     display_width: usize,   // Width of the display area, used for wrapping
 }
@@ -48,10 +48,16 @@ impl<'a> TextDisplay<'a> {
 
     // Get the maximum column of a specific row
     pub fn get_max_col(&self, row: u16) -> u16 {
-        self.lines.get(row as usize)
-            .map(|line| line.spans.iter().map(|span| span.content.len() as u16).sum::<u16>())
+        self.lines
+            .get(row as usize)
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.len() as u16)
+                    .sum::<u16>()
+            })
             .unwrap_or(0)
-            .saturating_add(self.trailing_spaces as u16)  // Include trailing spaces
+            .saturating_add(self.trailing_spaces as u16) // Include trailing spaces
     }
 
     pub fn clear(&mut self) {
@@ -61,19 +67,27 @@ impl<'a> TextDisplay<'a> {
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
-    text: PieceTable,            // text buffer
-    display: TextDisplay<'a>,    // text (e.g. wrapped,  highlighted) for display
-    selected_text: String,       // currently selected text
+    text: PieceTable,         // text buffer
+    display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
+    selected_text: String,    // currently selected text
     cursor: Cursor,
 }
 
 impl TextBuffer<'_> {
-    pub fn new() -> Self {
+    pub fn new(is_editable: bool) -> Self {
         Self {
             text: PieceTable::new(""),
             display: TextDisplay::new(0),
             selected_text: String::new(),
-            cursor: Cursor::new(0, 0),
+            cursor: Cursor::new(0, 0, is_editable),
+        }
+    }
+
+    pub fn set_cursor_visibility(&mut self, visible: bool) {
+        if self.cursor.show_cursor() != visible {
+            self.cursor.set_visibility(visible);
+            // update display when cursor visibility changes
+            self.update_display_text();
         }
     }
 
@@ -90,10 +104,6 @@ impl TextBuffer<'_> {
         self.display.set_display_width(width);
     }
 
-    pub fn set_cursor_style(&mut self, style: WindowStyle) {
-        self.cursor.set_style(style);
-    }
-
     pub fn text_insert_add(&mut self, text: &str) {
         // get current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
@@ -104,10 +114,10 @@ impl TextBuffer<'_> {
 
     pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
         // get current cursor position in the underlying (unwrapped) text buffer
-        let idx = self.cursor.real_position();  
+        let idx = self.cursor.real_position();
         if char_count == 0 {
             return; // nothing to delete
-        } 
+        }
 
         let start_idx = if include_cursor {
             idx //  start at the highlighed (cursor) character
@@ -116,7 +126,7 @@ impl TextBuffer<'_> {
         } else {
             return;
         };
-    
+
         let end_idx =
             std::cmp::min(start_idx + char_count, self.text.content().len());
 
@@ -125,7 +135,8 @@ impl TextBuffer<'_> {
             // particulary on deleting of characters at the end of the line
 
             // get additional character before the start_idx to check for starting newline
-            let deleted_text = &self.text.content()[start_idx.saturating_sub(1)..end_idx];
+            let deleted_text =
+                &self.text.content()[start_idx.saturating_sub(1)..end_idx];
 
             if deleted_text.ends_with('\n') {
                 if deleted_text.starts_with("\n") {
@@ -134,7 +145,8 @@ impl TextBuffer<'_> {
                 } else {
                     // delete last character(s) from previous line + newline
                     // move index one character back to include the additional newline delete
-                    self.text.delete(start_idx.saturating_sub(1), char_count + 1);
+                    self.text
+                        .delete(start_idx.saturating_sub(1), char_count + 1);
                 }
             } else {
                 // delete character within the line
@@ -145,12 +157,10 @@ impl TextBuffer<'_> {
             // TODO: should still test multi-line delete
             self.text.delete(start_idx, char_count);
         }
-        
+
         // Move cursor appropriately
-        self.cursor.move_cursor(
-            MoveCursor::Left(char_count as u16),
-            &self.display,
-        );
+        self.cursor
+            .move_cursor(MoveCursor::Left(char_count as u16), &self.display);
 
         self.update_display_text();
     }
@@ -180,10 +190,7 @@ impl TextBuffer<'_> {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
-        self.cursor.move_cursor(
-            direction,
-            &self.display,
-        );
+        self.cursor.move_cursor(direction, &self.display);
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
@@ -210,7 +217,7 @@ impl TextBuffer<'_> {
         let mut added_characters = 0;
 
         let selection_bounds = self.get_selection_bounds();
-        
+
         for line in text.split('\n') {
             let wrapped_lines = self.wrap_text(line);
             if wrapped_lines.is_empty() {
@@ -231,7 +238,7 @@ impl TextBuffer<'_> {
 
         self.cursor
             .update_real_position(&self.display, added_characters);
-        self.update_cursor_style_in_insert_mode();
+        self.update_cursor_style();
     }
 
     fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
@@ -254,7 +261,8 @@ impl TextBuffer<'_> {
     }
 
     fn handle_empty_line(&mut self, current_row: usize) {
-        if current_row == self.cursor.row as usize {
+        if current_row == self.cursor.row as usize && self.cursor.show_cursor()
+        {
             let span = Span::styled(" ", Style::default().bg(Color::Blue));
             self.display.push_line(Line::from(span));
         } else {
@@ -280,11 +288,10 @@ impl TextBuffer<'_> {
             let original_line_length = chars.len();
 
             for (j, ch) in chars.into_iter().enumerate() {
-                let should_select = self.cursor.should_select(
-                    local_row, j, start_row, start_col, end_row, end_col,
-                ) || (self.cursor.show_cursor()
-                    && local_row == self.cursor.row as usize
-                    && j == self.cursor.col as usize);
+                let should_select = self.cursor.show_cursor()
+                    && self.cursor.should_select(
+                        local_row, j, start_row, start_col, end_row, end_col,
+                    );
 
                 if should_select {
                     spans.push(Span::styled(
@@ -312,29 +319,39 @@ impl TextBuffer<'_> {
         local_row
     }
 
-    fn update_cursor_style_in_insert_mode(&mut self) {
-        if self.cursor.style() == WindowStyle::Insert {
+    fn update_cursor_style(&mut self) {
+        if self.cursor.show_cursor() {
             let row_index = self.cursor.row as usize;
-            let line_length = self.display.get_max_col(self.cursor.row) as usize;  // Current line length
+            let line_length =
+                self.display.get_max_col(self.cursor.row) as usize;
             let trailing_spaces = self.display.trailing_spaces;
 
-            if let Some(current_line) = self.display.lines_mut().get_mut(row_index) {
+            if let Some(current_line) =
+                self.display.lines_mut().get_mut(row_index)
+            {
                 let cursor_position = self.cursor.col as usize;
 
                 if cursor_position >= line_length {
                     // Cursor is at the end of the line
                     if trailing_spaces > 0 {
                         // Add trailing spaces back to the line (these were removed during wrapping)
-                        let spaces = std::iter::repeat(' ').take(trailing_spaces).collect::<String>();
+                        let spaces = std::iter::repeat(' ')
+                            .take(trailing_spaces)
+                            .collect::<String>();
                         current_line.spans.push(Span::raw(spaces));
                     }
 
                     // Append one additional space for the cursor itself, and style it
-                    current_line.spans.push(Span::styled(" ", Style::default().bg(Color::Yellow)));
+                    current_line.spans.push(Span::styled(
+                        " ",
+                        Style::default().bg(Color::Yellow),
+                    ));
                 } else {
                     // Style the cursor's current position within the line
                     if cursor_position < current_line.spans.len() {
-                        if let Some(span) = current_line.spans.get_mut(cursor_position) {
+                        if let Some(span) =
+                            current_line.spans.get_mut(cursor_position)
+                        {
                             span.style = Style::default().bg(Color::Yellow);
                         }
                     }

@@ -19,7 +19,7 @@ impl<'a> TextWindow<'a> {
     pub fn new(window_type: WindowType) -> Self {
         Self {
             area: PromptRect::default(),
-            text_buffer: TextBuffer::new(),
+            text_buffer: TextBuffer::new(window_type.is_editable()),
             window_type,
             vertical_scroll: 0,
             vertical_scroll_bar_state: ScrollbarState::default(),
@@ -35,8 +35,23 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn set_window_style(&mut self, style: WindowStyle) {
+        // enable cursor visibility for non-editable windows
+        // editable windows have cursor visibility enabled in all styles
+        if !self.window_type.is_editable() {
+            match style {
+                WindowStyle::Visual => {
+                    self.text_buffer.set_cursor_visibility(true);
+                }
+                WindowStyle::Insert => {
+                    self.text_buffer.set_cursor_visibility(true);
+                }
+                _ => {
+                    eprintln!("Cursor visibility disabled");
+                    self.text_buffer.set_cursor_visibility(false);
+                }
+            }
+        }
         self.window_type.set_style(style);
-        self.text_buffer.set_cursor_style(style);
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -156,6 +171,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_window_style(&mut self, style: WindowStyle) {
+        self.set_selection(false);  // disable selection when changing style
         self.base().set_window_style(style);
     }
 
@@ -253,12 +269,10 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_normal_mode(&mut self) {
-        self.set_selection(false);
         self.set_style_normal();
     }
 
     fn set_insert_mode(&mut self) {
-        self.set_selection(false);
         self.set_style_insert();
     }
 }

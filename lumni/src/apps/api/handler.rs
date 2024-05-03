@@ -29,6 +29,7 @@ pub trait AppHandler: Send + Sync + 'static {
     //#[cfg(feature = "cli")]
     fn invoke_main(
         &self,
+        _spec: ApplicationSpec,
         _args: Vec<String>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         let package_name = self.package_name();
@@ -92,6 +93,29 @@ pub trait AppHandler: Send + Sync + 'static {
             Err(_) => {
                 // this should never happen as the spec is validated at compile time
                 panic!("Failed to load package name from specification.");
+            }
+        }
+    }
+
+    fn package_version(&self) -> String {
+        let spec =
+            serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
+        match spec {
+            Ok(spec) => {
+                let package = spec.package();
+                match package {
+                    Some(package) => package.version().to_string(),
+                    None => {
+                        // this should never happen as the spec is validated at compile time
+                        panic!(
+                            "Failed to load package version from specification."
+                        );
+                    }
+                }
+            }
+            Err(_) => {
+                // this should never happen as the spec is validated at compile time
+                panic!("Failed to load package version from specification.");
             }
         }
     }

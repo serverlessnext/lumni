@@ -6,6 +6,7 @@ use std::pin::Pin;
 #[cfg(feature = "cli")]
 use lumni::api::error::*;
 use lumni::api::handler::AppHandler;
+use lumni::api::spec::ApplicationSpec;
 
 #[cfg(feature = "cli")]
 use super::cli::run_cli;
@@ -21,10 +22,11 @@ impl AppHandler for Handler {
     #[cfg(feature = "cli")]
     fn invoke_main(
         &self,
+        spec: ApplicationSpec,
         args: Vec<String>,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
         Box::pin(async move {
-            run_cli(args).await?;
+            run_cli(spec, args).await?;
             Ok(())
         })
     }

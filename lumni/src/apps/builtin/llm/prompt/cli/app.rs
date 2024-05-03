@@ -1,8 +1,15 @@
 use std::error::Error;
 use std::io;
+use std::env;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+pub use crate::external as lumni;
+use lumni::api::spec::ApplicationSpec;
+
+
+use clap::{Arg, Command};
+use clap::builder::PossibleValuesParser;
 use crossterm::cursor::Show;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
@@ -16,6 +23,7 @@ use crossterm::terminal::{
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
+use serde_json::value;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
@@ -156,13 +164,43 @@ async fn prompt_app<B: Backend>(
     Ok(())
 }
 
-pub async fn run_cli(args: Vec<String>) -> Result<(), Box<dyn Error>> {
-    // lumni prompt --assistant summarizer --model llama3
-    // --model llama3  // model hint
-    // --assistant summarizer  // assistant
-    // --options temperature=1,max_tokens=100,stop_sequence="\\n"  // model options
-    //
+fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
+    let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
+    let version = Box::leak(spec.version().into_boxed_str()) as &'static str;  
 
+    let assistants = vec!["summarizer", "translator", "data-analyzer"];
+    let models = vec!["llama3"];    // TODO: expand with "auto", "chatgpt", etc
+
+    Command::new(name)
+        .version(version)
+        .about("CLI for prompt interaction")
+        .arg_required_else_help(false)
+        .arg(
+            Arg::new("assistant")
+                .long("assistant")
+                .help("Specify which assistant to use")
+                .value_parser(PossibleValuesParser::new(&assistants))
+        )
+        .arg(
+            Arg::new("model")
+                .long("model")
+                .help("Model to use for processing the request")
+                .value_parser(PossibleValuesParser::new(&models))
+                .default_value(models[0])
+        )
+        .arg(
+            Arg::new("options")
+                .long("options")
+                .help("Comma-separated list of model options e.g., temperature=1,max_tokens=100"),
+        )
+}
+
+pub async fn run_cli(spec: ApplicationSpec, args: Vec<String>) -> Result<(), Box<dyn Error>> {
+    // TODO: finalize integrating the CLI arguments
+    //let app = parse_cli_arguments(spec);
+    //let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
+    //    e.exit();
+    //});
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session

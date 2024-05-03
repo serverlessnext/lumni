@@ -28,6 +28,27 @@ impl ApplicationSpec {
     pub fn interface(&self) -> Option<&Interface> {
         self.interface.as_ref()
     }
+
+    pub fn name(&self) -> String {
+        self.package
+            .as_ref()
+            .map(|p| p.name())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    pub fn display_name(&self) -> String {
+        self.package
+            .as_ref()
+            .map(|p| p.display_name())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    pub fn version(&self) -> String {
+        self.package
+            .as_ref()
+            .map(|p| p.version())
+            .unwrap_or_else(|| "0.0.0".to_string())
+    }
 }
 
 #[allow(non_snake_case)]

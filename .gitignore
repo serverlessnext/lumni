@@ -18,7 +18,11 @@ package-lock.json
 # auto-generated
 */style/output.css
 
+# rust build files
 target/
+debug/
+.rustc_info.json
+CACHEDIR.TAG
 
 # virtenv
 venv/

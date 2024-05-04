@@ -17,6 +17,14 @@ pub struct ApplicationSpec {
 }
 
 impl ApplicationSpec {
+    pub fn default() -> ApplicationSpec {
+        ApplicationSpec {
+            package: None,
+            configuration: None,
+            interface: None,
+        }
+    }
+
     pub fn package(&self) -> Option<&Package> {
         self.package.as_ref()
     }

@@ -13,4 +13,4 @@ pub use events::{KeyEventHandler, WindowEvent};
 pub use prompt_window::PromptWindow;
 pub use response_window::ResponseWindow;
 
-pub use super::prompt::ChatSession;
+pub use super::session::ChatSession;

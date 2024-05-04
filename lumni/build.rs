@@ -287,32 +287,9 @@ fn run_app_build_script(build_script_path: &Path) -> io::Result<()> {
     // Create target directory
     fs::create_dir_all(&app_target_path)?;
 
-    // Compile the build script in the app directory
-    compile_build_script(&app_dir)?;
-
     // Extract output path and copy files
     let app_output_path = extract_output_path(&app_dir)?;
     copy_files_to_target(&app_output_path, &app_target_path)
-}
-
-fn compile_build_script(app_dir: &Path) -> io::Result<()> {
-    let compile = Command::new("cargo")
-        .env("CARGO_TARGET_DIR", app_dir)
-        .arg("build")
-        .current_dir(app_dir)
-        .output()?;
-
-    if !compile.status.success() {
-        eprintln!(
-            "Compilation errors: {}",
-            String::from_utf8_lossy(&compile.stderr)
-        );
-        return Err(io::Error::new(
-            ErrorKind::Other,
-            "Failed to compile build script.",
-        ));
-    }
-    Ok(())
 }
 
 fn extract_output_path(app_dir: &Path) -> io::Result<PathBuf> {

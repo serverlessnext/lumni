@@ -25,12 +25,13 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tui_textarea::TextArea;
 
-use super::prompt::{process_prompt, process_prompt_response, ChatSession};
+use super::session::{process_prompt, process_prompt_response, ChatSession};
 use super::tui::{
     draw_ui, CommandLine, KeyEventHandler, PromptWindow, ResponseWindow,
     TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
+
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,

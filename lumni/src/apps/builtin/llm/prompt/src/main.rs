@@ -1,8 +1,9 @@
+use lumni::api::spec::ApplicationSpec;
+use prompt::app::run_cli;
 
-// This file is a dummy file to test the template generation.
-
-include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));
-
-fn main() {
-    eprintln!("Template: {:?}", PERSONAS);
+#[tokio::main]
+async fn main() {
+    let spec = ApplicationSpec::default();
+    let args: Vec<String> = std::env::args().collect();
+    run_cli(spec, args).await.unwrap();
 }

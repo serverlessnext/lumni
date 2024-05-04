@@ -20,7 +20,7 @@ macro_rules! impl_app_handler {
         }
 
         fn load_specification(&self) -> &str {
-            include_str!("spec.yaml")
+            include_str!("../spec.yaml")
         }
     };
 }

@@ -9,7 +9,7 @@ use lumni::api::handler::AppHandler;
 use lumni::api::spec::ApplicationSpec;
 
 #[cfg(feature = "cli")]
-use super::cli::run_cli;
+use super::app::run_cli;
 use crate::{external as lumni, impl_app_handler};
 
 #[derive(Clone)]

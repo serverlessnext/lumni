@@ -1,11 +1,15 @@
-mod handler;
-pub use handler::Handler;
-
 
 #[cfg(feature = "cli")]
-mod cli {
+pub mod src {
     mod app;
     mod prompt;
     mod tui;
-    pub use app::run_cli;
+    mod handler;
+    pub use handler::Handler;
+}
+
+#[cfg(not(feature = "cli"))]
+pub mod src {
+    mod handler;
+    pub use handler::Handler;
 }

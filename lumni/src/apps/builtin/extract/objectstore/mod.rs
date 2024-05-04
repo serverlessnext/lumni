@@ -1,3 +1,5 @@
-mod handler;
 
-pub use handler::Handler;
+pub mod src {
+    mod handler;
+    pub use handler::Handler;
+}

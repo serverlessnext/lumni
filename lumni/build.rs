@@ -141,7 +141,7 @@ fn traverse_and_generate(
     uri_pattern: &Regex,
     version_pattern: &Regex,
 ) {
-    if path.is_dir() && path.join("handler.rs").exists() {
+    if path.is_dir() && path.join("src/handler.rs").exists() {
         let module_path = path
             .strip_prefix("src/apps/")
             .unwrap()
@@ -150,7 +150,7 @@ fn traverse_and_generate(
             .replace("/", "::");
         writeln!(
             f,
-            "        \"{}\" => Some(Box::new(crate::apps::{}::Handler)),",
+            "        \"{}\" => Some(Box::new(crate::apps::{}::src::Handler)),",
             module_path, module_path
         )
         .unwrap();

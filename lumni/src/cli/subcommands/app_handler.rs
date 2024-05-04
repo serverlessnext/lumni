@@ -1,6 +1,6 @@
-use lumni::api::{spec::ApplicationSpec, find_builtin_app, get_app_handler, get_available_apps};
+use lumni::api::spec::ApplicationSpec;
+use lumni::api::{find_builtin_app, get_app_handler, get_available_apps};
 use lumni::EnvironmentConfig;
-
 use regex::Regex;
 
 pub async fn handle_apps(
@@ -42,14 +42,17 @@ pub async fn handle_application(
                 .collect::<Vec<String>>();
             app_arguments.extend(extra_arguments);
 
-            let app_spec = match serde_yaml::from_str::<ApplicationSpec>(app_handler.load_specification()) {
+            let app_spec = match serde_yaml::from_str::<ApplicationSpec>(
+                app_handler.load_specification(),
+            ) {
                 Ok(spec) => spec,
                 Err(_) => {
                     // this should not happen as the spec is validated at compile time
                     panic!("Failed to load specification.");
                 }
             };
-            let app_run = app_handler.invoke_main(app_spec, app_arguments).await;
+            let app_run =
+                app_handler.invoke_main(app_spec, app_arguments).await;
             match app_run {
                 Ok(_) => {} // app ran successfully
                 Err(e) => {

@@ -6,6 +6,7 @@ use std::pin::Pin;
 #[cfg(feature = "cli")]
 use lumni::api::error::*;
 use lumni::api::handler::AppHandler;
+#[cfg(feature = "cli")]
 use lumni::api::spec::ApplicationSpec;
 
 #[cfg(feature = "cli")]

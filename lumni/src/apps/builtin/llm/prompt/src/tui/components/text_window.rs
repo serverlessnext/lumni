@@ -171,7 +171,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_window_style(&mut self, style: WindowStyle) {
-        self.set_selection(false);  // disable selection when changing style
+        self.set_selection(false); // disable selection when changing style
         self.base().set_window_style(style);
     }
 

@@ -1,15 +1,10 @@
 use std::error::Error;
-use std::io;
-use std::env;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::{env, io};
 
-pub use crate::external as lumni;
-use lumni::api::spec::ApplicationSpec;
-
-
-use clap::{Arg, Command};
 use clap::builder::PossibleValuesParser;
+use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
@@ -20,6 +15,7 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
+use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
@@ -34,6 +30,7 @@ use super::tui::{
     draw_ui, CommandLine, KeyEventHandler, PromptWindow, ResponseWindow,
     TextWindowTrait, WindowEvent,
 };
+pub use crate::external as lumni;
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -166,10 +163,10 @@ async fn prompt_app<B: Backend>(
 
 fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
     let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
-    let version = Box::leak(spec.version().into_boxed_str()) as &'static str;  
+    let version = Box::leak(spec.version().into_boxed_str()) as &'static str;
 
     let assistants = vec!["summarizer", "translator", "data-analyzer"];
-    let models = vec!["llama3"];    // TODO: expand with "auto", "chatgpt", etc
+    let models = vec!["llama3"]; // TODO: expand with "auto", "chatgpt", etc
 
     Command::new(name)
         .version(version)
@@ -179,23 +176,25 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
             Arg::new("assistant")
                 .long("assistant")
                 .help("Specify which assistant to use")
-                .value_parser(PossibleValuesParser::new(&assistants))
+                .value_parser(PossibleValuesParser::new(&assistants)),
         )
         .arg(
             Arg::new("model")
                 .long("model")
                 .help("Model to use for processing the request")
                 .value_parser(PossibleValuesParser::new(&models))
-                .default_value(models[0])
+                .default_value(models[0]),
         )
-        .arg(
-            Arg::new("options")
-                .long("options")
-                .help("Comma-separated list of model options e.g., temperature=1,max_tokens=100"),
-        )
+        .arg(Arg::new("options").long("options").help(
+            "Comma-separated list of model options e.g., \
+             temperature=1,max_tokens=100",
+        ))
 }
 
-pub async fn run_cli(spec: ApplicationSpec, args: Vec<String>) -> Result<(), Box<dyn Error>> {
+pub async fn run_cli(
+    spec: ApplicationSpec,
+    args: Vec<String>,
+) -> Result<(), Box<dyn Error>> {
     // TODO: finalize integrating the CLI arguments
     //let app = parse_cli_arguments(spec);
     //let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {

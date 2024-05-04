@@ -26,7 +26,6 @@ pub trait AppHandler: Send + Sync + 'static {
         })
     }
 
-    //#[cfg(feature = "cli")]
     fn invoke_main(
         &self,
         _spec: ApplicationSpec,
@@ -74,23 +73,17 @@ pub trait AppHandler: Send + Sync + 'static {
         })
     }
 
+    fn application_spec(&self) -> ApplicationSpec {
+        serde_yaml::from_str::<ApplicationSpec>(self.load_specification())
+            .expect("Failed to load application specification")
+    }
+
     fn package_name(&self) -> String {
-        let spec =
-            serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
-        match spec {
-            Ok(spec) => {
-                let package = spec.package();
-                match package {
-                    Some(package) => package.name().to_string(),
-                    None => {
-                        // this should never happen as the spec is validated at compile time
-                        panic!(
-                            "Failed to load package name from specification."
-                        );
-                    }
-                }
-            }
-            Err(_) => {
+        let spec = self.application_spec();
+        let package = spec.package();
+        match package {
+            Some(package) => package.name().to_string(),
+            None => {
                 // this should never happen as the spec is validated at compile time
                 panic!("Failed to load package name from specification.");
             }
@@ -98,22 +91,11 @@ pub trait AppHandler: Send + Sync + 'static {
     }
 
     fn package_version(&self) -> String {
-        let spec =
-            serde_yaml::from_str::<ApplicationSpec>(self.load_specification());
-        match spec {
-            Ok(spec) => {
-                let package = spec.package();
-                match package {
-                    Some(package) => package.version().to_string(),
-                    None => {
-                        // this should never happen as the spec is validated at compile time
-                        panic!(
-                            "Failed to load package version from specification."
-                        );
-                    }
-                }
-            }
-            Err(_) => {
+        let spec = self.application_spec();
+        let package = spec.package();
+        match package {
+            Some(package) => package.version().to_string(),
+            None => {
                 // this should never happen as the spec is validated at compile time
                 panic!("Failed to load package version from specification.");
             }

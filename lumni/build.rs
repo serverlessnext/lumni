@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
-use std::path::PathBuf;
-use std::io::{self, Read, Write, ErrorKind};
-use std::path::Path;
-
+use std::io::{self, ErrorKind, Read, Write};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
 use regex::Regex;
 use serde::Deserialize;
 
@@ -45,11 +44,17 @@ fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn copy_files_to_target(source_path: &Path, target_path: &Path) -> io::Result<()> {
+fn copy_files_to_target(
+    source_path: &Path,
+    target_path: &Path,
+) -> io::Result<()> {
     if source_path.exists() {
         copy_dir_all(source_path, target_path)
     } else {
-        Err(io::Error::new(ErrorKind::NotFound, "Source path does not exist"))
+        Err(io::Error::new(
+            ErrorKind::NotFound,
+            "Source path does not exist",
+        ))
     }
 }
 
@@ -240,7 +245,6 @@ fn generate_app_strings(app_paths: &Vec<HashMap<String, String>>) -> String {
         .join(", ")
 }
 
-
 fn traverse_and_invoke(path: &Path) -> std::io::Result<()> {
     if path.is_dir() {
         for entry in fs::read_dir(path)? {
@@ -261,12 +265,23 @@ fn traverse_and_invoke(path: &Path) -> std::io::Result<()> {
 fn run_app_build_script(build_script_path: &Path) -> io::Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let app_dir = build_script_path.parent().ok_or_else(|| 
-        io::Error::new(ErrorKind::Other, "Failed to get parent directory of build script"))?;
+    let app_dir = build_script_path.parent().ok_or_else(|| {
+        io::Error::new(
+            ErrorKind::Other,
+            "Failed to get parent directory of build script",
+        )
+    })?;
 
-    let relative_path = build_script_path.parent().unwrap()
+    let relative_path = build_script_path
+        .parent()
+        .unwrap()
         .strip_prefix(Path::new(APPS_DIRECTORY))
-        .map_err(|_| io::Error::new(ErrorKind::Other, "Failed to calculate relative path"))?;
+        .map_err(|_| {
+            io::Error::new(
+                ErrorKind::Other,
+                "Failed to calculate relative path",
+            )
+        })?;
     let app_target_path = Path::new(&out_dir).join(relative_path);
 
     // Create target directory
@@ -288,8 +303,14 @@ fn compile_build_script(app_dir: &Path) -> io::Result<()> {
         .output()?;
 
     if !compile.status.success() {
-        eprintln!("Compilation errors: {}", String::from_utf8_lossy(&compile.stderr));
-        return Err(io::Error::new(ErrorKind::Other, "Failed to compile build script."));
+        eprintln!(
+            "Compilation errors: {}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        return Err(io::Error::new(
+            ErrorKind::Other,
+            "Failed to compile build script.",
+        ));
     }
     Ok(())
 }
@@ -303,12 +324,16 @@ fn extract_output_path(app_dir: &Path) -> io::Result<PathBuf> {
 
     let output_str = String::from_utf8_lossy(&compile_output.stderr);
     let regex = Regex::new(r"OUTPUT_PATH=([^\s]+)").unwrap();
-    regex.captures(&output_str)
+    regex
+        .captures(&output_str)
         .and_then(|caps| caps.get(1).map(|m| PathBuf::from(m.as_str())))
-        .ok_or_else(|| io::Error::new(ErrorKind::Other, "Failed to extract output path from build output"))
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::Other,
+                "Failed to extract output path from build output",
+            )
+        })
 }
-
-
 
 fn main() {
     update_build_version();

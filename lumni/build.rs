@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::path::PathBuf;
+use std::io::{self, Read, Write, ErrorKind};
 use std::path::Path;
 
+use std::process::Command;
 use regex::Regex;
 use serde::Deserialize;
 
@@ -20,6 +22,35 @@ struct Package {
     name: String,
     display_name: String,
     version: String,
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
+    // Recursively copies a directory from a source to a destination.
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if ty.is_dir() {
+            copy_dir_all(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_files_to_target(source_path: &Path, target_path: &Path) -> io::Result<()> {
+    if source_path.exists() {
+        copy_dir_all(source_path, target_path)
+    } else {
+        Err(io::Error::new(ErrorKind::NotFound, "Source path does not exist"))
+    }
 }
 
 fn update_build_version() {
@@ -209,83 +240,81 @@ fn generate_app_strings(app_paths: &Vec<HashMap<String, String>>) -> String {
         .join(", ")
 }
 
-fn embed_templates() -> io::Result<()> {
-    println!("cargo:rerun-if-changed={}", APPS_DIRECTORY); // Trigger on changes
 
-    let apps_dir = Path::new(APPS_DIRECTORY);
-    let templates_regex = Regex::new(r"^.*\.yaml$").unwrap();
-
-    traverse_and_embed(apps_dir, &templates_regex)
-}
-
-fn traverse_and_embed(path: &Path, templates_regex: &Regex) -> io::Result<()> {
+fn traverse_and_invoke(path: &Path) -> std::io::Result<()> {
     if path.is_dir() {
-        // Check if this directory has a "handler.rs" indicating it's an app
-        if path.join("handler.rs").exists() {
-            let templates_path = path.join("templates");
-            if templates_path.exists() && templates_path.is_dir() {
-                let relative_path =
-                    path.strip_prefix(Path::new(APPS_DIRECTORY)).unwrap();
-                let out_dir = env::var("OUT_DIR").unwrap();
-                let app_output_path = Path::new(&out_dir).join(relative_path);
-                fs::create_dir_all(&app_output_path)?; // Create the directory structure
-
-                let output_file_path = app_output_path.join("templates.rs");
-                generate_app_template(
-                    &templates_path,
-                    &output_file_path,
-                    templates_regex,
-                )?;
-            }
-        } else {
-            // Recursively call this function for each directory
-            for entry in fs::read_dir(path)? {
-                let entry = entry?;
-                traverse_and_embed(&entry.path(), templates_regex)?;
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                // Recursively look for build.rs files
+                traverse_and_invoke(&path)?;
+            } else if path.file_name().unwrap() == "build.rs" {
+                // Compile and execute the custom build.rs found
+                run_app_build_script(&path)?;
             }
         }
     }
     Ok(())
 }
 
-fn generate_app_template(
-    templates_path: &Path,
-    output_file_path: &Path,
-    templates_regex: &Regex,
-) -> io::Result<()> {
-    let mut dest_file = File::create(output_file_path)?;
+fn run_app_build_script(build_script_path: &Path) -> io::Result<()> {
+    let out_dir = env::var("OUT_DIR").unwrap();
 
-    // Process each YAML file within the templates directory
-    for entry in fs::read_dir(templates_path)? {
-        let entry = entry?;
-        let file_path = entry.path();
-        if templates_regex.is_match(file_path.to_str().unwrap()) {
-            let mut contents = String::new();
-            File::open(&file_path)?.read_to_string(&mut contents)?;
-            let var_name = file_path
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace('-', "_")
-                .to_uppercase();
-            writeln!(
-                dest_file,
-                "pub static {}: &str = r##\"{}\"##;",
-                var_name,
-                contents // No need to escape_default here
-            )?;
-        }
+    let app_dir = build_script_path.parent().ok_or_else(|| 
+        io::Error::new(ErrorKind::Other, "Failed to get parent directory of build script"))?;
+
+    let relative_path = build_script_path.parent().unwrap()
+        .strip_prefix(Path::new(APPS_DIRECTORY))
+        .map_err(|_| io::Error::new(ErrorKind::Other, "Failed to calculate relative path"))?;
+    let app_target_path = Path::new(&out_dir).join(relative_path);
+
+    // Create target directory
+    fs::create_dir_all(&app_target_path)?;
+
+    // Compile the build script in the app directory
+    compile_build_script(&app_dir)?;
+
+    // Extract output path and copy files
+    let app_output_path = extract_output_path(&app_dir)?;
+    copy_files_to_target(&app_output_path, &app_target_path)
+}
+
+fn compile_build_script(app_dir: &Path) -> io::Result<()> {
+    let compile = Command::new("cargo")
+        .env("CARGO_TARGET_DIR", app_dir)
+        .arg("build")
+        .current_dir(app_dir)
+        .output()?;
+
+    if !compile.status.success() {
+        eprintln!("Compilation errors: {}", String::from_utf8_lossy(&compile.stderr));
+        return Err(io::Error::new(ErrorKind::Other, "Failed to compile build script."));
     }
-
     Ok(())
 }
+
+fn extract_output_path(app_dir: &Path) -> io::Result<PathBuf> {
+    let compile_output = Command::new("cargo")
+        .env("CARGO_TARGET_DIR", env::var("OUT_DIR").unwrap())
+        .arg("build")
+        .current_dir(app_dir)
+        .output()?;
+
+    let output_str = String::from_utf8_lossy(&compile_output.stderr);
+    let regex = Regex::new(r"OUTPUT_PATH=([^\s]+)").unwrap();
+    regex.captures(&output_str)
+        .and_then(|caps| caps.get(1).map(|m| PathBuf::from(m.as_str())))
+        .ok_or_else(|| io::Error::new(ErrorKind::Other, "Failed to extract output path from build output"))
+}
+
+
 
 fn main() {
     update_build_version();
     generate_app_handler();
 
-    if let Err(e) = embed_templates() {
-        eprintln!("Error embedding templates: {}", e);
-    };
+    if let Err(e) = traverse_and_invoke(Path::new(APPS_DIRECTORY)) {
+        eprintln!("Error invoking build.rs: {}", e);
+    }
 }

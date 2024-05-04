@@ -1,0 +1,14 @@
+[package]
+name = "prompt"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "prompt"
+path = "src/main.rs"
+
+[build-dependencies]
+regex = { version = "1.8", default-features = false, features = ["std", "unicode"] }
+
+# required to prevent app getting into root workspace
+[workspace]

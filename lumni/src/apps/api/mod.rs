@@ -10,6 +10,7 @@ use handler::AppHandler;
 // - fn get_available_apps()
 include!(concat!(env!("OUT_DIR"), "/generated_modules.rs"));
 
+
 #[macro_export]
 macro_rules! impl_app_handler {
     // mandatory boilerplate for the AppHandler trait

@@ -214,6 +214,7 @@ impl Cursor {
     ) {
         // compute the cursor position within underlying text,
         // excluding characters added for wrapping
+        let mut on_new_line = false;
         let mut position = 0;
         for (index, line) in display.lines().iter().enumerate() {
             if index < self.row as usize {
@@ -225,8 +226,16 @@ impl Cursor {
                 position += 1; // account for newline character
             } else if index == self.row as usize {
                 position += self.col as usize; // add columns for the current row
+                on_new_line = self.col == 0 && index > 0; // Check if the cursor is at the start of a new line
                 break;
             }
+        }
+
+        // If the cursor is at the start of a newline ("\n"), add back trailing spaces
+        // (i.e. "some text    \n") that were removed from wrapped lines
+        if on_new_line && self.row > 0 {
+            let trailing_spaces = display.get_trailing_spaces(self.row - 1);
+            position += trailing_spaces;
         }
 
         // Subtract characters added for display purposes

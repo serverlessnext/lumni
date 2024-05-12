@@ -4,12 +4,11 @@ use textwrap::{wrap, Options, WordSplitter};
 
 use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::PieceTable;
-use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
     lines: Vec<Line<'a>>, // Text (e.g., wrapped, highlighted) for display
-    trailing_spaces: usize, // Number of trailing spaces to consider for cursor calculations
+    trailing_spaces: Vec<usize>, // Number of trailing spaces to consider for cursor calculations
     display_width: usize,   // Width of the display area, used for wrapping
 }
 
@@ -17,7 +16,7 @@ impl<'a> TextDisplay<'a> {
     pub fn new(display_width: usize) -> Self {
         TextDisplay {
             lines: Vec::new(),
-            trailing_spaces: 0,
+            trailing_spaces: Vec::new(),
             display_width,
         }
     }
@@ -30,16 +29,17 @@ impl<'a> TextDisplay<'a> {
         &mut self.lines
     }
 
+    pub fn get_trailing_spaces(&self, row: u16) -> usize {
+        self.trailing_spaces.get(row as usize).cloned().unwrap_or(0)
+    }
+
     pub fn width(&self) -> usize {
         self.display_width
     }
 
-    pub fn push_line(&mut self, line: Line<'a>) {
+    pub fn push_line(&mut self, line: Line<'a>, trailing_spaces: usize) {
         self.lines.push(line);
-    }
-
-    pub fn set_trailing_spaces(&mut self, count: usize) {
-        self.trailing_spaces = count;
+        self.trailing_spaces.push(trailing_spaces);
     }
 
     pub fn set_display_width(&mut self, width: usize) {
@@ -48,7 +48,7 @@ impl<'a> TextDisplay<'a> {
 
     // Get the maximum column of a specific row
     pub fn get_max_col(&self, row: u16) -> u16 {
-        self.lines
+        let line_len = self.lines
             .get(row as usize)
             .map(|line| {
                 line.spans
@@ -56,13 +56,16 @@ impl<'a> TextDisplay<'a> {
                     .map(|span| span.content.len() as u16)
                     .sum::<u16>()
             })
-            .unwrap_or(0)
-            .saturating_add(self.trailing_spaces as u16) // Include trailing spaces
+            .unwrap_or(0);
+
+        // account for trailing spaces when calculating the line length    
+        let spaces = *self.trailing_spaces.get(row as usize).unwrap_or(&0) as u16;
+        line_len.saturating_add(spaces)
     }
 
     pub fn clear(&mut self) {
         self.lines.clear();
-        self.trailing_spaces = 0;
+        self.trailing_spaces.clear();
     }
 }
 
@@ -108,12 +111,36 @@ impl TextBuffer<'_> {
     }
 
     pub fn text_insert_add(&mut self, text: &str) {
-        // get current cursor position in the underlying (unwrapped) text buffer
+        // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
         self.text.cache_insert(text, Some(idx));
         self.update_display_text();
-        self.move_cursor(MoveCursor::Right(text.len() as u16));
+
+        // Calculate the number of newlines and the length of the last line segment
+        let mut newlines = 0;
+        let mut last_line_length = 0;
+        for ch in text.chars() {
+            if ch == '\n' {
+                newlines += 1;
+                last_line_length = 0; // Reset line length counter after each newline
+            } else {
+                last_line_length += 1; // Increment line length for non-newline characters
+            }
+        }
+
+        // Move the cursor to the end of the inserted text
+        if newlines > 0 {
+            self.move_cursor(MoveCursor::Down(newlines as u16));
+            self.move_cursor(MoveCursor::StartOfLine);  // Move to the start of the new line
+            if last_line_length > 0 {
+                // Then move right to the end of the inserted text on the last line
+                self.move_cursor(MoveCursor::Right(last_line_length as u16));  
+            }
+        } else {
+            self.move_cursor(MoveCursor::Right(text.len() as u16));  // If no newlines, just move right
+        }
     }
+
 
     pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
         // get current cursor position in the underlying (unwrapped) text buffer
@@ -129,43 +156,8 @@ impl TextBuffer<'_> {
         } else {
             return;
         };
-
-        let end_idx =
-            std::cmp::min(start_idx + char_count, self.text.content().len());
-
-        if char_count == 1 {
-            // handle backspace separately as it has different user expectations,
-            // particulary on deleting of characters at the end of the line
-
-            // get additional character before the start_idx to check for starting newline
-            let deleted_text =
-                &self.text.content()[start_idx.saturating_sub(1)..end_idx];
-
-            if deleted_text.ends_with('\n') {
-                if deleted_text.starts_with("\n") {
-                    // case with continguos newlines -- delete only given char_count
-                    self.text.delete(start_idx, char_count);
-                } else {
-                    // delete last character(s) from previous line + newline
-                    // move index one character back to include the additional newline delete
-                    self.text
-                        .delete(start_idx.saturating_sub(1), char_count + 1);
-                }
-            } else {
-                // delete character within the line
-                self.text.delete(start_idx, char_count);
-            }
-        } else {
-            // delete the selected text
-            // TODO: should still test multi-line delete
-            self.text.delete(start_idx, char_count);
-        }
-
-        // Move cursor appropriately
-        self.cursor
-            .move_cursor(MoveCursor::Left(char_count as u16), &self.display);
-
-        self.update_display_text();
+        self.text.delete(start_idx, char_count);
+        self.move_cursor(MoveCursor::Left(char_count as u16));
     }
 
     pub fn text_insert_commit(&mut self) -> String {
@@ -222,6 +214,7 @@ impl TextBuffer<'_> {
         let selection_bounds = self.get_selection_bounds();
 
         for line in text.split('\n') {
+            let trailing_spaces = line.len() - line.trim_end_matches(' ').len();
             let wrapped_lines = self.wrap_text(line);
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(current_row);
@@ -233,11 +226,10 @@ impl TextBuffer<'_> {
                     current_row,
                     &selection_bounds,
                     &mut added_characters,
+                    trailing_spaces,
                 );
             }
         }
-        let trailing_spaces = text.len() - text.trim_end_matches(' ').len();
-        self.display.set_trailing_spaces(trailing_spaces);
 
         self.cursor
             .update_real_position(&self.display, added_characters);
@@ -253,6 +245,7 @@ impl TextBuffer<'_> {
     }
 
     fn wrap_text(&self, line: &str) -> Vec<String> {
+        // check for space on end of line
         wrap(
             line,
             Options::new(self.display.width())
@@ -267,9 +260,9 @@ impl TextBuffer<'_> {
         if current_row == self.cursor.row as usize && self.cursor.show_cursor()
         {
             let span = Span::styled(" ", Style::default().bg(Color::Blue));
-            self.display.push_line(Line::from(span));
+            self.display.push_line(Line::from(span), 0);
         } else {
-            self.display.push_line(Line::from(Span::raw("")));
+            self.display.push_line(Line::from(Span::raw("")), 0);
         }
     }
 
@@ -279,6 +272,7 @@ impl TextBuffer<'_> {
         current_row: usize,
         selection_bounds: &(usize, usize, usize, usize),
         added_characters: &mut usize,
+        trailing_spaces: usize, // trailing spaces on the original unwrapped line
     ) -> usize {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
         let mut local_row = current_row;
@@ -315,7 +309,7 @@ impl TextBuffer<'_> {
                     displayed_line_length - original_line_length;
             }
 
-            self.display.push_line(Line::from(spans));
+            self.display.push_line(Line::from(spans), trailing_spaces);
             local_row += 1;
         }
 
@@ -327,7 +321,7 @@ impl TextBuffer<'_> {
             let row_index = self.cursor.row as usize;
             let line_length =
                 self.display.get_max_col(self.cursor.row) as usize;
-            let trailing_spaces = self.display.trailing_spaces;
+            let trailing_spaces = self.display.get_trailing_spaces(self.cursor.row);
 
             if let Some(current_line) =
                 self.display.lines_mut().get_mut(row_index)

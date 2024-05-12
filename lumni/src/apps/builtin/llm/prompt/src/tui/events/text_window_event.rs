@@ -35,6 +35,14 @@ where
             }
             window.set_normal_mode();
         }
+        KeyCode::Tab => {
+            // same as Escape
+            if window.is_style_insert() {
+                // commit
+                window.text_insert_commit();
+            }
+            window.set_normal_mode();
+        }
         KeyCode::Right => {
             window.move_cursor(MoveCursor::Right(1));
         }

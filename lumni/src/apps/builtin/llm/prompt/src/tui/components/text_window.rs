@@ -46,7 +46,6 @@ impl<'a> TextWindow<'a> {
                     self.text_buffer.set_cursor_visibility(true);
                 }
                 _ => {
-                    eprintln!("Cursor visibility disabled");
                     self.text_buffer.set_cursor_visibility(false);
                 }
             }

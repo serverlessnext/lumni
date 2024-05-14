@@ -9,7 +9,7 @@ use super::piece_table::PieceTable;
 pub struct TextDisplay<'a> {
     wrap_lines: Vec<Line<'a>>, // Text (e.g., wrapped, highlighted) for display
     trailing_spaces: Vec<usize>, // Number of trailing spaces to consider for cursor calculations
-    display_width: usize,   // Width of the display area, used for wrapping
+    display_width: usize,        // Width of the display area, used for wrapping
 }
 
 impl<'a> TextDisplay<'a> {
@@ -24,7 +24,6 @@ impl<'a> TextDisplay<'a> {
     pub fn wrap_lines(&self) -> &[Line<'a>] {
         &self.wrap_lines
     }
-
 
     pub fn wrap_lines_mut(&mut self) -> &mut Vec<Line<'a>> {
         &mut self.wrap_lines
@@ -116,14 +115,17 @@ impl TextBuffer<'_> {
         if newlines > 0 {
             // Move the cursor to the end of the inserted text
             self.move_cursor(MoveCursor::Down(newlines as u16), true);
-            self.move_cursor(MoveCursor::StartOfLine, true);  // Move to the start of the new line
+            self.move_cursor(MoveCursor::StartOfLine, true); // Move to the start of the new line
             if last_line_length > 0 {
                 // Then move right to the end of the inserted text on the last line
-                self.move_cursor(MoveCursor::Right(last_line_length as u16), true);  
+                self.move_cursor(
+                    MoveCursor::Right(last_line_length as u16),
+                    true,
+                );
             }
         } else {
             // If no newlines, just move right
-            self.move_cursor(MoveCursor::Right(text.len() as u16), true);  
+            self.move_cursor(MoveCursor::Right(text.len() as u16), true);
         }
     }
 
@@ -176,11 +178,16 @@ impl TextBuffer<'_> {
         &self.selected_text
     }
 
-    pub fn move_cursor(&mut self, direction: MoveCursor, edit_mode: bool) -> (bool, bool) {
+    pub fn move_cursor(
+        &mut self,
+        direction: MoveCursor,
+        edit_mode: bool,
+    ) -> (bool, bool) {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
-        self.cursor.move_cursor(direction, &self.text.lines(), edit_mode);
+        self.cursor
+            .move_cursor(direction, &self.text.lines(), edit_mode);
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
@@ -223,8 +230,7 @@ impl TextBuffer<'_> {
         }
 
         // recompute added_characters by comparing displayed text length with the underlying text
-        self.cursor
-            .update_real_position(&text_lines);
+        self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
     }
 
@@ -315,7 +321,10 @@ impl TextBuffer<'_> {
                 }
 
                 // Append a styled space for the cursor itself
-                current_line.spans.push(Span::styled(" ", Style::default().bg(Color::Yellow)));
+                current_line.spans.push(Span::styled(
+                    " ",
+                    Style::default().bg(Color::Yellow),
+                ));
             } else {
                 // Style the cursor's current position within the line
                 if let Some(span) = current_line.spans.get_mut(column) {
@@ -324,7 +333,6 @@ impl TextBuffer<'_> {
             }
         }
     }
-
 
     pub fn undo(&mut self) {
         self.text.undo();
@@ -361,6 +369,6 @@ impl TextBuffer<'_> {
             }
             wrap_position += line_length + 1; // account for newline character
         }
-        (0, 0)  // default to (0, 0) if cursor is not found
+        (0, 0) // default to (0, 0) if cursor is not found
     }
 }

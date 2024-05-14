@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
     Right(u16),
@@ -68,7 +66,7 @@ impl Cursor {
         text_lines: &[String],
         // keep cursor at desired column when jumping to next line. This is used to prevent
         // cursor from jumping to the beginning when text is wrapped during editing
-        keep_desired: bool,   
+        keep_desired: bool,
     ) {
         let max_row = get_max_row(text_lines);
         match direction {
@@ -210,10 +208,7 @@ impl Cursor {
                 && current_row > start_row)
     }
 
-    pub fn update_real_position(
-        &mut self,
-        lines: &[String],
-    ) {
+    pub fn update_real_position(&mut self, lines: &[String]) {
         // compute the cursor position in underlying text based
         // on the current row and column
         let mut position = 0;

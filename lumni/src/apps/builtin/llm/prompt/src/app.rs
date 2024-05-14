@@ -32,7 +32,6 @@ use super::tui::{
 };
 pub use crate::external as lumni;
 
-
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
 ) -> Result<(), Box<dyn std::error::Error>> {

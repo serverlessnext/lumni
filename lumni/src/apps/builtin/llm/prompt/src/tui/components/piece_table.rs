@@ -379,7 +379,10 @@ impl PieceTable {
         if content_string.is_empty() {
             self.lines = Vec::new();
         } else {
-            self.lines = content_string.lines().map(|line| line.to_string()).collect::<Vec<String>>();
-        } 
+            self.lines = content_string
+                .lines()
+                .map(|line| line.to_string())
+                .collect::<Vec<String>>();
+        }
     }
 }

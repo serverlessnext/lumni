@@ -101,7 +101,7 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
-        let (_, row_changed) = self.text_buffer.move_cursor(direction);
+        let (_, row_changed) = self.text_buffer.move_cursor(direction, false);
         if row_changed {
             self.scroll_to_cursor();
         }

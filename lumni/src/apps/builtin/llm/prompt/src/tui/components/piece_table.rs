@@ -17,6 +17,7 @@ pub enum InsertMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
     original: String,                // The original unmodified text
+    lines: Vec<String>,              // text split into lines
     add: String,                     // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     insert_cache: String, // Temporary buffer for caching many (small) insertions
@@ -42,6 +43,7 @@ impl PieceTable {
     pub fn new(text: &str) -> Self {
         Self {
             original: text.to_string(),
+            lines: Vec::new(),
             add: String::new(),
             pieces: vec![Piece {
                 source: SourceBuffer::Original,
@@ -53,6 +55,10 @@ impl PieceTable {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
+    }
+
+    pub fn lines(&self) -> &[String] {
+        &self.lines
     }
 
     pub fn empty(&mut self) {
@@ -345,7 +351,7 @@ impl PieceTable {
         self.pieces.push(new_piece);
     }
 
-    pub fn content(&self) -> String {
+    pub fn update_lines(&mut self) {
         // Collect the content of each piece into a single string
         let mut content_string = self
             .pieces
@@ -372,6 +378,10 @@ impl PieceTable {
                 }
             }
         }
-        content_string
+        if content_string.is_empty() {
+            self.lines = Vec::new();
+        } else {
+            self.lines = content_string.lines().map(|line| line.to_string()).collect::<Vec<String>>();
+        } 
     }
 }

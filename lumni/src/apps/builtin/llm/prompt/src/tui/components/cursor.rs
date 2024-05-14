@@ -1,7 +1,4 @@
-use ratatui::text::Line;
 
-use super::text_buffer::TextDisplay;
-use super::window_type::WindowStyle;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
@@ -25,7 +22,6 @@ pub struct Cursor {
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
-    window_style: WindowStyle,
     real_position: usize, // real position of the cursor in the text buffer
 }
 
@@ -39,7 +35,6 @@ impl Cursor {
             show_cursor,
             selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
-            window_style: WindowStyle::Normal,
             real_position: 0,
         }
     }
@@ -70,20 +65,28 @@ impl Cursor {
     pub fn move_cursor(
         &mut self,
         direction: MoveCursor,
-        display: &TextDisplay,
+        text_lines: &[String],
+        // keep cursor at desired column when jumping to next line. This is used to prevent
+        // cursor from jumping to the beginning when text is wrapped during editing
+        keep_desired: bool,   
     ) {
-        let max_row = get_max_row(display.lines());
+        let max_row = get_max_row(text_lines);
         match direction {
             MoveCursor::Right(steps) => {
                 // Move the cursor to the right by the specified number of characters
                 for _ in 0..steps {
-                    let max_col = display.get_max_col(self.row);
+                    let max_col = get_max_col(text_lines, self.row);
                     if self.col < max_col {
                         self.col += 1;
-                    } else if self.row < get_max_row(display.lines()) {
+                    } else if self.row < get_max_row(text_lines) {
                         // Move to the beginning of the next line
                         self.row += 1;
-                        self.col = 0;
+                        if keep_desired {
+                            let max_col = get_max_col(text_lines, self.row);
+                            self.col = std::cmp::min(self.desired_col, max_col);
+                        } else {
+                            self.col = 0;
+                        }
                     } else {
                         // cursor is at the end of the last line
                     }
@@ -98,7 +101,7 @@ impl Cursor {
                     } else if self.row > 0 {
                         // Move to the end of the previous line
                         self.row -= 1;
-                        self.col = display.get_max_col(self.row);
+                        self.col = get_max_col(text_lines, self.row);
                     }
                 }
             }
@@ -107,7 +110,7 @@ impl Cursor {
                 let new_row = self.row.saturating_sub(lines);
                 self.row = new_row;
 
-                let max_col = display.get_max_col(self.row);
+                let max_col = get_max_col(text_lines, self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // If moving up a single line and the cursor cannot move further up,
@@ -123,7 +126,7 @@ impl Cursor {
                     std::cmp::min(self.row.saturating_add(lines), max_row);
                 self.row = new_row;
 
-                let max_col = display.get_max_col(self.row);
+                let max_col = get_max_col(text_lines, self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // when moving down a single line, and cant move further,
@@ -138,7 +141,7 @@ impl Cursor {
                 self.desired_col = self.col;
             }
             MoveCursor::EndOfLine => {
-                self.col = display.get_max_col(self.row);
+                self.col = get_max_col(text_lines, self.row);
                 self.desired_col = self.col;
             }
             MoveCursor::TopOfFile => {
@@ -153,7 +156,7 @@ impl Cursor {
             }
             MoveCursor::EndOfFileEndOfLine => {
                 self.row = max_row;
-                self.col = display.get_max_col(self.row);
+                self.col = get_max_col(text_lines, self.row);
                 self.desired_col = self.col;
             }
         }
@@ -209,46 +212,35 @@ impl Cursor {
 
     pub fn update_real_position(
         &mut self,
-        display: &TextDisplay,
-        added_characters: usize,
+        lines: &[String],
     ) {
-        // compute the cursor position within underlying text,
-        // excluding characters added for wrapping
-        let mut on_new_line = false;
+        // compute the cursor position in underlying text based
+        // on the current row and column
         let mut position = 0;
-        for (index, line) in display.lines().iter().enumerate() {
+        for (index, line) in lines.iter().enumerate() {
             if index < self.row as usize {
-                position += line
-                    .spans
-                    .iter()
-                    .map(|span| span.content.len())
-                    .sum::<usize>();
-                position += 1; // account for newline character
+                // row before the current row
+                position += line.len() + 1; // account for newline character
             } else if index == self.row as usize {
+                // current row
                 position += self.col as usize; // add columns for the current row
-                on_new_line = self.col == 0 && index > 0; // Check if the cursor is at the start of a new line
                 break;
             }
         }
-
-        // If the cursor is at the start of a newline ("\n"), add back trailing spaces
-        // (i.e. "some text    \n") that were removed from wrapped lines
-        if on_new_line && self.row > 0 {
-            let trailing_spaces = display.get_trailing_spaces(self.row - 1);
-            position += trailing_spaces;
-        }
-
-        // Subtract characters added for display purposes
-        if position < added_characters {
-            // this should never happen, and if it does panic as it means our logic
-            // for computing the real position is incorrect
-            // panic!("Real position is less than added characters");
-            eprintln!("Real position is less than added characters");
-        }
-        self.real_position = position.saturating_sub(added_characters);
+        self.real_position = position;
     }
 }
 
-fn get_max_row(display_text: &[Line]) -> u16 {
+fn get_max_row(display_text: &[String]) -> u16 {
     display_text.len() as u16 - 1
+}
+
+pub fn get_max_col(lines: &[String], row: u16) -> u16 {
+    // Get the maximum column of a specific row
+    // check if row exists in self.lines, if not return 0
+    if let Some(line) = lines.get(row as usize) {
+        line.len() as u16
+    } else {
+        0
+    }
 }

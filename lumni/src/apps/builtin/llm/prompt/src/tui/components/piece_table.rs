@@ -237,7 +237,7 @@ impl PieceTable {
     }
 
     fn consolidate_pieces(&mut self) {
-        if self.pieces.len() < 2 {
+        if self.pieces.len() < 10 {
             return;
         }
 

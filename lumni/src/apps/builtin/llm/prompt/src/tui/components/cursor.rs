@@ -232,7 +232,7 @@ impl Cursor {
 }
 
 fn get_max_row(display_text: &[String]) -> u16 {
-    display_text.len() as u16 - 1
+    display_text.len().saturating_sub(1) as u16
 }
 
 pub fn get_max_col(lines: &[String], row: u16) -> u16 {

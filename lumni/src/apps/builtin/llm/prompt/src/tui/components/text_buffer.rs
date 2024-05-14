@@ -124,7 +124,6 @@ impl TextBuffer<'_> {
             // If no newlines, just move right
             self.move_cursor(MoveCursor::Right(text.len() as u16), true);  
         }
-        let idx = self.cursor.real_position();
     }
 
     pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
@@ -141,8 +140,22 @@ impl TextBuffer<'_> {
         } else {
             return;
         };
+
         self.text.delete(start_idx, char_count);
-        self.move_cursor(MoveCursor::Left(char_count as u16), true);
+
+        if include_cursor {
+            // delete rightwards from the cursor
+            // extra update is required to get correct text after deletion,
+            self.update_display_text();
+
+            // check if the cursor is at the end of the line
+            if self.cursor.col as usize >= self.to_string().len() {
+                self.move_cursor(MoveCursor::Left(char_count as u16), false);
+            }
+        } else {
+            // delete leftwards from the cursor
+            self.move_cursor(MoveCursor::Left(char_count as u16), true);
+        }
     }
 
     pub fn text_insert_commit(&mut self) -> String {
@@ -300,14 +313,15 @@ impl TextBuffer<'_> {
 
             if wrap_position + line_length >= cursor_position as usize {
                 // Cursor is on this line
-                let mut column = cursor_position as usize - wrap_position;
+                let column = cursor_position as usize - wrap_position;
                 if let Some(current_line) =
                     self.display.wrap_lines_mut().get_mut(index)
                 {
                     if column >= current_line.spans.len() {
                         // Cursor is at the end of the line
-                        if trailing_spaces > 0 {
-                            // Add trailing spaces back to the line (these were removed during wrapping)
+                        if trailing_spaces > 0 && column > current_line.spans.len() {
+                            // Add trailing spaces back to the (wrapped) line for 
+                            // the cursor to be displayed correctly
                             let spaces = std::iter::repeat(' ')
                                 .take(trailing_spaces)
                                 .collect::<String>();

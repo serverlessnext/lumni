@@ -1,7 +1,5 @@
 use std::mem;
 
-use ratatui::text;
-
 #[derive(Clone, Debug, PartialEq)]
 enum Action {
     Insert { index: usize, length: usize },

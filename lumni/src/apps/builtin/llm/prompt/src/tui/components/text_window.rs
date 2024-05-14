@@ -54,15 +54,15 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
-        let (_, cursor_row) = self.text_buffer.cursor_position();
+        let (_, cursor_row) = self.text_buffer.display_column_row();
         let visible_rows = self.area.height();
-        let scroll = if cursor_row >= visible_rows {
-            cursor_row - visible_rows + 1
+        let scroll = if cursor_row >= visible_rows as usize {
+            cursor_row - visible_rows as usize + 1
         } else {
             0
         };
 
-        self.vertical_scroll = scroll as usize;
+        self.vertical_scroll = scroll;
         self.update_scroll_bar();
     }
 

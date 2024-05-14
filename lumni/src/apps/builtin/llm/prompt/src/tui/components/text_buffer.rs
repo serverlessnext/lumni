@@ -25,6 +25,7 @@ impl<'a> TextDisplay<'a> {
         &self.wrap_lines
     }
 
+
     pub fn wrap_lines_mut(&mut self) -> &mut Vec<Line<'a>> {
         &mut self.wrap_lines
     }
@@ -175,10 +176,6 @@ impl TextBuffer<'_> {
         &self.selected_text
     }
 
-    pub fn cursor_position(&self) -> (u16, u16) {
-        (self.cursor.col, self.cursor.row)
-    }
-
     pub fn move_cursor(&mut self, direction: MoveCursor, edit_mode: bool) -> (bool, bool) {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
@@ -300,52 +297,34 @@ impl TextBuffer<'_> {
         if !self.cursor.show_cursor() {
             return;
         }
-        let cursor_position = self.cursor.real_position();
-        let mut wrap_position = 0;
-        for (index, line) in self.display.wrap_lines().iter().enumerate() {
-            let mut line_length = line
-                .spans
-                .iter()
-                .map(|span| span.content.len())
-                .sum::<usize>();
-            let trailing_spaces = self.display.get_trailing_spaces(index as u16);
-            line_length += trailing_spaces;
 
-            if wrap_position + line_length >= cursor_position as usize {
-                // Cursor is on this line
-                let column = cursor_position as usize - wrap_position;
-                if let Some(current_line) =
-                    self.display.wrap_lines_mut().get_mut(index)
-                {
-                    if column >= current_line.spans.len() {
-                        // Cursor is at the end of the line
-                        if trailing_spaces > 0 && column > current_line.spans.len() {
-                            // Add trailing spaces back to the (wrapped) line for 
-                            // the cursor to be displayed correctly
-                            let spaces = std::iter::repeat(' ')
-                                .take(trailing_spaces)
-                                .collect::<String>();
-                            current_line.spans.push(Span::raw(spaces));
-                        }
-                        // Append one additional space for the cursor itself, and style it
-                        current_line.spans.push(Span::styled(
-                            " ",
-                            Style::default().bg(Color::Yellow),
-                        ));
-                   } else {
-                        // Style the cursor's current position within the line
-                        if let Some(span) =
-                            current_line.spans.get_mut(column)
-                        {
-                            span.style = Style::default().bg(Color::Yellow);
-                        }
-                    }
+        // Retrieve the cursor's column and row in the wrapped display
+        let (column, row) = self.display_column_row();
+        let trailing_spaces = self.display.get_trailing_spaces(row as u16);
+
+        if let Some(current_line) = self.display.wrap_lines_mut().get_mut(row) {
+            if column >= current_line.spans.len() {
+                // The cursor is at the end of the line or beyond the last character
+
+                // Add trailing spaces back to the line if necessary
+                if trailing_spaces > 0 && column > current_line.spans.len() {
+                    let spaces = std::iter::repeat(' ')
+                        .take(trailing_spaces)
+                        .collect::<String>();
+                    current_line.spans.push(Span::raw(spaces));
                 }
-                break;
+
+                // Append a styled space for the cursor itself
+                current_line.spans.push(Span::styled(" ", Style::default().bg(Color::Yellow)));
+            } else {
+                // Style the cursor's current position within the line
+                if let Some(span) = current_line.spans.get_mut(column) {
+                    span.style = Style::default().bg(Color::Yellow);
+                }
             }
-            wrap_position += line_length + 1; // account for newline character
         }
     }
+
 
     pub fn undo(&mut self) {
         self.text.undo();
@@ -359,5 +338,29 @@ impl TextBuffer<'_> {
 
     pub fn to_string(&self) -> String {
         self.text.lines().join("\n")
+    }
+
+    pub fn display_column_row(&self) -> (usize, usize) {
+        // Get the current row in the wrapped text display based on the cursor position
+        let cursor_position = self.cursor.real_position();
+
+        let mut wrap_position = 0;
+        for (row, line) in self.display.wrap_lines().iter().enumerate() {
+            let mut line_length = line
+                .spans
+                .iter()
+                .map(|span| span.content.len())
+                .sum::<usize>();
+            let trailing_spaces = self.display.get_trailing_spaces(row as u16);
+            line_length += trailing_spaces;
+
+            if wrap_position + line_length >= cursor_position {
+                // Cursor is on this line
+                let column = cursor_position - wrap_position;
+                return (column, row);
+            }
+            wrap_position += line_length + 1; // account for newline character
+        }
+        (0, 0)  // default to (0, 0) if cursor is not found
     }
 }

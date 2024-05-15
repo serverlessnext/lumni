@@ -131,7 +131,7 @@ async fn prompt_app<B: Backend>(
                 let mut final_response;
                 log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_prompt_response(&response);
-                response_window.text_insert_add(&response_content);
+                response_window.text_append(&response_content);
                 final_response = is_final;
 
                 // Drain all available messages from the channel
@@ -139,7 +139,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(response) = rx.try_recv() {
                         log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_prompt_response(&response);
-                        response_window.text_insert_add(&response_content);
+                        response_window.text_append(&response_content);
 
                         if is_final {
                             final_response = true;

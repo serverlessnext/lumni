@@ -96,7 +96,6 @@ impl TextBuffer<'_> {
     pub fn text_insert_add(&mut self, text: &str) {
         // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
-
         self.text.cache_insert(text, Some(idx));
         self.update_display_text();
 
@@ -127,6 +126,11 @@ impl TextBuffer<'_> {
             // If no newlines, just move right
             self.move_cursor(MoveCursor::Right(text.len() as u16), true);
         }
+    }
+
+    pub fn text_append(&mut self, text: &str) {
+        self.text.append(text);
+        self.update_display_text();
     }
 
     pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {

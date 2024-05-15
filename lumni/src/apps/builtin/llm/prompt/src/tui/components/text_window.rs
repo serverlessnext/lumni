@@ -145,6 +145,13 @@ impl<'a> TextWindow<'a> {
         self.text_buffer.text_insert_commit()
     }
 
+    pub fn text_append(&mut self, text: &str) {
+        self.text_buffer.text_append(text);
+        // scroll to end of text
+        self.text_buffer.move_cursor(MoveCursor::EndOfFileEndOfLine, false);
+        self.scroll_to_cursor();
+    }
+
     pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
         self.text_buffer.text_delete(include_cursor, count);
         self.scroll_to_cursor();
@@ -200,6 +207,10 @@ pub trait TextWindowTrait<'a> {
 
     fn text_insert_commit(&mut self) -> String {
         self.base().text_insert_commit()
+    }
+
+    fn text_append(&mut self, text: &str) {
+        self.base().text_append(text);
     }
 
     fn text_delete_char(&mut self) {

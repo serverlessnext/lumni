@@ -81,6 +81,11 @@ impl<'a> TextWindow<'a> {
         }
     }
 
+    pub fn scroll_to_end(&mut self) {
+        self.text_buffer.move_cursor(MoveCursor::EndOfFileEndOfLine, false);
+        self.scroll_to_cursor();
+    }
+
     pub fn scroll_up(&mut self) {
         if self.vertical_scroll != 0 {
             self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
@@ -141,15 +146,19 @@ impl<'a> TextWindow<'a> {
         self.scroll_to_cursor();
     }
 
+    pub fn text_append_with_insert(&mut self, text: &str) {
+        // inserted text is appended at end of text
+        self.scroll_to_end();
+        self.text_buffer.text_insert_add(text);
+    }
+
     pub fn text_insert_commit(&mut self) -> String {
         self.text_buffer.text_insert_commit()
     }
 
     pub fn text_append(&mut self, text: &str) {
         self.text_buffer.text_append(text);
-        // scroll to end of text
-        self.text_buffer.move_cursor(MoveCursor::EndOfFileEndOfLine, false);
-        self.scroll_to_cursor();
+        self.scroll_to_end();
     }
 
     pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
@@ -203,6 +212,10 @@ pub trait TextWindowTrait<'a> {
 
     fn text_insert_add(&mut self, text: &str) {
         self.base().text_insert_add(text);
+    }
+
+    fn text_append_with_insert(&mut self, text: &str) {
+        self.base().text_append_with_insert(text);
     }
 
     fn text_insert_commit(&mut self) -> String {

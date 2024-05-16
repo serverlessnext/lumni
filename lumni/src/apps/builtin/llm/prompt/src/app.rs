@@ -1,7 +1,7 @@
 use std::error::Error;
+use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::{env, io};
 
 use clap::builder::PossibleValuesParser;
 use clap::{Arg, Command};
@@ -19,13 +19,15 @@ use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
-use serde_json::value;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tui_textarea::TextArea;
 
-use super::session::{process_prompt, process_prompt_response, ChatSession};
+use super::chat::{
+    list_assistants, process_prompt, process_prompt_response, ChatOptions,
+    ChatSession,
+};
 use super::tui::{
     draw_ui, CommandLine, KeyEventHandler, PromptWindow, ResponseWindow,
     TextWindowTrait, WindowEvent,
@@ -34,11 +36,8 @@ pub use crate::external as lumni;
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
+    chat_session: &mut ChatSession,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    //let mut editor_window = TextAreaHandler::new();
-    let mut chat_session = ChatSession::new();
-    chat_session.init().await?;
-
     let mut response_window = ResponseWindow::new();
     let mut prompt_window = PromptWindow::new();
     prompt_window.set_normal_mode();
@@ -99,7 +98,7 @@ async fn prompt_app<B: Backend>(
                                 is_running.clone(),
                                 tx.clone(),
                                 &mut response_window,
-                                &mut chat_session,
+                                chat_session,
                             ).await;
                             if current_mode == WindowEvent::Quit {
                                 break;
@@ -107,7 +106,6 @@ async fn prompt_app<B: Backend>(
                         },
                         Event::Mouse(mouse_event) => {
                             // TODO: should track on which window the cursor actually is
-                            //let mut window = prompt_log;
                             let window = &mut response_window;
                             match mouse_event.kind {
                                 MouseEventKind::ScrollUp => {
@@ -132,7 +130,7 @@ async fn prompt_app<B: Backend>(
                 log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
-                // the final response back when committed 
+                // the final response back when committed
                 response_window.text_append_with_insert(&response_content);
                 final_response = is_final;
 
@@ -167,7 +165,11 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
     let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
     let version = Box::leak(spec.version().into_boxed_str()) as &'static str;
 
-    let assistants = vec!["summarizer", "translator", "data-analyzer"];
+    let assistants: Vec<&'static str> = list_assistants()
+        .expect("Failed to list assistants")
+        .into_iter()
+        .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
+        .collect();
     let models = vec!["llama3"]; // TODO: expand with "auto", "chatgpt", etc
 
     Command::new(name)
@@ -175,19 +177,27 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         .about("CLI for prompt interaction")
         .arg_required_else_help(false)
         .arg(
+            Arg::new("system")
+                .long("system")
+                .short('s')
+                .help("System prompt"),
+        )
+        .arg(
             Arg::new("assistant")
                 .long("assistant")
+                .short('a')
                 .help("Specify which assistant to use")
                 .value_parser(PossibleValuesParser::new(&assistants)),
         )
         .arg(
             Arg::new("model")
                 .long("model")
+                .short('m')
                 .help("Model to use for processing the request")
                 .value_parser(PossibleValuesParser::new(&models))
                 .default_value(models[0]),
         )
-        .arg(Arg::new("options").long("options").help(
+        .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
              temperature=1,max_tokens=100",
         ))
@@ -197,25 +207,50 @@ pub async fn run_cli(
     spec: ApplicationSpec,
     args: Vec<String>,
 ) -> Result<(), Box<dyn Error>> {
-    // TODO: finalize integrating the CLI arguments
-    //let app = parse_cli_arguments(spec);
-    //let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
-    //    e.exit();
-    //});
+    let app = parse_cli_arguments(spec);
+    let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
+        e.exit();
+    });
+
+    // set default values for required arguments
+    let instruction = matches
+        .get_one::<String>("system")
+        .cloned()
+        .unwrap_or_else(|| "".to_string());
+    let model = matches
+        .get_one::<String>("model")
+        .cloned()
+        .unwrap_or_else(|| "llama3".to_string());
+    // optional arguments
+    let assistant = matches.get_one::<String>("assistant").cloned();
+    let options =
+        ChatOptions::new_from_args(matches.get_one::<String>("options"));
+
+    let mut chat_session = ChatSession::new();
+    chat_session
+        .set_instruction(instruction)
+        .set_assistant(assistant)
+        .set_model(model)
+        .set_options(options)
+        .init()
+        .await?;
+
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            interactive_mode().await
+            interactive_mode(&mut chat_session).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
-            process_non_interactive_input().await
+            process_non_interactive_input(&mut chat_session).await
         }
     }
 }
 
-async fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
+async fn interactive_mode(
+    chat_session: &mut ChatSession,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
 
@@ -245,7 +280,7 @@ async fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Run the application logic and capture the result
-    let result = prompt_app(&mut terminal).await;
+    let result = prompt_app(&mut terminal, chat_session).await;
 
     // Regardless of the result, perform cleanup
     let _ = disable_raw_mode();
@@ -259,7 +294,9 @@ async fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
     result.map_err(Into::into)
 }
 
-async fn process_non_interactive_input() -> Result<(), Box<dyn Error>> {
+async fn process_non_interactive_input(
+    chat_session: &mut ChatSession,
+) -> Result<(), Box<dyn Error>> {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut stdin_input = String::new();
@@ -277,7 +314,12 @@ async fn process_non_interactive_input() -> Result<(), Box<dyn Error>> {
         }
 
         let keep_running = Arc::new(AtomicBool::new(true));
-        process_prompt(stdin_input.trim_end().to_string(), keep_running).await;
+        process_prompt(
+            chat_session,
+            stdin_input.trim_end().to_string(),
+            keep_running,
+        )
+        .await;
     } else {
         return Err(
             "Failed to read initial byte from stdin, possibly empty".into()

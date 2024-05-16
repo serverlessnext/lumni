@@ -9,6 +9,8 @@ use lumni::HttpClient;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
+use super::options::ChatOptions;
+use super::prompt::Prompt;
 use super::send::send_payload;
 use super::{ChatCompletionResponse, PERSONAS};
 use crate::external as lumni;
@@ -18,40 +20,16 @@ struct TokenResponse {
     tokens: Vec<usize>,
 }
 
-#[derive(Debug, Deserialize)]
-struct Prompt {
-    name: String,
-    system_prompt: Option<String>,
-    user_prompt: Option<String>,
-    exchanges: Option<Vec<Exchange>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Exchange {
-    question: String,
-    answer: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ChatPayload {
-    prompt: String,
-    temperature: f64,
-    top_k: u32,
-    top_p: f64,
-    n_keep: usize,
-    n_predict: u32,
-    cache_prompt: bool,
-    stop: Vec<String>,
-    stream: bool,
-}
-
 pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
+    n_keep: usize,
     instruction: String,         // system
     user_prompt: Option<String>, // put question in {{ USER_QUESTION }}
-    n_keep: usize,
+    model: String,
+    assistant: Option<String>,
+    options: ChatOptions,
 }
 
 impl ChatSession {
@@ -60,36 +38,67 @@ impl ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
             max_history: 20, // TODO: base on max tokens
+            n_keep: 0,
             instruction: "".to_string(),
             user_prompt: None,
-            n_keep: 0,
+            model: "llama3".to_string(),
+            assistant: None,
+            options: ChatOptions::default(),
         }
+    }
+
+    pub fn set_instruction(&mut self, instruction: String) -> &mut Self {
+        self.instruction = instruction;
+        self
+    }
+
+    pub fn set_user_prompt(
+        &mut self,
+        user_prompt: Option<String>,
+    ) -> &mut Self {
+        self.user_prompt = user_prompt;
+        self
+    }
+
+    pub fn set_model(&mut self, model: String) -> &mut Self {
+        self.model = model;
+        self
+    }
+
+    pub fn set_assistant(&mut self, assistant: Option<String>) -> &mut Self {
+        self.assistant = assistant;
+        self
+    }
+
+    pub fn set_options(&mut self, options: ChatOptions) -> &mut Self {
+        self.options = options;
+        self
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
         //let selected_persona = "Summarizer";
-        let selected_persona = "Default";
+        let assistant = self.assistant.clone().unwrap_or("Default".to_string());
         let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
 
         // Find the selected persona by name
         if let Some(prompt) =
-            prompts.into_iter().find(|p| p.name == selected_persona)
+            prompts.into_iter().find(|p| p.name() == assistant)
         {
             // Set session instruction from persona's system prompt
-            if let Some(system_prompt) = prompt.system_prompt {
-                self.instruction = system_prompt;
+            if let Some(system_prompt) = prompt.system_prompt() {
+                self.instruction = system_prompt.to_string();
             }
 
             // Load predefined exchanges from persona if available
-            if let Some(exchanges) = prompt.exchanges {
+            if let Some(exchanges) = prompt.exchanges() {
                 self.exchanges = exchanges
                     .into_iter()
-                    .map(|exchange| (exchange.question, exchange.answer))
+                    .map(|exchange| exchange.question_and_answer())
                     .collect();
             }
 
-            if let Some(user_prompt) = prompt.user_prompt {
-                self.user_prompt = Some(user_prompt);
+            if let Some(user_prompt) = prompt.user_prompt() {
+                self.user_prompt = Some(user_prompt.to_string());
             }
         } else {
             return Err("Selected persona not found in the dataset".into());
@@ -156,8 +165,7 @@ impl ChatSession {
     ) {
         let prompt = self.create_final_prompt(question);
 
-        let n_keep = self.n_keep;
-        let data_payload = self.create_payload(prompt, n_keep);
+        let data_payload = self.create_payload(prompt);
 
         log::debug!("Payload created:\n{:?}", data_payload);
         if let Ok(payload) = data_payload {
@@ -258,32 +266,31 @@ impl ChatSession {
         prompt
     }
 
-    fn create_payload(
+    pub fn create_payload(
         &self,
         prompt: String,
-        n_keep: usize,
     ) -> Result<String, serde_json::Error> {
-        let payload = ChatPayload {
-            prompt,
-            temperature: 0.2,
-            top_k: 40,
-            top_p: 0.9,
-            n_keep,
-            n_predict: 512,
-            cache_prompt: true,
-            //stop: vec!["\n### Human:".to_string()],
-            stop: vec!["<|end_of_text|>".to_string(), "<|eot_id|>".to_string()],
-            stream: true,
+        #[derive(Serialize)]
+        struct Payload<'a> {
+            prompt: &'a str,
+            #[serde(flatten)]
+            options: &'a ChatOptions,
+        }
+
+        let payload = Payload {
+            prompt: &prompt,
+            options: &self.options,
         };
 
         serde_json::to_string(&payload)
     }
 }
 
-pub async fn process_prompt(question: String, keep_running: Arc<AtomicBool>) {
-    let mut chat_session = ChatSession::new();
-    chat_session.init().await.unwrap();
-
+pub async fn process_prompt(
+    chat_session: &mut ChatSession,
+    question: String,
+    keep_running: Arc<AtomicBool>,
+) {
     let (tx, rx) = mpsc::channel(32);
     chat_session
         .message(tx, keep_running.clone(), question)

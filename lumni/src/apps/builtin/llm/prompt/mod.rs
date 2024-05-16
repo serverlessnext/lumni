@@ -1,8 +1,8 @@
 #[cfg(feature = "cli")]
 pub mod src {
     mod app;
+    mod chat;
     mod handler;
-    mod session;
     mod tui;
     pub use handler::Handler;
 }

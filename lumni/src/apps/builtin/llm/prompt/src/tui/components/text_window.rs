@@ -82,7 +82,8 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn scroll_to_end(&mut self) {
-        self.text_buffer.move_cursor(MoveCursor::EndOfFileEndOfLine, false);
+        self.text_buffer
+            .move_cursor(MoveCursor::EndOfFileEndOfLine, false);
         self.scroll_to_cursor();
     }
 

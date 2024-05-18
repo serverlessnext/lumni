@@ -27,9 +27,8 @@ use super::chat::{
     ChatSession,
 };
 use super::tui::{
-    draw_ui, KeyEventHandler, 
-    PromptWindow, ResponseWindow, CommandLine, CommandLineAction,
-    TextWindowTrait, WindowEvent, PromptAction,
+    draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
+    PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 

@@ -5,8 +5,8 @@ use crossterm::event::KeyCode;
 
 use super::key_event::KeyTrack;
 use super::{
-    CommandLineAction,
-    ClipboardProvider, MoveCursor, TextWindowTrait, WindowEvent, WindowKind,
+    ClipboardProvider, CommandLineAction, MoveCursor, TextWindowTrait,
+    WindowEvent, WindowKind,
 };
 
 pub fn handle_text_window_event<'a, T>(
@@ -82,7 +82,9 @@ where
     match window.window_type().kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
-        WindowKind::CommandLine => WindowEvent::CommandLine(CommandLineAction::None),
+        WindowKind::CommandLine => {
+            WindowEvent::CommandLine(CommandLineAction::None)
+        }
     }
 }
 
@@ -175,7 +177,9 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return WindowEvent::CommandLine(CommandLineAction::Write(":".to_string()));
+            return WindowEvent::CommandLine(CommandLineAction::Write(
+                ":".to_string(),
+            ));
         }
         // ignore other characters
         _ => {}
@@ -183,7 +187,9 @@ where
     match window.window_type().kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
-        WindowKind::CommandLine => WindowEvent::CommandLine(CommandLineAction::None),
+        WindowKind::CommandLine => {
+            WindowEvent::CommandLine(CommandLineAction::None)
+        }
     }
 }
 

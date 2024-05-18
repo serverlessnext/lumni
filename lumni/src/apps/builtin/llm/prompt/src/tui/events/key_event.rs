@@ -5,8 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::text_window_event::handle_text_window_event;
 use super::{
-    CommandLine, PromptWindow, ResponseWindow, TextWindowTrait,
-    PromptAction, WindowEvent,
+    CommandLine, PromptAction, PromptWindow, ResponseWindow, TextWindowTrait,
+    WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -159,25 +159,30 @@ impl KeyEventHandler {
                             match command.trim_start_matches(':') {
                                 "q" => return WindowEvent::Quit,
                                 "w" => {
-                                    let question = prompt_window.text_buffer().to_string();
+                                    let question =
+                                        prompt_window.text_buffer().to_string();
                                     prompt_window.text_empty();
-                                    return WindowEvent::Prompt(PromptAction::Write(question));
+                                    return WindowEvent::Prompt(
+                                        PromptAction::Write(question),
+                                    );
                                 }
-                                "clear" => return WindowEvent::Prompt(PromptAction::Clear),
+                                "clear" => {
+                                    return WindowEvent::Prompt(
+                                        PromptAction::Clear,
+                                    )
+                                }
                                 _ => {} // command not recognized
                             }
                         }
                         WindowEvent::PromptWindow
                     }
-                    _ => {
-                        handle_text_window_event(
-                            &mut self.key_track,
-                            command_line,
-                            is_running,
-                        )
-                    }
+                    _ => handle_text_window_event(
+                        &mut self.key_track,
+                        command_line,
+                        is_running,
+                    ),
                 }
-            },
+            }
             WindowEvent::ResponseWindow => handle_text_window_event(
                 &mut self.key_track,
                 response_window,
@@ -192,7 +197,9 @@ impl KeyEventHandler {
                         || question.chars().last() == Some(' ')
                     {
                         prompt_window.text_empty();
-                        return WindowEvent::Prompt(PromptAction::Write(question));
+                        return WindowEvent::Prompt(PromptAction::Write(
+                            question,
+                        ));
                     }
                 }
                 handle_text_window_event(

@@ -5,7 +5,7 @@ pub use key_event::KeyEventHandler;
 
 use super::clipboard::ClipboardProvider;
 use super::components::{MoveCursor, TextWindowTrait, WindowKind};
-use super::windows::{PromptWindow, ResponseWindow, CommandLine};
+use super::windows::{CommandLine, PromptWindow, ResponseWindow};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {

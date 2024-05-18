@@ -230,7 +230,7 @@ pub trait TextWindowTrait<'a> {
     fn text_append(&mut self, text: &str) {
         self.base().text_append(text);
     }
-    
+
     fn text_set(&mut self, text: &str) {
         self.text_empty();
         self.text_append(text);

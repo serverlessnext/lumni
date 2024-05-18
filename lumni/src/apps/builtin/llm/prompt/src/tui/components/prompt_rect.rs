@@ -33,8 +33,8 @@ impl PromptRect {
 
         self.x = area.x;
         self.y = area.y;
-        self.width = area.width - 2;
-        self.height = area.height - 2;
+        self.width = area.width.saturating_sub(2);
+        self.height = area.height.saturating_sub(2);
 
         if *self != previous {
             true

@@ -1,6 +1,6 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Paragraph, ScrollbarState};
+use ratatui::widgets::{Block, Paragraph, ScrollbarState, block::Padding};
 
 use super::cursor::MoveCursor;
 use super::prompt_rect::PromptRect;
@@ -128,13 +128,18 @@ impl<'a> TextWindow<'a> {
             self.text_buffer.update_display_text();
         }
 
+        let mut block = Block::default()
+            .borders(self.window_type.borders())
+            .border_style(self.window_type.border_style())
+            .padding(Padding::new(1, 1, 0, 0));
+
+        let description = format!("{}", self.window_type.description());
+        if !description.is_empty() {
+            block = block.title(description);
+        }
+
         Paragraph::new(Text::from(self.text_buffer.display_text()))
-            .block(
-                Block::default()
-                    .title(format!("{}", self.window_type.description()))
-                    .borders(self.window_type.borders())
-                    .border_style(self.window_type.border_style()),
-            )
+            .block(block)
             .style(self.window_type.style())
             .alignment(Alignment::Left)
             .scroll((self.vertical_scroll as u16, 0))

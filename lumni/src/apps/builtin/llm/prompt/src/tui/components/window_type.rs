@@ -57,17 +57,23 @@ impl WindowType {
 
     pub fn style(&self) -> Style {
         match self.kind {
-            WindowKind::CommandLine => Style::default(),
-            _ => Style::default().bg(Color::Black).fg(Color::White),
+            WindowKind::CommandLine => {
+                Style::default()
+            }
+            _ => {
+                Style::default().bg(Color::Black).fg(Color::White)
+            }
         }
     }
 
     pub fn border_style(&self) -> Style {
         match self.status {
-            WindowStatus::Normal(highlighted) => match highlighted {
-                Highlighted::True => Style::default().fg(Color::LightGreen),
-                Highlighted::False => Style::default().fg(Color::DarkGray),
-            },
+            WindowStatus::Normal(highlighted) => {
+                match highlighted {
+                    Highlighted::True => Style::default().fg(Color::LightGreen),
+                    Highlighted::False => Style::default().fg(Color::DarkGray),
+                }
+            }
             WindowStatus::Insert => Style::default().fg(Color::LightBlue),
             WindowStatus::Visual => Style::default().fg(Color::LightYellow),
             WindowStatus::InActive => Style::default().fg(Color::DarkGray),
@@ -76,10 +82,12 @@ impl WindowType {
 
     pub fn cursor_style(&self) -> Style {
         let color = match self.status {
-            WindowStatus::Normal(highlighted) => match highlighted {
-                Highlighted::True => Color::LightGreen,
-                Highlighted::False => Color::DarkGray,
-            },
+            WindowStatus::Normal(highlighted) => {
+                match highlighted {
+                    Highlighted::True => Color::LightGreen,
+                    Highlighted::False => Color::DarkGray,
+                }
+            }
             WindowStatus::Insert => Color::LightBlue,
             WindowStatus::Visual => Color::LightYellow,
             _ => return Style::default(),
@@ -100,7 +108,7 @@ impl WindowType {
     }
 
     pub fn window_status(&self) -> WindowStatus {
-        self.status
+        self.status 
     }
 
     pub fn set_window_status(&mut self, status: WindowStatus) -> Self {

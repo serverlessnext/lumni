@@ -217,6 +217,7 @@ impl TextBuffer<'_> {
         self.text.update_lines();
         self.display.clear();
         self.selected_text.clear();
+        let style;
         let mut current_row = 0;
 
         let selection_bounds = self.get_selection_bounds();
@@ -224,7 +225,10 @@ impl TextBuffer<'_> {
         let mut text_lines = self.text.lines().to_vec();
 
         if text_lines.is_empty() && !self.placeholder.is_empty() {
+            style = Some(Style::default().fg(Color::DarkGray));
             text_lines.push(self.placeholder.clone());
+        } else {
+            style = None;
         }
 
         for line in &text_lines {
@@ -240,6 +244,7 @@ impl TextBuffer<'_> {
                     current_row,
                     &selection_bounds,
                     trailing_spaces,
+                    style,
                 );
             }
         }
@@ -285,6 +290,7 @@ impl TextBuffer<'_> {
         current_row: usize,
         selection_bounds: &(usize, usize, usize, usize),
         trailing_spaces: usize, // trailing spaces on the original unwrapped line
+        style: Option<Style>,
     ) -> usize {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
         let mut local_row = current_row;
@@ -305,7 +311,11 @@ impl TextBuffer<'_> {
                     ));
                     self.selected_text.push(ch);
                 } else {
-                    spans.push(Span::raw(ch.to_string()));
+                    if let Some(style) = style {
+                        spans.push(Span::styled(ch.to_string(), style));
+                    } else {
+                        spans.push(Span::raw(ch.to_string()));
+                    }
                 }
             }
             self.display.push_line(Line::from(spans), trailing_spaces);

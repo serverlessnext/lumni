@@ -155,6 +155,8 @@ impl KeyEventHandler {
                     KeyCode::Enter => {
                         let command = command_line.text_buffer().to_string();
                         command_line.text_empty();
+                        command_line.set_status_inactive();
+
                         if command.starts_with(':') {
                             match command.trim_start_matches(':') {
                                 "q" => return WindowEvent::Quit,

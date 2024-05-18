@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use clap::builder::PossibleValuesParser;
-use clap::{Arg, Command};
+use clap::{Arg, ArgGroup, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
@@ -211,6 +211,15 @@ pub async fn run_cli(
     let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
         e.exit();
     });
+
+    // custom conflict check for system and assistant options
+    if matches.contains_id("system") && matches.contains_id("assistant") {
+        eprintln!(
+            "Error: --system and --assistant options cannot be used together. \
+             Please choose one."
+        );
+        std::process::exit(1);
+    }
 
     // set default values for required arguments
     let instruction = matches

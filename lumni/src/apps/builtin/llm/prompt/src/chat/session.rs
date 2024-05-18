@@ -76,34 +76,34 @@ impl ChatSession {
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
-        //let selected_persona = "Summarizer";
-        let assistant = self.assistant.clone().unwrap_or("Default".to_string());
-        let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
+        if let Some(assistant) = self.assistant.clone() {
+            // Find the selected persona by name
+            let assistant_prompts: Vec<Prompt> =
+                serde_yaml::from_str(PERSONAS)?;
+            if let Some(prompt) = assistant_prompts
+                .into_iter()
+                .find(|p| p.name() == assistant)
+            {
+                // Set session instruction from persona's system prompt
+                if let Some(system_prompt) = prompt.system_prompt() {
+                    self.instruction = system_prompt.to_string();
+                }
 
-        // Find the selected persona by name
-        if let Some(prompt) =
-            prompts.into_iter().find(|p| p.name() == assistant)
-        {
-            // Set session instruction from persona's system prompt
-            if let Some(system_prompt) = prompt.system_prompt() {
-                self.instruction = system_prompt.to_string();
-            }
+                // Load predefined exchanges from persona if available
+                if let Some(exchanges) = prompt.exchanges() {
+                    self.exchanges = exchanges
+                        .into_iter()
+                        .map(|exchange| exchange.question_and_answer())
+                        .collect();
+                }
 
-            // Load predefined exchanges from persona if available
-            if let Some(exchanges) = prompt.exchanges() {
-                self.exchanges = exchanges
-                    .into_iter()
-                    .map(|exchange| exchange.question_and_answer())
-                    .collect();
+                if let Some(user_prompt) = prompt.user_prompt() {
+                    self.user_prompt = Some(user_prompt.to_string());
+                }
+            } else {
+                return Err("Selected persona not found in the dataset".into());
             }
-
-            if let Some(user_prompt) = prompt.user_prompt() {
-                self.user_prompt = Some(user_prompt.to_string());
-            }
-        } else {
-            return Err("Selected persona not found in the dataset".into());
         }
-
         self.tokenize_and_set_n_keep().await?;
         Ok(())
     }

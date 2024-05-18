@@ -8,4 +8,4 @@ mod window_type;
 pub use cursor::MoveCursor;
 pub use text_buffer::TextBuffer;
 pub use text_window::{TextWindow, TextWindowTrait};
-pub use window_type::{WindowKind, WindowStyle, WindowType};
+pub use window_type::{WindowKind, WindowStatus, WindowType};

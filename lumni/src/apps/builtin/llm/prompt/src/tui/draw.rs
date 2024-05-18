@@ -4,10 +4,9 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
-use tui_textarea::TextArea;
 
 use super::components::TextWindowTrait;
-use super::{PromptWindow, ResponseWindow};
+use super::{PromptWindow, ResponseWindow, CommandLine};
 
 pub enum LayoutMode {
     HorizontalSplit,
@@ -18,7 +17,7 @@ pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
     prompt_window: &mut PromptWindow,
     response_window: &mut ResponseWindow,
-    command_line: &TextArea,
+    command_line: &mut CommandLine,
 ) -> Result<(), io::Error> {
     let layout_mode = LayoutMode::HorizontalSplit;
     terminal.draw(|f| {
@@ -103,7 +102,7 @@ pub fn draw_ui<B: Backend>(
             &mut response_window.vertical_scroll_bar_state(),
         );
 
-        f.render_widget(command_line.widget(), command_line_area);
+        f.render_widget(command_line.widget(&command_line_area), command_line_area);
     })?;
     Ok(())
 }

@@ -55,6 +55,7 @@ impl<'a> TextDisplay<'a> {
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a> {
     text: PieceTable,         // text buffer
+    placeholder: String,      // placeholder text
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     selected_text: String,    // currently selected text
     cursor: Cursor,
@@ -65,11 +66,16 @@ impl TextBuffer<'_> {
     pub fn new(is_editable: bool) -> Self {
         Self {
             text: PieceTable::new(""),
+            placeholder: String::new(),
             display: TextDisplay::new(0),
             selected_text: String::new(),
-            cursor: Cursor::new(0, 0, is_editable),
+            cursor: Cursor::new(0, 0, false),
             is_editable,
         }
+    }
+
+    pub fn set_placeholder(&mut self, text: &str) {
+        self.placeholder = text.to_string();
     }
 
     pub fn set_cursor_visibility(&mut self, visible: bool) {
@@ -214,7 +220,12 @@ impl TextBuffer<'_> {
         let mut current_row = 0;
 
         let selection_bounds = self.get_selection_bounds();
-        let text_lines = self.text.lines().to_vec();
+
+        let mut text_lines = self.text.lines().to_vec();
+
+        if text_lines.is_empty() && !self.placeholder.is_empty() {
+            text_lines.push(self.placeholder.clone());
+        }
 
         for line in &text_lines {
             let trailing_spaces = line.len() - line.trim_end_matches(' ').len();

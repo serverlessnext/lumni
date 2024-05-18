@@ -1,11 +1,11 @@
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Style};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
+use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::prompt_rect::PromptRect;
-use super::{TextBuffer, WindowStyle, WindowType};
+use super::window_type::Highlighted;
+use super::{TextBuffer, WindowStatus, WindowType};
 
 pub struct TextWindow<'a> {
     area: PromptRect,
@@ -30,27 +30,31 @@ impl<'a> TextWindow<'a> {
         self.window_type
     }
 
-    pub fn window_style(&self) -> WindowStyle {
-        self.window_type.style()
+    pub fn window_status(&self) -> WindowStatus {
+        self.window_type.window_status()
     }
 
-    pub fn set_window_style(&mut self, style: WindowStyle) {
-        // enable cursor visibility for non-editable windows
-        // editable windows have cursor visibility enabled in all styles
-        if !self.window_type.is_editable() {
-            match style {
-                WindowStyle::Visual => {
+    pub fn set_window_status(&mut self, status: WindowStatus) {
+        // enable cursor visibility based on window status
+        match status {
+            WindowStatus::Visual => {
+                self.text_buffer.set_cursor_visibility(true);
+            }
+            WindowStatus::Insert => {
+                self.text_buffer.set_cursor_visibility(true);
+            }
+            WindowStatus::Normal(highlighted) => {
+                if highlighted == Highlighted::True {
                     self.text_buffer.set_cursor_visibility(true);
-                }
-                WindowStyle::Insert => {
-                    self.text_buffer.set_cursor_visibility(true);
-                }
-                _ => {
+                } else {
                     self.text_buffer.set_cursor_visibility(false);
                 }
             }
+            _ => {
+                self.text_buffer.set_cursor_visibility(false);
+            }
         }
-        self.window_type.set_style(style);
+        self.window_type.set_window_status(status);
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -128,10 +132,10 @@ impl<'a> TextWindow<'a> {
             .block(
                 Block::default()
                     .title(format!("{}", self.window_type.description()))
-                    .borders(Borders::ALL)
-                    .border_style(self.window_type.style().border_style()),
+                    .borders(self.window_type.borders())
+                    .border_style(self.window_type.border_style()),
             )
-            .style(Style::default().fg(Color::White).bg(Color::Black))
+            .style(self.window_type.style())
             .alignment(Alignment::Left)
             .scroll((self.vertical_scroll as u16, 0))
     }
@@ -186,17 +190,17 @@ pub trait TextWindowTrait<'a> {
         self.base().vertical_scroll_bar_state()
     }
 
-    fn set_window_style(&mut self, style: WindowStyle) {
-        self.set_selection(false); // disable selection when changing style
-        self.base().set_window_style(style);
+    fn set_window_status(&mut self, status: WindowStatus) {
+        self.set_selection(false); // disable selection when changing status
+        self.base().set_window_status(status);
     }
 
     fn window_type(&mut self) -> WindowType {
         self.base().window_type()
     }
 
-    fn window_style(&mut self) -> WindowStyle {
-        self.base().window_style()
+    fn window_status(&mut self) -> WindowStatus {
+        self.base().window_status()
     }
 
     fn scroll_up(&mut self) {
@@ -225,6 +229,11 @@ pub trait TextWindowTrait<'a> {
 
     fn text_append(&mut self, text: &str) {
         self.base().text_append(text);
+    }
+    
+    fn text_set(&mut self, text: &str) {
+        self.text_empty();
+        self.text_append(text);
     }
 
     fn text_delete_char(&mut self) {
@@ -257,46 +266,54 @@ pub trait TextWindowTrait<'a> {
         self.base().text_buffer.empty();
     }
 
+    fn text_set_placeholder(&mut self, text: &str) {
+        self.base().text_buffer.set_placeholder(text);
+    }
+
     fn is_active(&mut self) -> bool {
-        self.window_style() != WindowStyle::InActive
+        self.window_status() != WindowStatus::InActive
     }
 
-    fn set_style_normal(&mut self) {
-        self.set_window_style(WindowStyle::Normal);
+    fn set_status_normal(&mut self) {
+        self.set_window_status(WindowStatus::Normal(Highlighted::True));
     }
 
-    fn set_style_visual(&mut self) {
-        self.set_window_style(WindowStyle::Visual);
+    fn set_status_visual(&mut self) {
+        self.set_window_status(WindowStatus::Visual);
     }
 
-    fn is_style_insert(&mut self) -> bool {
-        self.window_style() == WindowStyle::Insert
+    fn set_status_background(&mut self) {
+        self.set_window_status(WindowStatus::Normal(Highlighted::False));
     }
 
-    fn set_style_insert(&mut self) {
-        self.set_window_style(WindowStyle::Insert);
+    fn is_status_insert(&mut self) -> bool {
+        self.window_status() == WindowStatus::Insert
+    }
+
+    fn set_status_insert(&mut self) {
+        self.set_window_status(WindowStatus::Insert);
     }
 
     fn toggle_visual_mode(&mut self) {
         // if visual mode is enabled, set to normal mode
-        if self.window_style() == WindowStyle::Visual {
+        if self.window_status() == WindowStatus::Visual {
             self.base().text_buffer.set_selection(false);
-            self.set_style_normal();
+            self.set_status_normal();
         } else {
-            self.set_style_visual();
+            self.set_status_visual();
             self.base().text_buffer.set_selection(true);
         }
     }
 
-    fn set_style_inactive(&mut self) {
-        self.set_window_style(WindowStyle::InActive);
+    fn set_status_inactive(&mut self) {
+        self.set_window_status(WindowStatus::InActive);
     }
 
     fn set_normal_mode(&mut self) {
-        self.set_style_normal();
+        self.set_status_normal();
     }
 
     fn set_insert_mode(&mut self) {
-        self.set_style_insert();
+        self.set_status_insert();
     }
 }

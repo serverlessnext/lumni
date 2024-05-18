@@ -2,17 +2,16 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::KeyCode;
-use tui_textarea::TextArea;
 
 use super::key_event::KeyTrack;
 use super::{
+    CommandLineAction,
     ClipboardProvider, MoveCursor, TextWindowTrait, WindowEvent, WindowKind,
 };
 
 pub fn handle_text_window_event<'a, T>(
     key_track: &mut KeyTrack,
     window: &mut T,
-    command_line: &mut TextArea<'_>,
     _is_running: Arc<AtomicBool>,
 ) -> WindowEvent
 where
@@ -22,14 +21,14 @@ where
     match key_event.code {
         KeyCode::Char(c) => {
             // check mode
-            if window.is_style_insert() {
+            if window.is_status_insert() {
                 window.text_insert_add(&c.to_string());
             } else {
-                return handle_char_key(c, key_track, window, command_line);
+                return handle_char_key(c, key_track, window);
             }
         }
         KeyCode::Esc => {
-            if window.is_style_insert() {
+            if window.is_status_insert() {
                 // commit
                 window.text_insert_commit();
             }
@@ -37,7 +36,7 @@ where
         }
         KeyCode::Tab => {
             // same as Escape
-            if window.is_style_insert() {
+            if window.is_status_insert() {
                 // commit
                 window.text_insert_commit();
             }
@@ -83,7 +82,7 @@ where
     match window.window_type().kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
-        WindowKind::CommandLine => WindowEvent::CommandLine,
+        WindowKind::CommandLine => WindowEvent::CommandLine(CommandLineAction::None),
     }
 }
 
@@ -91,7 +90,6 @@ fn handle_char_key<'a, T>(
     character: char,
     key_track: &mut KeyTrack,
     window: &mut T,
-    command_line: &mut TextArea<'_>,
 ) -> WindowEvent
 where
     T: TextWindowTrait<'a>,
@@ -177,8 +175,7 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            command_line.insert_str(":");
-            return WindowEvent::CommandLine;
+            return WindowEvent::CommandLine(CommandLineAction::Write(":".to_string()));
         }
         // ignore other characters
         _ => {}
@@ -186,7 +183,7 @@ where
     match window.window_type().kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
-        WindowKind::CommandLine => WindowEvent::CommandLine,
+        WindowKind::CommandLine => WindowEvent::CommandLine(CommandLineAction::None),
     }
 }
 

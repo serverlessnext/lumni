@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use clap::builder::PossibleValuesParser;
-use clap::{Arg, ArgGroup, Command};
+use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
     poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
@@ -17,20 +17,19 @@ use crossterm::terminal::{
 };
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::style::Style;
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
-use tui_textarea::TextArea;
 
 use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatOptions,
     ChatSession,
 };
 use super::tui::{
-    draw_ui, CommandLine, KeyEventHandler, PromptWindow, ResponseWindow,
-    TextWindowTrait, WindowEvent,
+    draw_ui, KeyEventHandler, 
+    PromptWindow, ResponseWindow, CommandLine, CommandLineAction,
+    TextWindowTrait, WindowEvent, PromptAction,
 };
 pub use crate::external as lumni;
 
@@ -42,22 +41,20 @@ async fn prompt_app<B: Backend>(
     let mut prompt_window = PromptWindow::new();
     prompt_window.set_normal_mode();
 
-    let mut command_line = TextArea::default();
-    command_line.set_cursor_line_style(Style::default());
-    command_line.set_placeholder_text("Ready");
+    let mut command_line = CommandLine::new();
+    command_line.text_set_placeholder("Ready");
 
     let (tx, mut rx) = mpsc::channel(32);
     let mut tick = interval(Duration::from_millis(10));
     let is_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = WindowEvent::PromptWindow;
     let mut key_event_handler = KeyEventHandler::new();
-    let mut command_line_handler = CommandLine::new();
     let mut redraw_ui = true;
     loop {
         tokio::select! {
             _ = tick.tick() => {
                 if redraw_ui {
-                    draw_ui(terminal, &mut prompt_window, &mut response_window, &command_line)?;
+                    draw_ui(terminal, &mut prompt_window, &mut response_window, &mut command_line)?;
                     redraw_ui = false;
                 }
 
@@ -70,19 +67,33 @@ async fn prompt_app<B: Backend>(
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
                                     WindowEvent::PromptWindow => {
-                                        if prompt_window.is_style_insert() {
+                                        if prompt_window.is_status_insert() {
                                             // tab is locked to prompt window when in insert mode
                                             WindowEvent::PromptWindow
                                         } else {
-                                            prompt_window.set_style_inactive();
-                                            response_window.set_style_normal();
+                                            prompt_window.set_status_inactive();
+                                            response_window.set_status_normal();
                                             WindowEvent::ResponseWindow
                                         }
                                     }
                                     WindowEvent::ResponseWindow => {
-                                        response_window.set_style_inactive();
-                                        prompt_window.set_style_normal();
+                                        response_window.set_status_inactive();
+                                        prompt_window.set_status_normal();
                                         WindowEvent::PromptWindow
+                                    }
+                                    WindowEvent::CommandLine(_) => {
+                                        // exit command line mode
+                                        command_line.text_empty();
+                                        command_line.set_status_inactive();
+
+                                        // switch to the active window,
+                                        if response_window.is_active() {
+                                            response_window.set_status_normal();
+                                            WindowEvent::ResponseWindow
+                                        } else {
+                                            prompt_window.set_status_normal();
+                                            WindowEvent::PromptWindow
+                                        }
                                     }
                                     _ => current_mode,
                                 };
@@ -92,16 +103,43 @@ async fn prompt_app<B: Backend>(
                             current_mode = key_event_handler.process_key(
                                 key_event,
                                 current_mode,
-                                &mut command_line_handler,
                                 &mut command_line,
                                 &mut prompt_window,
                                 is_running.clone(),
-                                tx.clone(),
                                 &mut response_window,
-                                chat_session,
                             ).await;
-                            if current_mode == WindowEvent::Quit {
-                                break;
+
+                            match current_mode {
+                                WindowEvent::Quit => {
+                                    break;
+                                }
+                                WindowEvent::Prompt(prompt_action) => {
+                                    match prompt_action {
+                                        PromptAction::Write(prompt) => {
+                                            chat_session.message(tx.clone(), is_running.clone(), prompt).await;
+                                        }
+                                        PromptAction::Clear => {
+                                            chat_session.reset();
+                                        }
+                                    }
+                                    current_mode = WindowEvent::PromptWindow;
+                                }
+                                WindowEvent::CommandLine(ref action) => {
+                                    // enter command line mode
+                                    if prompt_window.is_active() {
+                                        prompt_window.set_status_background();
+                                    } else {
+                                        response_window.set_status_background();
+                                    }
+                                    match action {
+                                        CommandLineAction::Write(prefix) => {
+                                            command_line.set_insert_mode();
+                                            command_line.text_set(prefix);
+                                        }
+                                        CommandLineAction::None => {}
+                                    }
+                                }
+                                _ => {}
                             }
                         },
                         Event::Mouse(mouse_event) => {

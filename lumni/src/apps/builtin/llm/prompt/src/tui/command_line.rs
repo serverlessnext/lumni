@@ -39,8 +39,8 @@ impl CommandLine {
 }
 
 pub async fn transition_command_line(
-    cl: &mut CommandLine,
-    command_line: &mut TextArea<'_>,
+    //cl: &mut CommandLine,
+    command_line: &mut CommandLine,
     prompt_window: &mut PromptWindow<'_>,
     response_window: &mut ResponseWindow<'_>,
     input: Input,
@@ -48,7 +48,8 @@ pub async fn transition_command_line(
     match input {
         Input { key: Key::Esc, .. } => {
             // catch esc key - clear command line
-            cl.clear(command_line)
+            //cl.clear(command_line)
+            command_line.text_empty();
         }
         Input {
             key: Key::Enter, ..

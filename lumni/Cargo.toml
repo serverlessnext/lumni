@@ -24,7 +24,7 @@ path = "src/main.rs"
 [features]
 default = ["http_client", "cli"]
 http_client = ["hyper", "hyper-tls", "http-body-util", "hyper-util"]
-cli = ["env_logger", "tokio", "clap", "crossterm", "ratatui", "tui-textarea", "arboard" ]
+cli = ["env_logger", "tokio", "clap", "crossterm", "ratatui", "arboard" ]
 web = ["console_log"]
 
 
@@ -55,7 +55,6 @@ tokio = { version = "1.12", default-features = false, features = ["rt-multi-thre
 clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
 crossterm = { version = "0.27", optional = true }
 ratatui = { version = ">=0.23.0, <1", default-features = false, features = ["crossterm"], optional = true }
-tui-textarea = { version = "0.4", optional = true }
 arboard = { version = "3.2", default-features = false, optional = true }
 
 # WEB 

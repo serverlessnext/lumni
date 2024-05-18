@@ -1,16 +1,12 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use tokio::sync::mpsc;
-use tui_textarea::TextArea;
 
-use super::command_line::{handle_command_line_event, send_prompt};
 use super::text_window_event::handle_text_window_event;
 use super::{
-    ChatSession, CommandLine, PromptWindow, ResponseWindow, TextWindowTrait,
-    WindowEvent,
+    CommandLine, PromptWindow, ResponseWindow, TextWindowTrait,
+    PromptAction, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -129,34 +125,62 @@ impl KeyEventHandler {
         &mut self,
         key_event: KeyEvent,
         current_mode: WindowEvent,
-        command_line_handler: &mut CommandLine,
-        command_line: &mut TextArea<'_>,
+        command_line: &mut CommandLine<'_>,
         prompt_window: &mut PromptWindow<'_>,
         is_running: Arc<AtomicBool>,
-        tx: mpsc::Sender<Bytes>,
         response_window: &mut ResponseWindow<'_>,
-        chat_session: &mut ChatSession,
     ) -> WindowEvent {
         self.key_track.update_key(key_event);
 
         match current_mode {
-            WindowEvent::CommandLine => {
-                handle_command_line_event(
-                    &self.key_track,
-                    command_line_handler,
-                    response_window,
-                    chat_session,
-                    prompt_window,
-                    command_line,
-                    tx,
-                    is_running,
-                )
-                .await
-            }
+            WindowEvent::CommandLine(_) => {
+                let key_code = self.key_track.current_key().code;
+
+                match key_code {
+                    // Escape key
+                    KeyCode::Esc => {
+                        // exit command line
+                        command_line.text_empty();
+                        command_line.set_status_inactive();
+
+                        // switch to the active window
+                        if response_window.is_active() {
+                            response_window.set_status_normal();
+                            WindowEvent::ResponseWindow
+                        } else {
+                            prompt_window.set_status_normal();
+                            WindowEvent::PromptWindow
+                        }
+                    }
+                    KeyCode::Enter => {
+                        let command = command_line.text_buffer().to_string();
+                        command_line.text_empty();
+                        if command.starts_with(':') {
+                            match command.trim_start_matches(':') {
+                                "q" => return WindowEvent::Quit,
+                                "w" => {
+                                    let question = prompt_window.text_buffer().to_string();
+                                    prompt_window.text_empty();
+                                    return WindowEvent::Prompt(PromptAction::Write(question));
+                                }
+                                "clear" => return WindowEvent::Prompt(PromptAction::Clear),
+                                _ => {} // command not recognized
+                            }
+                        }
+                        WindowEvent::PromptWindow
+                    }
+                    _ => {
+                        handle_text_window_event(
+                            &mut self.key_track,
+                            command_line,
+                            is_running,
+                        )
+                    }
+                }
+            },
             WindowEvent::ResponseWindow => handle_text_window_event(
                 &mut self.key_track,
                 response_window,
-                command_line,
                 is_running,
             ),
             WindowEvent::PromptWindow => {
@@ -164,19 +188,16 @@ impl KeyEventHandler {
                 if self.key_track.current_key().code == KeyCode::Enter {
                     let question = prompt_window.text_buffer().to_string();
                     // send prompt if not editing, or if the last character is a space
-                    if !prompt_window.is_style_insert()
+                    if !prompt_window.is_status_insert()
                         || question.chars().last() == Some(' ')
                     {
-                        send_prompt(chat_session, tx, is_running, question)
-                            .await;
                         prompt_window.text_empty();
-                        return WindowEvent::PromptWindow;
+                        return WindowEvent::Prompt(PromptAction::Write(question));
                     }
                 }
                 handle_text_window_event(
                     &mut self.key_track,
                     prompt_window,
-                    command_line,
                     is_running,
                 )
             }

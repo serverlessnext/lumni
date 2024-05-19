@@ -1,4 +1,5 @@
 use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Style;
 use ratatui::text::Text;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Paragraph, ScrollbarState};
@@ -152,23 +153,27 @@ impl<'a> TextWindow<'a> {
         &mut self.vertical_scroll_bar_state
     }
 
-    pub fn text_insert_add(&mut self, text: &str) {
-        self.text_buffer.text_insert_add(text);
+    pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
+        self.text_buffer.text_insert_add(text, style);
         self.scroll_to_cursor();
     }
 
-    pub fn text_append_with_insert(&mut self, text: &str) {
+    pub fn text_append_with_insert(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) {
         // inserted text is appended at end of text
         self.scroll_to_end();
-        self.text_buffer.text_insert_add(text);
+        self.text_buffer.text_insert_add(text, style);
     }
 
     pub fn text_insert_commit(&mut self) -> String {
         self.text_buffer.text_insert_commit()
     }
 
-    pub fn text_append(&mut self, text: &str) {
-        self.text_buffer.text_append(text);
+    pub fn text_append(&mut self, text: &str, style: Option<Style>) {
+        self.text_buffer.text_append(text, style);
         self.scroll_to_end();
     }
 
@@ -221,25 +226,25 @@ pub trait TextWindowTrait<'a> {
         self.base().move_cursor(direction);
     }
 
-    fn text_insert_add(&mut self, text: &str) {
-        self.base().text_insert_add(text);
+    fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
+        self.base().text_insert_add(text, style);
     }
 
-    fn text_append_with_insert(&mut self, text: &str) {
-        self.base().text_append_with_insert(text);
+    fn text_append_with_insert(&mut self, text: &str, style: Option<Style>) {
+        self.base().text_append_with_insert(text, style);
     }
 
     fn text_insert_commit(&mut self) -> String {
         self.base().text_insert_commit()
     }
 
-    fn text_append(&mut self, text: &str) {
-        self.base().text_append(text);
+    fn text_append(&mut self, text: &str, style: Option<Style>) {
+        self.base().text_append(text, style);
     }
 
-    fn text_set(&mut self, text: &str) {
+    fn text_set(&mut self, text: &str, style: Option<Style>) {
         self.text_empty();
-        self.text_append(text);
+        self.text_append(text, style);
     }
 
     fn text_delete_char(&mut self) {

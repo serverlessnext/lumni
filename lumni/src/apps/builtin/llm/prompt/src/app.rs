@@ -17,6 +17,7 @@ use crossterm::terminal::{
 };
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
+use ratatui::style::{Color, Style};
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
@@ -133,7 +134,7 @@ async fn prompt_app<B: Backend>(
                                     match action {
                                         CommandLineAction::Write(prefix) => {
                                             command_line.set_insert_mode();
-                                            command_line.text_set(prefix);
+                                            command_line.text_set(prefix, None);
                                         }
                                         CommandLineAction::None => {}
                                     }
@@ -168,7 +169,8 @@ async fn prompt_app<B: Backend>(
                 let (response_content, is_final) = process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
                 // the final response back when committed
-                response_window.text_append_with_insert(&response_content);
+                let response_style = Style::default();
+                response_window.text_append_with_insert(&response_content, Some(response_style));
                 final_response = is_final;
 
                 // Drain all available messages from the channel
@@ -176,7 +178,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(response) = rx.try_recv() {
                         log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_prompt_response(&response);
-                        response_window.text_append_with_insert(&response_content);
+                        response_window.text_append_with_insert(&response_content, Some(response_style));
 
                         if is_final {
                             final_response = true;

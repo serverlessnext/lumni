@@ -264,6 +264,7 @@ impl ChatSession {
 
         // Now, always add the new exchange to the list
         self.exchanges.push((user_question.clone(), "".to_string()));
+        eprintln!("exchanges: {:?}", self.exchanges);
         prompt
     }
 

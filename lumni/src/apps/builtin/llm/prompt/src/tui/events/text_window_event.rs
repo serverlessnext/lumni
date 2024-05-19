@@ -22,7 +22,7 @@ where
         KeyCode::Char(c) => {
             // check mode
             if window.is_status_insert() {
-                window.text_insert_add(&c.to_string());
+                window.text_insert_add(&c.to_string(), None);
             } else {
                 return handle_char_key(c, key_track, window);
             }
@@ -56,7 +56,7 @@ where
         }
         KeyCode::Enter => {
             if window.window_type().is_editable() {
-                window.text_insert_add("\n");
+                window.text_insert_add("\n", None);
             }
         }
         KeyCode::Backspace => {
@@ -145,7 +145,7 @@ where
             if window.window_type().is_editable() {
                 let mut clipboard = ClipboardProvider::new();
                 if let Ok(text) = clipboard.read_text() {
-                    window.text_insert_add(&text);
+                    window.text_insert_add(&text, None);
                     window.text_insert_commit();
                 }
             } else {

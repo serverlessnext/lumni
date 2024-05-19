@@ -63,7 +63,8 @@ impl Cursor {
     pub fn move_cursor(
         &mut self,
         direction: MoveCursor,
-        text_lines: &[String],
+        //text_lines: &[String],
+        text_lines: &Vec<&str>,
         // keep cursor at desired column when jumping to next line. This is used to prevent
         // cursor from jumping to the beginning when text is wrapped during editing
         keep_desired: bool,
@@ -226,11 +227,11 @@ impl Cursor {
     }
 }
 
-fn get_max_row(display_text: &[String]) -> u16 {
+fn get_max_row(display_text: &Vec<&str>) -> u16 {
     display_text.len().saturating_sub(1) as u16
 }
 
-pub fn get_max_col(lines: &[String], row: u16) -> u16 {
+pub fn get_max_col(lines: &Vec<&str>, row: u16) -> u16 {
     // Get the maximum column of a specific row
     // check if row exists in self.lines, if not return 0
     if let Some(line) = lines.get(row as usize) {

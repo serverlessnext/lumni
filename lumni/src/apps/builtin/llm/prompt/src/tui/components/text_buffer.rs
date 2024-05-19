@@ -1,9 +1,9 @@
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::cursor::{Cursor, MoveCursor};
-use super::piece_table::PieceTable;
+use super::piece_table::{PieceTable, TextLine};
 
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
@@ -99,11 +99,10 @@ impl TextBuffer<'_> {
         self.display.set_display_width(width);
     }
 
-    pub fn text_insert_add(&mut self, text: &str) {
+    pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
         // Get the current cursor position in the underlying (unwrapped) text buffer
-        let author = "foo";
         let idx = self.cursor.real_position();
-        self.text.cache_insert(text, Some(idx), &author);
+        self.text.cache_insert(text, Some(idx), style);
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment
@@ -135,9 +134,8 @@ impl TextBuffer<'_> {
         }
     }
 
-    pub fn text_append(&mut self, text: &str) {
-        let author = "foo";
-        self.text.append(text, &author);
+    pub fn text_append(&mut self, text: &str, style: Option<Style>) {
+        self.text.append(text, style);
         self.update_display_text();
     }
 
@@ -199,7 +197,7 @@ impl TextBuffer<'_> {
         let prev_row = self.cursor.row;
 
         self.cursor
-            .move_cursor(direction, &self.text.lines(), edit_mode);
+            .move_cursor(direction, &self.text.lines_text(), edit_mode);
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
@@ -219,7 +217,6 @@ impl TextBuffer<'_> {
         self.text.update_lines();
         self.display.clear();
         self.selected_text.clear();
-        let style;
         let mut current_row = 0;
 
         let selection_bounds = self.get_selection_bounds();
@@ -227,15 +224,18 @@ impl TextBuffer<'_> {
         let mut text_lines = self.text.lines().to_vec();
 
         if text_lines.is_empty() && !self.placeholder.is_empty() {
-            style = Some(Style::default().fg(Color::DarkGray));
-            text_lines.push(self.placeholder.clone());
-        } else {
-            style = None;
+            // placeholder text
+            let style = Style::default().fg(Color::DarkGray);
+            text_lines
+                .push(TextLine::new(self.placeholder.clone(), Some(style)));
         }
 
-        for line in &text_lines {
-            let trailing_spaces = line.len() - line.trim_end_matches(' ').len();
-            let wrapped_lines = self.wrap_text(&line);
+        for line in text_lines.iter() {
+            let line_style = line.style();
+
+            let trailing_spaces =
+                line.text().len() - line.text().trim_end_matches(' ').len();
+            let wrapped_lines = self.wrap_text(&line.text());
 
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(current_row);
@@ -246,13 +246,18 @@ impl TextBuffer<'_> {
                     current_row,
                     &selection_bounds,
                     trailing_spaces,
-                    style,
+                    line_style,
                 );
             }
         }
 
         // recompute added_characters by comparing displayed text length with the underlying text
-        self.cursor.update_real_position(&text_lines);
+        let text_lines_str: Vec<String> = text_lines
+            .iter()
+            .map(|line| line.text().to_string())
+            .collect();
+
+        self.cursor.update_real_position(&text_lines_str);
         self.update_cursor_style();
     }
 
@@ -372,7 +377,7 @@ impl TextBuffer<'_> {
     }
 
     pub fn to_string(&self) -> String {
-        self.text.lines().join("\n")
+        self.text.to_string()
     }
 
     pub fn display_column_row(&self) -> (usize, usize) {

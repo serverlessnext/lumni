@@ -1,16 +1,18 @@
 use std::mem;
 
+use ratatui::style::Style;
+
 #[derive(Clone, Debug, PartialEq)]
 enum Action {
     Insert {
         index: usize,
         length: usize,
-        author: String,
+        style: Option<Style>,
     },
     Delete {
         index: usize,
         content: String,
-        author: String,
+        style: Option<Style>,
     },
 }
 
@@ -24,7 +26,7 @@ pub enum InsertMode {
 struct Cache {
     content: String,
     insert_idx: Option<usize>,
-    author: Option<String>,
+    style: Option<Style>,
 }
 
 impl Cache {
@@ -32,31 +34,51 @@ impl Cache {
         Cache {
             content: String::new(),
             insert_idx: None,
-            author: None,
+            style: None,
         }
     }
 
     pub fn clear(&mut self) {
         self.content.clear();
         self.insert_idx = None;
-        self.author = None;
+        self.style = None;
     }
 
     pub fn is_active(&self) -> bool {
         self.insert_idx.is_some()
     }
 
-    pub fn start(&mut self, idx: usize, author: &str) {
+    pub fn start(&mut self, idx: usize, style: Option<Style>) {
         self.content.clear();
         self.insert_idx = Some(idx);
-        self.author = Some(author.to_string());
+        self.style = style;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextLine {
+    text: String,
+    style: Option<Style>,
+}
+
+impl TextLine {
+    pub fn new(text: String, style: Option<Style>) -> Self {
+        TextLine { text, style }
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn style(&self) -> Option<Style> {
+        self.style
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
     original: String,        // The original unmodified text
-    lines: Vec<String>,      // text split into lines
+    lines: Vec<TextLine>,    // text split into lines
     add: String,             // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     cache: Cache,       // Temporary buffer for caching many (small) insertions
@@ -69,7 +91,7 @@ struct Piece {
     source: SourceBuffer,
     start: usize,
     length: usize,
-    author: String,
+    style: Option<Style>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,8 +113,16 @@ impl PieceTable {
         }
     }
 
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &[TextLine] {
         &self.lines
+    }
+
+    pub fn lines_text(&self) -> Vec<&str> {
+        self.lines.iter().map(|line| line.text()).collect()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.lines_text().join("\n")
     }
 
     pub fn empty(&mut self) {
@@ -104,7 +134,13 @@ impl PieceTable {
         self.redo_stack.clear();
     }
 
-    fn insert(&mut self, idx: usize, text: &str, author: &str, is_redo: bool) {
+    fn insert(
+        &mut self,
+        idx: usize,
+        text: &str,
+        style: Option<Style>,
+        is_redo: bool,
+    ) {
         let add_start = self.add.len();
         self.add.push_str(text);
         let mut new_pieces = Vec::new();
@@ -120,7 +156,7 @@ impl PieceTable {
                     source: SourceBuffer::Add,
                     start: add_start,
                     length: text.len(),
-                    author: author.to_string(),
+                    style: style.clone(),
                 });
                 insertion_handled = true;
                 new_pieces.push(piece.clone());
@@ -131,7 +167,7 @@ impl PieceTable {
                         source: piece.source.clone(),
                         start: piece.start,
                         length: first_part_length,
-                        author: piece.author.clone(),
+                        style: piece.style.clone(),
                     });
                 }
 
@@ -139,7 +175,7 @@ impl PieceTable {
                     source: SourceBuffer::Add,
                     start: add_start,
                     length: text.len(),
-                    author: author.to_string(),
+                    style: style.clone(),
                 });
 
                 if idx < offset + piece.length {
@@ -147,7 +183,7 @@ impl PieceTable {
                         source: piece.source.clone(),
                         start: piece.start + first_part_length,
                         length: piece.length - first_part_length,
-                        author: piece.author.clone(),
+                        style: piece.style.clone(),
                     });
                 }
                 insertion_handled = true;
@@ -162,7 +198,7 @@ impl PieceTable {
                 source: SourceBuffer::Add,
                 start: add_start,
                 length: text.len(),
-                author: author.to_string(),
+                style: style.clone(),
             });
         }
         self.pieces = new_pieces;
@@ -174,7 +210,7 @@ impl PieceTable {
         self.undo_stack.push(Action::Insert {
             index: idx,
             length: text.len(),
-            author: author.to_string(),
+            style,
         });
     }
 
@@ -203,7 +239,7 @@ impl PieceTable {
                         source: piece.source.clone(),
                         start: piece.start,
                         length: start_overlap - offset,
-                        author: piece.author.clone(),
+                        style: piece.style.clone(),
                     });
                 }
 
@@ -212,7 +248,7 @@ impl PieceTable {
                         source: piece.source.clone(),
                         start: piece.start + (end_overlap - offset),
                         length: piece_end - end_overlap,
-                        author: piece.author.clone(),
+                        style: piece.style.clone(),
                     });
                 }
             }
@@ -236,7 +272,7 @@ impl PieceTable {
                 Action::Insert {
                     index,
                     length,
-                    author,
+                    style,
                 } => {
                     // Perform the undo by deleting the text that was inserted
                     self.delete(index, length);
@@ -244,21 +280,21 @@ impl PieceTable {
                     self.redo_stack.push(Action::Insert {
                         index,
                         length,
-                        author,
+                        style,
                     });
                 }
                 Action::Delete {
                     index,
                     content,
-                    author,
+                    style,
                 } => {
                     // Undo the delete by reinserting the deleted text
-                    self.insert(index, &content, &author, false);
+                    self.insert(index, &content, style, false);
                     // Move the undone delete action to the redo stack
                     self.redo_stack.push(Action::Delete {
                         index,
                         content,
-                        author,
+                        style,
                     });
                 }
             }
@@ -271,24 +307,24 @@ impl PieceTable {
                 Action::Insert {
                     index,
                     length,
-                    author,
+                    style,
                 } => {
                     // Clone the text to be reinserted to avoid borrowing issues
                     let text_to_reinsert =
                         self.add[self.add.len() - length..].to_string();
                     // Perform the insert with the cloned text
-                    self.insert(index, &text_to_reinsert, &author, true);
+                    self.insert(index, &text_to_reinsert, style, true);
                     // Push the action back to the undo stack
                     self.undo_stack.push(Action::Insert {
                         index,
                         length,
-                        author,
+                        style,
                     });
                 }
                 Action::Delete {
                     index,
                     content,
-                    author,
+                    style,
                 } => {
                     // Redo a delete by deleting the text that was previously reinserted
                     self.delete(index, content.len());
@@ -296,7 +332,7 @@ impl PieceTable {
                     self.undo_stack.push(Action::Delete {
                         index,
                         content,
-                        author,
+                        style,
                     });
                 }
             }
@@ -314,8 +350,8 @@ impl PieceTable {
         for piece in &self.pieces[1..] {
             if last.source == piece.source
                 && last.start + last.length == piece.start
-                && last.author == piece.author
-            // ensure author integrity
+                && last.style == piece.style
+            // ensure style integrity
             {
                 // Extend the last piece
                 last.length += piece.length;
@@ -333,7 +369,7 @@ impl PieceTable {
         self.pieces.iter().map(|p| p.length).sum()
     }
 
-    fn start_insert_cache(&mut self, mode: InsertMode, author: &str) {
+    fn start_insert_cache(&mut self, mode: InsertMode, style: Option<Style>) {
         let insert_idx = match mode {
             InsertMode::Append => {
                 // Set the index to the current length of content
@@ -344,25 +380,20 @@ impl PieceTable {
                 idx
             }
         };
-        self.cache.start(insert_idx, author);
+        self.cache.start(insert_idx, style);
     }
 
     pub fn cache_insert(
         &mut self,
         text: &str,
         idx: Option<usize>,
-        author: &str,
+        style: Option<Style>,
     ) {
-        // Check if there is an active cache with matching author
-        if self
-            .cache
-            .author
-            .as_ref()
-            .map_or(false, |current_author| current_author != author)
-        {
-            if self.cache.is_active() {
-                self.commit_insert_cache();
-            }
+        // Check if there is an active cache with matching style
+        let style_change = self.cache.style.as_ref() != style.as_ref();
+        if self.cache.is_active() && style_change {
+            // If styles differ and there is active content in the cache, commit it
+            self.commit_insert_cache();
         }
 
         // Determine the current end index of the cached content
@@ -387,14 +418,11 @@ impl PieceTable {
                     let fill_text = " ".repeat(diff);
                     self.start_insert_cache(
                         InsertMode::Insert(self.committed_content_length()),
-                        author,
+                        style,
                     );
                     initial_text = format!("{}{}", fill_text, text);
                 } else {
-                    self.start_insert_cache(
-                        InsertMode::Insert(new_idx),
-                        author,
-                    );
+                    self.start_insert_cache(InsertMode::Insert(new_idx), style);
                     initial_text = text.to_string();
                 }
 
@@ -406,20 +434,20 @@ impl PieceTable {
             }
             (None, None) => {
                 // If no specific index and no existing cache, start appending at the end of the content
-                self.start_insert_cache(InsertMode::Append, author);
+                self.start_insert_cache(InsertMode::Append, style);
                 self.cache.content.push_str(text);
             }
         }
     }
 
     pub fn commit_insert_cache(&mut self) -> String {
-        if let (Some(idx), Some(author)) =
-            (self.cache.insert_idx, self.cache.author.clone())
+        if let (Some(idx), style) =
+            (self.cache.insert_idx, self.cache.style.clone())
         {
             if !self.cache.content.is_empty() {
                 // Take ownership of insert_cache, leaving an empty string behind
                 let cache_content = mem::take(&mut self.cache.content);
-                self.insert(idx, &cache_content, &author, false);
+                self.insert(idx, &cache_content, style, false);
                 self.cache.clear();
                 return cache_content;
             }
@@ -427,7 +455,7 @@ impl PieceTable {
         String::new() // return an empty string if no cache was committed
     }
 
-    pub fn append(&mut self, text: &str, author: &str) {
+    pub fn append(&mut self, text: &str, style: Option<Style>) {
         // Determine the start index in the add buffer for the new text.
         let add_start = self.add.len();
         // Add the new text to the add buffer.
@@ -438,7 +466,7 @@ impl PieceTable {
             source: SourceBuffer::Add,
             start: add_start,
             length: text.len(),
-            author: author.to_string(),
+            style,
         };
 
         // Append the new piece to the pieces list.
@@ -447,38 +475,60 @@ impl PieceTable {
 
     pub fn update_lines(&mut self) {
         // Collect the content of each piece into a single string
-        let mut content_string = self
-            .pieces
-            .iter()
-            .map(|p| match p.source {
-                SourceBuffer::Original => {
-                    &self.original[p.start..p.start + p.length]
-                }
-                SourceBuffer::Add => &self.add[p.start..p.start + p.length],
-            })
-            .collect::<String>();
+        let mut content_string = String::new();
+        let mut styles = Vec::new();
 
-        // Check if there is an active insert cache and an index where it should be inserted
+        // Append piece text and collect corresponding styles
+        for piece in &self.pieces {
+            let text = match piece.source {
+                SourceBuffer::Original => {
+                    &self.original[piece.start..piece.start + piece.length]
+                }
+                SourceBuffer::Add => {
+                    &self.add[piece.start..piece.start + piece.length]
+                }
+            };
+            content_string.push_str(text);
+            styles.push((
+                piece.style.clone(),
+                piece.start,
+                piece.start + piece.length,
+            ));
+        }
+
+        // Insert the cached content at the appropriate index, if there is active cache content
         if let Some(idx) = self.cache.insert_idx {
             if !self.cache.content.is_empty() {
-                // Insert the cache content at the appropriate index within the content_string
                 if idx >= content_string.len() {
-                    // If the index is at or beyond the end of the current content, simply append it
                     content_string.push_str(&self.cache.content);
                 } else {
-                    // Otherwise, insert the cached text at the specified index
                     let (start, end) = content_string.split_at(idx);
                     content_string = [start, &self.cache.content, end].concat();
                 }
+                // Assume cache content is from the last known style or a default
+                styles.push((
+                    self.cache.style,
+                    idx,
+                    idx + self.cache.content.len(),
+                ));
             }
         }
-        if content_string.is_empty() {
-            self.lines = Vec::new();
-        } else {
-            self.lines = content_string
-                .lines()
-                .map(|line| line.to_string())
-                .collect::<Vec<String>>();
+
+        // Now split the content string into lines and assign styles to each line
+        self.lines.clear();
+        let mut line_start = 0;
+
+        for line in content_string.lines() {
+            let line_end = line_start + line.len();
+            let line_style = styles
+                .iter()
+                .find(|&&(_, start, end)| {
+                    line_start >= start && line_start < end
+                })
+                .map_or(None, |(style, _, _)| *style);
+
+            self.lines.push(TextLine::new(line.to_string(), line_style));
+            line_start = line_end + 1; // Move past the end of this line (including newline character)
         }
     }
 }

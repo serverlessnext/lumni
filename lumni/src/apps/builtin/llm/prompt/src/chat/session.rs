@@ -128,7 +128,6 @@ impl ChatSession {
         let body_content = serde_json::json!({ "content": format!("<|start_header_id|>system<|end_header_id|>\n{}\n<|eot_id|>", self.instruction) }).to_string();
 
         let body = Bytes::from(body_content);
-
         let mut headers = HashMap::new();
         headers
             .insert("Content-Type".to_string(), "application/json".to_string());
@@ -228,17 +227,17 @@ impl ChatSession {
         //
         //        {prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-        // Add system prompt
+        // start with system prompt
+        prompt.push_str("<|begin_of_text|>");
         if !self.instruction.is_empty() {
             prompt.push_str(&format!(
-                "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\\
+                "<|start_header_id|>system<|end_header_id|>\\
                  n{}<|eot_id|>\n",
                 self.instruction
             ));
         }
 
-        // Iterate through existing exchanges to build context
-        // TODO: keep track of user/ assistant in the exchange
+        // add exchange-history
         for (user_msg, model_answer) in &self.exchanges {
             prompt.push_str(&format!(
                 "<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\\
@@ -255,14 +254,16 @@ impl ChatSession {
         ));
         // Add the current user question without an assistant's answer
 
-        // if last exchange has an empty answer, overwrite it with the current user question
-        if let Some(last_exchange) = self.exchanges.last_mut() {
+        // First, check if the last exchange exists and if its second element is empty
+        if let Some(last_exchange) = self.exchanges.last() {
             if last_exchange.1.is_empty() {
-                last_exchange.1 = user_question.clone();
-            } else {
-                self.add_exchange(user_question.clone(), "".to_string());
+                // Remove the last exchange because it's unanswered
+                self.exchanges.pop();
             }
         }
+
+        // Now, always add the new exchange to the list
+        self.exchanges.push((user_question.clone(), "".to_string()));
         prompt
     }
 

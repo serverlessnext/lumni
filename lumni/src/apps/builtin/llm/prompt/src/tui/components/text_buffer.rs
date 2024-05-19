@@ -65,7 +65,7 @@ pub struct TextBuffer<'a> {
 impl TextBuffer<'_> {
     pub fn new(is_editable: bool) -> Self {
         Self {
-            text: PieceTable::new(""),
+            text: PieceTable::new(),
             placeholder: String::new(),
             display: TextDisplay::new(0),
             selected_text: String::new(),
@@ -101,8 +101,9 @@ impl TextBuffer<'_> {
 
     pub fn text_insert_add(&mut self, text: &str) {
         // Get the current cursor position in the underlying (unwrapped) text buffer
+        let author = "foo";
         let idx = self.cursor.real_position();
-        self.text.cache_insert(text, Some(idx));
+        self.text.cache_insert(text, Some(idx), &author);
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment
@@ -135,7 +136,8 @@ impl TextBuffer<'_> {
     }
 
     pub fn text_append(&mut self, text: &str) {
-        self.text.append(text);
+        let author = "foo";
+        self.text.append(text, &author);
         self.update_display_text();
     }
 

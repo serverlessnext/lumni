@@ -1,6 +1,7 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, Paragraph, ScrollbarState, block::Padding};
+use ratatui::widgets::block::Padding;
+use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::prompt_rect::PromptRect;

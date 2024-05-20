@@ -1,5 +1,3 @@
-use ratatui::text::Text;
-
 use super::piece_table::TextLine;
 
 #[derive(Debug, Clone)]

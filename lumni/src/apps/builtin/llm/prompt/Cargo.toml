@@ -14,7 +14,6 @@ tokio = { version = "1.12", default-features = false, features = ["rt-multi-thre
 clap = { version = "4.2" , default-features = false, features = ["std", "help"] }
 crossterm = { version = "0.27" }
 ratatui = { version = ">=0.23.0, <1", default-features = false, features = ["crossterm"] }
-tui-textarea = { version = "0.4" }
 arboard = { version = "3.2", default-features = false }
 
 lumni = { git = "https://github.com/serverlessnext/lumni", branch = "main" }
@@ -25,7 +24,6 @@ serde_json = { version = "1.0" }
 bytes = { version = "1.4", default-features = false }
 serde_yaml = "0.9"
 log = { version = "0.4" }
-textwrap = "0.16"
 
 
 [build-dependencies]

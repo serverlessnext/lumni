@@ -1,7 +1,5 @@
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::symbols::line;
-use ratatui::text::{Line, Span, Text};
-use textwrap::{wrap, Options, WordSplitter};
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
 
 use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::{PieceTable, TextLine};

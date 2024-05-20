@@ -1,3 +1,7 @@
+use ratatui::text::Text;
+
+use super::piece_table::TextLine;
+
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
     Right(u16),
@@ -63,8 +67,7 @@ impl Cursor {
     pub fn move_cursor(
         &mut self,
         direction: MoveCursor,
-        //text_lines: &[String],
-        text_lines: &Vec<&str>,
+        text_lines: &[TextLine],
         // keep cursor at desired column when jumping to next line. This is used to prevent
         // cursor from jumping to the beginning when text is wrapped during editing
         keep_desired: bool,
@@ -209,14 +212,15 @@ impl Cursor {
                 && current_row > start_row)
     }
 
-    pub fn update_real_position(&mut self, lines: &[String]) {
+    pub fn update_real_position(&mut self, lines: &[TextLine]) {
+        //pub fn update_real_position(&mut self, lines: &[String]) {
         // compute the cursor position in underlying text based
         // on the current row and column
         let mut position = 0;
         for (index, line) in lines.iter().enumerate() {
             if index < self.row as usize {
                 // row before the current row
-                position += line.len() + 1; // account for newline character
+                position += line.length() + 1; // account for newline character
             } else if index == self.row as usize {
                 // current row
                 position += self.col as usize; // add columns for the current row
@@ -227,15 +231,15 @@ impl Cursor {
     }
 }
 
-fn get_max_row(display_text: &Vec<&str>) -> u16 {
+fn get_max_row(display_text: &[TextLine]) -> u16 {
     display_text.len().saturating_sub(1) as u16
 }
 
-pub fn get_max_col(lines: &Vec<&str>, row: u16) -> u16 {
+pub fn get_max_col(lines: &[TextLine], row: u16) -> u16 {
     // Get the maximum column of a specific row
     // check if row exists in self.lines, if not return 0
     if let Some(line) = lines.get(row as usize) {
-        line.len() as u16
+        line.length() as u16
     } else {
         0
     }

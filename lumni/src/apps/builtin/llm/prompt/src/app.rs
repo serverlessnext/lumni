@@ -169,8 +169,8 @@ async fn prompt_app<B: Backend>(
                 let (response_content, is_final) = process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
                 // the final response back when committed
-                let response_style = Style::default();
-                response_window.text_append_with_insert(&response_content, Some(response_style));
+                let response_style = Some(Style::default());
+                response_window.text_append_with_insert(&response_content, response_style);
                 final_response = is_final;
 
                 // Drain all available messages from the channel
@@ -178,7 +178,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(response) = rx.try_recv() {
                         log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_prompt_response(&response);
-                        response_window.text_append_with_insert(&response_content, Some(response_style));
+                        response_window.text_append_with_insert(&response_content, response_style);
 
                         if is_final {
                             final_response = true;

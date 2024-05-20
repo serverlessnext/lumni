@@ -56,16 +56,12 @@ impl Cache {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TextLine {
+pub struct TextSegment {
     text: String,
     style: Option<Style>,
 }
 
-impl TextLine {
-    pub fn new(text: String, style: Option<Style>) -> Self {
-        TextLine { text, style }
-    }
-
+impl TextSegment {
     pub fn text(&self) -> &str {
         &self.text
     }
@@ -76,12 +72,54 @@ impl TextLine {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct TextLine {
+    segments: Vec<TextSegment>,
+    length: usize,
+}
+
+impl TextLine {
+    pub fn new() -> Self {
+        TextLine {
+            segments: Vec::new(),
+            length: 0,
+        }
+    }
+
+    pub fn add_segment(&mut self, text: String, style: Option<Style>) {
+        self.length += text.len();
+
+        if let Some(last) = self.segments.last_mut() {
+            // update the length of the last segment
+            if last.style == style {
+                // Append text to the last segment if styles are the same
+                last.text.push_str(&text);
+                return;
+            }
+        }
+        // Otherwise, create a new segment
+        self.segments.push(TextSegment { text, style });
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.segments.is_empty()
+    }
+
+    pub fn segments(&self) -> impl Iterator<Item = &TextSegment> {
+        self.segments.iter()
+    }
+
+    pub fn length(&self) -> usize {
+        self.length
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
-    original: String,        // The original unmodified text
-    lines: Vec<TextLine>,    // text split into lines
-    add: String,             // All text that has been added
+    original: String, // The original unmodified text
+    text_lines: Vec<TextLine>, // text split into lines with styles
+    add: String,      // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
-    cache: Cache,       // Temporary buffer for caching many (small) insertions
+    cache: Cache,     // Temporary buffer for caching many (small) insertions
     undo_stack: Vec<Action>, // Stack for undoing actions
     redo_stack: Vec<Action>, // Stack for redoing actions
 }
@@ -104,7 +142,7 @@ impl PieceTable {
     pub fn new() -> Self {
         Self {
             original: "".to_string(),
-            lines: Vec::new(),
+            text_lines: Vec::new(),
             add: String::new(),
             pieces: Vec::new(),
             cache: Cache::new(),
@@ -113,16 +151,24 @@ impl PieceTable {
         }
     }
 
-    pub fn lines(&self) -> &[TextLine] {
-        &self.lines
-    }
-
-    pub fn lines_text(&self) -> Vec<&str> {
-        self.lines.iter().map(|line| line.text()).collect()
+    pub fn text_lines(&self) -> &[TextLine] {
+        &self.text_lines
     }
 
     pub fn to_string(&self) -> String {
-        self.lines_text().join("\n")
+        let mut content = String::new();
+        for piece in &self.pieces {
+            let text = match piece.source {
+                SourceBuffer::Original => {
+                    &self.original[piece.start..piece.start + piece.length]
+                }
+                SourceBuffer::Add => {
+                    &self.add[piece.start..piece.start + piece.length]
+                }
+            };
+            content.push_str(text);
+        }
+        content
     }
 
     pub fn empty(&mut self) {
@@ -141,11 +187,11 @@ impl PieceTable {
         style: Option<Style>,
         is_redo: bool,
     ) {
-        let add_start = self.add.len();
-        self.add.push_str(text);
+        let add_start = self.add.len(); // start index of the text in the `add` buffer.
+        self.add.push_str(&text); // append to the `add` buffer.
+
         let mut new_pieces = Vec::new();
         let mut offset = 0;
-
         let mut insertion_handled = false;
 
         for piece in &self.pieces {
@@ -408,9 +454,9 @@ impl PieceTable {
             }
             (Some(new_idx), _) => {
                 if !self.cache.content.is_empty() {
+                    // commit existing cache because new will be created
                     self.commit_insert_cache();
                 }
-
                 let initial_text: String;
                 if self.committed_content_length() < new_idx {
                     // insert exceeds the current content length, fill with spaces
@@ -451,6 +497,7 @@ impl PieceTable {
                 self.cache.clear();
                 return cache_content;
             }
+            self.cache.clear();
         }
         String::new() // return an empty string if no cache was committed
     }
@@ -473,62 +520,70 @@ impl PieceTable {
         self.pieces.push(new_piece);
     }
 
-    pub fn update_lines(&mut self) {
-        // Collect the content of each piece into a single string
-        let mut content_string = String::new();
-        let mut styles = Vec::new();
+    pub fn update_lines_styled(&mut self) {
+        // ensure pending cache is committed before updating lines
+        self.commit_insert_cache();
+        self.text_lines.clear();
+        let mut current_line_styled = TextLine::new();
+        let mut current_text = String::new();
+        let mut last_style: Option<Style> = None;
 
-        // Append piece text and collect corresponding styles
+        // Flatten all piece data into a single list to process
+        let mut pieces_data = Vec::new();
         for piece in &self.pieces {
             let text = match piece.source {
-                SourceBuffer::Original => {
-                    &self.original[piece.start..piece.start + piece.length]
-                }
-                SourceBuffer::Add => {
-                    &self.add[piece.start..piece.start + piece.length]
-                }
+                SourceBuffer::Original => self.original
+                    [piece.start..piece.start + piece.length]
+                    .to_string(),
+                SourceBuffer::Add => self.add
+                    [piece.start..piece.start + piece.length]
+                    .to_string(),
             };
-            content_string.push_str(text);
-            styles.push((
-                piece.style.clone(),
-                piece.start,
-                piece.start + piece.length,
-            ));
+            pieces_data.push((text, piece.style.clone()));
         }
 
-        // Insert the cached content at the appropriate index, if there is active cache content
-        if let Some(idx) = self.cache.insert_idx {
-            if !self.cache.content.is_empty() {
-                if idx >= content_string.len() {
-                    content_string.push_str(&self.cache.content);
-                } else {
-                    let (start, end) = content_string.split_at(idx);
-                    content_string = [start, &self.cache.content, end].concat();
+        for (text, style) in pieces_data {
+            for char in text.chars() {
+                if char == '\n' {
+                    // Handle empty lines: push current text or a truly empty segment
+                    if current_text.is_empty() && current_line_styled.is_empty()
+                    {
+                        current_line_styled
+                            .add_segment(String::new(), last_style.clone()); // Adding an empty segment for an empty line
+                    } else if !current_text.is_empty() {
+                        current_line_styled.add_segment(
+                            current_text.clone(),
+                            last_style.clone(),
+                        );
+                        current_text.clear();
+                    }
+                    self.text_lines.push(current_line_styled.clone());
+                    current_line_styled = TextLine::new(); // Start a new styled line
+                    continue;
                 }
-                // Assume cache content is from the last known style or a default
-                styles.push((
-                    self.cache.style,
-                    idx,
-                    idx + self.cache.content.len(),
-                ));
+
+                if last_style != style {
+                    if !current_text.is_empty() {
+                        current_line_styled.add_segment(
+                            current_text.clone(),
+                            last_style.clone(),
+                        );
+                        current_text.clear();
+                    }
+                    last_style = style.clone();
+                }
+                current_text.push(char);
             }
         }
 
-        // Now split the content string into lines and assign styles to each line
-        self.lines.clear();
-        let mut line_start = 0;
+        // Append any remaining text to the last line
+        if !current_text.is_empty() {
+            current_line_styled.add_segment(current_text, last_style);
+        }
 
-        for line in content_string.lines() {
-            let line_end = line_start + line.len();
-            let line_style = styles
-                .iter()
-                .find(|&&(_, start, end)| {
-                    line_start >= start && line_start < end
-                })
-                .map_or(None, |(style, _, _)| *style);
-
-            self.lines.push(TextLine::new(line.to_string(), line_style));
-            line_start = line_end + 1; // Move past the end of this line (including newline character)
+        // Ensure the final line is added if it contains segments
+        if !current_line_styled.is_empty() {
+            self.text_lines.push(current_line_styled);
         }
     }
 }

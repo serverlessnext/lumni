@@ -1,5 +1,6 @@
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::symbols::line;
+use ratatui::text::{Line, Span, Text};
 use textwrap::{wrap, Options, WordSplitter};
 
 use super::cursor::{Cursor, MoveCursor};
@@ -13,7 +14,7 @@ pub struct TextDisplay<'a> {
 }
 
 impl<'a> TextDisplay<'a> {
-    pub fn new(display_width: usize) -> Self {
+    fn new(display_width: usize) -> Self {
         TextDisplay {
             wrap_lines: Vec::new(),
             trailing_spaces: Vec::new(),
@@ -21,32 +22,32 @@ impl<'a> TextDisplay<'a> {
         }
     }
 
-    pub fn wrap_lines(&self) -> &[Line<'a>] {
+    fn wrap_lines(&self) -> &[Line<'a>] {
         &self.wrap_lines
     }
 
-    pub fn wrap_lines_mut(&mut self) -> &mut Vec<Line<'a>> {
+    fn wrap_lines_mut(&mut self) -> &mut Vec<Line<'a>> {
         &mut self.wrap_lines
     }
 
-    pub fn get_trailing_spaces(&self, row: u16) -> usize {
+    fn get_trailing_spaces(&self, row: u16) -> usize {
         self.trailing_spaces.get(row as usize).cloned().unwrap_or(0)
     }
 
-    pub fn width(&self) -> usize {
+    fn width(&self) -> usize {
         self.display_width
     }
 
-    pub fn push_line(&mut self, line: Line<'a>, trailing_spaces: usize) {
+    fn push_line(&mut self, line: Line<'a>, trailing_spaces: usize) {
         self.wrap_lines.push(line);
         self.trailing_spaces.push(trailing_spaces);
     }
 
-    pub fn set_display_width(&mut self, width: usize) {
+    fn set_display_width(&mut self, width: usize) {
         self.display_width = width;
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.wrap_lines.clear();
         self.trailing_spaces.clear();
     }
@@ -196,8 +197,9 @@ impl TextBuffer<'_> {
         let prev_col = self.cursor.col;
         let prev_row = self.cursor.row;
 
+        let text_lines = self.text.text_lines().to_vec();
         self.cursor
-            .move_cursor(direction, &self.text.lines_text(), edit_mode);
+            .move_cursor(direction, &text_lines, edit_mode);
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
@@ -214,50 +216,44 @@ impl TextBuffer<'_> {
     }
 
     pub fn update_display_text(&mut self) {
-        self.text.update_lines();
+        self.text.update_lines_styled();
         self.display.clear();
         self.selected_text.clear();
         let mut current_row = 0;
 
         let selection_bounds = self.get_selection_bounds();
 
-        let mut text_lines = self.text.lines().to_vec();
-
+        let mut text_lines = self.text.text_lines().to_vec();
         if text_lines.is_empty() && !self.placeholder.is_empty() {
             // placeholder text
             let style = Style::default().fg(Color::DarkGray);
-            text_lines
-                .push(TextLine::new(self.placeholder.clone(), Some(style)));
+            let mut line_styled = TextLine::new();
+            line_styled.add_segment(self.placeholder.clone(), Some(style));
+            text_lines.push(line_styled);
         }
 
         for line in text_lines.iter() {
-            let line_style = line.style();
-
+            let text_str =
+                line.segments().map(|s| s.text()).collect::<String>();
             let trailing_spaces =
-                line.text().len() - line.text().trim_end_matches(' ').len();
-            let wrapped_lines = self.wrap_text(&line.text());
-
+                text_str.len() - text_str.trim_end_matches(' ').len();
+            let wrapped_lines = self.wrap_text_styled(&line);
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(current_row);
                 current_row += 1; // move to next line
             } else {
-                current_row = self.process_wrapped_lines(
+                // process wrapped lines
+                current_row = self.process_wrapped_lines_styled(
                     wrapped_lines,
                     current_row,
                     &selection_bounds,
                     trailing_spaces,
-                    line_style,
+                    //None,
                 );
             }
         }
 
-        // recompute added_characters by comparing displayed text length with the underlying text
-        let text_lines_str: Vec<String> = text_lines
-            .iter()
-            .map(|line| line.text().to_string())
-            .collect();
-
-        self.cursor.update_real_position(&text_lines_str);
+        self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
     }
 
@@ -269,16 +265,102 @@ impl TextBuffer<'_> {
         }
     }
 
-    fn wrap_text(&self, line: &str) -> Vec<String> {
-        // check for space on end of line
-        wrap(
-            line,
-            Options::new(self.display.width())
-                .word_splitter(WordSplitter::NoHyphenation),
-        )
-        .into_iter()
-        .map(|cow| cow.into_owned())
-        .collect()
+    fn wrap_text_styled(&self, line: &TextLine) -> Vec<TextLine> {
+        let mut wrapped_lines = Vec::new();
+        let mut current_line = TextLine::new();
+
+        let max_width = self.display.width().saturating_sub(2); // deduct space for padding
+
+        for segment in line.segments() {
+            let words =
+                segment.text().split_whitespace().collect::<Vec<&str>>();
+            let mut current_text = String::new();
+
+            for word in words {
+                // Calculate the space needed if current_text is not empty
+                let space_len = if !current_text.is_empty() { 1 } else { 0 };
+
+                if current_text.len()
+                    + space_len
+                    + word.len()
+                    + current_line.length()
+                    > max_width
+                {
+                    // If adding this word would exceed max_width, push current_text to current_line
+                    if !current_text.is_empty() {
+                        current_line.add_segment(
+                            current_text.clone(),
+                            segment.style().clone(),
+                        );
+                        current_text.clear();
+                    }
+
+                    // If the word itself is too long, handle it specifically
+                    if word.len() > max_width {
+                        // Split the word into manageable pieces
+                        let mut start_index = 0;
+                        while start_index < word.len() {
+                            let end_index = std::cmp::min(
+                                start_index + max_width,
+                                word.len(),
+                            );
+                            let slice = &word[start_index..end_index];
+
+                            // Ensure there's no trailing line without segments
+                            if !current_line.is_empty() {
+                                wrapped_lines.push(current_line);
+                                current_line = TextLine::new();
+                            }
+
+                            current_line.add_segment(
+                                slice.to_string(),
+                                segment.style().clone(),
+                            );
+                            wrapped_lines.push(current_line);
+                            current_line = TextLine::new();
+                            start_index = end_index;
+                        }
+                        continue; // Continue to the next word
+                    } else {
+                        // Start a new line with the current word if it fits alone
+                        wrapped_lines.push(current_line);
+                        current_line = TextLine::new();
+                        current_text = word.to_string();
+                    }
+                } else {
+                    // Add word to current_text, handling space if needed
+                    if space_len > 0 {
+                        current_text.push(' ');
+                    }
+                    current_text.push_str(word);
+                }
+            }
+
+            // After all words, if there's leftover text, add it as a segment to the current line
+            if !current_text.is_empty() {
+                current_line
+                    .add_segment(current_text.clone(), segment.style().clone());
+            }
+        }
+
+        // add the last line if it has segments
+        if !current_line.is_empty() {
+            wrapped_lines.push(current_line);
+        }
+
+        // print the wrapped lines for debugging
+        //for line in &wrapped_lines {
+        //    let line_content =
+        //        line.segments().map(|s| s.text()).collect::<String>();
+        //    eprintln!(
+        //        ">{}|({}/{})",
+        //        line_content,
+        //        line_content.len(),
+        //        max_width
+        //    );
+        //}
+
+        wrapped_lines
     }
 
     fn handle_empty_line(&mut self, current_row: usize) {
@@ -291,38 +373,34 @@ impl TextBuffer<'_> {
         }
     }
 
-    fn process_wrapped_lines(
+    fn process_wrapped_lines_styled(
         &mut self,
-        wrapped_lines: Vec<String>,
+        wrapped_lines: Vec<TextLine>,
         current_row: usize,
         selection_bounds: &(usize, usize, usize, usize),
-        trailing_spaces: usize, // trailing spaces on the original unwrapped line
-        style: Option<Style>,
+        trailing_spaces: usize,
     ) -> usize {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
         let mut local_row = current_row;
-        for wrapped_line in wrapped_lines {
+
+        for line in wrapped_lines {
             let mut spans = Vec::new();
-            let chars: Vec<char> = wrapped_line.chars().collect();
+            for segment in line.segments() {
+                let chars: Vec<char> = segment.text().chars().collect();
+                for (j, ch) in chars.into_iter().enumerate() {
+                    let should_select = self.cursor.show_cursor()
+                        && self.cursor.should_select(
+                            local_row, j, start_row, start_col, end_row,
+                            end_col,
+                        );
 
-            for (j, ch) in chars.into_iter().enumerate() {
-                let should_select = self.cursor.show_cursor()
-                    && self.cursor.should_select(
-                        local_row, j, start_row, start_col, end_row, end_col,
-                    );
-
-                if should_select {
-                    spans.push(Span::styled(
-                        ch.to_string(),
-                        Style::default().bg(Color::Blue),
-                    ));
-                    self.selected_text.push(ch);
-                } else {
-                    if let Some(style) = style {
-                        spans.push(Span::styled(ch.to_string(), style));
-                    } else {
-                        spans.push(Span::raw(ch.to_string()));
+                    let mut effective_style =
+                        segment.style().unwrap_or_default();
+                    if should_select {
+                        effective_style = effective_style.bg(Color::Blue);
+                        self.selected_text.push(ch);
                     }
+                    spans.push(Span::styled(ch.to_string(), effective_style));
                 }
             }
             self.display.push_line(Line::from(spans), trailing_spaces);

@@ -2,6 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::{Color, Style};
 
 use super::text_window_event::handle_text_window_event;
 use super::{
@@ -164,6 +165,12 @@ impl KeyEventHandler {
                                     let question =
                                         prompt_window.text_buffer().to_string();
                                     prompt_window.text_empty();
+
+                                    response_window.text_append_with_insert(
+                                        &format!("{}\n", question),
+                                        Some(Style::new().fg(Color::Yellow)),
+                                    );
+                                    response_window.text_insert_commit();
                                     return WindowEvent::Prompt(
                                         PromptAction::Write(question),
                                     );
@@ -199,6 +206,13 @@ impl KeyEventHandler {
                         || question.chars().last() == Some(' ')
                     {
                         prompt_window.text_empty();
+
+                        // format question with newline
+                        response_window.text_append_with_insert(
+                            &format!("{}\n", question),
+                            Some(Style::new().fg(Color::Yellow)),
+                        );
+                        response_window.text_insert_commit();
                         return WindowEvent::Prompt(PromptAction::Write(
                             question,
                         ));

@@ -43,6 +43,10 @@ impl Cursor {
         self.real_position
     }
 
+    pub fn col_row(&self) -> (u16, u16) {
+        (self.col, self.row)
+    }
+
     pub fn set_visibility(&mut self, visible: bool) {
         self.show_cursor = visible;
     }

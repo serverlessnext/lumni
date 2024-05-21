@@ -115,11 +115,11 @@ impl TextLine {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
-    original: String, // The original unmodified text
+    original: String,          // The original unmodified text
     text_lines: Vec<TextLine>, // text split into lines with styles
-    add: String,      // All text that has been added
+    add: String,               // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
-    cache: Cache,     // Temporary buffer for caching many (small) insertions
+    cache: Cache,       // Temporary buffer for caching many (small) insertions
     undo_stack: Vec<Action>, // Stack for undoing actions
     redo_stack: Vec<Action>, // Stack for redoing actions
 }

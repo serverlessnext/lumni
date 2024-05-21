@@ -196,8 +196,7 @@ impl TextBuffer<'_> {
         let prev_row = self.cursor.row;
 
         let text_lines = self.text.text_lines().to_vec();
-        self.cursor
-            .move_cursor(direction, &text_lines, edit_mode);
+        self.cursor.move_cursor(direction, &text_lines, edit_mode);
 
         let column_changed = prev_col != self.cursor.col;
         let row_changed = prev_row != self.cursor.row;
@@ -217,9 +216,6 @@ impl TextBuffer<'_> {
         self.text.update_lines_styled();
         self.display.clear();
         self.selected_text.clear();
-        let mut current_row = 0;
-
-        let selection_bounds = self.get_selection_bounds();
 
         let mut text_lines = self.text.text_lines().to_vec();
         if text_lines.is_empty() && !self.placeholder.is_empty() {
@@ -230,23 +226,25 @@ impl TextBuffer<'_> {
             text_lines.push(line_styled);
         }
 
-        for line in text_lines.iter() {
+        // Get the bounds of selected text, position based on unwrapped lines
+        // (start_row, start_col, end_row, end_col)
+        let selection_bounds = self.get_selection_bounds();
+
+        for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
             let wrapped_lines = self.wrap_text_styled(&line);
             if wrapped_lines.is_empty() {
-                self.handle_empty_line(current_row);
-                current_row += 1; // move to next line
+                self.handle_empty_line(idx);
             } else {
                 // process wrapped lines
-                current_row = self.process_wrapped_lines_styled(
+                self.process_wrapped_lines(
                     wrapped_lines,
-                    current_row,
+                    idx,
                     &selection_bounds,
                     trailing_spaces,
-                    //None,
                 );
             }
         }
@@ -371,40 +369,46 @@ impl TextBuffer<'_> {
         }
     }
 
-    fn process_wrapped_lines_styled(
+    fn process_wrapped_lines(
         &mut self,
         wrapped_lines: Vec<TextLine>,
-        current_row: usize,
+        unwrapped_line_index: usize,
         selection_bounds: &(usize, usize, usize, usize),
         trailing_spaces: usize,
-    ) -> usize {
+    ) {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
-        let mut local_row = current_row;
+        let mut char_pos = 0;
 
-        for line in wrapped_lines {
+        for line in wrapped_lines.iter() {
             let mut spans = Vec::new();
+            // Start character position for this line from the cumulative offset
             for segment in line.segments() {
                 let chars: Vec<char> = segment.text().chars().collect();
-                for (j, ch) in chars.into_iter().enumerate() {
-                    let should_select = self.cursor.show_cursor()
-                        && self.cursor.should_select(
-                            local_row, j, start_row, start_col, end_row,
-                            end_col,
-                        );
+                for ch in chars.into_iter() {
+                    // Adjust row based on the index in wrapped lines
+                    let should_select = self.cursor.should_select(
+                        unwrapped_line_index,
+                        char_pos,
+                        start_row,
+                        start_col,
+                        end_row,
+                        end_col,
+                    );
 
                     let mut effective_style =
-                        segment.style().unwrap_or_default();
+                        segment.style().unwrap_or(Style::default());
                     if should_select {
                         effective_style = effective_style.bg(Color::Blue);
                         self.selected_text.push(ch);
                     }
                     spans.push(Span::styled(ch.to_string(), effective_style));
+                    char_pos += 1;
                 }
             }
+
             self.display.push_line(Line::from(spans), trailing_spaces);
-            local_row += 1;
+            char_pos += 1; // account for newline character
         }
-        local_row
     }
 
     fn update_cursor_style(&mut self) {

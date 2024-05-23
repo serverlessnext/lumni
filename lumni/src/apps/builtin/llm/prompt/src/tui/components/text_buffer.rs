@@ -463,7 +463,6 @@ impl TextBuffer<'_> {
     pub fn display_column_row(&self) -> (usize, usize) {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
-
         let mut wrap_position = 0;
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
             let mut line_length = line

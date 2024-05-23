@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
 use bytes::{Bytes, BytesMut};
+use futures::future::pending;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::header::{HeaderName, HeaderValue};
@@ -16,7 +17,7 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use serde::de::DeserializeOwned;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
 pub struct HttpResponse {
@@ -45,6 +46,7 @@ pub enum HttpClientError {
     TimeoutError,
     HttpError(u16, String), // Status code, status text
     Utf8Error(String),
+    RequestCancelled,
     Other(AnyhowError),
 }
 
@@ -60,6 +62,7 @@ impl fmt::Display for HttpClientError {
             }
             HttpClientError::Utf8Error(e) => write!(f, "UTF-8 error: {}", e),
             HttpClientError::Other(e) => write!(f, "Other error: {}", e),
+            HttpClientError::RequestCancelled => write!(f, "Request cancelled"),
         }
     }
 }
@@ -131,6 +134,7 @@ impl HttpClient {
         headers: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
         tx: Option<mpsc::Sender<Bytes>>,
+        mut cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> HttpResult {
         let uri = Uri::from_str(url)
             .map_err(|e| HttpClientError::Other(AnyhowError::new(e)))?;
@@ -174,12 +178,33 @@ impl HttpClient {
 
         if let Some(tx) = &tx {
             body = None;
-            while let Some(next) = response.frame().await {
-                let frame = next.map_err(|e| anyhow!(e))?;
-                if let Ok(chunk) = frame.into_data() {
-                    tx.send(chunk).await.map_err(|_| {
-                        anyhow!("Failed to send data via channel")
-                    })?;
+
+            loop {
+                let frame_future = response.frame();
+                tokio::select! {
+                    next = frame_future => {
+                        match next {
+                            Some(Ok(frame)) => {
+                                if let Ok(chunk) = frame.into_data() {
+                                    if let Err(e) = tx.send(chunk).await {
+                                        return Err(HttpClientError::Other(e.into()));
+                                    }
+                                }
+                            },
+                            Some(Err(e)) => return Err(HttpClientError::Other(e.into())),
+                            None => break, // End of the stream
+                        }
+                    },
+                    _ = async {
+                        if let Some(rx) = &mut cancel_rx {
+                            rx.await.ok();
+                        } else {
+                            pending::<()>().await;
+                        }
+                    } => {
+                        drop(response); // Optionally drop the response to close the connection
+                        return Err(HttpClientError::RequestCancelled);
+                    },
                 }
             }
         } else {
@@ -206,8 +231,9 @@ impl HttpClient {
         headers: Option<&HashMap<String, String>>,
         _params: Option<&HashMap<String, String>>,
         tx: Option<mpsc::Sender<Bytes>>,
+        cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> HttpResult {
-        self.request("GET", url, headers, None, tx).await
+        self.request("GET", url, headers, None, tx, cancel_rx).await
     }
 
     pub async fn post(
@@ -217,8 +243,10 @@ impl HttpClient {
         _params: Option<&HashMap<String, String>>,
         body: Option<&Bytes>,
         tx: Option<mpsc::Sender<Bytes>>,
+        cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> HttpResult {
-        self.request("POST", url, headers, body, tx).await
+        self.request("POST", url, headers, body, tx, cancel_rx)
+            .await
     }
 }
 

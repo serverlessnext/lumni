@@ -46,7 +46,7 @@ async fn prompt_app<B: Backend>(
 
     let (tx, mut rx) = mpsc::channel(32);
     let mut tick = interval(Duration::from_millis(10));
-    let is_running = Arc::new(AtomicBool::new(false));
+    let keep_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = WindowEvent::PromptWindow;
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
@@ -105,7 +105,7 @@ async fn prompt_app<B: Backend>(
                                 current_mode,
                                 &mut command_line,
                                 &mut prompt_window,
-                                is_running.clone(),
+                                keep_running.clone(),
                                 &mut response_window,
                             ).await;
 
@@ -116,9 +116,11 @@ async fn prompt_app<B: Backend>(
                                 WindowEvent::Prompt(prompt_action) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            chat_session.message(tx.clone(), is_running.clone(), prompt).await;
+                                            chat_session.message(tx.clone(), prompt).await;
                                         }
                                         PromptAction::Clear => {
+
+                                            response_window.text_empty();
                                             chat_session.reset();
                                         }
                                     }

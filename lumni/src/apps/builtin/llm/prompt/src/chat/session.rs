@@ -7,7 +7,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use lumni::HttpClient;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use super::options::ChatOptions;
 use super::prompt::Prompt;
@@ -30,6 +30,7 @@ pub struct ChatSession {
     model: String,
     assistant: Option<String>,
     options: ChatOptions,
+    cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
@@ -44,6 +45,7 @@ impl ChatSession {
             model: "llama3".to_string(),
             assistant: None,
             options: ChatOptions::default(),
+            cancel_tx: None,
         }
     }
 
@@ -109,6 +111,10 @@ impl ChatSession {
     }
 
     pub fn reset(&mut self) {
+        // Stop the chat session by sending a cancel signal
+        if let Some(cancel_tx) = self.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
         self.exchanges.clear();
     }
 
@@ -134,7 +140,7 @@ impl ChatSession {
 
         match self
             .http_client
-            .post(url, Some(&headers), None, Some(&body), None)
+            .post(url, Some(&headers), None, Some(&body), None, None)
             .await
         {
             Ok(http_response) => {
@@ -156,15 +162,13 @@ impl ChatSession {
         }
     }
 
-    pub async fn message(
-        &mut self,
-        tx: mpsc::Sender<Bytes>,
-        keep_running: Arc<AtomicBool>,
-        question: String,
-    ) {
+    pub async fn message(&mut self, tx: mpsc::Sender<Bytes>, question: String) {
         let prompt = self.create_final_prompt(question);
 
         let data_payload = self.create_payload(prompt);
+
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        self.cancel_tx = Some(cancel_tx);
 
         log::debug!("Payload created:\n{:?}", data_payload);
         if let Ok(payload) = data_payload {
@@ -173,7 +177,7 @@ impl ChatSession {
                 self.http_client.clone(),
                 tx,
                 payload,
-                keep_running,
+                Some(cancel_rx),
             )
             .await;
         }
@@ -293,10 +297,7 @@ pub async fn process_prompt(
     keep_running: Arc<AtomicBool>,
 ) {
     let (tx, rx) = mpsc::channel(32);
-    chat_session
-        .message(tx, keep_running.clone(), question)
-        .await;
-
+    chat_session.message(tx, question).await;
     handle_response(rx, keep_running).await;
 }
 

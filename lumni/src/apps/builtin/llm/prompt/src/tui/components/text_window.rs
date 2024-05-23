@@ -67,7 +67,6 @@ impl<'a> TextWindow<'a> {
         } else {
             0
         };
-
         self.vertical_scroll = scroll;
         self.update_scroll_bar();
     }

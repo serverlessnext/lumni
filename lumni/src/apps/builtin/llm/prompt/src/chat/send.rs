@@ -1,13 +1,11 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
 use bytes::Bytes;
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
 use super::responses::ChatCompletionResponse;
 use crate::external as lumni;
+use lumni::api::error::HttpClientError;
 
 pub async fn send_payload(
     url: String,
@@ -22,7 +20,7 @@ pub async fn send_payload(
     )]);
     let payload_bytes = Bytes::from(payload.into_bytes());
     tokio::spawn(async move {
-        if let Err(e) = http_client
+        match http_client
             .post(
                 &url,
                 Some(&header),
@@ -33,14 +31,18 @@ pub async fn send_payload(
             )
             .await
         {
-            let error_message = format!(
-                "{}",
-                ChatCompletionResponse::to_json_text(&format!(
-                    "HTTP Post error: {}",
-                    e
-                ))
-            );
-            tx.send(Bytes::from(error_message)).await.unwrap();
+            Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
+            Err(e) => {
+                let error_message = format!(
+                    "{}",
+                    ChatCompletionResponse::to_json_text(&format!(
+                        "HTTP Post error: {}",
+                        e
+                    ))
+                );
+                tx.send(Bytes::from(error_message)).await.unwrap();
+            }
+            Ok(_) => {} // request successful
         }
     });
 }

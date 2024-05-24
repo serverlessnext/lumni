@@ -1,5 +1,8 @@
 use std::fmt;
 
+// export the http client error via api::error
+pub use crate::http::HttpClientError;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Error {

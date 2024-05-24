@@ -60,8 +60,6 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
-        // TODO: cursor_row should not be obtained from display_column_row,
-        // because the row-part is actually unwrapped -- causing the scrollbar to be off
         let (_, cursor_row) = self.text_buffer.display_column_row();
         let visible_rows = self.area.height();
         let scroll = if cursor_row >= visible_rows as usize {
@@ -74,7 +72,7 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn scroll_down(&mut self) {
-        let content_length = self.text_buffer.display_text_len();
+        let content_length = self.text_buffer.display_lines_len();
         let area_height = self.area.height() as usize;
         let end_scroll = content_length.saturating_sub(area_height);
         if content_length > area_height {
@@ -91,7 +89,15 @@ impl<'a> TextWindow<'a> {
     pub fn scroll_to_end(&mut self) {
         self.text_buffer
             .move_cursor(MoveCursor::EndOfFileEndOfLine, false);
-        self.scroll_to_cursor();
+
+        let cursor_row = self.text_buffer.display_lines_len().saturating_sub(1);
+        let visible_rows = self.area.height();
+        self.vertical_scroll = if cursor_row >= visible_rows as usize {
+            cursor_row - visible_rows as usize + 1
+        } else {
+            0
+        };
+        self.update_scroll_bar();
     }
 
     pub fn scroll_up(&mut self) {
@@ -104,7 +110,7 @@ impl<'a> TextWindow<'a> {
     fn update_scroll_bar(&mut self) {
         let display_length = self
             .text_buffer
-            .display_text_len()
+            .display_lines_len()
             .saturating_sub(self.area.height() as usize);
         self.vertical_scroll_bar_state = self
             .vertical_scroll_bar_state

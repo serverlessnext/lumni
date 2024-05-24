@@ -60,6 +60,8 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
+        // TODO: cursor_row should not be obtained from display_column_row,
+        // because the row-part is actually unwrapped -- causing the scrollbar to be off
         let (_, cursor_row) = self.text_buffer.display_column_row();
         let visible_rows = self.area.height();
         let scroll = if cursor_row >= visible_rows as usize {

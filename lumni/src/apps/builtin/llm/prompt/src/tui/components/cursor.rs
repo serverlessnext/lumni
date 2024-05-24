@@ -215,7 +215,6 @@ impl Cursor {
     }
 
     pub fn update_real_position(&mut self, lines: &[TextLine]) {
-        //pub fn update_real_position(&mut self, lines: &[String]) {
         // compute the cursor position in underlying text based
         // on the current row and column
         let mut position = 0;
@@ -238,8 +237,9 @@ fn get_max_row(display_text: &[TextLine]) -> u16 {
 }
 
 pub fn get_max_col(lines: &[TextLine], row: u16) -> u16 {
-    // Get the maximum column of a specific row
-    // check if row exists in self.lines, if not return 0
+    // Get the maximum column of a specific row. This is the line length + 1,
+    // to account for either a newline character or empty space for the cursor.
+    // Because line is 0-indexed we can skip add and substract 
     if let Some(line) = lines.get(row as usize) {
         line.length() as u16
     } else {

@@ -235,6 +235,7 @@ impl TextBuffer<'_> {
                 line.segments().map(|s| s.text()).collect::<String>();
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
+
             let wrapped_lines = self.wrap_text_styled(&line);
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(idx);
@@ -374,7 +375,9 @@ impl TextBuffer<'_> {
         wrapped_lines: Vec<TextLine>,
         unwrapped_line_index: usize,
         selection_bounds: &(usize, usize, usize, usize),
-        trailing_spaces: usize,
+        // trailing spaces of the unwrapped line -- this is removed during wrapping,
+        // so we need to keep track of it separately to calculate the cursor position
+        trailing_spaces: usize, 
     ) {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
         let mut char_pos = 0;
@@ -406,7 +409,15 @@ impl TextBuffer<'_> {
                 }
             }
 
-            self.display.push_line(Line::from(spans), trailing_spaces);
+            let mut current_line = Line::from(spans);
+            if trailing_spaces > 0 {
+                // Add trailing spaces back to end of the line
+                let spaces = std::iter::repeat(' ')
+                    .take(trailing_spaces)
+                    .collect::<String>();
+                current_line.spans.push(Span::raw(spaces));
+            }
+            self.display.push_line(current_line, trailing_spaces);
             char_pos += 1; // account for newline character
         }
     }
@@ -415,23 +426,12 @@ impl TextBuffer<'_> {
         if !self.cursor.show_cursor() {
             return;
         }
-
         // Retrieve the cursor's column and row in the wrapped display
         let (column, row) = self.display_column_row();
-        let trailing_spaces = self.display.get_trailing_spaces(row as u16);
 
         if let Some(current_line) = self.display.wrap_lines_mut().get_mut(row) {
             if column >= current_line.spans.len() {
                 // The cursor is at the end of the line or beyond the last character
-
-                // Add trailing spaces back to the line if necessary
-                if trailing_spaces > 0 && column > current_line.spans.len() {
-                    let spaces = std::iter::repeat(' ')
-                        .take(trailing_spaces)
-                        .collect::<String>();
-                    current_line.spans.push(Span::raw(spaces));
-                }
-
                 // Append a styled space for the cursor itself
                 current_line.spans.push(Span::styled(
                     " ",
@@ -463,16 +463,10 @@ impl TextBuffer<'_> {
     pub fn display_column_row(&self) -> (usize, usize) {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
+        
         let mut wrap_position = 0;
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
-            let mut line_length = line
-                .spans
-                .iter()
-                .map(|span| span.content.len())
-                .sum::<usize>();
-            let trailing_spaces = self.display.get_trailing_spaces(row as u16);
-            line_length += trailing_spaces;
-
+            let line_length = line.spans.iter().map(|span| span.content.len()).sum::<usize>();
             if wrap_position + line_length >= cursor_position {
                 // Cursor is on this line
                 let column = cursor_position - wrap_position;

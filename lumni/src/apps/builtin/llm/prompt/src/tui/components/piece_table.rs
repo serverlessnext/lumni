@@ -165,6 +165,10 @@ impl PieceTable {
         content
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.pieces.is_empty()
+    }
+
     pub fn empty(&mut self) {
         self.add.clear();
         self.pieces.clear();

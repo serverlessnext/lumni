@@ -77,6 +77,10 @@ impl TextBuffer<'_> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
+    }
+
     pub fn empty(&mut self) {
         self.display.clear();
         self.selected_text.clear();
@@ -199,8 +203,8 @@ impl TextBuffer<'_> {
         (column_changed, row_changed)
     }
 
-    pub fn set_selection(&mut self, enable: bool) {
-        self.cursor.set_selection(enable);
+    pub fn set_selection_anchor(&mut self, enable: bool) {
+        self.cursor.set_selection_anchor(enable);
         self.update_display_text();
     }
 
@@ -308,7 +312,7 @@ impl TextBuffer<'_> {
                         let mut start_index = 0;
                         while start_index < word.len() {
                             let end_index = std::cmp::min(
-                                start_index + max_width - current_text.len(),
+                                (start_index + max_width).saturating_sub(current_text.len()),
                                 word.len(),
                             );
                             let slice = &word[start_index..end_index];

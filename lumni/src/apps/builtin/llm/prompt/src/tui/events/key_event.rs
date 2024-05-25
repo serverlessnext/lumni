@@ -133,6 +133,7 @@ impl KeyEventHandler {
     ) -> WindowEvent {
         self.key_track.update_key(key_event);
 
+        // try to catch Shift+Enter key press in prompt window
         match current_mode {
             WindowEvent::CommandLine(_) => {
                 let key_code = self.key_track.current_key().code;
@@ -192,19 +193,58 @@ impl KeyEventHandler {
                     ),
                 }
             }
-            WindowEvent::ResponseWindow => handle_text_window_event(
-                &mut self.key_track,
-                response_window,
-                is_running,
-            ),
+            WindowEvent::ResponseWindow => {
+                // catch Ctrl + shortcut key
+                if self.key_track.current_key().modifiers == KeyModifiers::CONTROL {
+                    match self.key_track.current_key().code {
+                        KeyCode::Char('c') => { 
+                            if response_window.text_buffer().is_empty() {
+                                return WindowEvent::Quit;
+                            } else {
+                                return WindowEvent::Prompt(PromptAction::Clear);
+                            }
+                        }
+                        KeyCode::Char('q') => { return WindowEvent::Quit;}  
+                        KeyCode::Char('a') => {
+                            // TODO: select last answer
+                        }
+                        _ => {}
+                    }
+                    return WindowEvent::ResponseWindow;
+                }
+                handle_text_window_event(
+                    &mut self.key_track,
+                    response_window,
+                    is_running,
+                )
+            }
             WindowEvent::PromptWindow => {
+                // catch Ctrl + shortcut key
+                if self.key_track.current_key().modifiers == KeyModifiers::CONTROL {
+                    match self.key_track.current_key().code {
+                        KeyCode::Char('c') => { 
+                            if prompt_window.text_buffer().is_empty() {
+                                return WindowEvent::Quit;
+                            } else {
+                                prompt_window.text_empty();
+                            }
+                        }
+                        KeyCode::Char('q') => { return WindowEvent::Quit;}  
+                        KeyCode::Char('a') => {
+                            // TODO: select all text
+                        }
+                        KeyCode::Char('j') => {
+                            prompt_window.text_insert_add("\n", None);
+                        }
+                        _ => {}
+                    }
+                    return WindowEvent::PromptWindow;
+                }
+
                 // catch Enter key press in prompt window
                 if self.key_track.current_key().code == KeyCode::Enter {
                     let question = prompt_window.text_buffer().to_string();
                     // send prompt if not editing, or if the last character is a space
-                    if !prompt_window.is_status_insert()
-                        || question.chars().last() == Some(' ')
-                    {
                         prompt_window.text_empty();
 
                         // format question with newline
@@ -216,7 +256,6 @@ impl KeyEventHandler {
                         return WindowEvent::Prompt(PromptAction::Write(
                             question,
                         ));
-                    }
                 }
                 handle_text_window_event(
                     &mut self.key_track,

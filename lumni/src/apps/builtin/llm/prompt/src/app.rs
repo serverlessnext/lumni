@@ -60,7 +60,6 @@ async fn prompt_app<B: Backend>(
 
                 if poll(Duration::from_millis(10))? {
                     let event = read()?;
-
                     match event {
                         Event::Key(key_event) => {
                             if key_event.code == KeyCode::Tab {

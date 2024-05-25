@@ -209,7 +209,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_window_status(&mut self, status: WindowStatus) {
-        self.set_selection(false); // disable selection when changing status
+        self.set_selection_anchor(false); // disable selection when changing status
         self.base().set_window_status(status);
     }
 
@@ -264,8 +264,8 @@ pub trait TextWindowTrait<'a> {
         self.base().text_delete(false, 1);
     }
 
-    fn set_selection(&mut self, enable: bool) {
-        self.base().text_buffer.set_selection(enable);
+    fn set_selection_anchor(&mut self, enable: bool) {
+        self.base().text_buffer.set_selection_anchor(enable);
     }
 
     fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
@@ -315,11 +315,11 @@ pub trait TextWindowTrait<'a> {
     fn toggle_visual_mode(&mut self) {
         // if visual mode is enabled, set to normal mode
         if self.window_status() == WindowStatus::Visual {
-            self.base().text_buffer.set_selection(false);
+            self.base().text_buffer.set_selection_anchor(false);
             self.set_status_normal();
         } else {
             self.set_status_visual();
-            self.base().text_buffer.set_selection(true);
+            self.base().text_buffer.set_selection_anchor(true);
         }
     }
 

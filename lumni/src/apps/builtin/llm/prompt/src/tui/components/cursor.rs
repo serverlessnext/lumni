@@ -17,8 +17,8 @@ pub enum MoveCursor {
 pub struct Cursor {
     pub col: u16,
     pub row: u16,
-    fixed_col: u16,    // fixed column for anchor
-    fixed_row: u16,    // fixed row for anchor
+    anchor_col: u16,    // column for anchor, start of selection
+    anchor_row: u16,    // row for anchor, start of selection
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
@@ -30,8 +30,8 @@ impl Cursor {
         Cursor {
             col,
             row,
-            fixed_col: col,
-            fixed_row: row,
+            anchor_col: col,
+            anchor_row: row,
             show_cursor,
             selection_enabled: false,
             desired_col: col, // Initially, desired column is same as starting column
@@ -59,9 +59,9 @@ impl Cursor {
         self.selection_enabled
     }
 
-    pub fn set_selection(&mut self, enable: bool) {
+    pub fn set_selection_anchor(&mut self, enable: bool) {
         if enable {
-            self.set_fixed_position();
+            self.set_anchor_position();
         }
         self.selection_enabled = enable;
     }
@@ -166,26 +166,26 @@ impl Cursor {
         }
     }
 
-    pub fn set_fixed_position(&mut self) {
-        self.fixed_col = self.col;
-        self.fixed_row = self.row;
+    pub fn set_anchor_position(&mut self) {
+        self.anchor_col = self.col;
+        self.anchor_row = self.row;
     }
 
     pub fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
         // Determine the correct order for start and end positions
-        if self.row < self.fixed_row
-            || (self.row == self.fixed_row && self.col < self.fixed_col)
+        if self.row < self.anchor_row
+            || (self.row == self.anchor_row && self.col < self.anchor_col)
         {
             (
                 self.row as usize,
                 self.col as usize,
-                self.fixed_row as usize,
-                self.fixed_col as usize,
+                self.anchor_row as usize,
+                self.anchor_col as usize,
             )
         } else {
             (
-                self.fixed_row as usize,
-                self.fixed_col as usize,
+                self.anchor_row as usize,
+                self.anchor_col as usize,
                 self.row as usize,
                 self.col as usize,
             )

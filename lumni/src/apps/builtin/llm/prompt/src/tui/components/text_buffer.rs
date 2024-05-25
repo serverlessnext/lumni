@@ -227,7 +227,6 @@ impl TextBuffer<'_> {
         let selection_bounds = self.get_selection_bounds();
 
         for (idx, line) in text_lines.iter().enumerate() {
-            //eprintln!("TXT={:?}|", line.segments().map(|s| s.text()).collect::<String>());
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
 
@@ -312,7 +311,8 @@ impl TextBuffer<'_> {
                         let mut start_index = 0;
                         while start_index < word.len() {
                             let end_index = std::cmp::min(
-                                (start_index + max_width).saturating_sub(current_text.len()),
+                                (start_index + max_width)
+                                    .saturating_sub(current_text.len()),
                                 word.len(),
                             );
                             let slice = &word[start_index..end_index];
@@ -518,10 +518,6 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
-    pub fn to_string(&self) -> String {
-        self.text.to_string()
-    }
-
     pub fn display_column_row(&self) -> (usize, usize) {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
@@ -543,5 +539,20 @@ impl TextBuffer<'_> {
         }
         //eprintln!("Cant find cursor position: {}", cursor_position);
         (0, 0) // default to (0, 0) if cursor is not found
+    }
+
+    pub fn to_string(&self) -> String {
+        self.text.to_string()
+    }
+
+    pub fn yank_lines(&self, count: usize) -> Vec<String> {
+        let start_row = self.cursor.row as usize;
+        let end_row = start_row.saturating_add(count); // end_row can exceed available rows
+
+        if let Some(text_lines) = self.text.get_text_lines_selection(start_row, Some(end_row)) {
+            text_lines.iter().map(|line| line.to_string()).collect()
+        } else {
+            Vec::new()
+        }
     }
 }

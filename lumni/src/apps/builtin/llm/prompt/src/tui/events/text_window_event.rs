@@ -167,7 +167,11 @@ where
             // Check if the last command was also 'y'
             if let Some(prev) = key_track.previous_char() {
                 if prev == "y" {
-                    // TODO: Implement yank_line
+                    // yy yanks the current line
+                    let yanked_text = window.text_buffer().yank_lines(1).join("\n");
+                    if !yanked_text.is_empty() {
+                        write_to_clipboard(&yanked_text).ok();
+                    }
                 } else {
                     yank_highlighted_text(window);
                 }
@@ -197,10 +201,25 @@ fn yank_highlighted_text<'a, T>(window: &mut T)
 where
     T: TextWindowTrait<'a>,
 {
-    let text = window.text_buffer().selected_text();
-    let mut clipboard = ClipboardProvider::new();
+    let selected_text = {
+        let text_buffer = window.text_buffer();
+        text_buffer.selected_text().to_string()
+    };
 
-    if let Err(e) = clipboard.write_line(text, false) {
-        eprintln!("Clipboard error: {}", e);
+    if !selected_text.is_empty() {
+        if write_to_clipboard(&selected_text).is_ok() {
+            window.text_unselect(); // unselect text after successful yank
+        }
+    }
+}
+
+fn write_to_clipboard(text: &str) -> Result<(), String> {
+    let mut clipboard = ClipboardProvider::new();
+    match clipboard.write_line(text, false) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            eprintln!("Clipboard error: {}", e);
+            Err(e.to_string())
+        }
     }
 }

@@ -195,18 +195,24 @@ impl KeyEventHandler {
             }
             WindowEvent::ResponseWindow => {
                 // catch Ctrl + shortcut key
-                if self.key_track.current_key().modifiers == KeyModifiers::CONTROL {
+                if self.key_track.current_key().modifiers
+                    == KeyModifiers::CONTROL
+                {
                     match self.key_track.current_key().code {
-                        KeyCode::Char('c') => { 
+                        KeyCode::Char('c') => {
                             if response_window.text_buffer().is_empty() {
                                 return WindowEvent::Quit;
                             } else {
-                                return WindowEvent::Prompt(PromptAction::Clear);
+                                return WindowEvent::Prompt(
+                                    PromptAction::Clear,
+                                );
                             }
                         }
-                        KeyCode::Char('q') => { return WindowEvent::Quit;}  
+                        KeyCode::Char('q') => {
+                            return WindowEvent::Quit;
+                        }
                         KeyCode::Char('a') => {
-                            // TODO: select last answer
+                            response_window.text_select_all();
                         }
                         _ => {}
                     }
@@ -220,17 +226,23 @@ impl KeyEventHandler {
             }
             WindowEvent::PromptWindow => {
                 // catch Ctrl + shortcut key
-                if self.key_track.current_key().modifiers == KeyModifiers::CONTROL {
+                if self.key_track.current_key().modifiers
+                    == KeyModifiers::CONTROL
+                {
                     match self.key_track.current_key().code {
-                        KeyCode::Char('c') => { 
+                        KeyCode::Char('c') => {
                             if prompt_window.text_buffer().is_empty() {
                                 return WindowEvent::Quit;
                             } else {
                                 prompt_window.text_empty();
                             }
                         }
-                        KeyCode::Char('q') => { return WindowEvent::Quit;}  
-                        KeyCode::Char('a') => { prompt_window.select_all_text(); }
+                        KeyCode::Char('q') => {
+                            return WindowEvent::Quit;
+                        }
+                        KeyCode::Char('a') => {
+                            prompt_window.text_select_all();
+                        }
                         KeyCode::Char('j') => {
                             prompt_window.text_insert_add("\n", None);
                         }
@@ -243,17 +255,15 @@ impl KeyEventHandler {
                 if self.key_track.current_key().code == KeyCode::Enter {
                     let question = prompt_window.text_buffer().to_string();
                     // send prompt if not editing, or if the last character is a space
-                        prompt_window.text_empty();
+                    prompt_window.text_empty();
 
-                        // format question with newline
-                        response_window.text_append_with_insert(
-                            &format!("{}\n", question),
-                            Some(Style::new().fg(Color::Yellow)),
-                        );
-                        response_window.text_insert_commit();
-                        return WindowEvent::Prompt(PromptAction::Write(
-                            question,
-                        ));
+                    // format question with newline
+                    response_window.text_append_with_insert(
+                        &format!("{}\n", question),
+                        Some(Style::new().fg(Color::Yellow)),
+                    );
+                    response_window.text_insert_commit();
+                    return WindowEvent::Prompt(PromptAction::Write(question));
                 }
                 handle_text_window_event(
                     &mut self.key_track,

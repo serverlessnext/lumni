@@ -323,12 +323,21 @@ pub trait TextWindowTrait<'a> {
         }
     }
 
-    fn select_all_text(&mut self) {
-        self.set_status_visual();   // enable visual mode
-        // set selection anchor on start of text, move cursor to end of text
-        self.base().text_buffer.move_cursor(MoveCursor::StartOfFile, false);
+    fn text_select_all(&mut self) {
+        self.set_status_visual(); // enable visual mode
+                                  // set selection anchor on start of text, move cursor to end of text
+        self.base()
+            .text_buffer
+            .move_cursor(MoveCursor::StartOfFile, false);
         self.base().text_buffer.set_selection_anchor(true);
-        self.base().text_buffer.move_cursor(MoveCursor::EndOfFileEndOfLine, false);
+        self.base()
+            .text_buffer
+            .move_cursor(MoveCursor::EndOfFileEndOfLine, false);
+    }
+
+    fn text_unselect(&mut self) {
+        self.base().text_buffer.set_selection_anchor(false);
+        self.set_status_normal();
     }
 
     fn set_status_inactive(&mut self) {

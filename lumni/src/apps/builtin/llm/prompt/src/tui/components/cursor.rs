@@ -17,8 +17,8 @@ pub enum MoveCursor {
 pub struct Cursor {
     pub col: u16,
     pub row: u16,
-    anchor_col: u16,    // column for anchor, start of selection
-    anchor_row: u16,    // row for anchor, start of selection
+    anchor_col: u16,   // column for anchor, start of selection
+    anchor_row: u16,   // row for anchor, start of selection
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: u16, // Desired column position, independent of actual line length
@@ -41,10 +41,6 @@ impl Cursor {
 
     pub fn real_position(&self) -> usize {
         self.real_position
-    }
-
-    pub fn col_row(&self) -> (u16, u16) {
-        (self.col, self.row)
     }
 
     pub fn set_visibility(&mut self, visible: bool) {

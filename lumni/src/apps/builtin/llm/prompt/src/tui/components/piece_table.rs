@@ -111,6 +111,14 @@ impl TextLine {
     pub fn length(&self) -> usize {
         self.length
     }
+
+    pub fn to_string(&self) -> String {
+        let mut content = String::new();
+        for segment in &self.segments {
+            content.push_str(&segment.text);
+        }
+        content
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -150,6 +158,23 @@ impl PieceTable {
 
     pub fn text_lines(&self) -> &[TextLine] {
         &self.text_lines
+    }
+
+    pub fn get_text_lines_selection(
+        &self,
+        start: usize,
+        end: Option<usize>,
+    ) -> Option<&[TextLine]> {
+        if start >= self.text_lines.len() {
+            return None; // start index out of bounds
+        }
+
+        let end_index = match end {
+            Some(e) if e < self.text_lines.len() => e,
+            _ => self.text_lines.len(), // if end is None or out of bounds, use the length of text_lines
+        };
+
+        Some(&self.text_lines[start..end_index])
     }
 
     pub fn to_string(&self) -> String {

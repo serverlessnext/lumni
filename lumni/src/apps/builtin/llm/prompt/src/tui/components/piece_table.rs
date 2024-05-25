@@ -564,7 +564,8 @@ impl PieceTable {
 
             // After processing each piece, if there's remaining text, add it as a segment
             if !current_text.is_empty() {
-                current_line_styled.add_segment(current_text.clone(), last_style.clone());
+                current_line_styled
+                    .add_segment(current_text.clone(), last_style.clone());
                 current_text.clear();
             }
         }

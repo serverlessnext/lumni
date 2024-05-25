@@ -239,7 +239,7 @@ fn get_max_row(display_text: &[TextLine]) -> u16 {
 pub fn get_max_col(lines: &[TextLine], row: u16) -> u16 {
     // Get the maximum column of a specific row. This is the line length + 1,
     // to account for either a newline character or empty space for the cursor.
-    // Because line is 0-indexed we can skip add and substract 
+    // Because line is 0-indexed we can skip add and substract
     if let Some(line) = lines.get(row as usize) {
         line.length() as u16
     } else {

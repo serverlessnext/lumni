@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+
 use bytes::Bytes;
+use lumni::api::error::HttpClientError;
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
 use super::responses::ChatCompletionResponse;
 use crate::external as lumni;
-use lumni::api::error::HttpClientError;
 
 pub async fn send_payload(
     url: String,

@@ -7,7 +7,7 @@ use super::piece_table::{PieceTable, TextLine};
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
     wrap_lines: Vec<Line<'a>>, // Text (e.g., wrapped, highlighted) for display
-    display_width: usize,        // Width of the display area, used for wrapping
+    display_width: usize,      // Width of the display area, used for wrapping
 }
 
 impl<'a> TextDisplay<'a> {
@@ -226,7 +226,7 @@ impl TextBuffer<'_> {
             //eprintln!("TXT={:?}|", line.segments().map(|s| s.text()).collect::<String>());
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
-            
+
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
 
@@ -283,10 +283,19 @@ impl TextBuffer<'_> {
                 let space_len = if !current_text.is_empty() { 1 } else { 0 };
 
                 // Check if the current word with leading spaces fits in the line
-                if current_text.len() + space_len + leading_spaces.len() + word.len() + current_line.length() > max_width {
+                if current_text.len()
+                    + space_len
+                    + leading_spaces.len()
+                    + word.len()
+                    + current_line.length()
+                    > max_width
+                {
                     // If adding this word would exceed max_width, push current_text to current_line
                     if !current_text.is_empty() {
-                        current_line.add_segment(current_text.trim_end().to_string(), segment.style().clone());
+                        current_line.add_segment(
+                            current_text.trim_end().to_string(),
+                            segment.style().clone(),
+                        );
                         current_text.clear();
                     }
 
@@ -294,11 +303,14 @@ impl TextBuffer<'_> {
                     if leading_spaces.len() + word.len() > max_width {
                         // Add leading spaces to the current_text before handling the word
                         current_text.push_str(&leading_spaces);
-                    
+
                         // Split the word into manageable pieces
                         let mut start_index = 0;
                         while start_index < word.len() {
-                            let end_index = std::cmp::min(start_index + max_width - current_text.len(), word.len());
+                            let end_index = std::cmp::min(
+                                start_index + max_width - current_text.len(),
+                                word.len(),
+                            );
                             let slice = &word[start_index..end_index];
 
                             // Ensure there's no trailing line without segments
@@ -307,7 +319,10 @@ impl TextBuffer<'_> {
                                 current_line = TextLine::new();
                             }
 
-                            current_line.add_segment(current_text.clone() + slice, segment.style().clone());
+                            current_line.add_segment(
+                                current_text.clone() + slice,
+                                segment.style().clone(),
+                            );
                             wrapped_lines.push(current_line);
                             current_line = TextLine::new();
                             start_index = end_index;
@@ -325,13 +340,17 @@ impl TextBuffer<'_> {
                     }
                 } else {
                     // Add word (including leading spaces) to current_text
-                    current_text.push_str(&format!("{}{}", leading_spaces, word));
+                    current_text
+                        .push_str(&format!("{}{}", leading_spaces, word));
                 }
             }
 
             // After all words, if there's leftover text, add it as a segment
             if !current_text.is_empty() {
-                current_line.add_segment(current_text.trim_end().to_string(), segment.style().clone());
+                current_line.add_segment(
+                    current_text.trim_end().to_string(),
+                    segment.style().clone(),
+                );
             }
         }
 
@@ -342,7 +361,11 @@ impl TextBuffer<'_> {
         wrapped_lines
     }
 
-    fn handle_empty_line(&mut self, current_row: usize, trailing_spaces: usize) {
+    fn handle_empty_line(
+        &mut self,
+        current_row: usize,
+        trailing_spaces: usize,
+    ) {
         if trailing_spaces > 0 {
             // Add trailing spaces to the line
             let spaces = std::iter::repeat(' ')
@@ -364,7 +387,7 @@ impl TextBuffer<'_> {
         selection_bounds: &(usize, usize, usize, usize),
         // trailing spaces of the unwrapped line are removed during wrapping,
         // this is added back to the first and last (wrapped) line respectively
-        trailing_spaces: usize, 
+        trailing_spaces: usize,
     ) {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
         let mut char_pos = 0;
@@ -418,47 +441,66 @@ impl TextBuffer<'_> {
         let (mut column, row) = self.display_column_row();
 
         if let Some(current_line) = self.display.wrap_lines_mut().get_mut(row) {
-            let line_length = current_line.spans.iter().map(|span| span.content.len()).sum::<usize>();
+            let line_length = current_line
+                .spans
+                .iter()
+                .map(|span| span.content.len())
+                .sum::<usize>();
             if column >= line_length {
                 current_line.spans.push(Span::styled(
                     " ",
                     Style::default().bg(Color::Yellow),
                 ));
-        } else {
-            // Iterate through spans to find the correct position
-            let mut new_spans = Vec::new();
-            let mut span_offset = 0;
-            for span in current_line.spans.iter() {
-                let span_length = span.content.len();
+            } else {
+                // Iterate through spans to find the correct position
+                let mut new_spans = Vec::new();
+                let mut span_offset = 0;
+                for span in current_line.spans.iter() {
+                    let span_length = span.content.len();
 
-                if column < span_length {
-                    // Split the span at the cursor position
-                    let before = &span.content[..column];
-                    let cursor_char = &span.content[column..column+1];
-                    let after = &span.content[column+1..];
+                    if column < span_length {
+                        // Split the span at the cursor position
+                        let before = &span.content[..column];
+                        let cursor_char = &span.content[column..column + 1];
+                        let after = &span.content[column + 1..];
 
-                    if !before.is_empty() {
-                        new_spans.push(Span::styled(before.to_string(), span.style));
+                        if !before.is_empty() {
+                            new_spans.push(Span::styled(
+                                before.to_string(),
+                                span.style,
+                            ));
+                        }
+
+                        new_spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            span.style.bg(Color::Yellow),
+                        ));
+
+                        if !after.is_empty() {
+                            new_spans.push(Span::styled(
+                                after.to_string(),
+                                span.style,
+                            ));
+                        }
+
+                        // Add remaining spans as is
+                        new_spans.extend(
+                            current_line
+                                .spans
+                                .iter()
+                                .skip(span_offset + 1)
+                                .cloned(),
+                        );
+                        break;
+                    } else {
+                        new_spans.push(span.clone());
+                        column -= span_length;
                     }
 
-                    new_spans.push(Span::styled(cursor_char.to_string(), span.style.bg(Color::Yellow)));
-
-                    if !after.is_empty() {
-                        new_spans.push(Span::styled(after.to_string(), span.style));
-                    }
-
-                    // Add remaining spans as is
-                    new_spans.extend(current_line.spans.iter().skip(span_offset + 1).cloned());
-                    break;
-                } else {
-                    new_spans.push(span.clone());
-                    column -= span_length;
+                    span_offset += 1;
                 }
-
-                span_offset += 1;
+                current_line.spans = new_spans;
             }
-            current_line.spans = new_spans;
-        }
         }
     }
 
@@ -482,7 +524,11 @@ impl TextBuffer<'_> {
         // eprintln!("WrappedText={:?}|", self.display.wrap_lines().iter().map(|line| line.spans.iter().map(|span| span.content.clone()).collect::<String>()).collect::<String>());
         let mut wrap_position = 0;
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
-            let line_length = line.spans.iter().map(|span| span.content.len()).sum::<usize>();
+            let line_length = line
+                .spans
+                .iter()
+                .map(|span| span.content.len())
+                .sum::<usize>();
             if wrap_position + line_length >= cursor_position {
                 // Cursor is on this line
                 let column = cursor_position - wrap_position;

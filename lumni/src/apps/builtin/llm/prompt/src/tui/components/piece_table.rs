@@ -115,7 +115,6 @@ impl TextLine {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
-    original: String,          // The original unmodified text
     text_lines: Vec<TextLine>, // text split into lines with styles
     add: String,               // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
@@ -134,14 +133,12 @@ struct Piece {
 
 #[derive(Clone, Debug, PartialEq)]
 enum SourceBuffer {
-    Original,
     Add,
 }
 
 impl PieceTable {
     pub fn new() -> Self {
         Self {
-            original: "".to_string(),
             text_lines: Vec::new(),
             add: String::new(),
             pieces: Vec::new(),
@@ -159,9 +156,6 @@ impl PieceTable {
         let mut content = String::new();
         for piece in &self.pieces {
             let text = match piece.source {
-                SourceBuffer::Original => {
-                    &self.original[piece.start..piece.start + piece.length]
-                }
                 SourceBuffer::Add => {
                     &self.add[piece.start..piece.start + piece.length]
                 }
@@ -172,7 +166,6 @@ impl PieceTable {
     }
 
     pub fn empty(&mut self) {
-        self.original.clear();
         self.add.clear();
         self.pieces.clear();
         self.cache.clear();
@@ -521,7 +514,7 @@ impl PieceTable {
     }
 
     pub fn update_lines_styled(&mut self) {
-        // ensure pending cache is committed before updating lines
+        // Ensure pending cache is committed before updating lines
         self.commit_insert_cache();
         self.text_lines.clear();
         let mut current_line_styled = TextLine::new();
@@ -532,9 +525,6 @@ impl PieceTable {
         let mut pieces_data = Vec::new();
         for piece in &self.pieces {
             let text = match piece.source {
-                SourceBuffer::Original => self.original
-                    [piece.start..piece.start + piece.length]
-                    .to_string(),
                 SourceBuffer::Add => self.add
                     [piece.start..piece.start + piece.length]
                     .to_string(),
@@ -545,18 +535,15 @@ impl PieceTable {
         for (text, style) in pieces_data {
             for char in text.chars() {
                 if char == '\n' {
-                    // Handle empty lines: push current text or a truly empty segment
-                    if current_text.is_empty() && current_line_styled.is_empty()
-                    {
-                        current_line_styled
-                            .add_segment(String::new(), last_style.clone()); // Adding an empty segment for an empty line
-                    } else if !current_text.is_empty() {
+                    // Handle non-empty current text
+                    if !current_text.is_empty() {
                         current_line_styled.add_segment(
                             current_text.clone(),
                             last_style.clone(),
                         );
                         current_text.clear();
                     }
+                    // Always add the current line to text_lines
                     self.text_lines.push(current_line_styled.clone());
                     current_line_styled = TextLine::new(); // Start a new styled line
                     continue;
@@ -574,15 +561,16 @@ impl PieceTable {
                 }
                 current_text.push(char);
             }
+
+            // After processing each piece, if there's remaining text, add it as a segment
+            if !current_text.is_empty() {
+                current_line_styled.add_segment(current_text.clone(), last_style.clone());
+                current_text.clear();
+            }
         }
 
-        // Append any remaining text to the last line
-        if !current_text.is_empty() {
-            current_line_styled.add_segment(current_text, last_style);
-        }
-
-        // Ensure the final line is added if it contains segments
-        if !current_line_styled.is_empty() {
+        // Ensure the final line is added if it contains segments or if it's empty due to a trailing newline
+        if !current_line_styled.is_empty() || current_text.is_empty() {
             self.text_lines.push(current_line_styled);
         }
     }

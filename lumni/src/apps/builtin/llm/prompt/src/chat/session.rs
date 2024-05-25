@@ -118,10 +118,9 @@ impl ChatSession {
         self.exchanges.clear();
     }
 
-    pub fn update_last_exchange(&mut self, answer: String) {
+    pub fn update_last_exchange(&mut self, answer: &str) {
         if let Some(last_exchange) = self.exchanges.last_mut() {
-            last_exchange.1 = answer;
-            self.trim_history();
+            last_exchange.1.push_str(answer);
         }
     }
 

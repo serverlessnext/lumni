@@ -113,7 +113,7 @@ where
             // Check if the last command was also 'g'
             if let Some(prev) = key_track.previous_char() {
                 if prev == "g" {
-                    window.move_cursor(MoveCursor::TopOfFile);
+                    window.move_cursor(MoveCursor::StartOfFile);
                 }
             }
         }

@@ -8,7 +8,7 @@ pub enum MoveCursor {
     Down(u16),
     StartOfLine,
     EndOfLine,
-    TopOfFile,
+    StartOfFile,
     EndOfFile,
     EndOfFileEndOfLine,
 }
@@ -148,7 +148,7 @@ impl Cursor {
                 self.col = get_max_col(text_lines, self.row);
                 self.desired_col = self.col;
             }
-            MoveCursor::TopOfFile => {
+            MoveCursor::StartOfFile => {
                 self.row = 0;
                 self.col = 0;
                 self.desired_col = self.col

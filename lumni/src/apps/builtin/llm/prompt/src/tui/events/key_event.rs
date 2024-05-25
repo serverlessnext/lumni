@@ -230,9 +230,7 @@ impl KeyEventHandler {
                             }
                         }
                         KeyCode::Char('q') => { return WindowEvent::Quit;}  
-                        KeyCode::Char('a') => {
-                            // TODO: select all text
-                        }
+                        KeyCode::Char('a') => { prompt_window.select_all_text(); }
                         KeyCode::Char('j') => {
                             prompt_window.text_insert_add("\n", None);
                         }

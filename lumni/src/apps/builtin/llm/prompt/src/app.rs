@@ -172,6 +172,7 @@ async fn prompt_app<B: Backend>(
                 // the final response back when committed
                 let response_style = Some(Style::default());
                 response_window.text_append_with_insert(&response_content, response_style);
+                chat_session.update_last_exchange(&response_content);
                 final_response = is_final;
 
                 // Drain all available messages from the channel
@@ -180,19 +181,12 @@ async fn prompt_app<B: Backend>(
                         log::debug!("Received response: {:?}", response);
                         let (response_content, is_final) = process_prompt_response(&response);
                         response_window.text_append_with_insert(&response_content, response_style);
-
+                        chat_session.update_last_exchange(&response_content);
                         if is_final {
                             final_response = true;
                             break;
                         }
                     }
-                }
-
-                // after response is complete, flush buffer to make
-                // the response permanent
-                if final_response {
-                    let answer = response_window.text_insert_commit();
-                    chat_session.update_last_exchange(answer);
                 }
                 redraw_ui = true;
             },

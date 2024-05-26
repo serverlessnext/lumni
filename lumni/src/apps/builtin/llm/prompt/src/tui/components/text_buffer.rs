@@ -48,7 +48,6 @@ pub struct TextBuffer<'a> {
     text: PieceTable,         // text buffer
     placeholder: String,      // placeholder text
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
-    selected_text: String,    // currently selected text
     cursor: Cursor,
     is_editable: bool,
 }
@@ -59,7 +58,6 @@ impl TextBuffer<'_> {
             text: PieceTable::new(),
             placeholder: String::new(),
             display: TextDisplay::new(0),
-            selected_text: String::new(),
             cursor: Cursor::new(0, 0, false),
             is_editable,
         }
@@ -90,7 +88,6 @@ impl TextBuffer<'_> {
 
     pub fn empty(&mut self) {
         self.display.clear();
-        self.selected_text.clear();
         self.cursor = Cursor::new(0, 0, self.is_editable);
         self.text.empty();
         // update display
@@ -185,9 +182,38 @@ impl TextBuffer<'_> {
         self.display.wrap_lines().len()
     }
 
-    pub fn selected_text(&self) -> &str {
-        // Return the highlighted text - e.g. for copying to clipboard
-        &self.selected_text
+    pub fn yank_selected_text(&self) -> Option<String> {
+        // check if selection is active 
+        if self.cursor.selection_enabled() {
+            // get selection bounds
+            let (start_row, start_col, end_row, end_col) = self.get_selection_bounds();
+            let lines = self.text.get_text_lines_selection(start_row, Some(end_row));
+
+            if let Some(lines) = lines {
+                let mut selected_lines = Vec::new();
+
+                // Iterate over the lines within the selection
+                for (idx, line) in lines.iter().enumerate() {
+                    let line_str = line.to_string();
+                    if idx == 0 {
+                        // First row: get the text from start_col to the end
+                        selected_lines.push(line_str[start_col..].to_string());
+                    } else if idx == lines.len() - 1 {
+                        // Last row: get the text from 0 to end_col
+                        let end_col_inclusive = (end_col + 1).min(line_str.len());
+                        selected_lines.push(line_str[..end_col_inclusive].to_string());
+                    } else {
+                        // Middle row: take the whole line
+                        selected_lines.push(line_str);
+                    }
+                }
+                // Join the selected lines
+                let selected_text = selected_lines.join("\n");
+                return Some(selected_text);
+            }
+            return Some("".to_string());
+        }
+        None
     }
 
     pub fn move_cursor(
@@ -218,7 +244,6 @@ impl TextBuffer<'_> {
     pub fn update_display_text(&mut self) {
         self.text.update_lines_styled();
         self.display.clear();
-        self.selected_text.clear();
         let mut text_lines = self.text.text_lines().to_vec();
 
         if text_lines.is_empty() && !self.placeholder.is_empty() {
@@ -425,7 +450,6 @@ impl TextBuffer<'_> {
                         segment.style().unwrap_or(Style::default());
                     if should_select {
                         effective_style = effective_style.bg(Color::Blue);
-                        self.selected_text.push(ch);
                     }
                     spans.push(Span::styled(ch.to_string(), effective_style));
                     char_pos += 1;
@@ -555,7 +579,9 @@ impl TextBuffer<'_> {
 
     pub fn yank_lines(&self, count: usize) -> Vec<String> {
         let start_row = self.cursor.row as usize;
-        let end_row = start_row.saturating_add(count); // end_row can exceed available rows
+        // decrement start_row by count - 1 because get_text_lines_selection
+        // slices the index range inclusively
+        let end_row = start_row.saturating_add(count.saturating_sub(1));
 
         if let Some(text_lines) =
             self.text.get_text_lines_selection(start_row, Some(end_row))

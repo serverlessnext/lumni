@@ -203,26 +203,25 @@ where
     T: TextWindowTrait<'a>,
 {
     let text_buffer = window.text_buffer();
-    let selected_text = text_buffer.selected_text().to_string();
+    let selected_text = text_buffer.yank_selected_text();
 
-    if selected_text.is_empty() {
-        if let Some(lines) = lines_to_yank {
-            let yanked_text = text_buffer.yank_lines(lines).join("\n");
-            if !yanked_text.is_empty() {
-                if write_to_clipboard(&yanked_text).is_ok() {
-                    return; // Successful yank, no need to unselect
-                }
-            }
-        }
-    } else {
+    if let Some(selected_text) = selected_text {
         if write_to_clipboard(&selected_text).is_ok() {
             window.text_unselect(); // Unselect text after successful yank
+        }
+    } else if let Some(lines) = lines_to_yank {
+        let yanked_text = text_buffer.yank_lines(lines).join("\n");
+        if !yanked_text.is_empty() {
+            if write_to_clipboard(&yanked_text).is_ok() {
+                return; // Successful yank, no need to unselect
+            }
         }
     }
 }
 
 fn write_to_clipboard(text: &str) -> Result<(), String> {
     let mut clipboard = ClipboardProvider::new();
+
     match clipboard.write_line(text, false) {
         Ok(_) => Ok(()),
         Err(e) => {

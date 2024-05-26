@@ -38,11 +38,13 @@ async fn prompt_app<B: Backend>(
     chat_session: &mut ChatSession,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut response_window = ResponseWindow::new();
+    response_window.init(); // initialize with defaults
+
     let mut prompt_window = PromptWindow::new();
-    prompt_window.set_normal_mode();
+    prompt_window.set_normal_mode(); // initialize in normal mode
 
     let mut command_line = CommandLine::new();
-    command_line.text_set_placeholder("Ready");
+    command_line.init(); // initialize with defaults
 
     let (tx, mut rx) = mpsc::channel(32);
     let mut tick = interval(Duration::from_millis(10));

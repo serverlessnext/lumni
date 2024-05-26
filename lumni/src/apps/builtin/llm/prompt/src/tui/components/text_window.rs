@@ -37,7 +37,10 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn set_window_status(&mut self, status: WindowStatus) {
-        // enable cursor visibility based on window status
+        if self.window_status() == status {
+            return; // no change
+        }
+
         match status {
             WindowStatus::Visual => {
                 self.text_buffer.set_cursor_visibility(true);
@@ -56,7 +59,11 @@ impl<'a> TextWindow<'a> {
                 self.text_buffer.set_cursor_visibility(false);
             }
         }
+        // update window status if changed
         self.window_type.set_window_status(status);
+        // update placeholder text
+        self.text_buffer
+            .set_placeholder(self.window_type().placeholder_text());
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -193,6 +200,13 @@ impl<'a> TextWindow<'a> {
 pub trait TextWindowTrait<'a> {
     fn base(&mut self) -> &mut TextWindow<'a>;
 
+    fn init(&mut self) {
+        let window_type = self.window_type();
+        self.base()
+            .text_buffer
+            .set_placeholder(window_type.placeholder_text());
+    }
+
     fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b>
     where
         'a: 'b,
@@ -282,10 +296,6 @@ pub trait TextWindowTrait<'a> {
 
     fn text_empty(&mut self) {
         self.base().text_buffer.empty();
-    }
-
-    fn text_set_placeholder(&mut self, text: &str) {
-        self.base().text_buffer.set_placeholder(text);
     }
 
     fn is_active(&mut self) -> bool {

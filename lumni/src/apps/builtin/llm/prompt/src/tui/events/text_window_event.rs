@@ -121,11 +121,13 @@ where
             window.move_cursor(MoveCursor::EndOfFile);
         }
         'j' => {
-            let lines_to_move = key_track.take_numeric_input().unwrap_or(1) as u16;
+            let lines_to_move =
+                key_track.take_numeric_input().unwrap_or(1) as u16;
             window.move_cursor(MoveCursor::Down(lines_to_move));
         }
         'k' => {
-            let lines_to_move = key_track.take_numeric_input().unwrap_or(1) as u16;
+            let lines_to_move =
+                key_track.take_numeric_input().unwrap_or(1) as u16;
             window.move_cursor(MoveCursor::Up(lines_to_move));
         }
         'v' => {
@@ -164,8 +166,10 @@ where
         'y' => {
             // Check if the last command was also 'y'
             if let Some(prev) = key_track.previous_char() {
-                if prev == "y" {    // yy yanks the current line
-                    let yanked_text = window.text_buffer().yank_lines(1).join("\n");
+                if prev == "y" {
+                    // yy yanks the current line
+                    let yanked_text =
+                        window.text_buffer().yank_lines(1).join("\n");
                     if !yanked_text.is_empty() {
                         write_to_clipboard(&yanked_text).ok();
                     }
@@ -216,7 +220,6 @@ where
         }
     }
 }
-
 
 fn write_to_clipboard(text: &str) -> Result<(), String> {
     let mut clipboard = ClipboardProvider::new();

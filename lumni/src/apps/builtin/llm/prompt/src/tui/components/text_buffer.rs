@@ -66,7 +66,14 @@ impl TextBuffer<'_> {
     }
 
     pub fn set_placeholder(&mut self, text: &str) {
-        self.placeholder = text.to_string();
+        if self.placeholder != text {
+            self.placeholder = text.to_string();
+            if self.text.is_empty() {
+                // trigger display update if placeholder text changed,
+                // and the text buffer is empty
+                self.update_display_text();
+            }
+        }
     }
 
     pub fn set_cursor_visibility(&mut self, visible: bool) {
@@ -212,7 +219,6 @@ impl TextBuffer<'_> {
         self.text.update_lines_styled();
         self.display.clear();
         self.selected_text.clear();
-
         let mut text_lines = self.text.text_lines().to_vec();
 
         if text_lines.is_empty() && !self.placeholder.is_empty() {
@@ -226,7 +232,6 @@ impl TextBuffer<'_> {
         // Get the bounds of selected text, position based on unwrapped lines
         // (start_row, start_col, end_row, end_col)
         let selection_bounds = self.get_selection_bounds();
-
         for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
@@ -247,7 +252,6 @@ impl TextBuffer<'_> {
                 );
             }
         }
-
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
     }
@@ -267,7 +271,10 @@ impl TextBuffer<'_> {
         let mut current_line = TextLine::new();
 
         let max_width = self.display.width().saturating_sub(2); // deduct space for padding
-
+        if max_width < 1 {
+            // No width available to wrap any text
+            return wrapped_lines;
+        }
         for segment in line.segments() {
             let text = segment.text();
 
@@ -550,7 +557,9 @@ impl TextBuffer<'_> {
         let start_row = self.cursor.row as usize;
         let end_row = start_row.saturating_add(count); // end_row can exceed available rows
 
-        if let Some(text_lines) = self.text.get_text_lines_selection(start_row, Some(end_row)) {
+        if let Some(text_lines) =
+            self.text.get_text_lines_selection(start_row, Some(end_row))
+        {
             text_lines.iter().map(|line| line.to_string()).collect()
         } else {
             Vec::new()

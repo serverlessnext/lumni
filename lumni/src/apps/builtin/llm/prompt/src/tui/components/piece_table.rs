@@ -572,7 +572,10 @@ impl PieceTable {
                     // Handle non-empty current text
                     if !current_text.is_empty() {
                         if let Some(ref mut line) = current_line_styled {
-                            line.add_segment(current_text.clone(), last_style.clone());
+                            line.add_segment(
+                                current_text.clone(),
+                                last_style.clone(),
+                            );
                         }
                         current_text.clear();
                     }
@@ -580,14 +583,17 @@ impl PieceTable {
                     if let Some(line) = current_line_styled.take() {
                         self.text_lines.push(line);
                     }
-                    current_line_styled = Some(TextLine::new()); // new line 
+                    current_line_styled = Some(TextLine::new()); // new line
                     continue;
                 }
 
                 if last_style != style {
                     if !current_text.is_empty() {
                         if let Some(ref mut line) = current_line_styled {
-                            line.add_segment(current_text.clone(), last_style.clone());
+                            line.add_segment(
+                                current_text.clone(),
+                                last_style.clone(),
+                            );
                         }
                         current_text.clear();
                     }

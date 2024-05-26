@@ -39,11 +39,22 @@ impl WindowType {
     // Function to provide a specific description for each window type
     pub fn description(&self) -> &str {
         match self.kind {
-            WindowKind::ResponseWindow => {
-                "Response: View results and feedback here"
-            }
-            WindowKind::PromptWindow => "Prompt: Enter your data",
+            WindowKind::ResponseWindow => "Chat",
+            WindowKind::PromptWindow => "Prompt",
             WindowKind::CommandLine => "",
+        }
+    }
+
+    pub fn placeholder_text(&self) -> &str {
+        match self.kind {
+            WindowKind::ResponseWindow => "",
+            WindowKind::PromptWindow => match self.status {
+                WindowStatus::Normal(_) => "Press i to insert text",
+                WindowStatus::Insert => "Type text and press Enter",
+                WindowStatus::Visual => "",
+                WindowStatus::InActive => "",
+            },
+            WindowKind::CommandLine => "Ready",
         }
     }
 
@@ -72,19 +83,6 @@ impl WindowType {
             WindowStatus::Visual => Style::default().fg(Color::LightYellow),
             WindowStatus::InActive => Style::default().fg(Color::DarkGray),
         }
-    }
-
-    pub fn cursor_style(&self) -> Style {
-        let color = match self.status {
-            WindowStatus::Normal(highlighted) => match highlighted {
-                Highlighted::True => Color::LightGreen,
-                Highlighted::False => Color::DarkGray,
-            },
-            WindowStatus::Insert => Color::LightBlue,
-            WindowStatus::Visual => Color::LightYellow,
-            _ => return Style::default(),
-        };
-        Style::default().fg(color).add_modifier(Modifier::REVERSED)
     }
 
     pub fn is_editable(&self) -> bool {

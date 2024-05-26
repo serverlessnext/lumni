@@ -170,7 +170,7 @@ impl PieceTable {
         }
 
         let end_index = match end {
-            Some(e) => (e + 1).min(self.text_lines.len()), // add one to make it inclusive 
+            Some(e) => (e + 1).min(self.text_lines.len()), // add one to make it inclusive
             None => self.text_lines.len(), // use the end of the text_lines
         };
         Some(&self.text_lines[start..end_index])

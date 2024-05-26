@@ -1,4 +1,5 @@
 pub mod session;
+mod models;
 pub mod tui;
 pub mod app;
 

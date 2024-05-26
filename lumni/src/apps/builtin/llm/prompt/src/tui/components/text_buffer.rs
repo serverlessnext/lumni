@@ -183,11 +183,13 @@ impl TextBuffer<'_> {
     }
 
     pub fn yank_selected_text(&self) -> Option<String> {
-        // check if selection is active 
+        // check if selection is active
         if self.cursor.selection_enabled() {
             // get selection bounds
-            let (start_row, start_col, end_row, end_col) = self.get_selection_bounds();
-            let lines = self.text.get_text_lines_selection(start_row, Some(end_row));
+            let (start_row, start_col, end_row, end_col) =
+                self.get_selection_bounds();
+            let lines =
+                self.text.get_text_lines_selection(start_row, Some(end_row));
 
             if let Some(lines) = lines {
                 let mut selected_lines = Vec::new();
@@ -200,8 +202,10 @@ impl TextBuffer<'_> {
                         selected_lines.push(line_str[start_col..].to_string());
                     } else if idx == lines.len() - 1 {
                         // Last row: get the text from 0 to end_col
-                        let end_col_inclusive = (end_col + 1).min(line_str.len());
-                        selected_lines.push(line_str[..end_col_inclusive].to_string());
+                        let end_col_inclusive =
+                            (end_col + 1).min(line_str.len());
+                        selected_lines
+                            .push(line_str[..end_col_inclusive].to_string());
                     } else {
                         // Middle row: take the whole line
                         selected_lines.push(line_str);
@@ -579,8 +583,9 @@ impl TextBuffer<'_> {
 
     pub fn yank_lines(&self, count: usize) -> Vec<String> {
         let start_row = self.cursor.row as usize;
-        // decrement start_row by count - 1 because get_text_lines_selection
+        // decrement added count by 1 because get_text_lines_selection
         // slices the index range inclusively
+        // e.g. to get n lines: end_row = start_row + n - 1
         let end_row = start_row.saturating_add(count.saturating_sub(1));
 
         if let Some(text_lines) =

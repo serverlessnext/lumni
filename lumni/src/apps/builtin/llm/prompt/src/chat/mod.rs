@@ -6,6 +6,8 @@ mod responses;
 mod send;
 mod session;
 
+pub use super::models::{PromptModel, Models};
+
 pub use options::ChatOptions;
 use prompt::Prompt;
 pub use responses::ChatCompletionResponse;

@@ -9,6 +9,7 @@ use lumni::HttpClient;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
+use super::{Models, PromptModel};
 use super::options::ChatOptions;
 use super::prompt::Prompt;
 use super::send::send_payload;
@@ -106,7 +107,15 @@ impl ChatSession {
                 return Err("Selected persona not found in the dataset".into());
             }
         }
-        self.tokenize_and_set_n_keep().await?;
+
+        let model = Models::from_str(&self.model);
+        let prompt_start = if self.instruction.is_empty() {
+            model.fmt_prompt_start(None)
+        } else {
+            model.fmt_prompt_start(Some(&self.instruction))
+        };
+        let body_content = serde_json::json!({ "content": prompt_start }).to_string();
+        self.tokenize_and_set_n_keep(body_content).await?;
         Ok(())
     }
 
@@ -126,12 +135,9 @@ impl ChatSession {
 
     pub async fn tokenize_and_set_n_keep(
         &mut self,
+        body_content: String,
     ) -> Result<(), Box<dyn Error>> {
         let url = "http://localhost:8080/tokenize";
-        //let body_content =
-        //    serde_json::json!({ "content": self.instruction }).to_string();
-        let body_content = serde_json::json!({ "content": format!("<|start_header_id|>system<|end_header_id|>\n{}\n<|eot_id|>", self.instruction) }).to_string();
-
         let body = Bytes::from(body_content);
         let mut headers = HashMap::new();
         headers
@@ -230,14 +236,12 @@ impl ChatSession {
         //
         //        {prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-        // start with system prompt
-        prompt.push_str("<|begin_of_text|>");
-        if !self.instruction.is_empty() {
-            prompt.push_str(&format!(
-                "<|start_header_id|>system<|end_header_id|>\\
-                 n{}<|eot_id|>\n",
-                self.instruction
-            ));
+        // start prompt
+        let model = Models::from_str(&self.model);
+        if self.instruction.is_empty() {
+            prompt.push_str(&model.fmt_prompt_start(None));
+        } else {
+            prompt.push_str(&model.fmt_prompt_start(Some(&self.instruction)));
         }
 
         // add exchange-history

@@ -58,8 +58,8 @@ impl KeyTrack {
         }
     }
 
-    pub fn retrieve_and_reset_numeric_input(&mut self) -> usize {
-        self.numeric_input.retrieve_and_reset()
+    pub fn take_numeric_input(&mut self) -> Option<usize> {
+        self.numeric_input.take()
     }
 }
 
@@ -94,19 +94,8 @@ impl NumericInput {
         self.buffer = None; // Always clear the buffer after saving or attempting to save.
     }
 
-    pub fn retrieve_and_reset(&mut self) -> usize {
-        let num = self.last_confirmed_input.take().unwrap_or(1);
-        self.last_confirmed_input = None; // Reset the stored value after retrieval.
-        num
-    }
-
-    pub fn clear(&mut self) {
-        self.buffer = None;
-    }
-
-    pub fn reset(&mut self) {
-        self.last_confirmed_input = None;
-        self.clear();
+    pub fn take(&mut self) -> Option<usize> {
+        self.last_confirmed_input.take()
     }
 }
 

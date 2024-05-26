@@ -546,7 +546,7 @@ impl PieceTable {
         // Ensure pending cache is committed before updating lines
         self.commit_insert_cache();
         self.text_lines.clear();
-        let mut current_line_styled = TextLine::new();
+        let mut current_line_styled: Option<TextLine> = None;
         let mut current_text = String::new();
         let mut last_style: Option<Style> = None;
 
@@ -561,29 +561,34 @@ impl PieceTable {
             pieces_data.push((text, piece.style.clone()));
         }
 
+        // if pieces_data is non-empty, current_line_styled will be some
+        if !pieces_data.is_empty() {
+            current_line_styled = Some(TextLine::new());
+        }
+
         for (text, style) in pieces_data {
             for char in text.chars() {
                 if char == '\n' {
                     // Handle non-empty current text
                     if !current_text.is_empty() {
-                        current_line_styled.add_segment(
-                            current_text.clone(),
-                            last_style.clone(),
-                        );
+                        if let Some(ref mut line) = current_line_styled {
+                            line.add_segment(current_text.clone(), last_style.clone());
+                        }
                         current_text.clear();
                     }
                     // Always add the current line to text_lines
-                    self.text_lines.push(current_line_styled.clone());
-                    current_line_styled = TextLine::new(); // Start a new styled line
+                    if let Some(line) = current_line_styled.take() {
+                        self.text_lines.push(line);
+                    }
+                    current_line_styled = Some(TextLine::new()); // new line 
                     continue;
                 }
 
                 if last_style != style {
                     if !current_text.is_empty() {
-                        current_line_styled.add_segment(
-                            current_text.clone(),
-                            last_style.clone(),
-                        );
+                        if let Some(ref mut line) = current_line_styled {
+                            line.add_segment(current_text.clone(), last_style.clone());
+                        }
                         current_text.clear();
                     }
                     last_style = style.clone();
@@ -593,15 +598,17 @@ impl PieceTable {
 
             // After processing each piece, if there's remaining text, add it as a segment
             if !current_text.is_empty() {
-                current_line_styled
-                    .add_segment(current_text.clone(), last_style.clone());
+                if let Some(ref mut line) = current_line_styled {
+                    line.add_segment(current_text.clone(), last_style.clone());
+                }
                 current_text.clear();
             }
         }
 
-        // Ensure the final line is added if it contains segments or if it's empty due to a trailing newline
-        if !current_line_styled.is_empty() || current_text.is_empty() {
-            self.text_lines.push(current_line_styled);
+        // Ensure the final line is added if it contains something
+        // note this can also be an empty line
+        if let Some(line) = current_line_styled {
+            self.text_lines.push(line);
         }
     }
 }

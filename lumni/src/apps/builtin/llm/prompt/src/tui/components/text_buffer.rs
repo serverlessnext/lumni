@@ -214,6 +214,7 @@ impl TextBuffer<'_> {
         self.selected_text.clear();
 
         let mut text_lines = self.text.text_lines().to_vec();
+
         if text_lines.is_empty() && !self.placeholder.is_empty() {
             // placeholder text
             let style = Style::default().fg(Color::DarkGray);

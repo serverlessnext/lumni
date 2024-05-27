@@ -228,14 +228,6 @@ impl ChatSession {
 
         let mut prompt = String::new();
 
-        // https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py#L202
-
-        //        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-        //
-        //        You are a helpful assistant<|eot_id|><|start_header_id|>user<|end_header_id|>
-        //
-        //        {prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
         // start prompt
         let model = Models::from_str(&self.model);
         if self.instruction.is_empty() {
@@ -244,21 +236,17 @@ impl ChatSession {
             prompt.push_str(&model.fmt_prompt_start(Some(&self.instruction)));
         }
 
+        let role_name_user = model.role_name_user();
+        let role_name_assistant = model.role_name_assistant();
+
         // add exchange-history
         for (user_msg, model_answer) in &self.exchanges {
-            prompt.push_str(&format!(
-                "<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\\
-                 n<|start_header_id|>assistant<|end_header_id|>\n{}\\
-                 n<|eot_id|>\n",
-                user_msg, model_answer
-            ));
+            prompt.push_str(&model.fmt_prompt_message(&role_name_user, user_msg));
+            prompt.push_str(&model.fmt_prompt_message(&role_name_assistant, model_answer));
         }
 
         // Add the current user question without an assistant's answer
-        prompt.push_str(&format!(
-            "<|start_header_id|>user<|end_header_id|>\n{}\n<|eot_id|>\n",
-            user_question
-        ));
+        prompt.push_str(&model.fmt_prompt_message(&role_name_user, &user_question));
         // Add the current user question without an assistant's answer
 
         // First, check if the last exchange exists and if its second element is empty

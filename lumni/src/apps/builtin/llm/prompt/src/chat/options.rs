@@ -2,71 +2,96 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatOptions {
-    temperature: f64,
-    top_k: u32,
-    top_p: f64,
-    n_keep: usize,
-    n_predict: u32,
-    cache_prompt: bool,
-    stop: Vec<String>,
-    stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_k: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    n_keep: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    n_predict: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_prompt: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
 }
 
 impl Default for ChatOptions {
     fn default() -> Self {
         ChatOptions {
-            temperature: 0.2,
-            top_k: 40,
-            top_p: 0.9,
-            n_keep: 0,
-            n_predict: 512,
-            cache_prompt: true,
-            // based on llama3
-            stop: vec!["<|end_of_text|>".to_string(), "<|eot_id|>".to_string()],
-            stream: true,
+            temperature: None,
+            top_k: None,
+            top_p: None,
+            n_keep: None,
+            n_predict: None,
+            cache_prompt: None,
+            stop: None,
+            stream: None,
         }
     }
 }
 
 impl ChatOptions {
-    pub fn new_from_args(options: Option<&String>) -> ChatOptions {
-        match options {
-            Some(options_str) => {
-                serde_json::from_str(options_str).unwrap_or_default()
-            }
-            None => ChatOptions::default(),
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn update_from_json(&mut self, json: &str) {
+        if let Ok(user_options) = serde_json::from_str::<ChatOptions>(json) {
+            self.temperature = user_options.temperature.or(self.temperature);
+            self.top_k = user_options.top_k.or(self.top_k);
+            self.top_p = user_options.top_p.or(self.top_p);
+            self.n_keep = user_options.n_keep.or(self.n_keep);
+            self.n_predict = user_options.n_predict.or(self.n_predict);
+            self.cache_prompt = user_options.cache_prompt.or(self.cache_prompt);
+            self.stop = user_options.stop.or_else(|| self.stop.clone());
+            self.stream = user_options.stream.or(self.stream);
+        } else {
+            log::warn!("Failed to parse chat options from JSON: {}", json);
         }
     }
 
-    pub fn temperature(&self) -> f64 {
-        self.temperature
+    pub fn set_temperature(mut self, temperature: f64) -> Self {
+        self.temperature = Some(temperature);
+        self
     }
 
-    pub fn top_k(&self) -> u32 {
-        self.top_k
+    pub fn set_top_k(mut self, top_k: u32) -> Self {
+        self.top_k = Some(top_k);
+        self
     }
 
-    pub fn top_p(&self) -> f64 {
-        self.top_p
+    pub fn set_top_p(mut self, top_p: f64) -> Self {
+        self.top_p = Some(top_p);
+        self
     }
 
-    pub fn n_keep(&self) -> usize {
-        self.n_keep
+    pub fn set_n_keep(&mut self, n_keep: usize) -> &mut Self {
+        self.n_keep = Some(n_keep);
+        self
     }
 
-    pub fn n_predict(&self) -> u32 {
-        self.n_predict
+    pub fn set_n_predict(mut self, n_predict: u32) -> Self {
+        self.n_predict = Some(n_predict);
+        self
     }
 
-    pub fn cache_prompt(&self) -> bool {
-        self.cache_prompt
+    pub fn set_cache_prompt(mut self, cache_prompt: bool) -> Self {
+        self.cache_prompt = Some(cache_prompt);
+        self
     }
 
-    pub fn stop(&self) -> &Vec<String> {
-        &self.stop
+    pub fn set_stop(mut self, stop: Vec<String>) -> Self {
+        self.stop = Some(stop);
+        self
     }
 
-    pub fn stream(&self) -> bool {
-        self.stream
+    pub fn set_stream(mut self, stream: bool) -> Self {
+        self.stream = Some(stream);
+        self
     }
 }

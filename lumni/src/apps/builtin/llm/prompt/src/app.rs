@@ -31,6 +31,8 @@ use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
 };
+use super::models::{Models, PromptModel};
+
 pub use crate::external as lumni;
 
 async fn prompt_app<B: Backend>(
@@ -262,21 +264,23 @@ pub async fn run_cli(
         .get_one::<String>("system")
         .cloned()
         .unwrap_or_else(|| "".to_string());
-    let model = matches
+    let model_name = matches
         .get_one::<String>("model")
         .cloned()
         .unwrap_or_else(|| "llama3".to_string());
     // optional arguments
     let assistant = matches.get_one::<String>("assistant").cloned();
-    let options =
-        ChatOptions::new_from_args(matches.get_one::<String>("options"));
+    let options = matches.get_one::<String>("options");
 
-    let mut chat_session = ChatSession::new();
+    let mut model = Box::new(Models::from_str(&model_name));
+    if let Some(options_str) = options {
+        model.update_options_from_json(&options_str);
+    }
+
+    let mut chat_session = ChatSession::new(Some(model));
     chat_session
         .set_instruction(instruction)
         .set_assistant(assistant)
-        .set_model(model)
-        .set_options(options)
         .init()
         .await?;
 

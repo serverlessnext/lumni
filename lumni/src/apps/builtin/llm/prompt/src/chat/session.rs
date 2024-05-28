@@ -25,27 +25,25 @@ pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
-    n_keep: usize,
     instruction: String,         // system
     prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
-    model: String,
+    model: Box<dyn PromptModel>,
     assistant: Option<String>,
-    options: ChatOptions,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
-    pub fn new() -> ChatSession {
+    pub fn new(model: Option<Box<dyn PromptModel>>) -> ChatSession {
+        let model = model.unwrap_or_else(|| Box::new(Models::default()));
+
         ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
             max_history: 20, // TODO: base on max tokens
-            n_keep: 0,
             instruction: "".to_string(),
             prompt_template: None,
-            model: "llama3".to_string(),
+            model,
             assistant: None,
-            options: ChatOptions::default(),
             cancel_tx: None,
         }
     }
@@ -55,18 +53,8 @@ impl ChatSession {
         self
     }
 
-    pub fn set_model(&mut self, model: String) -> &mut Self {
-        self.model = model;
-        self
-    }
-
     pub fn set_assistant(&mut self, assistant: Option<String>) -> &mut Self {
         self.assistant = assistant;
-        self
-    }
-
-    pub fn set_options(&mut self, options: ChatOptions) -> &mut Self {
-        self.options = options;
         self
     }
 
@@ -100,11 +88,10 @@ impl ChatSession {
             }
         }
 
-        let model = Models::from_str(&self.model);
         let prompt_start = if self.instruction.is_empty() {
-            model.fmt_prompt_system(None)
+            self.model.fmt_prompt_system(None)
         } else {
-            model.fmt_prompt_system(Some(&self.instruction))
+            self.model.fmt_prompt_system(Some(&self.instruction))
         };
         let body_content = serde_json::json!({ "content": prompt_start }).to_string();
         self.tokenize_and_set_n_keep(body_content).await?;
@@ -144,8 +131,8 @@ impl ChatSession {
                 match http_response.json::<TokenResponse>() {
                     Ok(response) => {
                         // Successfully parsed the token response, updating n_keep
-                        self.n_keep = response.tokens.len();
-                        log::debug!("n_keep set to {}", self.n_keep);
+                        self.model
+                            .set_n_keep(response.tokens.len());
                         Ok(())
                     }
                     Err(e) => {
@@ -209,24 +196,23 @@ impl ChatSession {
         let mut prompt = String::new();
 
         // start prompt
-        let model = Models::from_str(&self.model);
         if self.instruction.is_empty() {
-            prompt.push_str(&model.fmt_prompt_system(None));
+            prompt.push_str(&self.model.fmt_prompt_system(None));
         } else {
-            prompt.push_str(&model.fmt_prompt_system(Some(&self.instruction)));
+            prompt.push_str(&self.model.fmt_prompt_system(Some(&self.instruction)));
         }
 
-        let role_name_user = model.role_name_user();
-        let role_name_assistant = model.role_name_assistant();
+        let role_name_user = self.model.role_name_user();
+        let role_name_assistant = self.model.role_name_assistant();
 
         // add exchange-history
         for (user_msg, model_answer) in &self.exchanges {
-            prompt.push_str(&model.fmt_prompt_message(&role_name_user, user_msg));
-            prompt.push_str(&model.fmt_prompt_message(&role_name_assistant, model_answer));
+            prompt.push_str(&self.model.fmt_prompt_message(&role_name_user, user_msg));
+            prompt.push_str(&self.model.fmt_prompt_message(&role_name_assistant, model_answer));
         }
 
         // Add the current user question without an assistant's answer
-        prompt.push_str(&model.fmt_prompt_message(&role_name_user, &user_question));
+        prompt.push_str(&self.model.fmt_prompt_message(&role_name_user, &user_question));
         // Add the current user question without an assistant's answer
 
         // First, check if the last exchange exists and if its second element is empty
@@ -255,9 +241,8 @@ impl ChatSession {
 
         let payload = Payload {
             prompt: &prompt,
-            options: &self.options,
+            options: self.model.chat_options(),
         };
-
         serde_json::to_string(&payload)
     }
 }

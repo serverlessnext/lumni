@@ -206,7 +206,7 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         .into_iter()
         .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
         .collect();
-    let models = vec!["llama3"]; // TODO: expand with "auto", "chatgpt", etc
+    let models = vec!["generic", "llama3"]; // TODO: expand with "auto", "chatgpt", etc
 
     Command::new(name)
         .version(version)

@@ -4,7 +4,7 @@ use serde::Deserialize;
 pub struct Prompt {
     name: String,
     system_prompt: Option<String>,
-    user_prompt: Option<String>,
+    prompt_template: Option<String>,
     exchanges: Option<Vec<Exchange>>,
 }
 
@@ -17,8 +17,8 @@ impl Prompt {
         self.system_prompt.as_deref()
     }
 
-    pub fn user_prompt(&self) -> Option<&str> {
-        self.user_prompt.as_deref()
+    pub fn prompt_template(&self) -> Option<&str> {
+        self.prompt_template.as_deref()
     }
 
     pub fn exchanges(&self) -> Option<&Vec<Exchange>> {

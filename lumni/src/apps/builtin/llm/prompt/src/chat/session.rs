@@ -27,7 +27,7 @@ pub struct ChatSession {
     max_history: usize,
     n_keep: usize,
     instruction: String,         // system
-    user_prompt: Option<String>, // put question in {{ USER_QUESTION }}
+    prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
     model: String,
     assistant: Option<String>,
     options: ChatOptions,
@@ -42,7 +42,7 @@ impl ChatSession {
             max_history: 20, // TODO: base on max tokens
             n_keep: 0,
             instruction: "".to_string(),
-            user_prompt: None,
+            prompt_template: None,
             model: "llama3".to_string(),
             assistant: None,
             options: ChatOptions::default(),
@@ -52,14 +52,6 @@ impl ChatSession {
 
     pub fn set_instruction(&mut self, instruction: String) -> &mut Self {
         self.instruction = instruction;
-        self
-    }
-
-    pub fn set_user_prompt(
-        &mut self,
-        user_prompt: Option<String>,
-    ) -> &mut Self {
-        self.user_prompt = user_prompt;
         self
     }
 
@@ -100,8 +92,8 @@ impl ChatSession {
                         .collect();
                 }
 
-                if let Some(user_prompt) = prompt.user_prompt() {
-                    self.user_prompt = Some(user_prompt.to_string());
+                if let Some(prompt_template) = prompt.prompt_template() {
+                    self.prompt_template = Some(prompt_template.to_string());
                 }
             } else {
                 return Err("Selected persona not found in the dataset".into());
@@ -110,9 +102,9 @@ impl ChatSession {
 
         let model = Models::from_str(&self.model);
         let prompt_start = if self.instruction.is_empty() {
-            model.fmt_prompt_start(None)
+            model.fmt_prompt_system(None)
         } else {
-            model.fmt_prompt_start(Some(&self.instruction))
+            model.fmt_prompt_system(Some(&self.instruction))
         };
         let body_content = serde_json::json!({ "content": prompt_start }).to_string();
         self.tokenize_and_set_n_keep(body_content).await?;
@@ -199,25 +191,13 @@ impl ChatSession {
         }
     }
 
-    // fn create_final_prompt(&self, question: String) -> String {
-    //let mut prompt = format!("{}\n", self.instruction);
-    //for (question, answer) in &self.exchanges {
-    //prompt.push_str(&format!(
-    //"\n### Human: {}\n### Assistant: {}",
-    //question, answer
-    //));
-    //}
-    //prompt.push_str(&format!("\n### Human: {}", question));
-    //prompt
-    //}
-
     pub fn create_final_prompt(&mut self, user_question: String) -> String {
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
         } else {
-            if self.user_prompt.is_some() {
-                self.user_prompt
+            if self.prompt_template.is_some() {
+                self.prompt_template
                     .as_ref()
                     .unwrap()
                     .replace("{{ USER_QUESTION }}", user_question)
@@ -231,9 +211,9 @@ impl ChatSession {
         // start prompt
         let model = Models::from_str(&self.model);
         if self.instruction.is_empty() {
-            prompt.push_str(&model.fmt_prompt_start(None));
+            prompt.push_str(&model.fmt_prompt_system(None));
         } else {
-            prompt.push_str(&model.fmt_prompt_start(Some(&self.instruction)));
+            prompt.push_str(&model.fmt_prompt_system(Some(&self.instruction)));
         }
 
         let role_name_user = model.role_name_user();

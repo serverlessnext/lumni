@@ -3,19 +3,7 @@ use super::PromptModel;
 pub struct Llama3;
 
 impl PromptModel for Llama3 {
-    fn role_name_user(&self) -> String {
-        "user".to_string()
-    }
-
-    fn role_name_system(&self) -> String {
-        "system".to_string()
-    }
-
-    fn role_name_assistant(&self) -> String {
-        "assistant".to_string()
-    }
-
-    fn fmt_prompt_start(&self, instruction: Option<&str>) -> String {
+    fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
         if let Some(instruction) = instruction {
             return format!(
                 "<|begin_of_text|>{}",

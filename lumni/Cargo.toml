@@ -46,6 +46,7 @@ async-trait = "0.1"
 anyhow = "1.0"
 log = { version = "0.4" }
 libc = "0.2"
+tiktoken-rs = "0.5.9"
 
 # CLI
 env_logger = { version = "0.9", optional = true }

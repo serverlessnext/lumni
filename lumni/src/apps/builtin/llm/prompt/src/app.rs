@@ -27,12 +27,11 @@ use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatOptions,
     ChatSession,
 };
+use super::models::{Models, PromptModel};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
 };
-use super::models::{Models, PromptModel};
-
 pub use crate::external as lumni;
 
 async fn prompt_app<B: Backend>(
@@ -272,12 +271,12 @@ pub async fn run_cli(
     let assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
 
-    let mut model = Box::new(Models::from_str(&model_name));
+    let mut model = Box::new(Models::from_str(&model_name)?);
     if let Some(options_str) = options {
         model.update_options_from_json(&options_str);
     }
 
-    let mut chat_session = ChatSession::new(Some(model));
+    let mut chat_session = ChatSession::new(Some(model))?;
     chat_session
         .set_instruction(instruction)
         .set_assistant(assistant)

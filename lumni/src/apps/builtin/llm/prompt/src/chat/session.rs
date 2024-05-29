@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6,26 +5,20 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use lumni::HttpClient;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
-use super::{Models, PromptModel};
 use super::options::ChatOptions;
 use super::prompt::Prompt;
 use super::send::send_payload;
-use super::{ChatCompletionResponse, PERSONAS};
+use super::{ChatCompletionResponse, Models, PromptModel, PERSONAS};
 use crate::external as lumni;
-
-#[derive(Deserialize)]
-struct TokenResponse {
-    tokens: Vec<usize>,
-}
 
 pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>, // (question, answer)
     max_history: usize,
-    instruction: String,         // system
+    instruction: String,             // system
     prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
     model: Box<dyn PromptModel>,
     assistant: Option<String>,
@@ -33,10 +26,15 @@ pub struct ChatSession {
 }
 
 impl ChatSession {
-    pub fn new(model: Option<Box<dyn PromptModel>>) -> ChatSession {
-        let model = model.unwrap_or_else(|| Box::new(Models::default()));
+    pub fn new(
+        model: Option<Box<dyn PromptModel>>,
+    ) -> Result<Self, Box<dyn Error>> {
+        let model = match model {
+            Some(m) => m,
+            None => Box::new(Models::default()?) as Box<dyn PromptModel>,
+        };
 
-        ChatSession {
+        Ok(ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
             max_history: 20, // TODO: base on max tokens
@@ -45,7 +43,7 @@ impl ChatSession {
             model,
             assistant: None,
             cancel_tx: None,
-        }
+        })
     }
 
     pub fn set_instruction(&mut self, instruction: String) -> &mut Self {
@@ -93,7 +91,9 @@ impl ChatSession {
         } else {
             self.model.fmt_prompt_system(Some(&self.instruction))
         };
-        let body_content = serde_json::json!({ "content": prompt_start }).to_string();
+
+        let body_content =
+            serde_json::json!({ "content": prompt_start }).to_string();
         self.tokenize_and_set_n_keep(body_content).await?;
         Ok(())
     }
@@ -116,36 +116,18 @@ impl ChatSession {
         &mut self,
         body_content: String,
     ) -> Result<(), Box<dyn Error>> {
-        let url = "http://localhost:8080/tokenize";
-        let body = Bytes::from(body_content);
-        let mut headers = HashMap::new();
-        headers
-            .insert("Content-Type".to_string(), "application/json".to_string());
-
-        match self
-            .http_client
-            .post(url, Some(&headers), None, Some(&body), None, None)
-            .await
-        {
-            Ok(http_response) => {
-                match http_response.json::<TokenResponse>() {
-                    Ok(response) => {
-                        // Successfully parsed the token response, updating n_keep
-                        self.model
-                            .set_n_keep(response.tokens.len());
-                        Ok(())
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to parse JSON response: {}", e);
-                        Err(format!("Failed to parse JSON response: {}", e)
-                            .into())
-                    }
-                }
+        match self.model.tokenizer(body_content, &self.http_client).await {
+            Ok(response) => {
+                // Successfully parsed the token response, updating n_keep
+                self.model.set_n_keep(response.get_tokens().len());
+                Ok(())
             }
-            Err(e) => Err(format!("HTTP request failed: {}", e).into()),
+            Err(e) => {
+                eprintln!("Failed to parse JSON response: {}", e);
+                Err(format!("Failed to parse JSON response: {}", e).into())
+            }
         }
     }
-
     pub async fn message(&mut self, tx: mpsc::Sender<Bytes>, question: String) {
         let prompt = self.create_final_prompt(question);
 
@@ -155,9 +137,10 @@ impl ChatSession {
         self.cancel_tx = Some(cancel_tx);
 
         log::debug!("Payload created:\n{:?}", data_payload);
+
         if let Ok(payload) = data_payload {
             send_payload(
-                "http://localhost:8080/completion".to_string(),
+                self.model.get_completion_endpoint().to_string(),
                 self.http_client.clone(),
                 tx,
                 payload,
@@ -199,7 +182,9 @@ impl ChatSession {
         if self.instruction.is_empty() {
             prompt.push_str(&self.model.fmt_prompt_system(None));
         } else {
-            prompt.push_str(&self.model.fmt_prompt_system(Some(&self.instruction)));
+            prompt.push_str(
+                &self.model.fmt_prompt_system(Some(&self.instruction)),
+            );
         }
 
         let role_name_user = self.model.role_name_user();
@@ -207,12 +192,22 @@ impl ChatSession {
 
         // add exchange-history
         for (user_msg, model_answer) in &self.exchanges {
-            prompt.push_str(&self.model.fmt_prompt_message(&role_name_user, user_msg));
-            prompt.push_str(&self.model.fmt_prompt_message(&role_name_assistant, model_answer));
+            prompt.push_str(
+                &self.model.fmt_prompt_message(&role_name_user, user_msg),
+            );
+            prompt.push_str(
+                &self
+                    .model
+                    .fmt_prompt_message(&role_name_assistant, model_answer),
+            );
         }
 
         // Add the current user question without an assistant's answer
-        prompt.push_str(&self.model.fmt_prompt_message(&role_name_user, &user_question));
+        prompt.push_str(
+            &self
+                .model
+                .fmt_prompt_message(&role_name_user, &user_question),
+        );
         // Add the current user question without an assistant's answer
 
         // First, check if the last exchange exists and if its second element is empty
@@ -241,7 +236,7 @@ impl ChatSession {
 
         let payload = Payload {
             prompt: &prompt,
-            options: self.model.chat_options(),
+            options: self.model.get_chat_options(),
         };
         serde_json::to_string(&payload)
     }

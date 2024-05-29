@@ -6,12 +6,12 @@ mod responses;
 mod send;
 mod session;
 
-pub use super::models::{PromptModel, Models};
-
 pub use options::ChatOptions;
 use prompt::Prompt;
 pub use responses::ChatCompletionResponse;
 pub use session::{process_prompt, process_prompt_response, ChatSession};
+
+pub use super::models::{Models, PromptModel, TokenResponse};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

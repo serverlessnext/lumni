@@ -3,7 +3,7 @@ pub mod src {
     mod app;
     mod chat;
     mod handler;
-    mod models;
+    mod model;
     mod tui;
     pub use handler::Handler;
 }

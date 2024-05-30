@@ -27,7 +27,7 @@ use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatOptions,
     ChatSession,
 };
-use super::models::{Models, PromptModel};
+use super::model::{Models, PromptModel};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,

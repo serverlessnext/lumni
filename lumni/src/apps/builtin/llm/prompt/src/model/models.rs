@@ -5,57 +5,17 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use lumni::HttpClient;
 use serde::Deserialize;
+use serde_json::json;
 use url::Url;
 
+use super::generic::Generic;
+use super::llama3::Llama3;
+use super::ChatOptions;
 use crate::external as lumni;
-
-mod generic;
-mod llama3;
-
-pub use generic::Generic;
-pub use llama3::Llama3;
-
-pub use super::chat::ChatOptions;
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
     "http://localhost:8080/completion";
-
-#[derive(Deserialize)]
-pub struct TokenResponse {
-    tokens: Vec<usize>,
-}
-
-impl TokenResponse {
-    pub fn get_tokens(&self) -> &Vec<usize> {
-        &self.tokens
-    }
-}
-
-pub struct Endpoints {
-    completion: Url,
-    tokenizer: Url,
-}
-
-impl Endpoints {
-    pub fn default() -> Result<Self, Box<dyn Error>> {
-        let completion = Url::parse(DEFAULT_COMPLETION_ENDPOINT)?;
-        let tokenizer = Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?;
-
-        Ok(Endpoints {
-            completion,
-            tokenizer,
-        })
-    }
-
-    pub fn get_completion(&self) -> &Url {
-        &self.completion
-    }
-
-    pub fn get_tokenizer(&self) -> &Url {
-        &self.tokenizer
-    }
-}
 
 pub enum Models {
     Generic(Generic),
@@ -175,11 +135,14 @@ pub trait PromptModel: Send + Sync {
 
     async fn tokenizer(
         &self,
-        content: String,
+        content: &str,
         http_client: &HttpClient,
     ) -> Result<TokenResponse, Box<dyn Error>> {
+        let body_content =
+            serde_json::to_string(&json!({ "content": content }))?;
+        let body = Bytes::copy_from_slice(body_content.as_bytes());
+
         let url = self.get_tokenizer_endpoint().to_string();
-        let body = Bytes::from(content);
         let mut headers = HashMap::new();
         headers
             .insert("Content-Type".to_string(), "application/json".to_string());
@@ -191,5 +154,41 @@ pub trait PromptModel: Send + Sync {
 
         let response = http_response.json::<TokenResponse>()?;
         Ok(response)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TokenResponse {
+    tokens: Vec<usize>,
+}
+
+impl TokenResponse {
+    pub fn get_tokens(&self) -> &Vec<usize> {
+        &self.tokens
+    }
+}
+
+pub struct Endpoints {
+    completion: Url,
+    tokenizer: Url,
+}
+
+impl Endpoints {
+    pub fn default() -> Result<Self, Box<dyn Error>> {
+        let completion = Url::parse(DEFAULT_COMPLETION_ENDPOINT)?;
+        let tokenizer = Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?;
+
+        Ok(Endpoints {
+            completion,
+            tokenizer,
+        })
+    }
+
+    pub fn get_completion(&self) -> &Url {
+        &self.completion
+    }
+
+    pub fn get_tokenizer(&self) -> &Url {
+        &self.tokenizer
     }
 }

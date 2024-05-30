@@ -12,14 +12,14 @@ use super::options::ChatOptions;
 use super::prompt::Prompt;
 use super::send::send_payload;
 use super::{ChatCompletionResponse, Models, PromptModel, PERSONAS};
+use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
 
 pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<(String, String)>, // (question, answer)
-    max_history: usize,
-    instruction: String,             // system
-    prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
+    instruction: String,              // system
+    prompt_template: Option<String>,  // put question in {{ USER_QUESTION }}
     model: Box<dyn PromptModel>,
     assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
@@ -37,7 +37,6 @@ impl ChatSession {
         Ok(ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
-            max_history: 20, // TODO: base on max tokens
             instruction: "".to_string(),
             prompt_template: None,
             model,
@@ -92,9 +91,7 @@ impl ChatSession {
             self.model.fmt_prompt_system(Some(&self.instruction))
         };
 
-        let body_content =
-            serde_json::json!({ "content": prompt_start }).to_string();
-        self.tokenize_and_set_n_keep(body_content).await?;
+        self.tokenize_and_set_n_keep(&prompt_start).await?;
         Ok(())
     }
 
@@ -112,24 +109,38 @@ impl ChatSession {
         }
     }
 
+    pub async fn tokenize(
+        &self,
+        content: &str,
+    ) -> Result<TokenResponse, Box<dyn Error>> {
+        self.model
+            .tokenizer(content, &self.http_client)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to parse JSON response: {}", e);
+                format!("Failed to parse JSON documented: {}", e).into()
+            })
+    }
+
     pub async fn tokenize_and_set_n_keep(
         &mut self,
-        body_content: String,
+        prompt_start: &str,
     ) -> Result<(), Box<dyn Error>> {
-        match self.model.tokenizer(body_content, &self.http_client).await {
-            Ok(response) => {
-                // Successfully parsed the token response, updating n_keep
-                self.model.set_n_keep(response.get_tokens().len());
-                Ok(())
-            }
-            Err(e) => {
-                eprintln!("Failed to parse JSON response: {}", e);
-                Err(format!("Failed to parse JSON response: {}", e).into())
-            }
-        }
+        let token_length =
+            self.tokenize(prompt_start).await?.get_tokens().len();
+        self.model.set_n_keep(token_length);
+        Ok(())
     }
-    pub async fn message(&mut self, tx: mpsc::Sender<Bytes>, question: String) {
+
+    pub async fn message(
+        &mut self,
+        tx: mpsc::Sender<Bytes>,
+        question: String,
+    ) -> Result<(), Box<dyn Error>> {
         let prompt = self.create_final_prompt(question);
+        let token_length = self.tokenize(&prompt).await?.get_tokens().len();
+        eprintln!("Token length: {}", token_length);
+        // TODO: token length should not exceed the maximum token
 
         let data_payload = self.create_payload(prompt);
 
@@ -148,18 +159,15 @@ impl ChatSession {
             )
             .await;
         }
+        Ok(())
     }
 
-    pub fn add_exchange(&mut self, question: String, answer: String) {
-        self.exchanges.push((question, answer));
-    }
-
-    fn trim_history(&mut self) {
-        if (self.exchanges.len() / 2) > self.max_history {
-            let excess = self.exchanges.len() - self.max_history * 2;
-            self.exchanges.drain(0..excess);
-        }
-    }
+    //    fn trim_history(&mut self) {
+    //        if (self.exchanges.len() / 2) > self.max_history {
+    //            let excess = self.exchanges.len() - self.max_history * 2;
+    //            self.exchanges.drain(0..excess);
+    //        }
+    //    }
 
     pub fn create_final_prompt(&mut self, user_question: String) -> String {
         let user_question = user_question.trim();

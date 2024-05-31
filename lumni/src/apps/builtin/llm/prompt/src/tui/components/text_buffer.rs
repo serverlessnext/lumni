@@ -557,7 +557,6 @@ impl TextBuffer<'_> {
     pub fn display_column_row(&self) -> (usize, usize) {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
-        // eprintln!("WrappedText={:?}|", self.display.wrap_lines().iter().map(|line| line.spans.iter().map(|span| span.content.clone()).collect::<String>()).collect::<String>());
         let mut wrap_position = 0;
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
             let line_length = line
@@ -568,12 +567,10 @@ impl TextBuffer<'_> {
             if wrap_position + line_length >= cursor_position {
                 // Cursor is on this line
                 let column = cursor_position - wrap_position;
-                //eprintln!("wrap_position: {}, line_length: {}, cursor_position: {}, column: {}, row: {}", wrap_position, line_length, cursor_position, column, row);
                 return (column, row);
             }
             wrap_position += line_length + 1; // account for newline character
         }
-        //eprintln!("Cant find cursor position: {}", cursor_position);
         (0, 0) // default to (0, 0) if cursor is not found
     }
 
@@ -595,5 +592,10 @@ impl TextBuffer<'_> {
         } else {
             Vec::new()
         }
+    }
+
+    pub fn trim(&mut self) {
+        self.text.trim();
+        self.update_display_text();
     }
 }

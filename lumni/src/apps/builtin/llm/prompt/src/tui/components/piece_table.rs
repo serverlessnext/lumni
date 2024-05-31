@@ -616,4 +616,35 @@ impl PieceTable {
             self.text_lines.push(line);
         }
     }
+
+    pub fn trim(&mut self) {
+        while let Some(last_index) = self.pieces.len().checked_sub(1) {
+            let last_piece = &self.pieces[last_index];
+            let last_piece_text = match last_piece.source {
+                SourceBuffer::Add => {
+                    &self.add
+                        [last_piece.start..last_piece.start + last_piece.length]
+                }
+            };
+
+            if last_piece_text.chars().all(|c| c.is_whitespace()) {
+                // Remove the piece if it contains only spaces or newlines
+                self.pieces.pop();
+            } else {
+                // Trim trailing spaces and newlines from the last piece
+                let trimmed_text = last_piece_text.trim_end();
+                let trimmed_length = trimmed_text.len();
+
+                if trimmed_length < last_piece.length {
+                    // Copy necessary data before mutable borrow
+                    let last_start = last_piece.start;
+                    // If trimming is required, adjust the length of the last piece
+                    self.pieces[last_index].length = trimmed_length;
+                    // Adjust the add buffer if necessary
+                    self.add.truncate(last_start + trimmed_length);
+                }
+                break;
+            }
+        }
+    }
 }

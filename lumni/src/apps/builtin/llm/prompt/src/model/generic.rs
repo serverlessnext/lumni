@@ -50,12 +50,4 @@ impl PromptModel for Generic {
             return "".to_string();
         }
     }
-
-    fn fmt_prompt_message(&self, role: &str, message: &str) -> String {
-        match role {
-            "user" => format!("### Human: {}", message),
-            "assistant" => format!("### Assistant: {}", message),
-            _ => format!("### {}: {}", role, message), // Default case for any other role
-        }
-    }
 }

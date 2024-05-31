@@ -71,13 +71,6 @@ impl PromptModel for Models {
         }
     }
 
-    fn role_name_system(&self) -> String {
-        match self {
-            Models::Generic(generic) => generic.role_name_system(),
-            Models::Llama3(llama3) => llama3.role_name_system(),
-        }
-    }
-
     fn role_name_assistant(&self) -> String {
         match self {
             Models::Generic(generic) => generic.role_name_assistant(),
@@ -109,6 +102,7 @@ pub trait PromptModel: Send + Sync {
 
     fn update_options_from_json(&mut self, json: &str);
     fn set_n_keep(&mut self, n_keep: usize);
+    fn fmt_prompt_system(&self, instruction: Option<&str>) -> String;
 
     fn get_completion_endpoint(&self) -> &Url {
         self.get_endpoints().get_completion()
@@ -118,19 +112,25 @@ pub trait PromptModel: Send + Sync {
         self.get_endpoints().get_tokenizer()
     }
 
-    fn fmt_prompt_system(&self, instruction: Option<&str>) -> String;
-    fn fmt_prompt_message(&self, role: &str, message: &str) -> String;
-
     fn role_name_user(&self) -> String {
-        "user".to_string()
-    }
-
-    fn role_name_system(&self) -> String {
-        "system".to_string()
+        "User".to_string()
     }
 
     fn role_name_assistant(&self) -> String {
-        "assistant".to_string()
+        "Assistant".to_string()
+    }
+
+    fn fmt_prompt_message(&self, role: &str, message: &str) -> String {
+        let prompt_message = match role {
+            "User" => format!("### Human: {}", message),
+            "Assistant" => format!("### Assistant: {}", message),
+            _ => format!("### {}: {}", role, message), // Default case for any other role
+        };
+        if message.is_empty() {
+            prompt_message // initiate new message, not yet completed
+        } else {
+            format!("{}\n", prompt_message) // message already completed
+        }
     }
 
     async fn tokenizer(

@@ -17,15 +17,14 @@ use crossterm::terminal::{
 };
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::chat::{
-    list_assistants, process_prompt, process_prompt_response, ChatOptions,
-    ChatSession,
+    list_assistants, process_prompt, process_prompt_response, ChatSession,
 };
 use super::model::{Models, PromptModel};
 use super::tui::{
@@ -118,7 +117,14 @@ async fn prompt_app<B: Backend>(
                                 WindowEvent::Prompt(prompt_action) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            chat_session.message(tx.clone(), prompt).await;
+                                            // TODO: get the exact prompt from the
+                                            // chat session (including role name, newline, etc.)
+                                            response_window.text_append_with_insert(
+                                                &format!("{}\n", prompt),
+                                                Some(Style::new().fg(Color::Yellow)),
+                                            );
+
+                                            chat_session.message(tx.clone(), prompt).await?;
                                         }
                                         PromptAction::Clear => {
 
@@ -168,7 +174,7 @@ async fn prompt_app<B: Backend>(
                 }
             },
             Some(response) = rx.recv() => {
-                let mut final_response;
+                let mut final_response = false;
                 log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
@@ -176,8 +182,8 @@ async fn prompt_app<B: Backend>(
                 let response_style = Some(Style::default());
                 response_window.text_append_with_insert(&response_content, response_style);
                 chat_session.update_last_exchange(&response_content);
-                final_response = is_final;
 
+                final_response = is_final;
                 // Drain all available messages from the channel
                 if !final_response {
                     while let Ok(response) = rx.try_recv() {
@@ -190,6 +196,13 @@ async fn prompt_app<B: Backend>(
                             break;
                         }
                     }
+                }
+                if final_response {
+                    // models vary in adding trailing newlines/ empty spaces to a response,
+                    // which can lead to inconsistent behavior, therefore we must trim
+                    // any trailing whitespaces or newlines.
+                    response_window.text_trim();    // cleanup response window
+                    chat_session.trim_last_exchange();  // cleanup last exchange
                 }
                 redraw_ui = true;
             },

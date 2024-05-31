@@ -10,7 +10,9 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::prompt::Prompt;
 use super::send::send_payload;
-use super::{ChatCompletionResponse, Models, PromptModel, ChatOptions, PERSONAS};
+use super::{
+    ChatCompletionResponse, ChatOptions, Models, PromptModel, PERSONAS,
+};
 use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
 
@@ -105,6 +107,13 @@ impl ChatSession {
     pub fn update_last_exchange(&mut self, answer: &str) {
         if let Some(last_exchange) = self.exchanges.last_mut() {
             last_exchange.1.push_str(answer);
+        }
+    }
+
+    pub fn trim_last_exchange(&mut self) {
+        // strip of trailing whitespaces or newlines from the last exchange
+        if let Some(last_exchange) = self.exchanges.last_mut() {
+            last_exchange.1 = last_exchange.1.trim().to_string();
         }
     }
 
@@ -209,12 +218,14 @@ impl ChatSession {
             );
         }
 
-        // Add the current user question without an assistant's answer
+        // Add the current user question with an empty assistant's answer
         prompt.push_str(
             &self
                 .model
                 .fmt_prompt_message(&role_name_user, &user_question),
         );
+        prompt
+            .push_str(&self.model.fmt_prompt_message(&role_name_assistant, ""));
         // Add the current user question without an assistant's answer
 
         // First, check if the last exchange exists and if its second element is empty

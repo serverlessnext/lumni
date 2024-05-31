@@ -1,7 +1,8 @@
+mod models;
+mod options;
 mod generic;
 mod llama3;
-mod models;
 
 pub use models::{Endpoints, Models, PromptModel, TokenResponse};
 
-pub use super::chat::ChatOptions;
+pub use options::ChatOptions;

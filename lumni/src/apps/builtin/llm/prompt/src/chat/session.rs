@@ -8,10 +8,9 @@ use lumni::HttpClient;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
-use super::options::ChatOptions;
 use super::prompt::Prompt;
 use super::send::send_payload;
-use super::{ChatCompletionResponse, Models, PromptModel, PERSONAS};
+use super::{ChatCompletionResponse, Models, PromptModel, ChatOptions, PERSONAS};
 use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
 

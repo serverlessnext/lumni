@@ -26,7 +26,7 @@ use tokio::time::{interval, Duration};
 use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatSession,
 };
-use super::model::{Models, PromptModel};
+use super::model::{PromptModel, PromptModelTrait};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
@@ -200,8 +200,10 @@ async fn prompt_app<B: Backend>(
                 if final_response {
                     // models vary in adding trailing newlines/ empty spaces to a response,
                     // which can lead to inconsistent behavior
-                    response_window.text_trim();    // trim trailing whitespaces or newlines
-                    chat_session.finalize_last_exchange();  // trim exchange + update token length
+                    // trim trailing whitespaces or newlines
+                    response_window.text_trim();
+                    // trim exchange + update token length
+                    chat_session.finalize_last_exchange().await?;
                 }
                 redraw_ui = true;
             },
@@ -283,7 +285,7 @@ pub async fn run_cli(
     let assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
 
-    let mut model = Box::new(Models::from_str(&model_name)?);
+    let mut model = Box::new(PromptModel::from_str(&model_name)?);
     if let Some(options_str) = options {
         model.update_options_from_json(&options_str);
     }

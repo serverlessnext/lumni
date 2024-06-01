@@ -9,7 +9,9 @@ use prompt::Prompt;
 pub use responses::ChatCompletionResponse;
 pub use session::{process_prompt, process_prompt_response, ChatSession};
 
-pub use super::model::{ChatCompletionOptions, Models, PromptModel};
+pub use super::model::{
+    ChatCompletionOptions, PromptModel, PromptModelTrait, PromptRole,
+};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

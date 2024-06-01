@@ -57,4 +57,12 @@ impl ChatExchange {
     pub fn push_to_answer(&mut self, text: &str) {
         self.answer.push_str(text);
     }
+
+    pub fn get_token_length(&self) -> Option<usize> {
+        self.token_length
+    }
+
+    pub fn set_token_length(&mut self, token_length: usize) {
+        self.token_length = Some(token_length);
+    }
 }

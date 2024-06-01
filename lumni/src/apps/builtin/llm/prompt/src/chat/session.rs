@@ -11,8 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 use super::prompt::{ChatExchange, Prompt};
 use super::send::send_payload;
 use super::{
-    ChatCompletionOptions, ChatCompletionResponse, Models, PromptModel,
-    PERSONAS,
+    ChatCompletionOptions, ChatCompletionResponse, PromptModel,
+    PromptModelTrait, PromptRole, PERSONAS,
 };
 use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
@@ -22,18 +22,20 @@ pub struct ChatSession {
     exchanges: Vec<ChatExchange>,
     instruction: String,             // system
     prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
-    model: Box<dyn PromptModel>,
+    model: Box<dyn PromptModelTrait>,
     assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
     pub fn new(
-        model: Option<Box<dyn PromptModel>>,
+        model: Option<Box<dyn PromptModelTrait>>,
     ) -> Result<Self, Box<dyn Error>> {
         let model = match model {
             Some(m) => m,
-            None => Box::new(Models::default()?) as Box<dyn PromptModel>,
+            None => {
+                Box::new(PromptModel::default()?) as Box<dyn PromptModelTrait>
+            }
         };
 
         Ok(ChatSession {
@@ -108,14 +110,31 @@ impl ChatSession {
         }
     }
 
-    pub fn finalize_last_exchange(&mut self) {
+    pub async fn finalize_last_exchange(
+        &mut self,
+    ) -> Result<(), Box<dyn Error>> {
+        // Extract the last exchange and perform mutable operations within a smaller scope
+        let token_length = if let Some(last_exchange) =
+            self.exchanges.last_mut()
+        {
+            // Strip off trailing whitespaces or newlines from the last exchange
+            let trimmed_answer = last_exchange.get_answer().trim().to_string();
+            last_exchange.set_answer(trimmed_answer);
+
+            let temp_vec = vec![&*last_exchange];
+            let last_prompt_text = create_prompt_history(&self.model, temp_vec);
+
+            // get the token length
+            self.tokenize(&last_prompt_text).await?.get_tokens().len()
+        } else {
+            // No exchanges to finalize
+            return Ok(());
+        };
+
         if let Some(last_exchange) = self.exchanges.last_mut() {
-            // strip of trailing whitespaces or newlines from the last exchange
-            let trimmed_answer = last_exchange.get_answer().trim();
-            last_exchange.set_answer(trimmed_answer.to_string());
+            last_exchange.set_token_length(token_length);
         }
-        // TODO: update token-length
-        //let token_length = self.tokenize(&prompt).await?.get_tokens().len();
+        Ok(())
     }
 
     pub async fn tokenize(
@@ -201,31 +220,21 @@ impl ChatSession {
             );
         }
 
-        let role_name_user = self.model.role_name_user();
-        let role_name_assistant = self.model.role_name_assistant();
-
         // add exchange-history
-        for exchange in &self.exchanges {
-            prompt.push_str(
-                &self.model.fmt_prompt_message(
-                    &role_name_user,
-                    exchange.get_question(),
-                ),
-            );
-            prompt.push_str(&self.model.fmt_prompt_message(
-                &role_name_assistant,
-                exchange.get_answer(),
-            ));
-        }
+        prompt.push_str(&create_prompt_history(
+            &self.model,
+            self.exchanges.iter(),
+        ));
 
         // Add the current user question with an empty assistant's answer
         prompt.push_str(
             &self
                 .model
-                .fmt_prompt_message(&role_name_user, &user_question),
+                .fmt_prompt_message(PromptRole::User, &user_question),
         );
-        prompt
-            .push_str(&self.model.fmt_prompt_message(&role_name_assistant, ""));
+        prompt.push_str(
+            &self.model.fmt_prompt_message(PromptRole::Assistant, ""),
+        );
         // Add the current user question without an assistant's answer
 
         // First, check if the last exchange exists and if its second element is empty
@@ -267,7 +276,7 @@ pub async fn process_prompt(
     keep_running: Arc<AtomicBool>,
 ) {
     let (tx, rx) = mpsc::channel(32);
-    chat_session.message(tx, question).await;
+    let _ = chat_session.message(tx, question).await;
     handle_response(rx, keep_running).await;
 }
 
@@ -294,4 +303,27 @@ pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
         Ok(chat) => (chat.content, chat.stop),
         Err(e) => (format!("Failed to parse JSON: {}", e), true),
     }
+}
+
+fn create_prompt_history<'a, I>(
+    model: &Box<dyn PromptModelTrait>,
+    exchanges: I,
+) -> String
+where
+    I: IntoIterator<Item = &'a ChatExchange>,
+{
+    let mut prompt = String::new();
+    for exchange in exchanges {
+        prompt.push_str(
+            &model
+                .fmt_prompt_message(PromptRole::User, exchange.get_question()),
+        );
+        prompt.push_str(
+            &model.fmt_prompt_message(
+                PromptRole::Assistant,
+                exchange.get_answer(),
+            ),
+        );
+    }
+    prompt
 }

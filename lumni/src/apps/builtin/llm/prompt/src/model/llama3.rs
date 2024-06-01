@@ -1,6 +1,9 @@
 use std::error::Error;
 
-use super::{ChatCompletionOptions, Endpoints, PromptModel, PromptOptions};
+use super::{
+    ChatCompletionOptions, Endpoints, PromptModelTrait, PromptOptions,
+    PromptRole,
+};
 
 pub struct Llama3 {
     prompt_options: PromptOptions,
@@ -19,8 +22,8 @@ impl Llama3 {
                 .set_n_predict(8192)
                 .set_cache_prompt(true)
                 .set_stop(vec![
-                    "<|end_of_text|>".to_string(),
                     "<|eot_id|>".to_string(),
+                    "<|end_of_text|>".to_string(),
                 ])
                 .set_stream(true),
             endpoints: Endpoints::default()?,
@@ -28,7 +31,7 @@ impl Llama3 {
     }
 }
 
-impl PromptModel for Llama3 {
+impl PromptModelTrait for Llama3 {
     fn get_prompt_options(&self) -> &PromptOptions {
         &self.prompt_options
     }
@@ -54,7 +57,7 @@ impl PromptModel for Llama3 {
         if let Some(instruction) = instruction {
             return format!(
                 "<|begin_of_text|>{}",
-                self.fmt_prompt_message("system", instruction)
+                self.fmt_prompt_message(PromptRole::System, instruction)
             )
             .to_string();
         } else {
@@ -62,10 +65,19 @@ impl PromptModel for Llama3 {
         }
     }
 
-    fn fmt_prompt_message(&self, role: &str, message: &str) -> String {
+    fn fmt_prompt_message(
+        &self,
+        prompt_role: PromptRole,
+        message: &str,
+    ) -> String {
+        let role_handle = match prompt_role {
+            PromptRole::User => "user",
+            PromptRole::Assistant => "assistant",
+            PromptRole::System => "system",
+        };
         format!(
-            "<|start_header_id|>{}<|end_header_id|>{}\n<|eot_id|>\n",
-            role, message
+            "<|start_header_id|>{}<|end_header_id|>\n{}<|eot_id|>\n",
+            role_handle, message
         )
     }
 }

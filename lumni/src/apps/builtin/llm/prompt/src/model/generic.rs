@@ -1,6 +1,8 @@
 use std::error::Error;
 
-use super::{ChatCompletionOptions, Endpoints, PromptModel, PromptOptions};
+use super::{
+    ChatCompletionOptions, Endpoints, PromptModelTrait, PromptOptions,
+};
 
 pub struct Generic {
     prompt_options: PromptOptions,
@@ -19,7 +21,9 @@ impl Generic {
                 .set_n_predict(8192)
                 .set_cache_prompt(true)
                 .set_stop(vec![
+                    "### User: ".to_string(),
                     "### Human: ".to_string(),
+                    "User: ".to_string(),
                     "Human: ".to_string(),
                 ])
                 .set_stream(true),
@@ -28,7 +32,7 @@ impl Generic {
     }
 }
 
-impl PromptModel for Generic {
+impl PromptModelTrait for Generic {
     fn get_prompt_options(&self) -> &PromptOptions {
         &self.prompt_options
     }

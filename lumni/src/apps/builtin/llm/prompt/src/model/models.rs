@@ -10,7 +10,7 @@ use url::Url;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
-use super::ChatOptions;
+use super::{ChatCompletionOptions, PromptOptions};
 use crate::external as lumni;
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -36,10 +36,17 @@ impl Models {
 }
 
 impl PromptModel for Models {
-    fn get_chat_options(&self) -> &ChatOptions {
+    fn get_prompt_options(&self) -> &PromptOptions {
         match self {
-            Models::Generic(generic) => generic.get_chat_options(),
-            Models::Llama3(llama3) => llama3.get_chat_options(),
+            Models::Generic(generic) => generic.get_prompt_options(),
+            Models::Llama3(llama3) => llama3.get_prompt_options(),
+        }
+    }
+
+    fn get_completion_options(&self) -> &ChatCompletionOptions {
+        match self {
+            Models::Generic(generic) => generic.get_completion_options(),
+            Models::Llama3(llama3) => llama3.get_completion_options(),
         }
     }
 
@@ -97,7 +104,8 @@ impl PromptModel for Models {
 
 #[async_trait]
 pub trait PromptModel: Send + Sync {
-    fn get_chat_options(&self) -> &ChatOptions;
+    fn get_prompt_options(&self) -> &PromptOptions;
+    fn get_completion_options(&self) -> &ChatCompletionOptions;
     fn get_endpoints(&self) -> &Endpoints;
 
     fn update_options_from_json(&mut self, json: &str);

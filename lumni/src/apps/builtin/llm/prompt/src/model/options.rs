@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ChatOptions {
+pub struct ChatCompletionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -20,9 +20,9 @@ pub struct ChatOptions {
     stream: Option<bool>,
 }
 
-impl Default for ChatOptions {
+impl Default for ChatCompletionOptions {
     fn default() -> Self {
-        ChatOptions {
+        ChatCompletionOptions {
             temperature: None,
             top_k: None,
             top_p: None,
@@ -35,13 +35,15 @@ impl Default for ChatOptions {
     }
 }
 
-impl ChatOptions {
+impl ChatCompletionOptions {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn update_from_json(&mut self, json: &str) {
-        if let Ok(user_options) = serde_json::from_str::<ChatOptions>(json) {
+        if let Ok(user_options) =
+            serde_json::from_str::<ChatCompletionOptions>(json)
+        {
             self.temperature = user_options.temperature.or(self.temperature);
             self.top_k = user_options.top_k.or(self.top_k);
             self.top_p = user_options.top_p.or(self.top_p);
@@ -51,7 +53,10 @@ impl ChatOptions {
             self.stop = user_options.stop.or_else(|| self.stop.clone());
             self.stream = user_options.stream.or(self.stream);
         } else {
-            log::warn!("Failed to parse chat options from JSON: {}", json);
+            log::warn!(
+                "Failed to parse server chat options from JSON: {}",
+                json
+            );
         }
     }
 
@@ -92,6 +97,44 @@ impl ChatOptions {
 
     pub fn set_stream(mut self, stream: bool) -> Self {
         self.stream = Some(stream);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PromptOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_size: Option<usize>,
+}
+
+impl Default for PromptOptions {
+    fn default() -> Self {
+        PromptOptions { context_size: None }
+    }
+}
+
+impl PromptOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn update_from_json(&mut self, json: &str) {
+        if let Ok(user_options) = serde_json::from_str::<PromptOptions>(json) {
+            self.context_size = user_options.context_size.or(self.context_size);
+        } else {
+            log::warn!(
+                "Failed to parse client chat options from JSON: {}",
+                json
+            );
+        }
+    }
+
+    pub fn get_context_size(&self) -> Option<usize> {
+        self.context_size
+    }
+
+    pub fn set_context_size(mut self, context_size: usize) -> Self {
+        self.context_size = Some(context_size);
         self
     }
 }

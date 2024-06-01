@@ -199,10 +199,9 @@ async fn prompt_app<B: Backend>(
                 }
                 if final_response {
                     // models vary in adding trailing newlines/ empty spaces to a response,
-                    // which can lead to inconsistent behavior, therefore we must trim
-                    // any trailing whitespaces or newlines.
-                    response_window.text_trim();    // cleanup response window
-                    chat_session.trim_last_exchange();  // cleanup last exchange
+                    // which can lead to inconsistent behavior
+                    response_window.text_trim();    // trim trailing whitespaces or newlines
+                    chat_session.finalize_last_exchange();  // trim exchange + update token length
                 }
                 redraw_ui = true;
             },

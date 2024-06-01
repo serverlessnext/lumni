@@ -8,19 +8,20 @@ use lumni::HttpClient;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
-use super::prompt::Prompt;
+use super::prompt::{ChatExchange, Prompt};
 use super::send::send_payload;
 use super::{
-    ChatCompletionResponse, ChatOptions, Models, PromptModel, PERSONAS,
+    ChatCompletionOptions, ChatCompletionResponse, Models, PromptModel,
+    PERSONAS,
 };
 use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
 
 pub struct ChatSession {
     http_client: HttpClient,
-    exchanges: Vec<(String, String)>, // (question, answer)
-    instruction: String,              // system
-    prompt_template: Option<String>,  // put question in {{ USER_QUESTION }}
+    exchanges: Vec<ChatExchange>,
+    instruction: String,             // system
+    prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
     model: Box<dyn PromptModel>,
     assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
@@ -72,10 +73,7 @@ impl ChatSession {
 
                 // Load predefined exchanges from persona if available
                 if let Some(exchanges) = prompt.exchanges() {
-                    self.exchanges = exchanges
-                        .into_iter()
-                        .map(|exchange| exchange.question_and_answer())
-                        .collect();
+                    self.exchanges = exchanges.clone();
                 }
 
                 if let Some(prompt_template) = prompt.prompt_template() {
@@ -106,15 +104,18 @@ impl ChatSession {
 
     pub fn update_last_exchange(&mut self, answer: &str) {
         if let Some(last_exchange) = self.exchanges.last_mut() {
-            last_exchange.1.push_str(answer);
+            last_exchange.push_to_answer(answer);
         }
     }
 
-    pub fn trim_last_exchange(&mut self) {
-        // strip of trailing whitespaces or newlines from the last exchange
+    pub fn finalize_last_exchange(&mut self) {
         if let Some(last_exchange) = self.exchanges.last_mut() {
-            last_exchange.1 = last_exchange.1.trim().to_string();
+            // strip of trailing whitespaces or newlines from the last exchange
+            let trimmed_answer = last_exchange.get_answer().trim();
+            last_exchange.set_answer(trimmed_answer.to_string());
         }
+        // TODO: update token-length
+        //let token_length = self.tokenize(&prompt).await?.get_tokens().len();
     }
 
     pub async fn tokenize(
@@ -145,10 +146,9 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: String,
     ) -> Result<(), Box<dyn Error>> {
-        let prompt = self.create_final_prompt(question);
-        let token_length = self.tokenize(&prompt).await?.get_tokens().len();
-        eprintln!("Token length: {}", token_length);
-        // TODO: token length should not exceed the maximum token
+        let max_token_length =
+            self.model.get_prompt_options().get_context_size();
+        let prompt = self.create_final_prompt(question, max_token_length);
 
         let data_payload = self.create_payload(prompt);
 
@@ -170,14 +170,12 @@ impl ChatSession {
         Ok(())
     }
 
-    //    fn trim_history(&mut self) {
-    //        if (self.exchanges.len() / 2) > self.max_history {
-    //            let excess = self.exchanges.len() - self.max_history * 2;
-    //            self.exchanges.drain(0..excess);
-    //        }
-    //    }
-
-    pub fn create_final_prompt(&mut self, user_question: String) -> String {
+    pub fn create_final_prompt(
+        &mut self,
+        user_question: String,
+        max_token_length: Option<usize>,
+    ) -> String {
+        // TODO: take into account max_token_length
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
@@ -207,15 +205,17 @@ impl ChatSession {
         let role_name_assistant = self.model.role_name_assistant();
 
         // add exchange-history
-        for (user_msg, model_answer) in &self.exchanges {
+        for exchange in &self.exchanges {
             prompt.push_str(
-                &self.model.fmt_prompt_message(&role_name_user, user_msg),
+                &self.model.fmt_prompt_message(
+                    &role_name_user,
+                    exchange.get_question(),
+                ),
             );
-            prompt.push_str(
-                &self
-                    .model
-                    .fmt_prompt_message(&role_name_assistant, model_answer),
-            );
+            prompt.push_str(&self.model.fmt_prompt_message(
+                &role_name_assistant,
+                exchange.get_answer(),
+            ));
         }
 
         // Add the current user question with an empty assistant's answer
@@ -230,14 +230,15 @@ impl ChatSession {
 
         // First, check if the last exchange exists and if its second element is empty
         if let Some(last_exchange) = self.exchanges.last() {
-            if last_exchange.1.is_empty() {
+            if last_exchange.get_answer().is_empty() {
                 // Remove the last exchange because it's unanswered
                 self.exchanges.pop();
             }
         }
 
         // Now, always add the new exchange to the list
-        self.exchanges.push((user_question.clone(), "".to_string()));
+        self.exchanges
+            .push(ChatExchange::new(user_question.clone(), "".to_string()));
         prompt
     }
 
@@ -249,12 +250,12 @@ impl ChatSession {
         struct Payload<'a> {
             prompt: &'a str,
             #[serde(flatten)]
-            options: &'a ChatOptions,
+            options: &'a ChatCompletionOptions,
         }
 
         let payload = Payload {
             prompt: &prompt,
-            options: self.model.get_chat_options(),
+            options: self.model.get_completion_options(),
         };
         serde_json::to_string(&payload)
     }

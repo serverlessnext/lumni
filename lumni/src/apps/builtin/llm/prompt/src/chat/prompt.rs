@@ -26,6 +26,35 @@ impl Prompt {
     }
 }
 
+pub struct SystemPrompt {
+    instruction: String,
+    token_length: usize,
+}
+
+impl SystemPrompt {
+    pub fn default() -> Self {
+        SystemPrompt {
+            instruction: "".to_string(),
+            token_length: 0,
+        }
+    }
+
+    pub fn new(instruction: String, token_length: usize) -> Self {
+        SystemPrompt {
+            instruction,
+            token_length,
+        }
+    }
+
+    pub fn get_instruction(&self) -> &str {
+        &self.instruction
+    }
+
+    pub fn get_token_length(&self) -> usize {
+        self.token_length
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ChatExchange {
     question: String,

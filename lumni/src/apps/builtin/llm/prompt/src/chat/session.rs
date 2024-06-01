@@ -8,7 +8,7 @@ use lumni::HttpClient;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
-use super::prompt::{ChatExchange, Prompt};
+use super::prompt::{ChatExchange, Prompt, SystemPrompt};
 use super::send::send_payload;
 use super::{
     ChatCompletionOptions, ChatCompletionResponse, PromptModel,
@@ -20,7 +20,7 @@ use crate::external as lumni;
 pub struct ChatSession {
     http_client: HttpClient,
     exchanges: Vec<ChatExchange>,
-    instruction: String,             // system
+    system_prompt: SystemPrompt,
     prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
     model: Box<dyn PromptModelTrait>,
     assistant: Option<String>,
@@ -41,7 +41,7 @@ impl ChatSession {
         Ok(ChatSession {
             http_client: HttpClient::new(),
             exchanges: Vec::new(),
-            instruction: "".to_string(),
+            system_prompt: SystemPrompt::default(),
             prompt_template: None,
             model,
             assistant: None,
@@ -49,9 +49,20 @@ impl ChatSession {
         })
     }
 
-    pub fn set_instruction(&mut self, instruction: String) -> &mut Self {
-        self.instruction = instruction;
-        self
+    pub async fn set_system_prompt(
+        &mut self,
+        instruction: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        let system_prompt = if instruction.is_empty() {
+            self.model.fmt_prompt_system(None)
+        } else {
+            self.model.fmt_prompt_system(Some(instruction))
+        };
+        let token_length =
+            self.tokenize(&system_prompt).await?.get_tokens().len();
+
+        self.system_prompt = SystemPrompt::new(system_prompt, token_length);
+        Ok(())
     }
 
     pub fn set_assistant(&mut self, assistant: Option<String>) -> &mut Self {
@@ -69,8 +80,17 @@ impl ChatSession {
                 .find(|p| p.name() == assistant)
             {
                 // Set session instruction from persona's system prompt
-                if let Some(system_prompt) = prompt.system_prompt() {
-                    self.instruction = system_prompt.to_string();
+                if let Some(instruction) = prompt.system_prompt() {
+                    let system_prompt = if instruction.is_empty() {
+                        self.model.fmt_prompt_system(None)
+                    } else {
+                        self.model.fmt_prompt_system(Some(&instruction))
+                    };
+                    let token_length =
+                        self.tokenize(&system_prompt).await?.get_tokens().len();
+
+                    self.system_prompt =
+                        SystemPrompt::new(system_prompt, token_length);
                 }
 
                 // Load predefined exchanges from persona if available
@@ -85,14 +105,7 @@ impl ChatSession {
                 return Err("Selected persona not found in the dataset".into());
             }
         }
-
-        let prompt_start = if self.instruction.is_empty() {
-            self.model.fmt_prompt_system(None)
-        } else {
-            self.model.fmt_prompt_system(Some(&self.instruction))
-        };
-
-        self.tokenize_and_set_n_keep(&prompt_start).await?;
+        self.tokenize_and_set_n_keep();
         Ok(())
     }
 
@@ -122,7 +135,7 @@ impl ChatSession {
             last_exchange.set_answer(trimmed_answer);
 
             let temp_vec = vec![&*last_exchange];
-            let last_prompt_text = create_prompt_history(&self.model, temp_vec);
+            let last_prompt_text = create_prompt_string(&self.model, temp_vec);
 
             // get the token length
             self.tokenize(&last_prompt_text).await?.get_tokens().len()
@@ -150,14 +163,9 @@ impl ChatSession {
             })
     }
 
-    pub async fn tokenize_and_set_n_keep(
-        &mut self,
-        prompt_start: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        let token_length =
-            self.tokenize(prompt_start).await?.get_tokens().len();
+    pub fn tokenize_and_set_n_keep(&mut self) {
+        let token_length = self.system_prompt.get_token_length();
         self.model.set_n_keep(token_length);
-        Ok(())
     }
 
     pub async fn message(
@@ -167,7 +175,8 @@ impl ChatSession {
     ) -> Result<(), Box<dyn Error>> {
         let max_token_length =
             self.model.get_prompt_options().get_context_size();
-        let prompt = self.create_final_prompt(question, max_token_length);
+        let new_exchange = self.initiate_new_exchange(question).await?;
+        let prompt = self.create_final_prompt(new_exchange, max_token_length);
 
         let data_payload = self.create_payload(prompt);
 
@@ -189,12 +198,10 @@ impl ChatSession {
         Ok(())
     }
 
-    pub fn create_final_prompt(
-        &mut self,
+    pub async fn initiate_new_exchange(
+        &self,
         user_question: String,
-        max_token_length: Option<usize>,
-    ) -> String {
-        // TODO: take into account max_token_length
+    ) -> Result<ChatExchange, Box<dyn Error>> {
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
@@ -209,35 +216,53 @@ impl ChatSession {
             }
         };
 
+        let mut new_exchange = ChatExchange::new(user_question, "".to_string());
+        let temp_vec = vec![&new_exchange];
+        let last_prompt_text = create_prompt_string(&self.model, temp_vec);
+        new_exchange.set_token_length(
+            self.tokenize(&last_prompt_text).await?.get_tokens().len(),
+        );
+        Ok(new_exchange)
+    }
+
+    pub fn create_final_prompt(
+        &mut self,
+        new_exchange: ChatExchange,
+        max_token_length: Option<usize>,
+    ) -> String {
         let mut prompt = String::new();
 
         // start prompt
-        if self.instruction.is_empty() {
-            prompt.push_str(&self.model.fmt_prompt_system(None));
+        prompt.push_str(&self.system_prompt.get_instruction());
+
+        let _tokens_remaining = if let Some(max) = max_token_length {
+            let tokens_required = new_exchange.get_token_length().unwrap_or(0)
+                + self.system_prompt.get_token_length();
+            Some(max.saturating_sub(tokens_required))
         } else {
-            prompt.push_str(
-                &self.model.fmt_prompt_system(Some(&self.instruction)),
-            );
-        }
+            None
+        };
 
         // add exchange-history
-        prompt.push_str(&create_prompt_history(
+        // TODO: take into account max_token_length, tokens_remaining
+        prompt.push_str(&create_prompt_string(
             &self.model,
             self.exchanges.iter(),
         ));
 
-        // Add the current user question with an empty assistant's answer
+        // Add the new exchange
         prompt.push_str(
-            &self
-                .model
-                .fmt_prompt_message(PromptRole::User, &user_question),
+            &self.model.fmt_prompt_message(
+                PromptRole::User,
+                new_exchange.get_question(),
+            ),
         );
-        prompt.push_str(
-            &self.model.fmt_prompt_message(PromptRole::Assistant, ""),
-        );
-        // Add the current user question without an assistant's answer
+        prompt.push_str(&self.model.fmt_prompt_message(
+            PromptRole::Assistant,
+            new_exchange.get_answer(),
+        ));
 
-        // First, check if the last exchange exists and if its second element is empty
+        // Check if the last exchange exists and if its second element is empty
         if let Some(last_exchange) = self.exchanges.last() {
             if last_exchange.get_answer().is_empty() {
                 // Remove the last exchange because it's unanswered
@@ -245,9 +270,8 @@ impl ChatSession {
             }
         }
 
-        // Now, always add the new exchange to the list
-        self.exchanges
-            .push(ChatExchange::new(user_question.clone(), "".to_string()));
+        // Add the current user question without an assistant's answer
+        self.exchanges.push(new_exchange);
         prompt
     }
 
@@ -305,7 +329,7 @@ pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
     }
 }
 
-fn create_prompt_history<'a, I>(
+fn create_prompt_string<'a, I>(
     model: &Box<dyn PromptModelTrait>,
     exchanges: I,
 ) -> String

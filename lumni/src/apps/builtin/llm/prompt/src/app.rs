@@ -273,10 +273,7 @@ pub async fn run_cli(
     }
 
     // set default values for required arguments
-    let instruction = matches
-        .get_one::<String>("system")
-        .cloned()
-        .unwrap_or_else(|| "".to_string());
+    let instruction = matches.get_one::<String>("system");
     let model_name = matches
         .get_one::<String>("model")
         .cloned()
@@ -291,11 +288,10 @@ pub async fn run_cli(
     }
 
     let mut chat_session = ChatSession::new(Some(model))?;
-    chat_session
-        .set_instruction(instruction)
-        .set_assistant(assistant)
-        .init()
-        .await?;
+    if let Some(instruction) = instruction {
+        chat_session.set_system_prompt(instruction).await?;
+    }
+    chat_session.set_assistant(assistant).init().await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

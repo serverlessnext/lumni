@@ -6,4 +6,6 @@ mod options;
 pub use models::{
     Endpoints, PromptModel, PromptModelTrait, PromptRole, TokenResponse,
 };
-pub use options::{ChatCompletionOptions, PromptOptions};
+pub use options::{
+    ChatCompletionOptions, LlamaServerSystemPrompt, PromptOptions,
+};

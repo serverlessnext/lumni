@@ -11,10 +11,9 @@ use tokio::sync::{mpsc, oneshot};
 use super::prompt::{ChatExchange, Prompt, SystemPrompt};
 use super::send::send_payload;
 use super::{
-    ChatCompletionOptions, ChatCompletionResponse, PromptModel,
-    PromptModelTrait, PromptRole, PERSONAS,
+    ChatCompletionOptions, ChatCompletionResponse, LlamaServerSystemPrompt,
+    PromptModel, PromptModelTrait, PromptRole, TokenResponse, PERSONAS,
 };
-use crate::apps::builtin::llm::prompt::src::model::TokenResponse;
 use crate::external as lumni;
 
 pub struct ChatSession {
@@ -53,13 +52,14 @@ impl ChatSession {
         &mut self,
         instruction: &str,
     ) -> Result<(), Box<dyn Error>> {
+        let token_length;
         let system_prompt = if instruction.is_empty() {
-            self.model.fmt_prompt_system(None)
+            token_length = 0;
+            "".to_string()
         } else {
-            self.model.fmt_prompt_system(Some(instruction))
+            token_length = self.tokenize(instruction).await?.get_tokens().len();
+            instruction.to_string()
         };
-        let token_length =
-            self.tokenize(&system_prompt).await?.get_tokens().len();
 
         self.system_prompt = SystemPrompt::new(system_prompt, token_length);
         Ok(())
@@ -81,18 +81,8 @@ impl ChatSession {
             {
                 // Set session instruction from persona's system prompt
                 if let Some(instruction) = prompt.system_prompt() {
-                    let system_prompt = if instruction.is_empty() {
-                        self.model.fmt_prompt_system(None)
-                    } else {
-                        self.model.fmt_prompt_system(Some(&instruction))
-                    };
-                    let token_length =
-                        self.tokenize(&system_prompt).await?.get_tokens().len();
-
-                    self.system_prompt =
-                        SystemPrompt::new(system_prompt, token_length);
+                    self.set_system_prompt(instruction).await?;
                 }
-
                 // Load predefined exchanges from persona if available
                 if let Some(exchanges) = prompt.exchanges() {
                     self.exchanges = exchanges.clone();
@@ -104,6 +94,28 @@ impl ChatSession {
             } else {
                 return Err("Selected persona not found in the dataset".into());
             }
+        }
+
+        // Send the system prompt to the completion API at the start
+        // TODO: this assumes LlamaServer, should be abstracted to
+        // support other completion APIs
+        let system_prompt_payload = self.completion_api_payload(
+            "".to_string(),
+            Some(
+                &self
+                    .model
+                    .get_system_prompt(self.system_prompt.get_instruction()),
+            ),
+        );
+        if let Ok(payload) = system_prompt_payload {
+            send_payload(
+                self.model.get_completion_endpoint().to_string(),
+                self.http_client.clone(),
+                None,
+                payload,
+                None,
+            )
+            .await;
         }
         self.tokenize_and_set_n_keep();
         Ok(())
@@ -178,8 +190,7 @@ impl ChatSession {
         let new_exchange = self.initiate_new_exchange(question).await?;
         let prompt = self.create_final_prompt(new_exchange, max_token_length);
 
-        let data_payload = self.create_payload(prompt);
-
+        let data_payload = self.completion_api_payload(prompt, None);
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx);
 
@@ -189,7 +200,7 @@ impl ChatSession {
             send_payload(
                 self.model.get_completion_endpoint().to_string(),
                 self.http_client.clone(),
-                tx,
+                Some(tx),
                 payload,
                 Some(cancel_rx),
             )
@@ -232,23 +243,52 @@ impl ChatSession {
     ) -> String {
         let mut prompt = String::new();
 
-        // start prompt
-        prompt.push_str(&self.system_prompt.get_instruction());
-
-        let _tokens_remaining = if let Some(max) = max_token_length {
+        // instruction and new exchange should always be added,
+        // calculate the remaining tokens to see how much history can be added
+        let tokens_remaining = if let Some(max) = max_token_length {
             let tokens_required = new_exchange.get_token_length().unwrap_or(0)
                 + self.system_prompt.get_token_length();
-            Some(max.saturating_sub(tokens_required))
+            max.saturating_sub(tokens_required)
         } else {
-            None
+            usize::MAX // no limit
         };
 
-        // add exchange-history
-        // TODO: take into account max_token_length, tokens_remaining
-        prompt.push_str(&create_prompt_string(
-            &self.model,
-            self.exchanges.iter(),
-        ));
+        // cleanup last exchange if second (answer) element is un-answered (empty)
+        if let Some(last_exchange) = self.exchanges.last() {
+            if last_exchange.get_answer().is_empty() {
+                self.exchanges.pop();
+            }
+        }
+
+        // Add exchange-history in reverse order to prioritize last exchanges
+        let mut history_tokens = 0;
+        let mut history_prompt = String::new();
+
+        for exchange in self.exchanges.iter().rev() {
+            let exchange_tokens = exchange.get_token_length().unwrap_or(0);
+            if history_tokens + exchange_tokens > tokens_remaining {
+                // stop adding history if tokens are exhausted
+                break;
+            }
+            history_tokens += exchange_tokens;
+            history_prompt.insert_str(
+                0,
+                &self.model.fmt_prompt_message(
+                    PromptRole::Assistant,
+                    exchange.get_answer(),
+                ),
+            );
+            history_prompt.insert_str(
+                0,
+                &self.model.fmt_prompt_message(
+                    PromptRole::User,
+                    exchange.get_question(),
+                ),
+            );
+        }
+
+        // Add the history to the prompt
+        prompt.push_str(&history_prompt);
 
         // Add the new exchange
         prompt.push_str(
@@ -257,41 +297,38 @@ impl ChatSession {
                 new_exchange.get_question(),
             ),
         );
+
         prompt.push_str(&self.model.fmt_prompt_message(
             PromptRole::Assistant,
             new_exchange.get_answer(),
         ));
-
-        // Check if the last exchange exists and if its second element is empty
-        if let Some(last_exchange) = self.exchanges.last() {
-            if last_exchange.get_answer().is_empty() {
-                // Remove the last exchange because it's unanswered
-                self.exchanges.pop();
-            }
-        }
 
         // Add the current user question without an assistant's answer
         self.exchanges.push(new_exchange);
         prompt
     }
 
-    pub fn create_payload(
+    pub fn completion_api_payload(
         &self,
         prompt: String,
+        system_prompt: Option<&LlamaServerSystemPrompt>,
     ) -> Result<String, serde_json::Error> {
-        #[derive(Serialize)]
-        struct Payload<'a> {
-            prompt: &'a str,
-            #[serde(flatten)]
-            options: &'a ChatCompletionOptions,
-        }
-
-        let payload = Payload {
+        let payload = LlamaServerPayload {
             prompt: &prompt,
+            system_prompt: system_prompt,
             options: self.model.get_completion_options(),
         };
         serde_json::to_string(&payload)
     }
+}
+
+#[derive(Serialize)]
+struct LlamaServerPayload<'a> {
+    prompt: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_prompt: Option<&'a LlamaServerSystemPrompt>,
+    #[serde(flatten)]
+    options: &'a ChatCompletionOptions,
 }
 
 pub async fn process_prompt(

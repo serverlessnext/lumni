@@ -10,7 +10,8 @@ pub use responses::ChatCompletionResponse;
 pub use session::{process_prompt, process_prompt_response, ChatSession};
 
 pub use super::model::{
-    ChatCompletionOptions, PromptModel, PromptModelTrait, PromptRole,
+    ChatCompletionOptions, LlamaServerSystemPrompt, PromptModel,
+    PromptModelTrait, PromptRole, TokenResponse,
 };
 
 // gets PERSONAS from the generated code

@@ -3,6 +3,7 @@ use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use clap::builder::PossibleValuesParser;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
@@ -20,7 +21,7 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::{Color, Style};
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Sender};
 use tokio::time::{interval, Duration};
 
 use super::chat::{
@@ -32,6 +33,10 @@ use super::tui::{
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
+
+// max number of messages to hold before backpressure is applied
+// only applies to interactive mode
+const CHANNEL_QUEUE_SIZE: usize = 32;
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -46,8 +51,8 @@ async fn prompt_app<B: Backend>(
     let mut command_line = CommandLine::new();
     command_line.init(); // initialize with defaults
 
-    let (tx, mut rx) = mpsc::channel(32);
-    let mut tick = interval(Duration::from_millis(10));
+    let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
+    let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = WindowEvent::PromptWindow;
     let mut key_event_handler = KeyEventHandler::new();
@@ -59,8 +64,8 @@ async fn prompt_app<B: Backend>(
                     draw_ui(terminal, &mut prompt_window, &mut response_window, &mut command_line)?;
                     redraw_ui = false;
                 }
-
-                if poll(Duration::from_millis(10))? {
+                // set timeout to 1ms to allow for non-blocking polling
+                if poll(Duration::from_millis(1))? {
                     let event = read()?;
                     match event {
                         Event::Key(key_event) => {
@@ -174,7 +179,6 @@ async fn prompt_app<B: Backend>(
                 }
             },
             Some(response) = rx.recv() => {
-                let mut final_response = false;
                 log::debug!("Received response: {:?}", response);
                 let (response_content, is_final) = process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
@@ -183,21 +187,7 @@ async fn prompt_app<B: Backend>(
                 response_window.text_append_with_insert(&response_content, response_style);
                 chat_session.update_last_exchange(&response_content);
 
-                final_response = is_final;
-                // Drain all available messages from the channel
-                if !final_response {
-                    while let Ok(response) = rx.try_recv() {
-                        log::debug!("Received response: {:?}", response);
-                        let (response_content, is_final) = process_prompt_response(&response);
-                        response_window.text_append_with_insert(&response_content, response_style);
-                        chat_session.update_last_exchange(&response_content);
-                        if is_final {
-                            final_response = true;
-                            break;
-                        }
-                    }
-                }
-                if final_response {
+                if is_final {
                     // models vary in adding trailing newlines/ empty spaces to a response,
                     // which can lead to inconsistent behavior
                     // trim trailing whitespaces or newlines

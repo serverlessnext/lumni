@@ -11,7 +11,7 @@ use crate::external as lumni;
 pub async fn send_payload(
     url: String,
     http_client: HttpClient,
-    tx: mpsc::Sender<Bytes>,
+    tx: Option<mpsc::Sender<Bytes>>,
     payload: String,
     cancel_rx: Option<oneshot::Receiver<()>>,
 ) {
@@ -27,13 +27,14 @@ pub async fn send_payload(
                 Some(&header),
                 None,
                 Some(&payload_bytes),
-                Some(tx.clone()),
+                tx.clone(),
                 cancel_rx,
             )
             .await
         {
             Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
             Err(e) => {
+                eprintln!("An error occurred: {}", e);
                 let error_message = format!(
                     "{}",
                     ChatCompletionResponse::to_json_text(&format!(
@@ -41,7 +42,9 @@ pub async fn send_payload(
                         e
                     ))
                 );
-                tx.send(Bytes::from(error_message)).await.unwrap();
+                if let Some(tx) = tx {
+                    tx.send(Bytes::from(error_message)).await.unwrap();
+                };
             }
             Ok(_) => {} // request successful
         }

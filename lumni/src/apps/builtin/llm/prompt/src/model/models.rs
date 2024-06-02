@@ -10,7 +10,7 @@ use url::Url;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
-use super::{ChatCompletionOptions, PromptOptions};
+use super::{ChatCompletionOptions, LlamaServerSystemPrompt, PromptOptions};
 use crate::external as lumni;
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -115,7 +115,14 @@ pub trait PromptModelTrait: Send + Sync {
     fn get_endpoints(&self) -> &Endpoints;
     fn update_options_from_json(&mut self, json: &str);
     fn set_n_keep(&mut self, n_keep: usize);
-    fn fmt_prompt_system(&self, instruction: Option<&str>) -> String;
+
+    fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
+        if let Some(instruction) = instruction {
+            instruction.to_string()
+        } else {
+            "".to_string()
+        }
+    }
 
     fn get_completion_endpoint(&self) -> &Url {
         self.get_endpoints().get_completion()
@@ -149,7 +156,7 @@ pub trait PromptModelTrait: Send + Sync {
         if message.is_empty() {
             prompt_message // initiate new message, not yet completed
         } else {
-            format!("{}\n", prompt_message) // message already completed
+            format!("{}{}\n", prompt_message, message) // message already completed
         }
     }
 
@@ -174,6 +181,14 @@ pub trait PromptModelTrait: Send + Sync {
 
         let response = http_response.json::<TokenResponse>()?;
         Ok(response)
+    }
+
+    fn get_system_prompt(&self, instruction: &str) -> LlamaServerSystemPrompt {
+        LlamaServerSystemPrompt::new(
+            instruction.to_string(),
+            self.get_role_prefix(PromptRole::User).to_string(),
+            self.get_role_prefix(PromptRole::Assistant).to_string(),
+        )
     }
 }
 

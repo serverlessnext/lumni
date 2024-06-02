@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Prompt {
     name: String,
     system_prompt: Option<String>,
@@ -55,7 +55,7 @@ impl SystemPrompt {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatExchange {
     question: String,
     answer: String,

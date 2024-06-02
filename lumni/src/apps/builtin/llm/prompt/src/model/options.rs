@@ -1,5 +1,26 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LlamaServerSystemPrompt {
+    prompt: String,
+    anti_prompt: String,
+    assistant_name: String,
+}
+
+impl LlamaServerSystemPrompt {
+    pub fn new(
+        prompt: String,
+        anti_prompt: String,
+        assistant_name: String,
+    ) -> Self {
+        LlamaServerSystemPrompt {
+            prompt,
+            anti_prompt,
+            assistant_name,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]

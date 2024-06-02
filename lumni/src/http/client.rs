@@ -195,6 +195,7 @@ impl HttpClient {
                             None => break, // End of the stream
                         }
                     },
+                    // Check if the request has been cancelled
                     _ = async {
                         if let Some(rx) = &mut cancel_rx {
                             rx.await.ok();

@@ -253,15 +253,6 @@ pub async fn run_cli(
         e.exit();
     });
 
-    // custom conflict check for system and assistant options
-    if matches.contains_id("system") && matches.contains_id("assistant") {
-        eprintln!(
-            "Error: --system and --assistant options cannot be used together. \
-             Please choose one."
-        );
-        std::process::exit(1);
-    }
-
     // set default values for required arguments
     let instruction = matches.get_one::<String>("system");
     let model_name = matches
@@ -269,8 +260,23 @@ pub async fn run_cli(
         .cloned()
         .unwrap_or_else(|| "llama3".to_string());
     // optional arguments
-    let assistant = matches.get_one::<String>("assistant").cloned();
+    let mut assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
+
+    // custom conflict check for system and assistant options
+    if assistant.is_some() && instruction.is_some() {
+        eprintln!(
+            "Error: --system and --assistant options cannot be used together. \
+             Please choose one."
+        );
+        std::process::exit(1);
+    }
+
+    if instruction.is_none() && assistant.is_none() {
+        // for useful responses, there should either be a system prompt or an
+        // assistant set. If none are given use the default assistant.
+        assistant = Some("Default".to_string());
+    }
 
     let mut model = Box::new(PromptModel::from_str(&model_name)?);
     if let Some(options_str) = options {

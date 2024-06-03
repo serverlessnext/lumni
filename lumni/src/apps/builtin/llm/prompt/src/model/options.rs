@@ -21,6 +21,22 @@ impl LlamaServerSystemPrompt {
     }
 }
 
+#[derive(Deserialize)]
+pub struct LlamaServerDefaultGenerationSettings {
+    n_ctx: usize,
+}
+
+#[derive(Deserialize)]
+pub struct LlamaServerSettingsResponse {
+    default_generation_settings: LlamaServerDefaultGenerationSettings,
+}
+
+impl LlamaServerSettingsResponse {
+    pub fn get_n_ctx(&self) -> usize {
+        self.default_generation_settings.n_ctx
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -125,12 +141,12 @@ impl ChatCompletionOptions {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PromptOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
-    context_size: Option<usize>,
+    n_ctx: Option<usize>,
 }
 
 impl Default for PromptOptions {
     fn default() -> Self {
-        PromptOptions { context_size: None }
+        PromptOptions { n_ctx: None }
     }
 }
 
@@ -141,7 +157,7 @@ impl PromptOptions {
 
     pub fn update_from_json(&mut self, json: &str) {
         if let Ok(user_options) = serde_json::from_str::<PromptOptions>(json) {
-            self.context_size = user_options.context_size.or(self.context_size);
+            self.n_ctx = user_options.n_ctx.or(self.n_ctx);
         } else {
             log::warn!(
                 "Failed to parse client chat options from JSON: {}",
@@ -151,11 +167,11 @@ impl PromptOptions {
     }
 
     pub fn get_context_size(&self) -> Option<usize> {
-        self.context_size
+        self.n_ctx
     }
 
-    pub fn set_context_size(mut self, context_size: usize) -> Self {
-        self.context_size = Some(context_size);
+    pub fn set_context_size(&mut self, context_size: usize) -> &mut Self {
+        self.n_ctx = Some(context_size);
         self
     }
 }

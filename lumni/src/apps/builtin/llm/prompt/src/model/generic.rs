@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use super::defaults::*;
 use super::{
     ChatCompletionOptions, Endpoints, PromptModelTrait, PromptOptions,
 };
@@ -13,12 +14,10 @@ pub struct Generic {
 impl Generic {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Generic {
-            prompt_options: PromptOptions::new().set_context_size(4096),
+            prompt_options: PromptOptions::new(),
             completion_options: ChatCompletionOptions::new()
-                .set_temperature(0.2)
-                .set_top_k(40)
-                .set_top_p(0.9)
-                .set_n_predict(1024)
+                .set_temperature(DEFAULT_TEMPERATURE)
+                .set_n_predict(DEFAULT_N_PREDICT)
                 .set_cache_prompt(true)
                 .set_stop(vec![
                     "### User: ".to_string(),
@@ -52,5 +51,9 @@ impl PromptModelTrait for Generic {
 
     fn set_n_keep(&mut self, n_keep: usize) {
         self.completion_options.set_n_keep(n_keep);
+    }
+
+    fn set_context_size(&mut self, context_size: usize) {
+        self.prompt_options.set_context_size(context_size);
     }
 }

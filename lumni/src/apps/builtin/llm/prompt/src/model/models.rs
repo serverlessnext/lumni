@@ -13,9 +13,12 @@ use super::llama3::Llama3;
 use super::{ChatCompletionOptions, LlamaServerSystemPrompt, PromptOptions};
 use crate::external as lumni;
 
+// currently llama server based only
+// TODO: support more endpoints, add ability to customize
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
     "http://localhost:8080/completion";
+pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 
 pub enum PromptRole {
     User,
@@ -81,6 +84,17 @@ impl PromptModelTrait for PromptModel {
         }
     }
 
+    fn set_context_size(&mut self, context_size: usize) {
+        match self {
+            PromptModel::Generic(generic) => {
+                generic.set_context_size(context_size)
+            }
+            PromptModel::Llama3(llama3) => {
+                llama3.set_context_size(context_size)
+            }
+        }
+    }
+
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
         match self {
             PromptModel::Generic(generic) => {
@@ -115,6 +129,7 @@ pub trait PromptModelTrait: Send + Sync {
     fn get_endpoints(&self) -> &Endpoints;
     fn update_options_from_json(&mut self, json: &str);
     fn set_n_keep(&mut self, n_keep: usize);
+    fn set_context_size(&mut self, context_size: usize);
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
         if let Some(instruction) = instruction {
@@ -126,6 +141,10 @@ pub trait PromptModelTrait: Send + Sync {
 
     fn get_completion_endpoint(&self) -> &Url {
         self.get_endpoints().get_completion()
+    }
+
+    fn get_settings_endpoint(&self) -> &Url {
+        self.get_endpoints().get_settings()
     }
 
     fn get_tokenizer_endpoint(&self) -> &Url {
@@ -206,16 +225,19 @@ impl TokenResponse {
 pub struct Endpoints {
     completion: Url,
     tokenizer: Url,
+    settings: Url,
 }
 
 impl Endpoints {
     pub fn default() -> Result<Self, Box<dyn Error>> {
         let completion = Url::parse(DEFAULT_COMPLETION_ENDPOINT)?;
         let tokenizer = Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?;
+        let settings = Url::parse(DEFAULT_SETTINGS_ENDPOINT)?;
 
         Ok(Endpoints {
             completion,
             tokenizer,
+            settings,
         })
     }
 
@@ -225,5 +247,9 @@ impl Endpoints {
 
     pub fn get_tokenizer(&self) -> &Url {
         &self.tokenizer
+    }
+
+    pub fn get_settings(&self) -> &Url {
+        &self.settings
     }
 }

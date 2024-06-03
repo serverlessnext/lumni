@@ -9,10 +9,11 @@ use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
 use super::prompt::{ChatExchange, Prompt, SystemPrompt};
-use super::send::send_payload;
+use super::send::{http_get_with_response, http_post};
 use super::{
-    ChatCompletionOptions, ChatCompletionResponse, LlamaServerSystemPrompt,
-    PromptModel, PromptModelTrait, PromptRole, TokenResponse, PERSONAS,
+    ChatCompletionOptions, ChatCompletionResponse, LlamaServerSettingsResponse,
+    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
+    TokenResponse, PERSONAS,
 };
 use crate::external as lumni;
 
@@ -108,7 +109,7 @@ impl ChatSession {
             ),
         );
         if let Ok(payload) = system_prompt_payload {
-            send_payload(
+            http_post(
                 self.model.get_completion_endpoint().to_string(),
                 self.http_client.clone(),
                 None,
@@ -118,6 +119,18 @@ impl ChatSession {
             .await;
         }
         self.tokenize_and_set_n_keep();
+
+        if self.model.get_prompt_options().get_context_size().is_none() {
+            // Fetch the context size from the server settings
+            let response = http_get_with_response(
+                self.model.get_settings_endpoint().to_string(),
+                self.http_client.clone(),
+            )
+            .await?;
+            let response_json: LlamaServerSettingsResponse =
+                serde_json::from_slice(&response)?;
+            self.model.set_context_size(response_json.get_n_ctx());
+        }
         Ok(())
     }
 
@@ -197,7 +210,7 @@ impl ChatSession {
         log::debug!("Payload created:\n{:?}", data_payload);
 
         if let Ok(payload) = data_payload {
-            send_payload(
+            http_post(
                 self.model.get_completion_endpoint().to_string(),
                 self.http_client.clone(),
                 Some(tx),

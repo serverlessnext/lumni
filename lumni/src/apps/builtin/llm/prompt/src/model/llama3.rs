@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use super::defaults::*;
 use super::{
     ChatCompletionOptions, Endpoints, PromptModelTrait, PromptOptions,
     PromptRole,
@@ -14,16 +15,18 @@ pub struct Llama3 {
 impl Llama3 {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Llama3 {
-            prompt_options: PromptOptions::new().set_context_size(8192),
+            prompt_options: PromptOptions::new(),
             completion_options: ChatCompletionOptions::new()
-                .set_temperature(0.2)
-                .set_top_k(40)
-                .set_top_p(0.9)
-                .set_n_predict(8192)
+                .set_temperature(DEFAULT_TEMPERATURE)
+                .set_n_predict(DEFAULT_N_PREDICT)
                 .set_cache_prompt(true)
                 .set_stop(vec![
                     "<|eot_id|>".to_string(),
                     "<|end_of_text|>".to_string(),
+                    "### User: ".to_string(),
+                    "### Human: ".to_string(),
+                    "User: ".to_string(),
+                    "Human: ".to_string(),
                 ])
                 .set_stream(true),
             endpoints: Endpoints::default()?,
@@ -53,6 +56,10 @@ impl PromptModelTrait for Llama3 {
         self.completion_options.set_n_keep(n_keep);
     }
 
+    fn set_context_size(&mut self, context_size: usize) {
+        self.prompt_options.set_context_size(context_size);
+    }
+
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
         if let Some(instruction) = instruction {
             return format!(
@@ -78,7 +85,9 @@ impl PromptModelTrait for Llama3 {
         let mut prompt_message = String::new();
         prompt_message.push_str(&format!(
             "<|start_header_id|>{}<|end_header_id|>\n{}{}",
-            role_handle, self.get_role_prefix(prompt_role), message
+            role_handle,
+            self.get_role_prefix(prompt_role),
+            message
         ));
         if !message.is_empty() {
             prompt_message.push_str("<|eot_id|>\n");

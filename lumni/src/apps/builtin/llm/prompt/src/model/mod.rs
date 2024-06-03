@@ -1,3 +1,4 @@
+mod defaults;
 mod generic;
 mod llama3;
 mod models;
@@ -7,5 +8,6 @@ pub use models::{
     Endpoints, PromptModel, PromptModelTrait, PromptRole, TokenResponse,
 };
 pub use options::{
-    ChatCompletionOptions, LlamaServerSystemPrompt, PromptOptions,
+    ChatCompletionOptions, LlamaServerSettingsResponse,
+    LlamaServerSystemPrompt, PromptOptions,
 };

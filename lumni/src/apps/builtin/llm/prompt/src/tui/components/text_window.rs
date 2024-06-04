@@ -67,14 +67,26 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
-        let (_, cursor_row) = self.text_buffer.display_column_row();
-        let visible_rows = self.area.height();
-        let scroll = if cursor_row >= visible_rows as usize {
-            cursor_row - visible_rows as usize + 1
+        eprintln!("scroll_to_cursor called");
+        let (_, cursor_row) = self.text_buffer.display_column_row(); // current cursor row
+        let visible_rows = self.area.height() as usize; // max number of rows visible in the window
+
+        let first_visible_row = self.vertical_scroll;
+        let last_visible_row =
+            first_visible_row.saturating_add(visible_rows.saturating_sub(1));
+
+        // check if cursor is within visible area
+        if cursor_row < first_visible_row {
+            // cursor is above visible area
+            self.vertical_scroll = cursor_row;
+        } else if cursor_row > last_visible_row {
+            // cursor is below visible area
+            self.vertical_scroll =
+                cursor_row.saturating_sub(visible_rows.saturating_sub(1));
         } else {
-            0
-        };
-        self.vertical_scroll = scroll;
+            // cursor is within visible area - no need to scroll
+            return;
+        }
         self.update_scroll_bar();
     }
 

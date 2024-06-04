@@ -225,19 +225,33 @@ impl TextBuffer<'_> {
         direction: MoveCursor,
         edit_mode: bool,
     ) -> (bool, bool) {
-        let prev_col = self.cursor.col;
-        let prev_row = self.cursor.row;
+        let prev_real_col = self.cursor.col;
+        let prev_real_row = self.cursor.row;
 
         let text_lines = self.text.text_lines().to_vec();
         self.cursor.move_cursor(direction, &text_lines, edit_mode);
 
-        let column_changed = prev_col != self.cursor.col;
-        let row_changed = prev_row != self.cursor.row;
-        if column_changed || row_changed {
-            // update the display text to reflect the change
+        let real_column_changed = prev_real_col != self.cursor.col;
+        let real_row_changed = prev_real_row != self.cursor.row;
+        if real_column_changed || real_row_changed {
+            // cursor moved in the underlying text buffer
+            // get the cursor position in the wrapped text display
+            let (prev_display_col, prev_display_row) =
+                self.display_column_row();
+
+            // update the display text
             self.update_display_text();
+
+            // get the cursor position in the wrapped text display after update,
+            // this is used to determine if the cursor moved in the display
+            let (post_display_col, post_display_row) =
+                self.display_column_row();
+            return (
+                prev_display_col != post_display_col,
+                prev_display_row != post_display_row,
+            );
         }
-        (column_changed, row_changed)
+        return (false, false);
     }
 
     pub fn set_selection_anchor(&mut self, enable: bool) {

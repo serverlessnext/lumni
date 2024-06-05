@@ -132,9 +132,11 @@ async fn prompt_app<B: Backend>(
                                             chat_session.message(tx.clone(), prompt).await?;
                                         }
                                         PromptAction::Clear => {
-
                                             response_window.text_empty();
                                             chat_session.reset();
+                                        }
+                                        PromptAction::Stop => {
+                                            chat_session.stop();
                                         }
                                     }
                                     current_mode = WindowEvent::PromptWindow;

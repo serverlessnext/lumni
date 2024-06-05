@@ -18,8 +18,9 @@ pub enum WindowEvent {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PromptAction {
-    Clear,
-    Write(String),
+    Stop,          // stop stream
+    Clear,         // stop stream and clear prompt
+    Write(String), // send prompt
 }
 
 #[derive(Debug, Clone, PartialEq)]

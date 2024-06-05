@@ -1,5 +1,7 @@
 use std::error::Error;
 
+mod exchange;
+mod history;
 mod prompt;
 mod responses;
 mod send;

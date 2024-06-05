@@ -8,7 +8,9 @@ use lumni::HttpClient;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
-use super::prompt::{ChatExchange, Prompt, SystemPrompt};
+use super::exchange::ChatExchange;
+use super::history::ChatHistory;
+use super::prompt::{Prompt, SystemPrompt};
 use super::send::{http_get_with_response, http_post};
 use super::{
     ChatCompletionOptions, ChatCompletionResponse, LlamaServerSettingsResponse,
@@ -19,7 +21,7 @@ use crate::external as lumni;
 
 pub struct ChatSession {
     http_client: HttpClient,
-    exchanges: Vec<ChatExchange>,
+    history: ChatHistory,
     system_prompt: SystemPrompt,
     prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
     model: Box<dyn PromptModelTrait>,
@@ -40,7 +42,7 @@ impl ChatSession {
 
         Ok(ChatSession {
             http_client: HttpClient::new(),
-            exchanges: Vec::new(),
+            history: ChatHistory::new(),
             system_prompt: SystemPrompt::default(),
             prompt_template: None,
             model,
@@ -86,7 +88,8 @@ impl ChatSession {
                 }
                 // Load predefined exchanges from persona if available
                 if let Some(exchanges) = prompt.exchanges() {
-                    self.exchanges = exchanges.clone();
+                    self.history =
+                        ChatHistory::new_with_exchanges(exchanges.clone());
                 }
 
                 if let Some(prompt_template) = prompt.prompt_template() {
@@ -134,18 +137,20 @@ impl ChatSession {
         Ok(())
     }
 
-    pub fn reset(&mut self) {
+    pub fn stop(&mut self) {
         // Stop the chat session by sending a cancel signal
         if let Some(cancel_tx) = self.cancel_tx.take() {
             let _ = cancel_tx.send(());
         }
-        self.exchanges.clear();
+    }
+
+    pub fn reset(&mut self) {
+        self.stop();
+        self.history.clear();
     }
 
     pub fn update_last_exchange(&mut self, answer: &str) {
-        if let Some(last_exchange) = self.exchanges.last_mut() {
-            last_exchange.push_to_answer(answer);
-        }
+        self.history.update_last_exchange(answer);
     }
 
     pub async fn finalize_last_exchange(
@@ -153,14 +158,16 @@ impl ChatSession {
     ) -> Result<(), Box<dyn Error>> {
         // Extract the last exchange and perform mutable operations within a smaller scope
         let token_length = if let Some(last_exchange) =
-            self.exchanges.last_mut()
+            self.history.get_exchanges().last()
         {
             // Strip off trailing whitespaces or newlines from the last exchange
             let trimmed_answer = last_exchange.get_answer().trim().to_string();
-            last_exchange.set_answer(trimmed_answer);
+            let mut last_exchange_mut =
+                self.history.get_last_exchange_mut().unwrap();
+            last_exchange_mut.set_answer(trimmed_answer);
 
-            let temp_vec = vec![&*last_exchange];
-            let last_prompt_text = create_prompt_string(&self.model, temp_vec);
+            let temp_vec = vec![&*last_exchange_mut];
+            let last_prompt_text = exchanges_to_string(&self.model, temp_vec);
 
             // get the token length
             self.tokenize(&last_prompt_text).await?.get_tokens().len()
@@ -169,7 +176,7 @@ impl ChatSession {
             return Ok(());
         };
 
-        if let Some(last_exchange) = self.exchanges.last_mut() {
+        if let Some(last_exchange) = self.history.get_last_exchange_mut() {
             last_exchange.set_token_length(token_length);
         }
         Ok(())
@@ -201,8 +208,13 @@ impl ChatSession {
         let max_token_length =
             self.model.get_prompt_options().get_context_size();
         let new_exchange = self.initiate_new_exchange(question).await?;
-        let prompt = self.create_final_prompt(new_exchange, max_token_length);
 
+        let exchanges = self.history.new_prompt(
+            new_exchange,
+            max_token_length,
+            self.system_prompt.get_token_length(),
+        );
+        let prompt = exchanges_to_string(&self.model, &exchanges);
         let data_payload = self.completion_api_payload(prompt, None);
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx);
@@ -242,83 +254,11 @@ impl ChatSession {
 
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
-        let last_prompt_text = create_prompt_string(&self.model, temp_vec);
+        let last_prompt_text = exchanges_to_string(&self.model, temp_vec);
         new_exchange.set_token_length(
             self.tokenize(&last_prompt_text).await?.get_tokens().len(),
         );
         Ok(new_exchange)
-    }
-
-    pub fn create_final_prompt(
-        &mut self,
-        new_exchange: ChatExchange,
-        max_token_length: Option<usize>,
-    ) -> String {
-        let mut prompt = String::new();
-
-        // instruction and new exchange should always be added,
-        // calculate the remaining tokens to see how much history can be added
-        let tokens_remaining = if let Some(max) = max_token_length {
-            let tokens_required = new_exchange.get_token_length().unwrap_or(0)
-                + self.system_prompt.get_token_length();
-            max.saturating_sub(tokens_required)
-        } else {
-            usize::MAX // no limit
-        };
-
-        // cleanup last exchange if second (answer) element is un-answered (empty)
-        if let Some(last_exchange) = self.exchanges.last() {
-            if last_exchange.get_answer().is_empty() {
-                self.exchanges.pop();
-            }
-        }
-
-        // Add exchange-history in reverse order to prioritize last exchanges
-        let mut history_tokens = 0;
-        let mut history_prompt = String::new();
-
-        for exchange in self.exchanges.iter().rev() {
-            let exchange_tokens = exchange.get_token_length().unwrap_or(0);
-            if history_tokens + exchange_tokens > tokens_remaining {
-                // stop adding history if tokens are exhausted
-                break;
-            }
-            history_tokens += exchange_tokens;
-            history_prompt.insert_str(
-                0,
-                &self.model.fmt_prompt_message(
-                    PromptRole::Assistant,
-                    exchange.get_answer(),
-                ),
-            );
-            history_prompt.insert_str(
-                0,
-                &self.model.fmt_prompt_message(
-                    PromptRole::User,
-                    exchange.get_question(),
-                ),
-            );
-        }
-
-        // Add the history to the prompt
-        prompt.push_str(&history_prompt);
-
-        // Add the new exchange
-        prompt.push_str(
-            &self.model.fmt_prompt_message(
-                PromptRole::User,
-                new_exchange.get_question(),
-            ),
-        );
-
-        prompt.push_str(&self.model.fmt_prompt_message(
-            PromptRole::Assistant,
-            new_exchange.get_answer(),
-        ));
-
-        // Add the current user question without an assistant's answer
-        self.exchanges.push(new_exchange);
-        prompt
     }
 
     pub fn completion_api_payload(
@@ -379,7 +319,7 @@ pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
     }
 }
 
-fn create_prompt_string<'a, I>(
+fn exchanges_to_string<'a, I>(
     model: &Box<dyn PromptModelTrait>,
     exchanges: I,
 ) -> String

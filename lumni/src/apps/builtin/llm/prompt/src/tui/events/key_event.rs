@@ -163,6 +163,11 @@ impl KeyEventHandler {
                                         PromptAction::Clear,
                                     )
                                 }
+                                "stop" => {
+                                    return WindowEvent::Prompt(
+                                        PromptAction::Stop,
+                                    );
+                                }
                                 _ => {} // command not recognized
                             }
                         }

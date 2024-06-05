@@ -67,7 +67,6 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
-        eprintln!("scroll_to_cursor called");
         let (_, cursor_row) = self.text_buffer.display_column_row(); // current cursor row
         let visible_rows = self.area.height() as usize; // max number of rows visible in the window
 

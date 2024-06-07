@@ -286,7 +286,6 @@ pub async fn run_cli(
 
     if let Some(options_str) = options {
         server.update_options_from_json(&options_str);
-        model.update_options_from_json(&options_str);
     }
     server.update_options_from_model(&*model as &dyn PromptModelTrait);
 

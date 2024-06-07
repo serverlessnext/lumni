@@ -1,43 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::PromptModelTrait;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LlamaServerSystemPrompt {
-    prompt: String,
-    anti_prompt: String,
-    assistant_name: String,
-}
-
-impl LlamaServerSystemPrompt {
-    pub fn new(
-        prompt: String,
-        anti_prompt: String,
-        assistant_name: String,
-    ) -> Self {
-        LlamaServerSystemPrompt {
-            prompt,
-            anti_prompt,
-            assistant_name,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-pub struct LlamaServerDefaultGenerationSettings {
-    n_ctx: usize,
-}
-
-#[derive(Deserialize)]
-pub struct LlamaServerSettingsResponse {
-    default_generation_settings: LlamaServerDefaultGenerationSettings,
-}
-
-impl LlamaServerSettingsResponse {
-    pub fn get_n_ctx(&self) -> usize {
-        self.default_generation_settings.n_ctx
-    }
-}
+use super::{PromptModelTrait, PromptRole};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
@@ -131,15 +94,51 @@ impl ChatCompletionOptions {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+//match prompt_role {
+//    PromptRole::User => "### User: ",
+//    PromptRole::Assistant => "### Assistant: ",
+//    PromptRole::System => "",
+//}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RolePrefix {
+    user: String,
+    assistant: String,
+    system: String,
+}
+
+impl Default for RolePrefix {
+    fn default() -> Self {
+        RolePrefix {
+            user: "### User: ".to_string(),
+            assistant: "### Assistant: ".to_string(),
+            system: "".to_string(),
+        }
+    }
+}
+
+impl RolePrefix {
+    fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
+        match prompt_role {
+            PromptRole::User => &self.user,
+            PromptRole::Assistant => &self.assistant,
+            PromptRole::System => &self.system,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct PromptOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
     n_ctx: Option<usize>,
+    role_prefix: RolePrefix,
 }
 
 impl Default for PromptOptions {
     fn default() -> Self {
-        PromptOptions { n_ctx: None }
+        PromptOptions {
+            n_ctx: None,
+            role_prefix: RolePrefix::default(),
+        }
     }
 }
 
@@ -166,5 +165,9 @@ impl PromptOptions {
     pub fn set_context_size(&mut self, context_size: usize) -> &mut Self {
         self.n_ctx = Some(context_size);
         self
+    }
+
+    pub fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
+        self.role_prefix.get_role_prefix(prompt_role)
     }
 }

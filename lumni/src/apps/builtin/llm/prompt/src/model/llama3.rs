@@ -1,17 +1,15 @@
 use std::error::Error;
 
-use super::{PromptModelTrait, PromptOptions, PromptRole};
+use super::{PromptModelTrait, PromptRole};
 
 #[derive(Clone)]
 pub struct Llama3 {
-    prompt_options: PromptOptions,
     stop_tokens: Vec<String>,
 }
 
 impl Llama3 {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Llama3 {
-            prompt_options: PromptOptions::new(),
             stop_tokens: vec![
                 "<|eot_id|>".to_string(),
                 "<|end_of_text|>".to_string(),
@@ -25,20 +23,8 @@ impl Llama3 {
 }
 
 impl PromptModelTrait for Llama3 {
-    fn get_prompt_options(&self) -> &PromptOptions {
-        &self.prompt_options
-    }
-
     fn get_stop_tokens(&self) -> &Vec<String> {
         &self.stop_tokens
-    }
-
-    fn update_options_from_json(&mut self, json: &str) {
-        self.prompt_options.update_from_json(json);
-    }
-
-    fn set_context_size(&mut self, context_size: usize) {
-        self.prompt_options.set_context_size(context_size);
     }
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {

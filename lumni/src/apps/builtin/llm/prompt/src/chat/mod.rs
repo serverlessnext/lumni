@@ -9,12 +9,11 @@ mod session;
 
 use prompt::Prompt;
 pub use responses::ChatCompletionResponse;
+pub use send::{http_get_with_response, http_post};
 pub use session::{process_prompt, process_prompt_response, ChatSession};
 
 pub use super::model::{
-    ChatCompletionOptions, LlamaServerSettingsResponse,
-    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
-    TokenResponse,
+    PromptModel, PromptModelTrait, PromptRole, TokenResponse,
 };
 pub use super::server::ServerTrait;
 

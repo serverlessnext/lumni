@@ -5,23 +5,18 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use lumni::HttpClient;
-use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::prompt::{Prompt, SystemPrompt};
-use super::send::{http_get_with_response, http_post};
+use super::send::http_post;
 use super::{
-    ChatCompletionOptions, ChatCompletionResponse, LlamaServerSettingsResponse,
-    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
+    ChatCompletionResponse, PromptModel, PromptModelTrait, PromptRole,
     ServerTrait, TokenResponse, PERSONAS,
 };
 use crate::external as lumni;
-
-// used as last resort, if no context size is provided as option or by server
-const DEFAULT_CONTEXT_SIZE: usize = 512;
 
 pub struct ChatSession {
     http_client: HttpClient,
@@ -114,55 +109,20 @@ impl ChatSession {
         }
 
         // Send the system prompt to the completion API at the start
-        // TODO: this assumes LlamaServer, should be abstracted to
-        // support other completion APIs
-        let system_prompt_payload = self.completion_api_payload(
-            "".to_string(),
-            Some(
-                &self
-                    .model
-                    .get_system_prompt(self.system_prompt.get_instruction()),
-            ),
-        );
-
-        if let Ok(payload) = system_prompt_payload {
-            http_post(
-                self.completion_endpoint(),
-                self.http_client.clone(),
-                None,
-                payload,
-                None,
-            )
-            .await;
-        }
+        self.server
+            .put_system_prompt(&self.system_prompt.get_instruction())
+            .await?;
         self.tokenize_and_set_n_keep();
 
-        if self.model.get_prompt_options().get_context_size().is_none() {
-            // Try to fetch the context size from the server settings
-            let context_size = match self.server.get_endpoints().get_settings()
-            {
-                Some(endpoint) => {
-                    match http_get_with_response(
-                        endpoint.to_string(),
-                        self.http_client.clone(),
-                    )
-                    .await
-                    {
-                        Ok(response) => {
-                            match serde_json::from_slice::<
-                                LlamaServerSettingsResponse,
-                            >(&response)
-                            {
-                                Ok(response_json) => response_json.get_n_ctx(),
-                                Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on JSON error
-                            }
-                        }
-                        Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on HTTP request error
-                    }
-                }
-                None => DEFAULT_CONTEXT_SIZE, // Fallback if no endpoint is available
-            };
-            self.model.set_context_size(context_size);
+        if self
+            .server
+            .get_prompt_options()
+            .get_context_size()
+            .is_none()
+        {
+            // fetch the context size from the server settings
+            let context_size = self.server.get_context_size().await?;
+            self.server.set_context_size(context_size);
         }
         Ok(())
     }
@@ -243,7 +203,7 @@ impl ChatSession {
         question: String,
     ) -> Result<(), Box<dyn Error>> {
         let max_token_length =
-            self.model.get_prompt_options().get_context_size();
+            self.server.get_prompt_options().get_context_size();
         let new_exchange = self.initiate_new_exchange(question).await?;
 
         let exchanges = self.history.new_prompt(
@@ -252,7 +212,7 @@ impl ChatSession {
             self.system_prompt.get_token_length(),
         );
         let prompt = exchanges_to_string(&self.model, &exchanges);
-        let data_payload = self.completion_api_payload(prompt, None);
+        let data_payload = self.server.completion_api_payload(prompt);
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx);
 
@@ -260,7 +220,7 @@ impl ChatSession {
 
         if let Ok(payload) = data_payload {
             http_post(
-                self.completion_endpoint(),
+                self.server.completion_endpoint()?,
                 self.http_client.clone(),
                 Some(tx),
                 payload,
@@ -300,36 +260,6 @@ impl ChatSession {
         }
         Ok(new_exchange)
     }
-
-    pub fn completion_api_payload(
-        &self,
-        prompt: String,
-        system_prompt: Option<&LlamaServerSystemPrompt>,
-    ) -> Result<String, serde_json::Error> {
-        let payload = LlamaServerPayload {
-            prompt: &prompt,
-            system_prompt: system_prompt,
-            options: self.server.get_completion_options(),
-        };
-        serde_json::to_string(&payload)
-    }
-
-    fn completion_endpoint(&self) -> String {
-        self.server
-            .get_endpoints()
-            .get_completion()
-            .expect("Completion endpoint must be set")
-            .to_string()
-    }
-}
-
-#[derive(Serialize)]
-struct LlamaServerPayload<'a> {
-    prompt: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    system_prompt: Option<&'a LlamaServerSystemPrompt>,
-    #[serde(flatten)]
-    options: &'a ChatCompletionOptions,
 }
 
 pub async fn process_prompt(

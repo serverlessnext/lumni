@@ -1,14 +1,10 @@
 use std::error::Error;
 
-use super::{
-    Endpoints, PromptModelTrait, PromptOptions,
-    PromptRole,
-};
+use super::{PromptModelTrait, PromptOptions, PromptRole};
 
 #[derive(Clone)]
 pub struct Llama3 {
     prompt_options: PromptOptions,
-    endpoints: Endpoints,
     stop_tokens: Vec<String>,
 }
 
@@ -16,7 +12,6 @@ impl Llama3 {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Llama3 {
             prompt_options: PromptOptions::new(),
-            endpoints: Endpoints::default()?,
             stop_tokens: vec![
                 "<|eot_id|>".to_string(),
                 "<|end_of_text|>".to_string(),
@@ -32,10 +27,6 @@ impl Llama3 {
 impl PromptModelTrait for Llama3 {
     fn get_prompt_options(&self) -> &PromptOptions {
         &self.prompt_options
-    }
-    
-    fn get_endpoints(&self) -> &Endpoints {
-        &self.endpoints
     }
 
     fn get_stop_tokens(&self) -> &Vec<String> {

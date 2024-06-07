@@ -10,9 +10,8 @@ use url::Url;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
-use super::{LlamaServerSystemPrompt, PromptOptions, Endpoints};
+use super::{Endpoints, LlamaServerSystemPrompt, PromptOptions};
 use crate::external as lumni;
-
 
 pub enum PromptRole {
     User,
@@ -44,13 +43,6 @@ impl PromptModelTrait for PromptModel {
         match self {
             PromptModel::Generic(generic) => generic.get_prompt_options(),
             PromptModel::Llama3(llama3) => llama3.get_prompt_options(),
-        }
-    }
-
-    fn get_endpoints(&self) -> &Endpoints {
-        match self {
-            PromptModel::Generic(generic) => generic.get_endpoints(),
-            PromptModel::Llama3(llama3) => llama3.get_endpoints(),
         }
     }
 
@@ -113,7 +105,7 @@ impl PromptModelTrait for PromptModel {
 #[async_trait]
 pub trait PromptModelTrait: Send + Sync {
     fn get_prompt_options(&self) -> &PromptOptions;
-    fn get_endpoints(&self) -> &Endpoints;
+    //    fn get_endpoints(&self) -> &Endpoints;
     fn get_stop_tokens(&self) -> &Vec<String>;
     fn update_options_from_json(&mut self, json: &str);
     fn set_context_size(&mut self, context_size: usize);
@@ -124,18 +116,6 @@ pub trait PromptModelTrait: Send + Sync {
         } else {
             "".to_string()
         }
-    }
-
-    fn get_completion_endpoint(&self) -> &Url {
-        self.get_endpoints().get_completion()
-    }
-
-    fn get_settings_endpoint(&self) -> &Url {
-        self.get_endpoints().get_settings()
-    }
-
-    fn get_tokenizer_endpoint(&self) -> &Url {
-        self.get_endpoints().get_tokenizer()
     }
 
     fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
@@ -169,13 +149,14 @@ pub trait PromptModelTrait: Send + Sync {
     async fn tokenizer(
         &self,
         content: &str,
+        endpoint: &Url,
         http_client: &HttpClient,
     ) -> Result<TokenResponse, Box<dyn Error>> {
         let body_content =
             serde_json::to_string(&json!({ "content": content }))?;
         let body = Bytes::copy_from_slice(body_content.as_bytes());
 
-        let url = self.get_tokenizer_endpoint().to_string();
+        let url = endpoint.to_string();
         let mut headers = HashMap::new();
         headers
             .insert("Content-Type".to_string(), "application/json".to_string());
@@ -208,4 +189,3 @@ impl TokenResponse {
         &self.tokens
     }
 }
-

@@ -1,46 +1,45 @@
-
-use std::error::Error;
-use lumni::HttpClient;
 use url::Url;
-
-use crate::external as lumni;
-
-// currently llama server based only
-// TODO: support more endpoints, add ability to customize
-pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
-pub const DEFAULT_COMPLETION_ENDPOINT: &str =
-    "http://localhost:8080/completion";
-pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 
 #[derive(Clone)]
 pub struct Endpoints {
-    completion: Url,
-    tokenizer: Url,
-    settings: Url,
+    completion: Option<Url>,
+    tokenizer: Option<Url>,
+    settings: Option<Url>,
 }
 
 impl Endpoints {
-    pub fn default() -> Result<Self, Box<dyn Error>> {
-        let completion = Url::parse(DEFAULT_COMPLETION_ENDPOINT)?;
-        let tokenizer = Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?;
-        let settings = Url::parse(DEFAULT_SETTINGS_ENDPOINT)?;
-
-        Ok(Endpoints {
-            completion,
-            tokenizer,
-            settings,
-        })
+    pub fn new() -> Self {
+        Endpoints {
+            completion: None,
+            tokenizer: None,
+            settings: None,
+        }
     }
 
-    pub fn get_completion(&self) -> &Url {
-        &self.completion
+    pub fn get_completion(&self) -> Option<&Url> {
+        self.completion.as_ref()
     }
 
-    pub fn get_tokenizer(&self) -> &Url {
-        &self.tokenizer
+    pub fn get_tokenizer(&self) -> Option<&Url> {
+        self.tokenizer.as_ref()
     }
 
-    pub fn get_settings(&self) -> &Url {
-        &self.settings
+    pub fn get_settings(&self) -> Option<&Url> {
+        self.settings.as_ref()
+    }
+
+    pub fn set_completion(mut self, url: Url) -> Self {
+        self.completion = Some(url);
+        self
+    }
+
+    pub fn set_tokenizer(mut self, url: Url) -> Self {
+        self.tokenizer = Some(url);
+        self
+    }
+
+    pub fn set_settings(mut self, url: Url) -> Self {
+        self.settings = Some(url);
+        self
     }
 }

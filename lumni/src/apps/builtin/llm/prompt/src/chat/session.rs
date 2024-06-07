@@ -7,6 +7,7 @@ use bytes::Bytes;
 use lumni::HttpClient;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
+use url::Url;
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
@@ -14,10 +15,13 @@ use super::prompt::{Prompt, SystemPrompt};
 use super::send::{http_get_with_response, http_post};
 use super::{
     ChatCompletionOptions, ChatCompletionResponse, LlamaServerSettingsResponse,
-    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, ServerTrait, PromptRole,
-    TokenResponse, PERSONAS,
+    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
+    ServerTrait, TokenResponse, PERSONAS,
 };
 use crate::external as lumni;
+
+// used as last resort, if no context size is provided as option or by server
+const DEFAULT_CONTEXT_SIZE: usize = 512;
 
 pub struct ChatSession {
     http_client: HttpClient,
@@ -58,15 +62,21 @@ impl ChatSession {
         &mut self,
         instruction: &str,
     ) -> Result<(), Box<dyn Error>> {
-        let token_length;
-        let system_prompt = if instruction.is_empty() {
-            token_length = 0;
-            "".to_string()
+        let token_length = if instruction.is_empty() {
+            Some(0)
+        } else if let Some(endpoint) =
+            self.server.get_endpoints().get_tokenizer()
+        {
+            Some(
+                self.tokenize(endpoint, instruction)
+                    .await?
+                    .get_tokens()
+                    .len(),
+            )
         } else {
-            token_length = self.tokenize(instruction).await?.get_tokens().len();
-            instruction.to_string()
+            None
         };
-
+        let system_prompt = instruction.to_string();
         self.system_prompt = SystemPrompt::new(system_prompt, token_length);
         Ok(())
     }
@@ -114,9 +124,10 @@ impl ChatSession {
                     .get_system_prompt(self.system_prompt.get_instruction()),
             ),
         );
+
         if let Ok(payload) = system_prompt_payload {
             http_post(
-                self.model.get_completion_endpoint().to_string(),
+                self.completion_endpoint(),
                 self.http_client.clone(),
                 None,
                 payload,
@@ -127,15 +138,31 @@ impl ChatSession {
         self.tokenize_and_set_n_keep();
 
         if self.model.get_prompt_options().get_context_size().is_none() {
-            // Fetch the context size from the server settings
-            let response = http_get_with_response(
-                self.model.get_settings_endpoint().to_string(),
-                self.http_client.clone(),
-            )
-            .await?;
-            let response_json: LlamaServerSettingsResponse =
-                serde_json::from_slice(&response)?;
-            self.model.set_context_size(response_json.get_n_ctx());
+            // Try to fetch the context size from the server settings
+            let context_size = match self.server.get_endpoints().get_settings()
+            {
+                Some(endpoint) => {
+                    match http_get_with_response(
+                        endpoint.to_string(),
+                        self.http_client.clone(),
+                    )
+                    .await
+                    {
+                        Ok(response) => {
+                            match serde_json::from_slice::<
+                                LlamaServerSettingsResponse,
+                            >(&response)
+                            {
+                                Ok(response_json) => response_json.get_n_ctx(),
+                                Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on JSON error
+                            }
+                        }
+                        Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on HTTP request error
+                    }
+                }
+                None => DEFAULT_CONTEXT_SIZE, // Fallback if no endpoint is available
+            };
+            self.model.set_context_size(context_size);
         }
         Ok(())
     }
@@ -159,38 +186,44 @@ impl ChatSession {
     pub async fn finalize_last_exchange(
         &mut self,
     ) -> Result<(), Box<dyn Error>> {
+        let mut token_length = None;
+
         // Extract the last exchange and perform mutable operations within a smaller scope
-        let token_length = if let Some(last_exchange) =
-            self.history.get_exchanges().last()
-        {
+        if let Some(last_exchange) = self.history.get_last_exchange_mut() {
             // Strip off trailing whitespaces or newlines from the last exchange
             let trimmed_answer = last_exchange.get_answer().trim().to_string();
-            let mut last_exchange_mut =
-                self.history.get_last_exchange_mut().unwrap();
-            last_exchange_mut.set_answer(trimmed_answer);
+            last_exchange.set_answer(trimmed_answer);
 
-            let temp_vec = vec![&*last_exchange_mut];
-            let last_prompt_text = exchanges_to_string(&self.model, temp_vec);
-
-            // get the token length
-            self.tokenize(&last_prompt_text).await?.get_tokens().len()
-        } else {
-            // No exchanges to finalize
-            return Ok(());
+            if let Some(endpoint) = self.server.get_endpoints().get_tokenizer()
+            {
+                let temp_vec = vec![&*last_exchange];
+                let last_prompt_text =
+                    exchanges_to_string(&self.model, temp_vec);
+                token_length = Some(
+                    self.tokenize(endpoint, &last_prompt_text)
+                        .await?
+                        .get_tokens()
+                        .len(),
+                );
+            }
         };
 
-        if let Some(last_exchange) = self.history.get_last_exchange_mut() {
-            last_exchange.set_token_length(token_length);
+        if let Some(token_length) = token_length {
+            if let Some(last_exchange) = self.history.get_last_exchange_mut() {
+                last_exchange.set_token_length(token_length);
+            }
         }
+
         Ok(())
     }
 
     pub async fn tokenize(
         &self,
+        endpoint: &Url,
         content: &str,
     ) -> Result<TokenResponse, Box<dyn Error>> {
         self.model
-            .tokenizer(content, &self.http_client)
+            .tokenizer(content, endpoint, &self.http_client)
             .await
             .map_err(|e| {
                 eprintln!("Failed to parse JSON response: {}", e);
@@ -199,8 +232,9 @@ impl ChatSession {
     }
 
     pub fn tokenize_and_set_n_keep(&mut self) {
-        let token_length = self.system_prompt.get_token_length();
-        self.server.set_n_keep(token_length);
+        if let Some(token_length) = self.system_prompt.get_token_length() {
+            self.server.set_n_keep(token_length);
+        };
     }
 
     pub async fn message(
@@ -226,7 +260,7 @@ impl ChatSession {
 
         if let Ok(payload) = data_payload {
             http_post(
-                self.model.get_completion_endpoint().to_string(),
+                self.completion_endpoint(),
                 self.http_client.clone(),
                 Some(tx),
                 payload,
@@ -258,9 +292,12 @@ impl ChatSession {
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
         let last_prompt_text = exchanges_to_string(&self.model, temp_vec);
-        new_exchange.set_token_length(
-            self.tokenize(&last_prompt_text).await?.get_tokens().len(),
-        );
+
+        if let Some(endpoint) = self.server.get_endpoints().get_tokenizer() {
+            let token_response =
+                self.tokenize(endpoint, &last_prompt_text).await?;
+            new_exchange.set_token_length(token_response.get_tokens().len());
+        }
         Ok(new_exchange)
     }
 
@@ -273,9 +310,16 @@ impl ChatSession {
             prompt: &prompt,
             system_prompt: system_prompt,
             options: self.server.get_completion_options(),
-            stop: &self.model.get_stop_tokens(),
         };
         serde_json::to_string(&payload)
+    }
+
+    fn completion_endpoint(&self) -> String {
+        self.server
+            .get_endpoints()
+            .get_completion()
+            .expect("Completion endpoint must be set")
+            .to_string()
     }
 }
 
@@ -286,7 +330,6 @@ struct LlamaServerPayload<'a> {
     system_prompt: Option<&'a LlamaServerSystemPrompt>,
     #[serde(flatten)]
     options: &'a ChatCompletionOptions,
-    stop: &'a Vec<String>,
 }
 
 pub async fn process_prompt(

@@ -24,6 +24,10 @@ impl ChatHistory {
         &self.exchanges
     }
 
+    pub fn get_last_exchange(&self) -> Option<&ChatExchange> {
+        self.exchanges.last()
+    }
+
     pub fn get_last_exchange_mut(&mut self) -> Option<&mut ChatExchange> {
         self.exchanges.last_mut()
     }
@@ -38,7 +42,7 @@ impl ChatHistory {
         &mut self,
         new_exchange: ChatExchange,
         max_token_length: Option<usize>,
-        system_prompt_length: usize,
+        system_prompt_length: Option<usize>,
     ) -> Vec<ChatExchange> {
         let mut result_exchanges = Vec::new();
 
@@ -46,7 +50,7 @@ impl ChatHistory {
         // calculate the remaining tokens to see how much history can be added
         let tokens_remaining = if let Some(max) = max_token_length {
             let tokens_required = new_exchange.get_token_length().unwrap_or(0)
-                + system_prompt_length;
+                + system_prompt_length.unwrap_or(0);
             max.saturating_sub(tokens_required)
         } else {
             usize::MAX // no limit

@@ -1,13 +1,10 @@
 use std::error::Error;
 
-use super::{
-    Endpoints, PromptModelTrait, PromptOptions,
-};
+use super::{Endpoints, PromptModelTrait, PromptOptions};
 
 #[derive(Clone)]
 pub struct Generic {
     prompt_options: PromptOptions,
-    endpoints: Endpoints,
     stop_tokens: Vec<String>,
 }
 
@@ -15,7 +12,6 @@ impl Generic {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Generic {
             prompt_options: PromptOptions::new(),
-            endpoints: Endpoints::default()?,
             stop_tokens: vec![
                 "### User: ".to_string(),
                 "### Human: ".to_string(),
@@ -29,10 +25,6 @@ impl Generic {
 impl PromptModelTrait for Generic {
     fn get_prompt_options(&self) -> &PromptOptions {
         &self.prompt_options
-    }
-
-    fn get_endpoints(&self) -> &Endpoints {
-        &self.endpoints
     }
 
     fn get_stop_tokens(&self) -> &Vec<String> {

@@ -30,18 +30,18 @@ impl Prompt {
 
 pub struct SystemPrompt {
     instruction: String,
-    token_length: usize,
+    token_length: Option<usize>,
 }
 
 impl SystemPrompt {
     pub fn default() -> Self {
         SystemPrompt {
             instruction: "".to_string(),
-            token_length: 0,
+            token_length: Some(0),
         }
     }
 
-    pub fn new(instruction: String, token_length: usize) -> Self {
+    pub fn new(instruction: String, token_length: Option<usize>) -> Self {
         SystemPrompt {
             instruction,
             token_length,
@@ -52,7 +52,7 @@ impl SystemPrompt {
         &self.instruction
     }
 
-    pub fn get_token_length(&self) -> usize {
+    pub fn get_token_length(&self) -> Option<usize> {
         self.token_length
     }
 }

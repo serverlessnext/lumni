@@ -1,14 +1,14 @@
-mod endpoints;
 mod defaults;
+mod endpoints;
 mod llama;
 
 use std::error::Error;
-use async_trait::async_trait;
 
+use async_trait::async_trait;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
 
-pub use super::model::{PromptModelTrait, ChatCompletionOptions};
+pub use super::model::{ChatCompletionOptions, PromptModelTrait};
 
 pub enum ModelServer {
     Llama(Llama),
@@ -30,13 +30,19 @@ impl ServerTrait for ModelServer {
         }
     }
 
+    fn get_endpoints(&self) -> &Endpoints {
+        match self {
+            ModelServer::Llama(llama) => llama.get_endpoints(),
+        }
+    }
+
     fn update_options_from_json(&mut self, json: &str) {
         match self {
             ModelServer::Llama(llama) => llama.update_options_from_json(json),
         }
     }
 
-    fn update_options_from_model(&mut self,model: &dyn PromptModelTrait) {
+    fn update_options_from_model(&mut self, model: &dyn PromptModelTrait) {
         match self {
             ModelServer::Llama(llama) => llama.update_options_from_model(model),
         }
@@ -52,6 +58,7 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_completion_options(&self) -> &ChatCompletionOptions;
+    fn get_endpoints(&self) -> &Endpoints;
     fn update_options_from_json(&mut self, json: &str);
     fn update_options_from_model(&mut self, model: &dyn PromptModelTrait);
     fn set_n_keep(&mut self, n_keep: usize);

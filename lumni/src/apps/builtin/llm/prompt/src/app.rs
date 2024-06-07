@@ -26,8 +26,8 @@ use tokio::time::{interval, Duration};
 use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatSession,
 };
-use super::server::{ServerTrait, ModelServer};
 use super::model::{PromptModel, PromptModelTrait};
+use super::server::{ModelServer, ServerTrait};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,

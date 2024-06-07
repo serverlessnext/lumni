@@ -11,7 +11,7 @@ pub use llama::Llama;
 pub use lumni::HttpClient;
 pub use options::{ChatCompletionOptions, PromptOptions};
 
-pub use super::chat::{http_get_with_response, http_post};
+pub use super::chat::{ChatExchange, ChatHistory, http_get_with_response, http_post};
 pub use super::model::{PromptModelTrait, PromptRole};
 use crate::external as lumni;
 
@@ -85,10 +85,11 @@ impl ServerTrait for ModelServer {
 
     fn completion_api_payload(
         &self,
-        prompt: String,
+        model: &Box<dyn PromptModelTrait>,
+        exchanges: &Vec<ChatExchange>,
     ) -> Result<String, serde_json::Error> {
         match self {
-            ModelServer::Llama(llama) => llama.completion_api_payload(prompt),
+            ModelServer::Llama(llama) => llama.completion_api_payload(model, exchanges),
         }
     }
 }
@@ -96,7 +97,6 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_prompt_options(&self) -> &PromptOptions;
-    //fn set_context_size(&mut self, context_size: usize);
     fn get_completion_options(&self) -> &ChatCompletionOptions;
     fn get_endpoints(&self) -> &Endpoints;
     fn update_options_from_json(&mut self, json: &str);
@@ -110,7 +110,8 @@ pub trait ServerTrait: Send + Sync {
 
     fn completion_api_payload(
         &self,
-        prompt: String,
+        model: &Box<dyn PromptModelTrait>,
+        exchanges: &Vec<ChatExchange>,
     ) -> Result<String, serde_json::Error>;
 
     fn completion_endpoint(&self) -> Result<String, Box<dyn Error>> {

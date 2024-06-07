@@ -7,6 +7,7 @@ use url::Url;
 use super::defaults::*;
 use super::options::PromptOptions;
 use super::{
+    ChatExchange, ChatHistory,
     http_get_with_response, http_post, ChatCompletionOptions, Endpoints,
     HttpClient, PromptModelTrait, PromptRole, ServerTrait,
 };
@@ -90,8 +91,10 @@ impl ServerTrait for Llama {
 
     fn completion_api_payload(
         &self,
-        prompt: String,
+        model: &Box<dyn PromptModelTrait>,
+        exchanges: &Vec<ChatExchange>,
     ) -> Result<String, serde_json::Error> {
+        let prompt = ChatHistory::exchanges_to_string(model, exchanges);
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,

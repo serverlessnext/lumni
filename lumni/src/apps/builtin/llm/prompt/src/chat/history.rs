@@ -1,5 +1,7 @@
 use super::exchange::ChatExchange;
 
+use super::{PromptModelTrait, PromptRole};
+
 #[derive(Debug, Clone)]
 pub struct ChatHistory {
     exchanges: Vec<ChatExchange>,
@@ -18,14 +20,6 @@ impl ChatHistory {
 
     pub fn clear(&mut self) {
         self.exchanges.clear();
-    }
-
-    pub fn get_exchanges(&self) -> &Vec<ChatExchange> {
-        &self.exchanges
-    }
-
-    pub fn get_last_exchange(&self) -> Option<&ChatExchange> {
-        self.exchanges.last()
     }
 
     pub fn get_last_exchange_mut(&mut self) -> Option<&mut ChatExchange> {
@@ -76,5 +70,28 @@ impl ChatHistory {
         result_exchanges.push(new_exchange.clone());
         self.exchanges.push(new_exchange);
         result_exchanges
+    }
+
+    pub fn exchanges_to_string<'a, I>(
+        model: &Box<dyn PromptModelTrait>,
+        exchanges: I,
+    ) -> String
+    where
+        I: IntoIterator<Item = &'a ChatExchange>,
+    {
+        let mut prompt = String::new();
+        for exchange in exchanges {
+            prompt.push_str(
+                &model
+                    .fmt_prompt_message(PromptRole::User, exchange.get_question()),
+            );
+            prompt.push_str(
+                &model.fmt_prompt_message(
+                    PromptRole::Assistant,
+                    exchange.get_answer(),
+                ),
+            );
+        }
+        prompt
     }
 }

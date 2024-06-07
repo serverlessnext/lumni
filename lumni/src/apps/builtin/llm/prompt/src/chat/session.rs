@@ -13,7 +13,7 @@ use super::history::ChatHistory;
 use super::prompt::{Prompt, SystemPrompt};
 use super::send::http_post;
 use super::{
-    ChatCompletionResponse, PromptModel, PromptModelTrait, PromptRole,
+    ChatCompletionResponse, PromptModel, PromptModelTrait,
     ServerTrait, TokenResponse, PERSONAS,
 };
 use crate::external as lumni;
@@ -146,7 +146,7 @@ impl ChatSession {
             {
                 let temp_vec = vec![&*last_exchange];
                 let last_prompt_text =
-                    exchanges_to_string(&self.model, temp_vec);
+                    ChatHistory::exchanges_to_string(&self.model, temp_vec);
                 token_length = Some(
                     self.tokenize(endpoint, &last_prompt_text)
                         .await?
@@ -193,14 +193,13 @@ impl ChatSession {
         let max_token_length =
             self.server.get_context_size().await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
-
         let exchanges = self.history.new_prompt(
             new_exchange,
             max_token_length,
             self.system_prompt.get_token_length(),
         );
-        let prompt = exchanges_to_string(&self.model, &exchanges);
-        let data_payload = self.server.completion_api_payload(prompt);
+
+        let data_payload = self.server.completion_api_payload(&self.model, &exchanges);
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx);
 
@@ -239,7 +238,7 @@ impl ChatSession {
 
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
-        let last_prompt_text = exchanges_to_string(&self.model, temp_vec);
+        let last_prompt_text = ChatHistory::exchanges_to_string(&self.model, temp_vec);
 
         if let Some(endpoint) = self.server.get_endpoints().get_tokenizer() {
             let token_response =
@@ -283,27 +282,4 @@ pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
         Ok(chat) => (chat.content, chat.stop),
         Err(e) => (format!("Failed to parse JSON: {}", e), true),
     }
-}
-
-fn exchanges_to_string<'a, I>(
-    model: &Box<dyn PromptModelTrait>,
-    exchanges: I,
-) -> String
-where
-    I: IntoIterator<Item = &'a ChatExchange>,
-{
-    let mut prompt = String::new();
-    for exchange in exchanges {
-        prompt.push_str(
-            &model
-                .fmt_prompt_message(PromptRole::User, exchange.get_question()),
-        );
-        prompt.push_str(
-            &model.fmt_prompt_message(
-                PromptRole::Assistant,
-                exchange.get_answer(),
-            ),
-        );
-    }
-    prompt
 }

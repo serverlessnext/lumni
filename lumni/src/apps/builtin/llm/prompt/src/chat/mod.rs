@@ -12,6 +12,8 @@ pub use responses::ChatCompletionResponse;
 pub use send::{http_get_with_response, http_post};
 pub use session::{process_prompt, process_prompt_response, ChatSession};
 
+pub use exchange::ChatExchange;
+pub use history::ChatHistory;
 pub use super::model::{
     PromptModel, PromptModelTrait, PromptRole, TokenResponse,
 };

@@ -3,7 +3,6 @@ use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use clap::builder::PossibleValuesParser;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
@@ -21,12 +20,13 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::{Color, Style};
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatSession,
 };
+use super::server::{ServerTrait, ModelServer};
 use super::model::{PromptModel, PromptModelTrait};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
@@ -280,12 +280,17 @@ pub async fn run_cli(
         assistant = Some("Default".to_string());
     }
 
+    let server_name = "llama";
+    let mut server = Box::new(ModelServer::from_str(&server_name)?);
     let mut model = Box::new(PromptModel::from_str(&model_name)?);
+
     if let Some(options_str) = options {
+        server.update_options_from_json(&options_str);
         model.update_options_from_json(&options_str);
     }
+    server.update_options_from_model(&*model as &dyn PromptModelTrait);
 
-    let mut chat_session = ChatSession::new(Some(model))?;
+    let mut chat_session = ChatSession::new(server, Some(model))?;
     if let Some(instruction) = instruction {
         chat_session.set_system_prompt(instruction).await?;
     }

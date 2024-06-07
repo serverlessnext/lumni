@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::PromptModelTrait;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LlamaServerSystemPrompt {
     prompt: String,
@@ -97,18 +99,14 @@ impl ChatCompletionOptions {
         }
     }
 
+    pub fn update_from_model(&mut self, model: &dyn PromptModelTrait) {
+        if self.stop.is_none() {
+            self.stop = Some(model.get_stop_tokens().clone());
+        }
+    }
+
     pub fn set_temperature(mut self, temperature: f64) -> Self {
         self.temperature = Some(temperature);
-        self
-    }
-
-    pub fn set_top_k(mut self, top_k: u32) -> Self {
-        self.top_k = Some(top_k);
-        self
-    }
-
-    pub fn set_top_p(mut self, top_p: f64) -> Self {
-        self.top_p = Some(top_p);
         self
     }
 
@@ -127,18 +125,13 @@ impl ChatCompletionOptions {
         self
     }
 
-    pub fn set_stop(mut self, stop: Vec<String>) -> Self {
-        self.stop = Some(stop);
-        self
-    }
-
     pub fn set_stream(mut self, stream: bool) -> Self {
         self.stream = Some(stream);
         self
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PromptOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     n_ctx: Option<usize>,

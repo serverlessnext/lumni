@@ -4,6 +4,7 @@ pub mod src {
     mod chat;
     mod handler;
     mod model;
+    mod server;
     mod tui;
     pub use handler::Handler;
 }

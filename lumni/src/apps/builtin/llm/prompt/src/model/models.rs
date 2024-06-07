@@ -10,15 +10,9 @@ use url::Url;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
-use super::{ChatCompletionOptions, LlamaServerSystemPrompt, PromptOptions};
+use super::{LlamaServerSystemPrompt, PromptOptions, Endpoints};
 use crate::external as lumni;
 
-// currently llama server based only
-// TODO: support more endpoints, add ability to customize
-pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
-pub const DEFAULT_COMPLETION_ENDPOINT: &str =
-    "http://localhost:8080/completion";
-pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 
 pub enum PromptRole {
     User,
@@ -26,6 +20,7 @@ pub enum PromptRole {
     System,
 }
 
+#[derive(Clone)]
 pub enum PromptModel {
     Generic(Generic),
     Llama3(Llama3),
@@ -52,17 +47,17 @@ impl PromptModelTrait for PromptModel {
         }
     }
 
-    fn get_completion_options(&self) -> &ChatCompletionOptions {
-        match self {
-            PromptModel::Generic(generic) => generic.get_completion_options(),
-            PromptModel::Llama3(llama3) => llama3.get_completion_options(),
-        }
-    }
-
     fn get_endpoints(&self) -> &Endpoints {
         match self {
             PromptModel::Generic(generic) => generic.get_endpoints(),
             PromptModel::Llama3(llama3) => llama3.get_endpoints(),
+        }
+    }
+
+    fn get_stop_tokens(&self) -> &Vec<String> {
+        match self {
+            PromptModel::Generic(generic) => generic.get_stop_tokens(),
+            PromptModel::Llama3(llama3) => llama3.get_stop_tokens(),
         }
     }
 
@@ -74,13 +69,6 @@ impl PromptModelTrait for PromptModel {
             PromptModel::Llama3(llama3) => {
                 llama3.update_options_from_json(json)
             }
-        }
-    }
-
-    fn set_n_keep(&mut self, n_keep: usize) {
-        match self {
-            PromptModel::Generic(generic) => generic.set_n_keep(n_keep),
-            PromptModel::Llama3(llama3) => llama3.set_n_keep(n_keep),
         }
     }
 
@@ -125,10 +113,9 @@ impl PromptModelTrait for PromptModel {
 #[async_trait]
 pub trait PromptModelTrait: Send + Sync {
     fn get_prompt_options(&self) -> &PromptOptions;
-    fn get_completion_options(&self) -> &ChatCompletionOptions;
     fn get_endpoints(&self) -> &Endpoints;
+    fn get_stop_tokens(&self) -> &Vec<String>;
     fn update_options_from_json(&mut self, json: &str);
-    fn set_n_keep(&mut self, n_keep: usize);
     fn set_context_size(&mut self, context_size: usize);
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
@@ -222,34 +209,3 @@ impl TokenResponse {
     }
 }
 
-pub struct Endpoints {
-    completion: Url,
-    tokenizer: Url,
-    settings: Url,
-}
-
-impl Endpoints {
-    pub fn default() -> Result<Self, Box<dyn Error>> {
-        let completion = Url::parse(DEFAULT_COMPLETION_ENDPOINT)?;
-        let tokenizer = Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?;
-        let settings = Url::parse(DEFAULT_SETTINGS_ENDPOINT)?;
-
-        Ok(Endpoints {
-            completion,
-            tokenizer,
-            settings,
-        })
-    }
-
-    pub fn get_completion(&self) -> &Url {
-        &self.completion
-    }
-
-    pub fn get_tokenizer(&self) -> &Url {
-        &self.tokenizer
-    }
-
-    pub fn get_settings(&self) -> &Url {
-        &self.settings
-    }
-}

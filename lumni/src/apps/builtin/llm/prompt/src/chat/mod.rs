@@ -16,6 +16,7 @@ pub use super::model::{
     LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
     TokenResponse,
 };
+pub use super::server::ServerTrait;
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

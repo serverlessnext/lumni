@@ -14,7 +14,7 @@ use super::prompt::{Prompt, SystemPrompt};
 use super::send::{http_get_with_response, http_post};
 use super::{
     ChatCompletionOptions, ChatCompletionResponse, LlamaServerSettingsResponse,
-    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, PromptRole,
+    LlamaServerSystemPrompt, PromptModel, PromptModelTrait, ServerTrait, PromptRole,
     TokenResponse, PERSONAS,
 };
 use crate::external as lumni;
@@ -23,14 +23,16 @@ pub struct ChatSession {
     http_client: HttpClient,
     history: ChatHistory,
     system_prompt: SystemPrompt,
-    prompt_template: Option<String>, // put question in {{ USER_QUESTION }}
+    prompt_template: Option<String>,
     model: Box<dyn PromptModelTrait>,
+    server: Box<dyn ServerTrait>,
     assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
     pub fn new(
+        server: Box<dyn ServerTrait>,
         model: Option<Box<dyn PromptModelTrait>>,
     ) -> Result<Self, Box<dyn Error>> {
         let model = match model {
@@ -46,6 +48,7 @@ impl ChatSession {
             system_prompt: SystemPrompt::default(),
             prompt_template: None,
             model,
+            server,
             assistant: None,
             cancel_tx: None,
         })
@@ -197,7 +200,7 @@ impl ChatSession {
 
     pub fn tokenize_and_set_n_keep(&mut self) {
         let token_length = self.system_prompt.get_token_length();
-        self.model.set_n_keep(token_length);
+        self.server.set_n_keep(token_length);
     }
 
     pub async fn message(
@@ -269,7 +272,8 @@ impl ChatSession {
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: system_prompt,
-            options: self.model.get_completion_options(),
+            options: self.server.get_completion_options(),
+            stop: &self.model.get_stop_tokens(),
         };
         serde_json::to_string(&payload)
     }
@@ -282,6 +286,7 @@ struct LlamaServerPayload<'a> {
     system_prompt: Option<&'a LlamaServerSystemPrompt>,
     #[serde(flatten)]
     options: &'a ChatCompletionOptions,
+    stop: &'a Vec<String>,
 }
 
 pub async fn process_prompt(

@@ -94,12 +94,6 @@ impl ChatCompletionOptions {
     }
 }
 
-//match prompt_role {
-//    PromptRole::User => "### User: ",
-//    PromptRole::Assistant => "### Assistant: ",
-//    PromptRole::System => "",
-//}
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct RolePrefix {
     user: String,
@@ -130,6 +124,7 @@ impl RolePrefix {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PromptOptions {
     n_ctx: Option<usize>,
+    #[serde(default)]
     role_prefix: RolePrefix,
 }
 
@@ -150,7 +145,9 @@ impl PromptOptions {
     pub fn update_from_json(&mut self, json: &str) {
         if let Ok(user_options) = serde_json::from_str::<PromptOptions>(json) {
             self.n_ctx = user_options.n_ctx.or(self.n_ctx);
+            self.role_prefix = user_options.role_prefix;
         } else {
+            eprintln!("Error: {}", json);
             log::warn!(
                 "Failed to parse client chat options from JSON: {}",
                 json

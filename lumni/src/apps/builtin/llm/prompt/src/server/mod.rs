@@ -36,12 +36,6 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    fn set_context_size(&mut self, context_size: usize) {
-        match self {
-            ModelServer::Llama(llama) => llama.set_context_size(context_size),
-        }
-    }
-
     fn get_completion_options(&self) -> &ChatCompletionOptions {
         match self {
             ModelServer::Llama(llama) => llama.get_completion_options(),
@@ -83,7 +77,7 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    async fn get_context_size(&self) -> Result<usize, Box<dyn Error>> {
+    async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
         match self {
             ModelServer::Llama(llama) => llama.get_context_size().await,
         }
@@ -102,7 +96,7 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_prompt_options(&self) -> &PromptOptions;
-    fn set_context_size(&mut self, context_size: usize);
+    //fn set_context_size(&mut self, context_size: usize);
     fn get_completion_options(&self) -> &ChatCompletionOptions;
     fn get_endpoints(&self) -> &Endpoints;
     fn update_options_from_json(&mut self, json: &str);
@@ -112,7 +106,7 @@ pub trait ServerTrait: Send + Sync {
         &self,
         instruction: &str,
     ) -> Result<(), Box<dyn Error>>;
-    async fn get_context_size(&self) -> Result<usize, Box<dyn Error>>;
+    async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>>;
 
     fn completion_api_payload(
         &self,

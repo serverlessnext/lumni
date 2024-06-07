@@ -71,8 +71,7 @@ impl ChatSession {
         } else {
             None
         };
-        let system_prompt = instruction.to_string();
-        self.system_prompt = SystemPrompt::new(system_prompt, token_length);
+        self.system_prompt = SystemPrompt::new(instruction.to_string(), token_length);
         Ok(())
     }
 
@@ -113,17 +112,6 @@ impl ChatSession {
             .put_system_prompt(&self.system_prompt.get_instruction())
             .await?;
         self.tokenize_and_set_n_keep();
-
-        if self
-            .server
-            .get_prompt_options()
-            .get_context_size()
-            .is_none()
-        {
-            // fetch the context size from the server settings
-            let context_size = self.server.get_context_size().await?;
-            self.server.set_context_size(context_size);
-        }
         Ok(())
     }
 
@@ -203,7 +191,7 @@ impl ChatSession {
         question: String,
     ) -> Result<(), Box<dyn Error>> {
         let max_token_length =
-            self.server.get_prompt_options().get_context_size();
+            self.server.get_context_size().await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
 
         let exchanges = self.history.new_prompt(

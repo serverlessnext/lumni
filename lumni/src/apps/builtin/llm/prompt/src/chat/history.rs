@@ -41,19 +41,17 @@ impl ChatHistory {
     pub fn new_prompt(
         &mut self,
         new_exchange: ChatExchange,
-        max_token_length: Option<usize>,
+        max_token_length: usize,
         system_prompt_length: Option<usize>,
     ) -> Vec<ChatExchange> {
         let mut result_exchanges = Vec::new();
 
         // instruction and new exchange should always be added,
         // calculate the remaining tokens to see how much history can be added
-        let tokens_remaining = if let Some(max) = max_token_length {
+        let tokens_remaining = {
             let tokens_required = new_exchange.get_token_length().unwrap_or(0)
                 + system_prompt_length.unwrap_or(0);
-            max.saturating_sub(tokens_required)
-        } else {
-            usize::MAX // no limit
+            max_token_length.saturating_sub(tokens_required)
         };
 
         // cleanup last exchange if second (answer) element is un-answered (empty)

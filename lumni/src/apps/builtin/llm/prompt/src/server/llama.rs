@@ -67,10 +67,6 @@ impl ServerTrait for Llama {
         &self.prompt_options
     }
 
-    fn set_context_size(&mut self, context_size: usize) {
-        self.prompt_options.set_context_size(context_size);
-    }
-
     fn get_completion_options(&self) -> &ChatCompletionOptions {
         &self.completion_options
     }
@@ -123,28 +119,37 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
-    async fn get_context_size(&self) -> Result<usize, Box<dyn Error>> {
-        match self.get_endpoints().get_settings() {
-            Some(endpoint) => {
-                match http_get_with_response(
-                    endpoint.to_string(),
-                    self.http_client.clone(),
-                )
-                .await
-                {
-                    Ok(response) => {
-                        match serde_json::from_slice::<
-                            LlamaServerSettingsResponse,
-                        >(&response)
+    async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
+        let context_size = self.get_prompt_options()
+            .get_context_size();
+        match context_size {
+            Some(size) => Ok(size), // Return the context size if it's already set
+            None => {   // fetch the context size, and store it in the prompt options
+                let context_size = match self.get_endpoints().get_settings() {
+                    Some(endpoint) => {
+                        match http_get_with_response(
+                            endpoint.to_string(),
+                            self.http_client.clone(),
+                        )
+                        .await
                         {
-                            Ok(response_json) => Ok(response_json.get_n_ctx()),
-                            Err(_) => Ok(DEFAULT_CONTEXT_SIZE), // Fallback on JSON error
+                            Ok(response) => {
+                                match serde_json::from_slice::<
+                                    LlamaServerSettingsResponse,
+                                >(&response)
+                                {
+                                    Ok(response_json) => response_json.get_n_ctx(),
+                                    Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on JSON error
+                                }
+                            }
+                            Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on HTTP request error
                         }
                     }
-                    Err(_) => Ok(DEFAULT_CONTEXT_SIZE), // Fallback on HTTP request error
-                }
+                    None => DEFAULT_CONTEXT_SIZE, // Fallback if no endpoint is available
+                };
+                self.prompt_options.set_context_size(context_size);
+                Ok(context_size)
             }
-            None => Ok(DEFAULT_CONTEXT_SIZE), // Fallback if no endpoint is available
         }
     }
 }

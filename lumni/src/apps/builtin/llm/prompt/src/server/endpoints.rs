@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use url::Url;
 
 #[derive(Clone)]
@@ -18,6 +20,13 @@ impl Endpoints {
 
     pub fn get_completion(&self) -> Option<&Url> {
         self.completion.as_ref()
+    }
+
+    pub fn get_completion_endpoint(&self) -> Result<String, Box<dyn Error>> {
+        match self.completion.as_ref() {
+            Some(url) => Ok(url.to_string()),
+            None => Err("Completion endpoint not set".into()),
+        }
     }
 
     pub fn get_tokenizer(&self) -> Option<&Url> {

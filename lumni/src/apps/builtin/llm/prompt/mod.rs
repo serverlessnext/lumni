@@ -2,6 +2,7 @@
 pub mod src {
     mod app;
     mod chat;
+    mod defaults;
     mod handler;
     mod model;
     mod server;

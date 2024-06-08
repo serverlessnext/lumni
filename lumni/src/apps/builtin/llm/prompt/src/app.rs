@@ -26,8 +26,11 @@ use tokio::time::{interval, Duration};
 use super::chat::{
     list_assistants, process_prompt, process_prompt_response, ChatSession,
 };
+use super::defaults::*;
 use super::model::{PromptModel, PromptModelTrait};
-use super::server::{ModelServer, ServerTrait};
+use super::server::{
+    ChatCompletionOptions, ModelServer, PromptOptions,
+};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
@@ -280,14 +283,26 @@ pub async fn run_cli(
         assistant = Some("Default".to_string());
     }
 
-    let server_name = "llama";
-    let mut server = Box::new(ModelServer::from_str(&server_name)?);
-    let mut model = Box::new(PromptModel::from_str(&model_name)?);
+    let mut prompt_options = PromptOptions::new();
+    let mut completion_options = ChatCompletionOptions::new()
+        .set_temperature(DEFAULT_TEMPERATURE)
+        .set_n_predict(DEFAULT_N_PREDICT)
+        .set_cache_prompt(true)
+        .set_stream(true);
 
-    if let Some(options_str) = options {
-        server.update_options_from_json(&options_str);
+    if let Some(json_str) = options {
+        prompt_options.update_from_json(json_str);
+        completion_options.update_from_json(json_str);
     }
-    server.update_options_from_model(&*model as &dyn PromptModelTrait);
+    let model = Box::new(PromptModel::from_str(&model_name)?);
+    completion_options.update_from_model(&*model as &dyn PromptModelTrait);
+
+    let server_name = "llama";
+    let server = Box::new(ModelServer::from_str(
+        &server_name,
+        prompt_options,
+        completion_options,
+    )?);
 
     let mut chat_session = ChatSession::new(server, Some(model))?;
     if let Some(instruction) = instruction {

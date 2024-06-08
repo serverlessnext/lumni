@@ -5,14 +5,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
-use super::defaults::*;
-use super::options::PromptOptions;
 use super::{
-    endpoints, http_get_with_response, http_post, ChatCompletionOptions,
-    ChatExchange, ChatHistory, Endpoints, HttpClient, PromptModelTrait,
-    PromptRole, ServerTrait, TokenResponse,
+    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
+    ChatHistory, Endpoints, HttpClient, PromptModelTrait, PromptOptions,
+    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
 };
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -28,7 +27,10 @@ pub struct Llama {
 }
 
 impl Llama {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(
+        prompt_options: PromptOptions,
+        completion_options: ChatCompletionOptions,
+    ) -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?)
             .set_tokenizer(Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?)
@@ -37,12 +39,8 @@ impl Llama {
         Ok(Llama {
             http_client: HttpClient::new(),
             endpoints,
-            prompt_options: PromptOptions::new(),
-            completion_options: ChatCompletionOptions::new()
-                .set_temperature(DEFAULT_TEMPERATURE)
-                .set_n_predict(DEFAULT_N_PREDICT)
-                .set_cache_prompt(true)
-                .set_stream(true),
+            prompt_options,
+            completion_options,
         })
     }
 
@@ -63,34 +61,6 @@ impl Llama {
         };
         payload.serialize()
     }
-}
-
-#[async_trait]
-impl ServerTrait for Llama {
-    fn get_prompt_options(&self) -> &PromptOptions {
-        &self.prompt_options
-    }
-
-    fn get_completion_options(&self) -> &ChatCompletionOptions {
-        &self.completion_options
-    }
-
-    fn get_endpoints(&self) -> &Endpoints {
-        &self.endpoints
-    }
-
-    fn update_options_from_json(&mut self, json: &str) {
-        self.prompt_options.update_from_json(json);
-        self.completion_options.update_from_json(json);
-    }
-
-    fn update_options_from_model(&mut self, model: &dyn PromptModelTrait) {
-        self.completion_options.update_from_model(model);
-    }
-
-    fn set_n_keep(&mut self, n_keep: usize) {
-        self.completion_options.set_n_keep(n_keep);
-    }
 
     fn completion_api_payload(
         &self,
@@ -101,9 +71,39 @@ impl ServerTrait for Llama {
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,
-            options: self.get_completion_options(),
+            options: &self.completion_options,
         };
         serde_json::to_string(&payload)
+    }
+}
+
+#[async_trait]
+impl ServerTrait for Llama {
+    fn set_n_keep(&mut self, n_keep: usize) {
+        self.completion_options.set_n_keep(n_keep);
+    }
+
+    async fn completion(
+        &self,
+        exchanges: &Vec<ChatExchange>,
+        model: &Box<dyn PromptModelTrait>,
+        tx: Option<mpsc::Sender<Bytes>>,
+        cancel_rx: Option<oneshot::Receiver<()>>,
+    ) -> Result<(), Box<dyn Error>> {
+        let data_payload = self.completion_api_payload(model, exchanges);
+
+        let completion_endpoint = self.endpoints.get_completion_endpoint()?;
+        if let Ok(payload) = data_payload {
+            http_post(
+                completion_endpoint,
+                self.http_client.clone(),
+                tx,
+                payload,
+                cancel_rx,
+            )
+            .await;
+        }
+        Ok(())
     }
 
     async fn put_system_prompt(
@@ -112,7 +112,8 @@ impl ServerTrait for Llama {
     ) -> Result<(), Box<dyn Error>> {
         let system_prompt_payload = self.system_prompt_payload(system_prompt);
         if let Some(payload) = system_prompt_payload {
-            let completion_endpoint = self.completion_endpoint()?;
+            let completion_endpoint =
+                self.endpoints.get_completion_endpoint()?;
             http_post(
                 completion_endpoint,
                 self.http_client.clone(),
@@ -126,12 +127,12 @@ impl ServerTrait for Llama {
     }
 
     async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
-        let context_size = self.get_prompt_options().get_context_size();
+        let context_size = self.prompt_options.get_context_size();
         match context_size {
             Some(size) => Ok(size), // Return the context size if it's already set
             None => {
                 // fetch the context size, and store it in the prompt options
-                let context_size = match self.get_endpoints().get_settings() {
+                let context_size = match self.endpoints.get_settings() {
                     Some(endpoint) => {
                         match http_get_with_response(
                             endpoint.to_string(),
@@ -166,7 +167,7 @@ impl ServerTrait for Llama {
         &self,
         content: &str,
     ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
-        if let Some(endpoint) = self.get_endpoints().get_tokenizer() {
+        if let Some(endpoint) = self.endpoints.get_tokenizer() {
             let body_content =
                 serde_json::to_string(&json!({ "content": content }))?;
             let body = Bytes::copy_from_slice(body_content.as_bytes());

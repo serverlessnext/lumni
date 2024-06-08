@@ -4,22 +4,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
-use url::Url;
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::prompt::{Prompt, SystemPrompt};
-use super::send::http_post;
 use super::{
-    ChatCompletionResponse, PromptModel, PromptModelTrait,
-    ServerTrait, TokenResponse, PERSONAS,
+    ChatCompletionResponse, PromptModel, PromptModelTrait, ServerTrait,
+    PERSONAS,
 };
-use crate::external as lumni;
 
 pub struct ChatSession {
-    http_client: HttpClient,
     history: ChatHistory,
     system_prompt: SystemPrompt,
     prompt_template: Option<String>,
@@ -42,7 +37,6 @@ impl ChatSession {
         };
 
         Ok(ChatSession {
-            http_client: HttpClient::new(),
             history: ChatHistory::new(),
             system_prompt: SystemPrompt::default(),
             prompt_template: None,
@@ -59,19 +53,15 @@ impl ChatSession {
     ) -> Result<(), Box<dyn Error>> {
         let token_length = if instruction.is_empty() {
             Some(0)
-        } else if let Some(endpoint) =
-            self.server.get_endpoints().get_tokenizer()
+        } else if let Some(token_response) =
+            self.server.tokenizer(instruction).await?
         {
-            Some(
-                self.tokenize(endpoint, instruction)
-                    .await?
-                    .get_tokens()
-                    .len(),
-            )
+            Some(token_response.get_tokens().len())
         } else {
             None
         };
-        self.system_prompt = SystemPrompt::new(instruction.to_string(), token_length);
+        self.system_prompt =
+            SystemPrompt::new(instruction.to_string(), token_length);
         Ok(())
     }
 
@@ -134,26 +124,27 @@ impl ChatSession {
     pub async fn finalize_last_exchange(
         &mut self,
     ) -> Result<(), Box<dyn Error>> {
-        let mut token_length = None;
-
-        // Extract the last exchange and perform mutable operations within a smaller scope
-        if let Some(last_exchange) = self.history.get_last_exchange_mut() {
+        // extract the last exchange, trim and tokenize it
+        let token_length = if let Some(last_exchange) =
+            self.history.get_last_exchange_mut()
+        {
             // Strip off trailing whitespaces or newlines from the last exchange
             let trimmed_answer = last_exchange.get_answer().trim().to_string();
             last_exchange.set_answer(trimmed_answer);
 
-            if let Some(endpoint) = self.server.get_endpoints().get_tokenizer()
+            let temp_vec = vec![&*last_exchange];
+            let last_prompt_text =
+                ChatHistory::exchanges_to_string(&self.model, temp_vec);
+
+            if let Some(response) =
+                self.server.tokenizer(&last_prompt_text).await?
             {
-                let temp_vec = vec![&*last_exchange];
-                let last_prompt_text =
-                    ChatHistory::exchanges_to_string(&self.model, temp_vec);
-                token_length = Some(
-                    self.tokenize(endpoint, &last_prompt_text)
-                        .await?
-                        .get_tokens()
-                        .len(),
-                );
+                Some(response.get_tokens().len())
+            } else {
+                None
             }
+        } else {
+            None
         };
 
         if let Some(token_length) = token_length {
@@ -163,20 +154,6 @@ impl ChatSession {
         }
 
         Ok(())
-    }
-
-    pub async fn tokenize(
-        &self,
-        endpoint: &Url,
-        content: &str,
-    ) -> Result<TokenResponse, Box<dyn Error>> {
-        self.model
-            .tokenizer(content, endpoint, &self.http_client)
-            .await
-            .map_err(|e| {
-                eprintln!("Failed to parse JSON response: {}", e);
-                format!("Failed to parse JSON documented: {}", e).into()
-            })
     }
 
     pub fn tokenize_and_set_n_keep(&mut self) {
@@ -190,8 +167,7 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: String,
     ) -> Result<(), Box<dyn Error>> {
-        let max_token_length =
-            self.server.get_context_size().await?;
+        let max_token_length = self.server.get_context_size().await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
         let exchanges = self.history.new_prompt(
             new_exchange,
@@ -199,22 +175,12 @@ impl ChatSession {
             self.system_prompt.get_token_length(),
         );
 
-        let data_payload = self.server.completion_api_payload(&self.model, &exchanges);
         let (cancel_tx, cancel_rx) = oneshot::channel();
-        self.cancel_tx = Some(cancel_tx);
+        self.cancel_tx = Some(cancel_tx); // channel to cancel
 
-        log::debug!("Payload created:\n{:?}", data_payload);
-
-        if let Ok(payload) = data_payload {
-            http_post(
-                self.server.completion_endpoint()?,
-                self.http_client.clone(),
-                Some(tx),
-                payload,
-                Some(cancel_rx),
-            )
-            .await;
-        }
+        self.server
+            .completion(&exchanges, &self.model, Some(tx), Some(cancel_rx))
+            .await?;
         Ok(())
     }
 
@@ -238,11 +204,12 @@ impl ChatSession {
 
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
-        let last_prompt_text = ChatHistory::exchanges_to_string(&self.model, temp_vec);
+        let last_prompt_text =
+            ChatHistory::exchanges_to_string(&self.model, temp_vec);
 
-        if let Some(endpoint) = self.server.get_endpoints().get_tokenizer() {
-            let token_response =
-                self.tokenize(endpoint, &last_prompt_text).await?;
+        if let Some(token_response) =
+            self.server.tokenizer(&last_prompt_text).await?
+        {
             new_exchange.set_token_length(token_response.get_tokens().len());
         }
         Ok(new_exchange)

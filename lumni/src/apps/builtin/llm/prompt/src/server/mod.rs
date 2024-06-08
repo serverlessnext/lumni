@@ -6,14 +6,18 @@ mod options;
 use std::error::Error;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
 pub use lumni::HttpClient;
 pub use options::{ChatCompletionOptions, PromptOptions};
+use tokio::sync::{mpsc, oneshot};
 
-pub use super::chat::{ChatExchange, ChatHistory, http_get_with_response, http_post};
+pub use super::chat::{
+    http_get_with_response, http_post, ChatExchange, ChatHistory, TokenResponse,
+};
 pub use super::model::{PromptModelTrait, PromptRole};
-use crate::external as lumni;
+use crate::{external as lumni, http};
 
 pub enum ModelServer {
     Llama(Llama),
@@ -83,13 +87,24 @@ impl ServerTrait for ModelServer {
         }
     }
 
+    async fn tokenizer(
+        &self,
+        content: &str,
+    ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
+        match self {
+            ModelServer::Llama(llama) => llama.tokenizer(content).await,
+        }
+    }
+
     fn completion_api_payload(
         &self,
         model: &Box<dyn PromptModelTrait>,
         exchanges: &Vec<ChatExchange>,
     ) -> Result<String, serde_json::Error> {
         match self {
-            ModelServer::Llama(llama) => llama.completion_api_payload(model, exchanges),
+            ModelServer::Llama(llama) => {
+                llama.completion_api_payload(model, exchanges)
+            }
         }
     }
 }
@@ -108,6 +123,11 @@ pub trait ServerTrait: Send + Sync {
     ) -> Result<(), Box<dyn Error>>;
     async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>>;
 
+    async fn tokenizer(
+        &self,
+        content: &str,
+    ) -> Result<Option<TokenResponse>, Box<dyn Error>>;
+
     fn completion_api_payload(
         &self,
         model: &Box<dyn PromptModelTrait>,
@@ -119,5 +139,23 @@ pub trait ServerTrait: Send + Sync {
             .get_completion()
             .map(|url| url.to_string())
             .ok_or_else(|| "Completion endpoint must be set".into())
+    }
+
+    async fn completion(
+        &self,
+        exchanges: &Vec<ChatExchange>,
+        model: &Box<dyn PromptModelTrait>,
+        tx: Option<mpsc::Sender<Bytes>>,
+        cancel_rx: Option<oneshot::Receiver<()>>,
+    ) -> Result<(), Box<dyn Error>> {
+        let data_payload = self.completion_api_payload(model, exchanges);
+
+        let http_client = HttpClient::new();
+        let completion_endpoint = self.completion_endpoint()?;
+        if let Ok(payload) = data_payload {
+            http_post(completion_endpoint, http_client, tx, payload, cancel_rx)
+                .await;
+        }
+        Ok(())
     }
 }

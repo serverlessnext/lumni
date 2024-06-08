@@ -1,5 +1,4 @@
 use super::exchange::ChatExchange;
-
 use super::{PromptModelTrait, PromptRole};
 
 #[derive(Debug, Clone)]
@@ -82,15 +81,15 @@ impl ChatHistory {
         let mut prompt = String::new();
         for exchange in exchanges {
             prompt.push_str(
-                &model
-                    .fmt_prompt_message(PromptRole::User, exchange.get_question()),
-            );
-            prompt.push_str(
                 &model.fmt_prompt_message(
-                    PromptRole::Assistant,
-                    exchange.get_answer(),
+                    PromptRole::User,
+                    exchange.get_question(),
                 ),
             );
+            prompt.push_str(&model.fmt_prompt_message(
+                PromptRole::Assistant,
+                exchange.get_answer(),
+            ));
         }
         prompt
     }

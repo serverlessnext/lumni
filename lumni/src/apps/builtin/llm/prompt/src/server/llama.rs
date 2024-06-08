@@ -1,15 +1,18 @@
+use std::collections::HashMap;
 use std::error::Error;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use url::Url;
 
 use super::defaults::*;
 use super::options::PromptOptions;
 use super::{
-    ChatExchange, ChatHistory,
-    http_get_with_response, http_post, ChatCompletionOptions, Endpoints,
-    HttpClient, PromptModelTrait, PromptRole, ServerTrait,
+    endpoints, http_get_with_response, http_post, ChatCompletionOptions,
+    ChatExchange, ChatHistory, Endpoints, HttpClient, PromptModelTrait,
+    PromptRole, ServerTrait, TokenResponse,
 };
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -123,11 +126,11 @@ impl ServerTrait for Llama {
     }
 
     async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
-        let context_size = self.get_prompt_options()
-            .get_context_size();
+        let context_size = self.get_prompt_options().get_context_size();
         match context_size {
             Some(size) => Ok(size), // Return the context size if it's already set
-            None => {   // fetch the context size, and store it in the prompt options
+            None => {
+                // fetch the context size, and store it in the prompt options
                 let context_size = match self.get_endpoints().get_settings() {
                     Some(endpoint) => {
                         match http_get_with_response(
@@ -139,9 +142,12 @@ impl ServerTrait for Llama {
                             Ok(response) => {
                                 match serde_json::from_slice::<
                                     LlamaServerSettingsResponse,
-                                >(&response)
-                                {
-                                    Ok(response_json) => response_json.get_n_ctx(),
+                                >(
+                                    &response
+                                ) {
+                                    Ok(response_json) => {
+                                        response_json.get_n_ctx()
+                                    }
                                     Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on JSON error
                                 }
                             }
@@ -153,6 +159,35 @@ impl ServerTrait for Llama {
                 self.prompt_options.set_context_size(context_size);
                 Ok(context_size)
             }
+        }
+    }
+
+    async fn tokenizer(
+        &self,
+        content: &str,
+    ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
+        if let Some(endpoint) = self.get_endpoints().get_tokenizer() {
+            let body_content =
+                serde_json::to_string(&json!({ "content": content }))?;
+            let body = Bytes::copy_from_slice(body_content.as_bytes());
+
+            let url = endpoint.to_string();
+            let mut headers = HashMap::new();
+            headers.insert(
+                "Content-Type".to_string(),
+                "application/json".to_string(),
+            );
+
+            let http_response = &self
+                .http_client
+                .post(&url, Some(&headers), None, Some(&body), None, None)
+                .await
+                .map_err(|e| format!("Error calling tokenizer: {}", e))?;
+
+            let response = http_response.json::<TokenResponse>()?;
+            Ok(Some(response))
+        } else {
+            Ok(None)
         }
     }
 }

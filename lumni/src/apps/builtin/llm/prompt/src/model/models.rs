@@ -1,16 +1,9 @@
-use std::collections::HashMap;
 use std::error::Error;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use lumni::HttpClient;
-use serde::Deserialize;
-use serde_json::json;
-use url::Url;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
-use crate::external as lumni;
 
 pub enum PromptRole {
     User,
@@ -110,40 +103,5 @@ pub trait PromptModelTrait: Send + Sync {
         } else {
             format!("{}{}\n", prompt_message, message) // message already completed
         }
-    }
-
-    async fn tokenizer(
-        &self,
-        content: &str,
-        endpoint: &Url,
-        http_client: &HttpClient,
-    ) -> Result<TokenResponse, Box<dyn Error>> {
-        let body_content =
-            serde_json::to_string(&json!({ "content": content }))?;
-        let body = Bytes::copy_from_slice(body_content.as_bytes());
-
-        let url = endpoint.to_string();
-        let mut headers = HashMap::new();
-        headers
-            .insert("Content-Type".to_string(), "application/json".to_string());
-
-        let http_response = http_client
-            .post(&url, Some(&headers), None, Some(&body), None, None)
-            .await
-            .map_err(|e| format!("Error calling tokenizer: {}", e))?;
-
-        let response = http_response.json::<TokenResponse>()?;
-        Ok(response)
-    }
-}
-
-#[derive(Deserialize)]
-pub struct TokenResponse {
-    tokens: Vec<usize>,
-}
-
-impl TokenResponse {
-    pub fn get_tokens(&self) -> &Vec<usize> {
-        &self.tokens
     }
 }

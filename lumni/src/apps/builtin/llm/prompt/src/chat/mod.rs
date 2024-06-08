@@ -7,16 +7,14 @@ mod responses;
 mod send;
 mod session;
 
+pub use exchange::ChatExchange;
+pub use history::ChatHistory;
 use prompt::Prompt;
-pub use responses::ChatCompletionResponse;
+pub use responses::{ChatCompletionResponse, TokenResponse};
 pub use send::{http_get_with_response, http_post};
 pub use session::{process_prompt, process_prompt_response, ChatSession};
 
-pub use exchange::ChatExchange;
-pub use history::ChatHistory;
-pub use super::model::{
-    PromptModel, PromptModelTrait, PromptRole, TokenResponse,
-};
+pub use super::model::{PromptModel, PromptModelTrait, PromptRole};
 pub use super::server::ServerTrait;
 
 // gets PERSONAS from the generated code

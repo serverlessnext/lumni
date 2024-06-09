@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 
 use async_trait::async_trait;
@@ -8,13 +7,15 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatCompletionOptions, ChatExchange,
+    http_post, http_post_with_response,
+    ChatCompletionOptions, ChatExchange,
     ChatHistory, ChatMessage, Endpoints, HttpClient, PromptInstruction,
     PromptModelTrait, PromptOptions, ServerTrait,
     DEFAULT_CONTEXT_SIZE,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
+pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";
 
 pub struct Ollama {
     http_client: HttpClient,
@@ -64,6 +65,37 @@ impl Ollama {
 
 #[async_trait]
 impl ServerTrait for Ollama {
+    async fn initialize(
+        &mut self,
+        model: &Box<dyn PromptModelTrait>,        
+    ) -> Result<(), Box<dyn Error>> {
+        let model_name = model.get_model_data().get_name();
+        let payload = OllamaShowPayload { 
+            name: model.get_model_data().get_name()
+        }.serialize().expect("Failed to serialize show payload");
+
+        let response = http_post_with_response(
+            DEFAULT_SHOW_ENDPOINT.to_string(),
+            self.http_client.clone(),
+            payload,
+        ).await;
+        if let Ok(response) = response {
+            let show_response = match OllamaShowResponse::extract_content(&response) {
+                Ok(show_response) => show_response,
+                Err(_) => {
+                    let error_message = format!("Failed to get model information for: {}", model_name);
+                    return Err(error_message.into());
+                }
+            };
+            // eprintln!("Model file: {}", show_response.modelfile);
+            // TODO:
+            // - check if the format is supported
+            // - extract context_size from the model file
+        }
+
+        Ok(())
+    }
+
     fn prompt_instruction(&self) -> &PromptInstruction {
         &self.instruction
     }
@@ -72,12 +104,12 @@ impl ServerTrait for Ollama {
         &mut self.instruction
     }
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
         match OllamaCompletionResponse::extract_content(response) {
             Ok(chat) => {
-                (chat.message.content, chat.done)
+                (chat.message.content, chat.done, chat.eval_count)
             },
-            Err(e) => (format!("Failed to parse JSON: {}", e), true),
+            Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
         }
     }
 
@@ -126,6 +158,36 @@ impl ServerPayload<'_> {
     }
 }
 
+#[derive(Serialize)]
+struct OllamaShowPayload<'a> {
+    name: &'a str,
+}
+
+impl OllamaShowPayload<'_> {
+    fn serialize(&self) -> Option<String> {
+        serde_json::to_string(self).ok()
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct OllamaShowResponse {
+    modelfile: String,
+    details: OllamaShowResponseDetails,
+}
+
+impl OllamaShowResponse {
+    pub fn extract_content(
+        bytes: &Bytes,
+    ) -> Result<OllamaShowResponse, Box<dyn Error>> {
+        let text = String::from_utf8(bytes.to_vec())?;
+        Ok(serde_json::from_str(&text)?)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct OllamaShowResponseDetails {
+    format: String,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct OllamaCompletionResponse {
@@ -133,6 +195,7 @@ struct OllamaCompletionResponse {
     created_at: String,
     message: OllamaResponseMessage,
     done: bool,
+    eval_count: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

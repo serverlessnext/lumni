@@ -15,7 +15,8 @@ pub use options::{ChatCompletionOptions, PromptOptions};
 use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
-    http_get_with_response, http_post, ChatExchange, ChatHistory, ChatMessage,
+    http_get_with_response, http_post_with_response, http_post,
+    ChatExchange, ChatHistory, ChatMessage,
     PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
@@ -56,6 +57,16 @@ impl ModelServer {
 
 #[async_trait]
 impl ServerTrait for ModelServer {
+    async fn initialize(
+        &mut self,
+        model: &Box<dyn PromptModelTrait>,
+    ) -> Result<(), Box<dyn Error>> {
+        match self {
+            ModelServer::Llama(llama) => llama.initialize(model).await,
+            ModelServer::Ollama(ollama) => ollama.initialize(model).await,
+        }
+    }
+
     fn prompt_instruction(&self) -> &PromptInstruction {
         match self {
             ModelServer::Llama(llama) => llama.prompt_instruction(),
@@ -70,7 +81,7 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
         match self {
             ModelServer::Llama(llama) => llama.process_prompt_response(response),
             ModelServer::Ollama(ollama) => ollama.process_prompt_response(response),
@@ -124,7 +135,7 @@ pub trait ServerTrait: Send + Sync {
     fn prompt_instruction(&self) -> &PromptInstruction;
     fn prompt_instruction_mut(&mut self) -> &mut PromptInstruction;
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool);
+    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>);
 
     fn set_n_keep(&mut self, n_keep: usize);
     async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>>;
@@ -138,7 +149,10 @@ pub trait ServerTrait: Send + Sync {
     ) -> Result<(), Box<dyn Error>>;
 
     // optional methods
-    async fn initialize(&self) -> Result<(), Box<dyn Error>> {
+    async fn initialize(
+        &mut self,
+        _model: &Box<dyn PromptModelTrait>,
+    ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 

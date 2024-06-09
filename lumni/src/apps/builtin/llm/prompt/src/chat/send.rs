@@ -75,3 +75,19 @@ pub async fn http_get_with_response(
     drop(rx); // drop the receiver to close the channel
     Ok(response_bytes.freeze())
 }
+
+pub async fn http_post_with_response(
+    url: String,
+    http_client: HttpClient,
+    payload: String,
+) -> Result<Bytes, Box<dyn Error>> {
+    let mut response_bytes = BytesMut::new();
+    let (tx, mut rx) = mpsc::channel(1);
+    http_post(url, http_client, Some(tx), payload, None).await;
+
+    while let Some(response) = rx.recv().await {
+        response_bytes.extend_from_slice(&response);
+    }
+    drop(rx); // drop the receiver to close the channel
+    Ok(response_bytes.freeze())
+}

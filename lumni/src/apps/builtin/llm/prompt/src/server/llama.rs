@@ -91,10 +91,10 @@ impl ServerTrait for Llama {
         &mut self.instruction
     }
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
         match LlamaCompletionResponse::extract_content(response) {
-            Ok(chat) => (chat.content, chat.stop),
-            Err(e) => (format!("Failed to parse JSON: {}", e), true),
+            Ok(chat) => (chat.content, chat.stop, chat.tokens_predicted),
+            Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
         }
     }
 
@@ -125,7 +125,10 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
-    async fn initialize(&self) -> Result<(), Box<dyn Error>> {
+    async fn initialize(
+        &mut self,
+        _model: &Box<dyn PromptModelTrait>,
+    ) -> Result<(), Box<dyn Error>> {
         // Send the system prompt to the completion endpoint at initialization
         let system_prompt = self.prompt_instruction().get_instruction();
         let system_prompt_payload = self.system_prompt_payload(system_prompt);
@@ -267,6 +270,7 @@ impl LlamaServerSettingsResponse {
 struct LlamaCompletionResponse {
     content: String,
     stop: bool,
+    tokens_predicted: Option<usize>,
 }
 
 impl LlamaCompletionResponse {

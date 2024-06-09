@@ -182,7 +182,7 @@ async fn prompt_app<B: Backend>(
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
 
-                let (response_content, is_final) = chat_session.process_prompt_response(&response);
+                let (response_content, is_final, tokens_predicted) = chat_session.process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
                 // the final response back when committed
                 let response_style = Some(Style::default());
@@ -195,7 +195,7 @@ async fn prompt_app<B: Backend>(
                     // trim trailing whitespaces or newlines
                     response_window.text_trim();
                     // trim exchange + update token length
-                    chat_session.finalize_last_exchange().await?;
+                    chat_session.finalize_last_exchange(tokens_predicted).await?;
                 }
                 redraw_ui = true;
             },
@@ -213,7 +213,8 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         .into_iter()
         .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
         .collect();
-    let models = vec!["generic", "llama3"]; // TODO: expand with "auto", "chatgpt", etc
+
+    let servers = vec!["ollama", "llama"];
 
     Command::new(name)
         .version(version)
@@ -233,12 +234,18 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                 .value_parser(PossibleValuesParser::new(&assistants)),
         )
         .arg(
+            Arg::new("server")
+                .long("server")
+                .short('S')
+                .help("Server to use for processing the request")
+                .value_parser(PossibleValuesParser::new(&servers)),
+        )
+        .arg(
             Arg::new("model")
                 .long("model")
                 .short('m')
                 .help("Model to use for processing the request")
-                .value_parser(PossibleValuesParser::new(&models))
-                .default_value(models[0]),
+                .default_value("auto"),
         )
         .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
@@ -280,6 +287,11 @@ pub async fn run_cli(
         assistant = Some("Default".to_string());
     }
 
+    let server = matches
+        .get_one::<String>("server")
+        .cloned()
+        .unwrap_or_else(|| "llama".to_string());
+
     let mut prompt_options = PromptOptions::new();
     let mut completion_options = ChatCompletionOptions::new()
         .set_temperature(DEFAULT_TEMPERATURE)
@@ -294,9 +306,8 @@ pub async fn run_cli(
     let model = Box::new(PromptModel::from_str(&model_name)?);
     completion_options.update_from_model(&*model as &dyn PromptModelTrait);
 
-    let server_name = "llama";
     let server = Box::new(ModelServer::from_str(
-        &server_name,
+        &server,
         PromptInstruction::default(),
         prompt_options,
         completion_options,

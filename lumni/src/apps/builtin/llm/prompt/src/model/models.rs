@@ -19,13 +19,14 @@ pub enum PromptModel {
 
 impl PromptModel {
     pub fn default() -> Result<Self, Box<dyn Error>> {
-        Ok(PromptModel::Generic(Generic::new()?))
+        Ok(PromptModel::Generic(Generic::new("auto")?))
     }
 
     pub fn from_str(s: &str) -> Result<Self, Box<dyn Error>> {
         match s {
             "llama3" => Ok(PromptModel::Llama3(Llama3::new()?)),
-            _ => Ok(PromptModel::Generic(Generic::new()?)),
+            // fallback to generic model
+            _ => Ok(PromptModel::Generic(Generic::new(s)?)),
         }
     }
 }
@@ -116,15 +117,17 @@ pub trait PromptModelTrait: Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct ModelData {
-    pub name: &'static str,
+    name: String,
 }
 
 impl ModelData {
-    pub fn new(name: &'static str) -> Self {
-        ModelData { name }
+    pub fn new(name: &str) -> Self {
+        ModelData {
+            name: name.to_string()
+        }
     }
 
-    pub fn get_name(&self) -> &'static str {
-        self.name
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 }

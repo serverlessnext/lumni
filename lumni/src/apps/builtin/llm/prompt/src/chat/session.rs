@@ -95,7 +95,8 @@ impl ChatSession {
             }
         }
 
-        self.server.initialize().await?;
+        eprintln!("Initializing model");
+        self.server.initialize(&self.model).await?;
         self.tokenize_and_set_n_keep();
         Ok(())
     }
@@ -118,6 +119,7 @@ impl ChatSession {
 
     pub async fn finalize_last_exchange(
         &mut self,
+        _tokens_predicted: Option<usize>,
     ) -> Result<(), Box<dyn Error>> {
         // extract the last exchange, trim and tokenize it
         let token_length = if let Some(last_exchange) =
@@ -212,12 +214,8 @@ impl ChatSession {
         Ok(new_exchange)
     }
 
-    pub fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+    pub fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
         self.server.process_prompt_response(response)
-//        match ChatCompletionResponse::extract_content(response) {
-//            Ok(chat) => (chat.content, chat.stop),
-//            Err(e) => (format!("Failed to parse JSON: {}", e), true),
-//        }
     }
 
     // used in non-interactive mode
@@ -238,7 +236,7 @@ impl ChatSession {
     ) {
         while keep_running.load(Ordering::Relaxed) {
             while let Some(response) = rx.recv().await {
-                let (response_content, is_final) =
+                let (response_content, is_final, _) =
                     self.process_prompt_response(&response);
                 print!("{}", response_content);
                 io::stdout().flush().expect("Failed to flush stdout");

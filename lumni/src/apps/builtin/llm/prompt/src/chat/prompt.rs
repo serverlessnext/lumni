@@ -28,7 +28,38 @@ impl Prompt {
     }
 }
 
-pub struct SystemPrompt {
+pub struct PromptInstruction {
+    system_prompt: SystemPrompt,
+}
+
+impl Default for PromptInstruction {
+    fn default() -> Self {
+        PromptInstruction {
+            system_prompt: SystemPrompt::default(),
+        }
+    }
+}
+
+impl PromptInstruction {
+    pub fn set_system_prompt(
+        &mut self,
+        instruction: &str,
+        token_length: Option<usize>,
+    ) {
+        self.system_prompt =
+            SystemPrompt::new(instruction.to_string(), token_length);
+    }
+
+    pub fn get_instruction(&self) -> &str {
+        self.system_prompt.get_instruction()
+    }
+
+    pub fn get_token_length(&self) -> Option<usize> {
+        self.system_prompt.get_token_length()
+    }
+}
+
+struct SystemPrompt {
     instruction: String,
     token_length: Option<usize>,
 }
@@ -41,18 +72,18 @@ impl SystemPrompt {
         }
     }
 
-    pub fn new(instruction: String, token_length: Option<usize>) -> Self {
+    fn new(instruction: String, token_length: Option<usize>) -> Self {
         SystemPrompt {
             instruction,
             token_length,
         }
     }
 
-    pub fn get_instruction(&self) -> &str {
+    fn get_instruction(&self) -> &str {
         &self.instruction
     }
 
-    pub fn get_token_length(&self) -> Option<usize> {
+    fn get_token_length(&self) -> Option<usize> {
         self.token_length
     }
 }

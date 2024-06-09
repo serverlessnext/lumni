@@ -23,14 +23,10 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
-use super::chat::{
-    list_assistants, process_prompt, process_prompt_response, ChatSession,
-};
+use super::chat::{list_assistants, ChatSession, PromptInstruction};
 use super::defaults::*;
 use super::model::{PromptModel, PromptModelTrait};
-use super::server::{
-    ChatCompletionOptions, ModelServer, PromptOptions,
-};
+use super::server::{ChatCompletionOptions, ModelServer, PromptOptions};
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
@@ -185,7 +181,8 @@ async fn prompt_app<B: Backend>(
             },
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
-                let (response_content, is_final) = process_prompt_response(&response);
+
+                let (response_content, is_final) = chat_session.process_prompt_response(&response);
                 // use insert, so we can continue to append to the response and get
                 // the final response back when committed
                 let response_style = Some(Style::default());
@@ -300,6 +297,7 @@ pub async fn run_cli(
     let server_name = "llama";
     let server = Box::new(ModelServer::from_str(
         &server_name,
+        PromptInstruction::default(),
         prompt_options,
         completion_options,
     )?);
@@ -389,12 +387,9 @@ async fn process_non_interactive_input(
         }
 
         let keep_running = Arc::new(AtomicBool::new(true));
-        process_prompt(
-            chat_session,
-            stdin_input.trim_end().to_string(),
-            keep_running,
-        )
-        .await;
+        chat_session
+            .process_prompt(stdin_input.trim_end().to_string(), keep_running)
+            .await;
     } else {
         return Err(
             "Failed to read initial byte from stdin, possibly empty".into()

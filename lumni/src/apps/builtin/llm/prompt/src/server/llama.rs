@@ -10,8 +10,9 @@ use url::Url;
 
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
-    ChatHistory, Endpoints, HttpClient, PromptModelTrait, PromptOptions,
-    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
+    ChatHistory, Endpoints, HttpClient, PromptInstruction, PromptModelTrait,
+    PromptOptions, PromptRole, ServerTrait, TokenResponse,
+    DEFAULT_CONTEXT_SIZE,
 };
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -22,12 +23,14 @@ pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 pub struct Llama {
     http_client: HttpClient,
     endpoints: Endpoints,
+    instruction: PromptInstruction,
     prompt_options: PromptOptions,
     completion_options: ChatCompletionOptions,
 }
 
 impl Llama {
     pub fn new(
+        instruction: PromptInstruction,
         prompt_options: PromptOptions,
         completion_options: ChatCompletionOptions,
     ) -> Result<Self, Box<dyn Error>> {
@@ -39,6 +42,7 @@ impl Llama {
         Ok(Llama {
             http_client: HttpClient::new(),
             endpoints,
+            instruction,
             prompt_options,
             completion_options,
         })
@@ -79,6 +83,21 @@ impl Llama {
 
 #[async_trait]
 impl ServerTrait for Llama {
+    fn prompt_instruction(&self) -> &PromptInstruction {
+        &self.instruction
+    }
+
+    fn prompt_instruction_mut(&mut self) -> &mut PromptInstruction {
+        &mut self.instruction
+    }
+
+    fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+        match LlamaCompletionResponse::extract_content(response) {
+            Ok(chat) => (chat.content, chat.stop),
+            Err(e) => (format!("Failed to parse JSON: {}", e), true),
+        }
+    }
+
     fn set_n_keep(&mut self, n_keep: usize) {
         self.completion_options.set_n_keep(n_keep);
     }
@@ -106,10 +125,9 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
-    async fn put_system_prompt(
-        &self,
-        system_prompt: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    async fn initialize(&self) -> Result<(), Box<dyn Error>> {
+        // Send the system prompt to the completion endpoint at initialization
+        let system_prompt = self.prompt_instruction().get_instruction();
         let system_prompt_payload = self.system_prompt_payload(system_prompt);
         if let Some(payload) = system_prompt_payload {
             let completion_endpoint =
@@ -242,5 +260,27 @@ struct LlamaServerSettingsResponse {
 impl LlamaServerSettingsResponse {
     fn get_n_ctx(&self) -> usize {
         self.default_generation_settings.n_ctx
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LlamaCompletionResponse {
+    content: String,
+    stop: bool,
+}
+
+impl LlamaCompletionResponse {
+    pub fn extract_content(
+        bytes: &Bytes,
+    ) -> Result<LlamaCompletionResponse, Box<dyn Error>> {
+        let text = String::from_utf8(bytes.to_vec())?;
+
+        // remove 'data: ' prefix if present
+        let json_text = if let Some(json_text) = text.strip_prefix("data: ") {
+            json_text
+        } else {
+            &text
+        };
+        Ok(serde_json::from_str(json_text)?)    // Deserialize the JSON text
     }
 }

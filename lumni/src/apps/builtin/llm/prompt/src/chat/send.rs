@@ -6,7 +6,6 @@ use lumni::api::error::HttpClientError;
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
-use super::responses::ChatCompletionResponse;
 use crate::external as lumni;
 
 pub async fn http_post(
@@ -34,19 +33,7 @@ pub async fn http_post(
             .await
         {
             Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
-            Err(e) => {
-                eprintln!("An error occurred: {}", e);
-                let error_message = format!(
-                    "{}",
-                    ChatCompletionResponse::to_json_text(&format!(
-                        "HTTP Post error: {}",
-                        e
-                    ))
-                );
-                if let Some(tx) = tx {
-                    tx.send(Bytes::from(error_message)).await.unwrap();
-                };
-            }
+            Err(e) => log::error!("HTTP Post error: {}", e),
             Ok(_) => {} // request successful
         }
     });
@@ -68,19 +55,7 @@ pub async fn http_get(
             .await
         {
             Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
-            Err(e) => {
-                eprintln!("An error occurred: {}", e);
-                let error_message = format!(
-                    "{}",
-                    ChatCompletionResponse::to_json_text(&format!(
-                        "HTTP Get error: {}",
-                        e
-                    ))
-                );
-                if let Some(tx) = tx {
-                    tx.send(Bytes::from(error_message)).await.unwrap();
-                };
-            }
+            Err(e) => log::error!("HTTP Get error: {}", e),
             Ok(_) => {}
         }
     });

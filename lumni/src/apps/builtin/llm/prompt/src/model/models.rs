@@ -11,7 +11,7 @@ pub enum PromptRole {
     System,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PromptModel {
     Generic(Generic),
     Llama3(Llama3),
@@ -31,6 +31,13 @@ impl PromptModel {
 }
 
 impl PromptModelTrait for PromptModel {
+    fn get_model_data(&self) -> &ModelData {
+        match self {
+            PromptModel::Generic(generic) => generic.get_model_data(),
+            PromptModel::Llama3(llama3) => llama3.get_model_data(),
+        }
+    }
+
     fn get_stop_tokens(&self) -> &Vec<String> {
         match self {
             PromptModel::Generic(generic) => generic.get_stop_tokens(),
@@ -67,6 +74,7 @@ impl PromptModelTrait for PromptModel {
 
 #[async_trait]
 pub trait PromptModelTrait: Send + Sync {
+    fn get_model_data(&self) -> &ModelData;
     fn get_stop_tokens(&self) -> &Vec<String>;
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
@@ -103,5 +111,20 @@ pub trait PromptModelTrait: Send + Sync {
         } else {
             format!("{}{}\n", prompt_message, message) // message already completed
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ModelData {
+    pub name: &'static str,
+}
+
+impl ModelData {
+    pub fn new(name: &'static str) -> Self {
+        ModelData { name }
+    }
+
+    pub fn get_name(&self) -> &'static str {
+        self.name
     }
 }

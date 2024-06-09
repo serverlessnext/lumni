@@ -8,11 +8,12 @@ mod send;
 mod session;
 
 pub use exchange::ChatExchange;
-pub use history::ChatHistory;
+pub use history::{ChatHistory, ChatMessage};
 use prompt::Prompt;
-pub use responses::{ChatCompletionResponse, TokenResponse};
+pub use prompt::PromptInstruction;
+pub use responses::TokenResponse;
 pub use send::{http_get_with_response, http_post};
-pub use session::{process_prompt, process_prompt_response, ChatSession};
+pub use session::ChatSession;
 
 pub use super::model::{PromptModel, PromptModelTrait, PromptRole};
 pub use super::server::ServerTrait;

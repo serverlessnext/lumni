@@ -1,15 +1,17 @@
 use std::error::Error;
 
-use super::{PromptModelTrait, PromptRole};
+use super::{ModelData, PromptModelTrait, PromptRole};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Llama3 {
+    model_data: ModelData,
     stop_tokens: Vec<String>,
 }
 
 impl Llama3 {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Llama3 {
+            model_data: ModelData::new("llama3"),
             stop_tokens: vec![
                 "<|eot_id|>".to_string(),
                 "<|end_of_text|>".to_string(),
@@ -23,6 +25,10 @@ impl Llama3 {
 }
 
 impl PromptModelTrait for Llama3 {
+    fn get_model_data(&self) ->  &ModelData {
+        &self.model_data
+    }
+
     fn get_stop_tokens(&self) -> &Vec<String> {
         &self.stop_tokens
     }

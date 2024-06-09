@@ -1,6 +1,6 @@
 mod completion;
 
-pub use completion::ChatCompletionResponse;
+//pub use completion::ChatCompletionResponse;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

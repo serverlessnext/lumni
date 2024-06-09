@@ -2,4 +2,4 @@ mod generic;
 mod llama3;
 mod models;
 
-pub use models::{PromptModel, PromptModelTrait, PromptRole};
+pub use models::{ModelData, PromptModel, PromptModelTrait, PromptRole};

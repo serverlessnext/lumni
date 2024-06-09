@@ -8,15 +8,14 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
-use super::prompt::{Prompt, SystemPrompt};
+use super::prompt::Prompt;
 use super::{
-    ChatCompletionResponse, PromptModel, PromptModelTrait, ServerTrait,
+    PromptModel, PromptModelTrait, ServerTrait,
     PERSONAS,
 };
 
 pub struct ChatSession {
     history: ChatHistory,
-    system_prompt: SystemPrompt,
     prompt_template: Option<String>,
     model: Box<dyn PromptModelTrait>,
     server: Box<dyn ServerTrait>,
@@ -38,7 +37,6 @@ impl ChatSession {
 
         Ok(ChatSession {
             history: ChatHistory::new(),
-            system_prompt: SystemPrompt::default(),
             prompt_template: None,
             model,
             server,
@@ -60,8 +58,8 @@ impl ChatSession {
         } else {
             None
         };
-        self.system_prompt =
-            SystemPrompt::new(instruction.to_string(), token_length);
+        let prompt_instruction = self.server.prompt_instruction_mut();
+        prompt_instruction.set_system_prompt(instruction, token_length);
         Ok(())
     }
 
@@ -97,10 +95,7 @@ impl ChatSession {
             }
         }
 
-        // Send the system prompt to the completion API at the start
-        self.server
-            .put_system_prompt(&self.system_prompt.get_instruction())
-            .await?;
+        self.server.initialize().await?;
         self.tokenize_and_set_n_keep();
         Ok(())
     }
@@ -157,7 +152,9 @@ impl ChatSession {
     }
 
     pub fn tokenize_and_set_n_keep(&mut self) {
-        if let Some(token_length) = self.system_prompt.get_token_length() {
+        if let Some(token_length) =
+            self.server.prompt_instruction().get_token_length()
+        {
             self.server.set_n_keep(token_length);
         };
     }
@@ -172,7 +169,7 @@ impl ChatSession {
         let exchanges = self.history.new_prompt(
             new_exchange,
             max_token_length,
-            self.system_prompt.get_token_length(),
+            self.server.prompt_instruction().get_token_length(),
         );
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
@@ -214,39 +211,42 @@ impl ChatSession {
         }
         Ok(new_exchange)
     }
-}
 
-pub async fn process_prompt(
-    chat_session: &mut ChatSession,
-    question: String,
-    keep_running: Arc<AtomicBool>,
-) {
-    let (tx, rx) = mpsc::channel(32);
-    let _ = chat_session.message(tx, question).await;
-    handle_response(rx, keep_running).await;
-}
+    pub fn process_prompt_response(&self, response: &Bytes) -> (String, bool) {
+        self.server.process_prompt_response(response)
+//        match ChatCompletionResponse::extract_content(response) {
+//            Ok(chat) => (chat.content, chat.stop),
+//            Err(e) => (format!("Failed to parse JSON: {}", e), true),
+//        }
+    }
 
-async fn handle_response(
-    mut rx: mpsc::Receiver<Bytes>,
-    keep_running: Arc<AtomicBool>,
-) {
-    while keep_running.load(Ordering::Relaxed) {
-        while let Some(response) = rx.recv().await {
-            let (response_content, is_final) =
-                process_prompt_response(&response);
-            print!("{}", response_content);
-            io::stdout().flush().expect("Failed to flush stdout");
+    // used in non-interactive mode
+    pub async fn process_prompt(
+        &mut self,
+        question: String,
+        keep_running: Arc<AtomicBool>,
+    ) {
+        let (tx, rx) = mpsc::channel(32);
+        let _ = self.message(tx, question).await;
+        self.handle_response(rx, keep_running).await;
+    }
 
-            if is_final {
-                break;
+    async fn handle_response(
+        &self,
+        mut rx: mpsc::Receiver<Bytes>,
+        keep_running: Arc<AtomicBool>,
+    ) {
+        while keep_running.load(Ordering::Relaxed) {
+            while let Some(response) = rx.recv().await {
+                let (response_content, is_final) =
+                    self.process_prompt_response(&response);
+                print!("{}", response_content);
+                io::stdout().flush().expect("Failed to flush stdout");
+
+                if is_final {
+                    break;
+                }
             }
         }
-    }
-}
-
-pub fn process_prompt_response(response: &Bytes) -> (String, bool) {
-    match ChatCompletionResponse::extract_content(response) {
-        Ok(chat) => (chat.content, chat.stop),
-        Err(e) => (format!("Failed to parse JSON: {}", e), true),
     }
 }

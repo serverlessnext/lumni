@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::exchange::ChatExchange;
 use super::{PromptModelTrait, PromptRole};
 
@@ -93,4 +95,46 @@ impl ChatHistory {
         }
         prompt
     }
+
+    pub fn exchanges_to_messages<'a, I>(
+        exchanges: I,
+        system_prompt: Option<&str>,
+        fn_role_name: &dyn Fn(PromptRole) -> &'static str,
+    ) -> Vec<ChatMessage>
+    where
+        I: IntoIterator<Item = &'a ChatExchange>,
+    {
+        let mut messages = Vec::new();
+
+        if let Some(system_prompt) = system_prompt {
+            messages.push(ChatMessage {
+                role: fn_role_name(PromptRole::System).to_string(),
+                content: system_prompt.to_string(),
+            });
+        }
+
+        for exchange in exchanges {
+            messages.push(ChatMessage {
+                role: fn_role_name(PromptRole::User).to_string(),
+                content: exchange.get_question().to_string(),
+            });
+
+            // dont add empty answers
+            let content = exchange.get_answer().to_string();
+            if content.is_empty() {
+                continue;
+            }
+            messages.push(ChatMessage {
+                role: fn_role_name(PromptRole::Assistant).to_string(),
+                content,
+            });
+        }
+        messages
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessage {
+    role: String,
+    content: String,
 }

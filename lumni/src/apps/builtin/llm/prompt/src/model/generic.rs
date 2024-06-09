@@ -1,15 +1,17 @@
 use std::error::Error;
 
-use super::PromptModelTrait;
+use super::{ModelData, PromptModelTrait};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Generic {
+    model_data: ModelData,
     stop_tokens: Vec<String>,
 }
 
 impl Generic {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Generic {
+            model_data: ModelData::new("generic"),
             stop_tokens: vec![
                 "### User: ".to_string(),
                 "### Human: ".to_string(),
@@ -21,6 +23,10 @@ impl Generic {
 }
 
 impl PromptModelTrait for Generic {
+    fn get_model_data(&self) -> &ModelData {
+        &self.model_data
+    }
+
     fn get_stop_tokens(&self) -> &Vec<String> {
         &self.stop_tokens
     }

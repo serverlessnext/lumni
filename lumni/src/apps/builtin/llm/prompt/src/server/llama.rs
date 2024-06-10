@@ -24,15 +24,15 @@ pub struct Llama {
     http_client: HttpClient,
     endpoints: Endpoints,
     instruction: PromptInstruction,
-    prompt_options: PromptOptions,
-    completion_options: ChatCompletionOptions,
+    //    prompt_options: PromptOptions,
+    //    completion_options: ChatCompletionOptions,
 }
 
 impl Llama {
     pub fn new(
         instruction: PromptInstruction,
-        prompt_options: PromptOptions,
-        completion_options: ChatCompletionOptions,
+        //        prompt_options: PromptOptions,
+        //        completion_options: ChatCompletionOptions,
     ) -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?)
@@ -43,25 +43,27 @@ impl Llama {
             http_client: HttpClient::new(),
             endpoints,
             instruction,
-            prompt_options,
-            completion_options,
+            //            prompt_options,
+            //            completion_options,
         })
     }
 
     fn system_prompt_payload(&self, instruction: &str) -> Option<String> {
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),
-            self.prompt_options
+            self.instruction
+                .get_prompt_options()
                 .get_role_prefix(PromptRole::User)
                 .to_string(),
-            self.prompt_options
+            self.instruction
+                .get_prompt_options()
                 .get_role_prefix(PromptRole::Assistant)
                 .to_string(),
         );
         let payload = LlamaServerPayload {
             prompt: "",
             system_prompt: Some(&system_prompt),
-            options: &self.completion_options,
+            options: &self.instruction.get_completion_options(),
         };
         payload.serialize()
     }
@@ -75,7 +77,7 @@ impl Llama {
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,
-            options: &self.completion_options,
+            options: &self.instruction.get_completion_options(),
         };
         serde_json::to_string(&payload)
     }
@@ -83,23 +85,22 @@ impl Llama {
 
 #[async_trait]
 impl ServerTrait for Llama {
-    fn prompt_instruction(&self) -> &PromptInstruction {
+    fn get_instruction(&self) -> &PromptInstruction {
         &self.instruction
     }
 
-    fn prompt_instruction_mut(&mut self) -> &mut PromptInstruction {
+    fn get_instruction_mut(&mut self) -> &mut PromptInstruction {
         &mut self.instruction
     }
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
+    fn process_response(
+        &self,
+        response: &Bytes,
+    ) -> (String, bool, Option<usize>) {
         match LlamaCompletionResponse::extract_content(response) {
             Ok(chat) => (chat.content, chat.stop, chat.tokens_predicted),
             Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
         }
-    }
-
-    fn set_n_keep(&mut self, n_keep: usize) {
-        self.completion_options.set_n_keep(n_keep);
     }
 
     async fn completion(
@@ -130,7 +131,8 @@ impl ServerTrait for Llama {
         _model: &Box<dyn PromptModelTrait>,
     ) -> Result<(), Box<dyn Error>> {
         // Send the system prompt to the completion endpoint at initialization
-        let system_prompt = self.prompt_instruction().get_instruction();
+        let system_prompt = self.instruction.get_instruction();
+
         let system_prompt_payload = self.system_prompt_payload(system_prompt);
         if let Some(payload) = system_prompt_payload {
             let completion_endpoint =
@@ -144,11 +146,19 @@ impl ServerTrait for Llama {
             )
             .await;
         }
+
+        if let Some(token_length) = self.instruction.get_token_length() {
+            self.instruction
+                .get_completion_options_mut()
+                .set_n_keep(token_length);
+        };
+
         Ok(())
     }
 
     async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
-        let context_size = self.prompt_options.get_context_size();
+        let context_size =
+            self.instruction.get_prompt_options().get_context_size();
         match context_size {
             Some(size) => Ok(size), // Return the context size if it's already set
             None => {
@@ -178,7 +188,9 @@ impl ServerTrait for Llama {
                     }
                     None => DEFAULT_CONTEXT_SIZE, // Fallback if no endpoint is available
                 };
-                self.prompt_options.set_context_size(context_size);
+                self.instruction
+                    .get_prompt_options_mut()
+                    .set_context_size(context_size);
                 Ok(context_size)
             }
         }
@@ -285,6 +297,6 @@ impl LlamaCompletionResponse {
         } else {
             &text
         };
-        Ok(serde_json::from_str(json_text)?)    // Deserialize the JSON text
+        Ok(serde_json::from_str(json_text)?) // Deserialize the JSON text
     }
 }

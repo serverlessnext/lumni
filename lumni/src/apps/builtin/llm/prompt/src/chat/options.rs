@@ -78,6 +78,10 @@ impl ChatCompletionOptions {
         self
     }
 
+    pub fn get_n_keep(&self) -> Option<usize> {
+        self.n_keep
+    }
+
     pub fn set_n_predict(mut self, n_predict: u32) -> Self {
         self.n_predict = Some(n_predict);
         self

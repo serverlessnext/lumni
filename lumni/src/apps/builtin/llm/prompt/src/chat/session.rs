@@ -9,10 +9,7 @@ use tokio::sync::{mpsc, oneshot};
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::prompt::Prompt;
-use super::{
-    PromptModel, PromptModelTrait, ServerTrait,
-    PERSONAS,
-};
+use super::{PromptModel, PromptModelTrait, ServerTrait, PERSONAS};
 
 pub struct ChatSession {
     history: ChatHistory,
@@ -58,7 +55,7 @@ impl ChatSession {
         } else {
             None
         };
-        let prompt_instruction = self.server.prompt_instruction_mut();
+        let prompt_instruction = self.server.get_instruction_mut();
         prompt_instruction.set_system_prompt(instruction, token_length);
         Ok(())
     }
@@ -95,9 +92,8 @@ impl ChatSession {
             }
         }
 
-        eprintln!("Initializing model");
         self.server.initialize(&self.model).await?;
-        self.tokenize_and_set_n_keep();
+
         Ok(())
     }
 
@@ -153,14 +149,6 @@ impl ChatSession {
         Ok(())
     }
 
-    pub fn tokenize_and_set_n_keep(&mut self) {
-        if let Some(token_length) =
-            self.server.prompt_instruction().get_token_length()
-        {
-            self.server.set_n_keep(token_length);
-        };
-    }
-
     pub async fn message(
         &mut self,
         tx: mpsc::Sender<Bytes>,
@@ -168,11 +156,10 @@ impl ChatSession {
     ) -> Result<(), Box<dyn Error>> {
         let max_token_length = self.server.get_context_size().await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
-        let exchanges = self.history.new_prompt(
-            new_exchange,
-            max_token_length,
-            self.server.prompt_instruction().get_token_length(),
-        );
+        let n_keep = self.server.get_instruction().get_n_keep();
+        let exchanges =
+            self.history
+                .new_prompt(new_exchange, max_token_length, n_keep);
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel
@@ -214,8 +201,11 @@ impl ChatSession {
         Ok(new_exchange)
     }
 
-    pub fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
-        self.server.process_prompt_response(response)
+    pub fn process_response(
+        &self,
+        response: &Bytes,
+    ) -> (String, bool, Option<usize>) {
+        self.server.process_response(response)
     }
 
     // used in non-interactive mode
@@ -237,7 +227,7 @@ impl ChatSession {
         while keep_running.load(Ordering::Relaxed) {
             while let Some(response) = rx.recv().await {
                 let (response_content, is_final, _) =
-                    self.process_prompt_response(&response);
+                    self.process_response(&response);
                 print!("{}", response_content);
                 io::stdout().flush().expect("Failed to flush stdout");
 

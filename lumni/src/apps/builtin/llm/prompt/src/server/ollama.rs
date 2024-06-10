@@ -7,11 +7,8 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, http_post_with_response,
-    ChatCompletionOptions, ChatExchange,
-    ChatHistory, ChatMessage, Endpoints, HttpClient, PromptInstruction,
-    PromptModelTrait, PromptOptions, ServerTrait,
-    DEFAULT_CONTEXT_SIZE,
+    http_post, http_post_with_response, ChatExchange, ChatHistory, ChatMessage,
+    Endpoints, HttpClient, PromptInstruction, PromptModelTrait, ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
@@ -21,16 +18,10 @@ pub struct Ollama {
     http_client: HttpClient,
     endpoints: Endpoints,
     instruction: PromptInstruction,
-    prompt_options: PromptOptions,
-    completion_options: ChatCompletionOptions,
 }
 
 impl Ollama {
-    pub fn new(
-        instruction: PromptInstruction,
-        prompt_options: PromptOptions,
-        completion_options: ChatCompletionOptions,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(instruction: PromptInstruction) -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?);
 
@@ -38,8 +29,6 @@ impl Ollama {
             http_client: HttpClient::new(),
             endpoints,
             instruction,
-            prompt_options,
-            completion_options,
         })
     }
 
@@ -67,54 +56,51 @@ impl Ollama {
 impl ServerTrait for Ollama {
     async fn initialize(
         &mut self,
-        model: &Box<dyn PromptModelTrait>,        
+        model: &Box<dyn PromptModelTrait>,
     ) -> Result<(), Box<dyn Error>> {
         let model_name = model.get_model_data().get_name();
-        let payload = OllamaShowPayload { 
-            name: model.get_model_data().get_name()
-        }.serialize().expect("Failed to serialize show payload");
+        let payload = OllamaShowPayload {
+            name: model.get_model_data().get_name(),
+        }
+        .serialize()
+        .expect("Failed to serialize show payload");
 
         let response = http_post_with_response(
             DEFAULT_SHOW_ENDPOINT.to_string(),
             self.http_client.clone(),
             payload,
-        ).await;
+        )
+        .await;
         if let Ok(response) = response {
-            let show_response = match OllamaShowResponse::extract_content(&response) {
-                Ok(show_response) => show_response,
-                Err(_) => {
-                    let error_message = format!("Failed to get model information for: {}", model_name);
-                    return Err(error_message.into());
-                }
-            };
-            // eprintln!("Model file: {}", show_response.modelfile);
-            // TODO:
-            // - check if the format is supported
-            // - extract context_size from the model file
+            // check if model is available by validating the response format
+            // at this moment we not yet need the response itself
+            if OllamaShowResponse::extract_content(&response).is_err() {
+                let error_message = format!(
+                    "Failed to get model information for: {}",
+                    model_name
+                );
+                return Err(error_message.into());
+            }
         }
-
         Ok(())
     }
 
-    fn prompt_instruction(&self) -> &PromptInstruction {
+    fn get_instruction(&self) -> &PromptInstruction {
         &self.instruction
     }
 
-    fn prompt_instruction_mut(&mut self) -> &mut PromptInstruction {
+    fn get_instruction_mut(&mut self) -> &mut PromptInstruction {
         &mut self.instruction
     }
 
-    fn process_prompt_response(&self, response: &Bytes) -> (String, bool, Option<usize>) {
+    fn process_response(
+        &self,
+        response: &Bytes,
+    ) -> (String, bool, Option<usize>) {
         match OllamaCompletionResponse::extract_content(response) {
-            Ok(chat) => {
-                (chat.message.content, chat.done, chat.eval_count)
-            },
+            Ok(chat) => (chat.message.content, chat.done, chat.eval_count),
             Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
         }
-    }
-
-    fn set_n_keep(&mut self, n_keep: usize) {
-        self.completion_options.set_n_keep(n_keep);
     }
 
     async fn completion(
@@ -138,16 +124,13 @@ impl ServerTrait for Ollama {
         }
         Ok(())
     }
-
-    async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
-        Ok(DEFAULT_CONTEXT_SIZE)
-    }
 }
 
 #[derive(Serialize)]
 struct ServerPayload<'a> {
     model: &'a str,
     messages: &'a Vec<ChatMessage>,
+    // TODO: reformat and pass options to ollama
     //#[serde(flatten)]
     //    options: &'a ChatCompletionOptions,
 }
@@ -216,6 +199,6 @@ impl OllamaCompletionResponse {
         } else {
             &text
         };
-        Ok(serde_json::from_str(json_text)?)    // Deserialize the JSON text
+        Ok(serde_json::from_str(json_text)?) // Deserialize the JSON text
     }
 }

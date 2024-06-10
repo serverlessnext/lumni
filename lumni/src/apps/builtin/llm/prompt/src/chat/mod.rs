@@ -2,19 +2,22 @@ use std::error::Error;
 
 mod exchange;
 mod history;
+mod instruction;
+mod options;
 mod prompt;
 mod send;
 mod session;
 
-use serde::Deserialize;
-
 pub use exchange::ChatExchange;
 pub use history::{ChatHistory, ChatMessage};
+pub use instruction::PromptInstruction;
+pub use options::{ChatCompletionOptions, PromptOptions};
 use prompt::Prompt;
-pub use prompt::PromptInstruction;
-pub use send::{http_get_with_response, http_post_with_response, http_post};
+pub use send::{http_get_with_response, http_post, http_post_with_response};
+use serde::Deserialize;
 pub use session::ChatSession;
 
+pub use super::defaults::*;
 pub use super::model::{PromptModel, PromptModelTrait, PromptRole};
 pub use super::server::ServerTrait;
 
@@ -27,7 +30,6 @@ pub fn list_assistants() -> Result<Vec<String>, Box<dyn Error>> {
         prompts.iter().map(|p| p.name().to_owned()).collect();
     Ok(assistants)
 }
-
 
 #[derive(Deserialize)]
 pub struct TokenResponse {

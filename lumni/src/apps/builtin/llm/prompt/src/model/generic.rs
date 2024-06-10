@@ -9,9 +9,7 @@ pub struct Generic {
 }
 
 impl Generic {
-    pub fn new(
-        model_name: &str,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(model_name: &str) -> Result<Self, Box<dyn Error>> {
         Ok(Generic {
             model_data: ModelData::new(model_name),
             stop_tokens: vec![

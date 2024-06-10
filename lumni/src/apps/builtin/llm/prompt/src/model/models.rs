@@ -123,7 +123,7 @@ pub struct ModelData {
 impl ModelData {
     pub fn new(name: &str) -> Self {
         ModelData {
-            name: name.to_string()
+            name: name.to_string(),
         }
     }
 

@@ -25,7 +25,7 @@ impl Llama3 {
 }
 
 impl PromptModelTrait for Llama3 {
-    fn get_model_data(&self) ->  &ModelData {
+    fn get_model_data(&self) -> &ModelData {
         &self.model_data
     }
 

@@ -24,9 +24,8 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::chat::{list_assistants, ChatSession, PromptInstruction};
-use super::defaults::*;
 use super::model::{PromptModel, PromptModelTrait};
-use super::server::{ChatCompletionOptions, ModelServer, PromptOptions};
+use super::server::ModelServer;
 use super::tui::{
     draw_ui, CommandLine, CommandLineAction, KeyEventHandler, PromptAction,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
@@ -182,7 +181,7 @@ async fn prompt_app<B: Backend>(
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
 
-                let (response_content, is_final, tokens_predicted) = chat_session.process_prompt_response(&response);
+                let (response_content, is_final, tokens_predicted) = chat_session.process_response(&response);
                 // use insert, so we can continue to append to the response and get
                 // the final response back when committed
                 let response_style = Some(Style::default());
@@ -292,26 +291,22 @@ pub async fn run_cli(
         .cloned()
         .unwrap_or_else(|| "llama".to_string());
 
-    let mut prompt_options = PromptOptions::new();
-    let mut completion_options = ChatCompletionOptions::new()
-        .set_temperature(DEFAULT_TEMPERATURE)
-        .set_n_predict(DEFAULT_N_PREDICT)
-        .set_cache_prompt(true)
-        .set_stream(true);
+    let mut prompt_instruction = PromptInstruction::default();
 
     if let Some(json_str) = options {
-        prompt_options.update_from_json(json_str);
-        completion_options.update_from_json(json_str);
+        prompt_instruction
+            .get_prompt_options_mut()
+            .update_from_json(json_str);
+        prompt_instruction
+            .get_completion_options_mut()
+            .update_from_json(json_str);
     }
     let model = Box::new(PromptModel::from_str(&model_name)?);
-    completion_options.update_from_model(&*model as &dyn PromptModelTrait);
+    prompt_instruction
+        .get_completion_options_mut()
+        .update_from_model(&*model as &dyn PromptModelTrait);
 
-    let server = Box::new(ModelServer::from_str(
-        &server,
-        PromptInstruction::default(),
-        prompt_options,
-        completion_options,
-    )?);
+    let server = Box::new(ModelServer::from_str(&server, prompt_instruction)?);
 
     let mut chat_session = ChatSession::new(server, Some(model))?;
     if let Some(instruction) = instruction {

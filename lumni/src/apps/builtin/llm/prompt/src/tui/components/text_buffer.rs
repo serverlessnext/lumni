@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span};
 
 use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::{PieceTable, TextLine};
+use super::text_wrapper::TextWrapper;
 
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
@@ -259,6 +260,37 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
+    fn apply_code_block_styling(&mut self, code_block_style: &Style) {
+        let mut in_code_block = false;
+
+        for line in self.display.wrap_lines_mut().iter_mut() {
+            // Concatenate all span contents to check for code block delimiters
+            let full_line_content = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref()) // Convert Cow<str> to &str
+                .collect::<String>();
+            let line_contains_code_delimiter =
+                full_line_content.contains("```");
+
+            // Toggle code block state if delimiter found
+            if line_contains_code_delimiter {
+                in_code_block = !in_code_block;
+                // Process for altering just the delimiter span could go here
+                // Optionally apply style changes here if you want the delimiters styled
+            }
+
+            // Apply styles to spans if inside a code block
+            if in_code_block {
+                for span in line.spans.iter_mut() {
+                    let mut new_style = span.style.clone();
+                    new_style.bg = Some(Color::Gray); // Set background color to gray
+                    span.style = new_style;
+                }
+            }
+        }
+    }
+
     pub fn update_display_text(&mut self) {
         self.text.update_lines_styled();
         self.display.clear();
@@ -275,6 +307,9 @@ impl TextBuffer<'_> {
         // Get the bounds of selected text, position based on unwrapped lines
         // (start_row, start_col, end_row, end_col)
         let selection_bounds = self.get_selection_bounds();
+
+        let text_wrapper = TextWrapper::new(self.display.width());
+
         for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
@@ -282,7 +317,13 @@ impl TextBuffer<'_> {
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
 
-            let wrapped_lines = self.wrap_text_styled(&line);
+            //eprintln!("Lines before wrapping: {:?}|{}", text_str, text_str.len());
+            let wrapped_lines = text_wrapper.wrap_text_styled(line);
+
+            // debug wrapped lines
+            //eprintln!("Wrapped lines: {:?}", wrapped_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>());
+
+            // length of the wrapped lines content 
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(idx, trailing_spaces);
             } else {
@@ -295,6 +336,11 @@ impl TextBuffer<'_> {
                 );
             }
         }
+
+        // apply code block styling after wrapping
+        //let code_block_style = Style::default().bg(Color::Gray);
+        //self.apply_code_block_styling(&code_block_style);
+
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
     }
@@ -305,115 +351,6 @@ impl TextBuffer<'_> {
         } else {
             (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
         }
-    }
-
-    fn wrap_text_styled(&self, line: &TextLine) -> Vec<TextLine> {
-        // Wrap text into lines based on the display width, keeping the style
-        // of each segment, preserving leading spaces
-        let mut wrapped_lines = Vec::new();
-        let mut current_line = TextLine::new();
-
-        let max_width = self.display.width().saturating_sub(2); // deduct space for padding
-        if max_width < 1 {
-            // No width available to wrap any text
-            return wrapped_lines;
-        }
-        for segment in line.segments() {
-            let text = segment.text();
-
-            // Split text into words and keep leading spaces
-            let mut current_text = String::new();
-
-            // Use regex to capture leading spaces and words separately
-            let re = regex::Regex::new(r"(\s*)(\S+)").unwrap();
-            let mut words = Vec::new();
-
-            for cap in re.captures_iter(text) {
-                words.push((cap[1].to_string(), cap[2].to_string()));
-            }
-
-            for (mut leading_spaces, word) in words {
-                // Calculate the space needed if current_text is not empty
-                let space_len = if !current_text.is_empty() { 1 } else { 0 };
-
-                // Check if the current word with leading spaces fits in the line
-                if current_text.len()
-                    + space_len
-                    + leading_spaces.len()
-                    + word.len()
-                    + current_line.length()
-                    > max_width
-                {
-                    // If adding this word would exceed max_width, push current_text to current_line
-                    if !current_text.is_empty() {
-                        current_line.add_segment(
-                            current_text.trim_end().to_string(),
-                            segment.style().clone(),
-                        );
-                        current_text.clear();
-                    }
-
-                    // If the word itself is too long, handle it specifically
-                    if leading_spaces.len() + word.len() > max_width {
-                        // Add leading spaces to the current_text before handling the word
-                        current_text.push_str(&leading_spaces);
-
-                        // Split the word into manageable pieces
-                        let mut start_index = 0;
-                        while start_index < word.len() {
-                            let end_index = std::cmp::min(
-                                (start_index + max_width)
-                                    .saturating_sub(current_text.len()),
-                                word.len(),
-                            );
-                            let slice = &word[start_index..end_index];
-
-                            // Ensure there's no trailing line without segments
-                            if !current_line.is_empty() {
-                                wrapped_lines.push(current_line);
-                                current_line = TextLine::new();
-                            }
-
-                            current_line.add_segment(
-                                current_text.clone() + slice,
-                                segment.style().clone(),
-                            );
-                            wrapped_lines.push(current_line);
-                            current_line = TextLine::new();
-                            start_index = end_index;
-                            current_text.clear(); // Clear current_text after the first use
-                        }
-                        continue; // Continue to the next word
-                    } else {
-                        // Start a new line with the current word if it fits alone
-                        if !leading_spaces.is_empty() {
-                            leading_spaces.remove(0); // Remove one leading space
-                        }
-                        wrapped_lines.push(current_line);
-                        current_line = TextLine::new();
-                        current_text = format!("{}{}", leading_spaces, word);
-                    }
-                } else {
-                    // Add word (including leading spaces) to current_text
-                    current_text
-                        .push_str(&format!("{}{}", leading_spaces, word));
-                }
-            }
-
-            // After all words, if there's leftover text, add it as a segment
-            if !current_text.is_empty() {
-                current_line.add_segment(
-                    current_text.trim_end().to_string(),
-                    segment.style().clone(),
-                );
-            }
-        }
-
-        // Add the last line if it has segments
-        if !current_line.is_empty() {
-            wrapped_lines.push(current_line);
-        }
-        wrapped_lines
     }
 
     fn handle_empty_line(
@@ -572,15 +509,20 @@ impl TextBuffer<'_> {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
         let mut wrap_position = 0;
+        // TODO: there appears to be a bug, that for each wrapped line, the cursor position
+        // is one character off. 
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
+            // debug line 
             let line_length = line
                 .spans
                 .iter()
                 .map(|span| span.content.len())
                 .sum::<usize>();
+            //eprintln!("Line: {:?}|({})", line.to_string(), line_length);
             if wrap_position + line_length >= cursor_position {
                 // Cursor is on this line
                 let column = cursor_position - wrap_position;
+                //eprintln!("Cursor,r={},c={},t={}", row, column, cursor_position);
                 return (column, row);
             }
             wrap_position += line_length + 1; // account for newline character

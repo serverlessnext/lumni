@@ -1,5 +1,4 @@
 use ratatui::style::{Color, Style};
-use ratatui::symbols::line;
 use ratatui::text::{Line, Span};
 
 use super::cursor::{Cursor, MoveCursor};
@@ -11,14 +10,16 @@ struct LineSegment<'a> {
     line: Line<'a>,
     idx: usize,     // index in unwrapped (real) text lines
     length: usize,  // length of the line segment
+    last_segment: bool,
 }
 
 impl<'a> LineSegment<'a> {
-    fn new(line: Line<'a>, idx: usize, length: usize) -> Self {
+    fn new(line: Line<'a>, idx: usize, length: usize, last_segment: bool) -> Self {
         LineSegment {
             line,
             idx,
             length,
+            last_segment,
         }
     }
 
@@ -53,22 +54,25 @@ impl<'a> TextDisplay<'a> {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = cursor.real_position();
         let mut new_line_position = 0;
-        // TODO: there appears to be a bug, that for each wrapped line, the cursor position
-        // is one character off. 
 
-        // default to (0, 0) if cursor is not found
         self.column = 0;
         self.row = 0;
 
         let last_line = self.wrap_lines.len().saturating_sub(1);
 
         for (row, line) in self.wrap_lines.iter().enumerate() {
+            let line_length = if line.last_segment {
+                line.length + 1 // account for end of line/ cursor space
+            } else {
+                line.length
+            };
+
             // position_newline 
-            //eprintln!("{}:Line: {:?}|({})", line.idx, line.to_string(), line.length);
-            if new_line_position + line.idx + line.length > cursor_position || row == last_line {
+            if new_line_position + line.idx + line_length > cursor_position || row == last_line {
                 // Cursor is on this line
+                //eprintln!("{}:Line: {:?}|({})", line.idx, line.to_string(), line_length);
                 let column = cursor_position.saturating_sub(new_line_position + line.idx);
-                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position);
+                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position + line.idx);
                 self.column = column;
                 self.row = row;
                 break;
@@ -90,8 +94,8 @@ impl<'a> TextDisplay<'a> {
         self.display_width
     }
 
-    fn push_line(&mut self, line: Line<'a>, idx: usize, length: usize) {
-        self.wrap_lines.push(LineSegment::new(line, idx, length));
+    fn push_line(&mut self, line: Line<'a>, idx: usize, length: usize, last_segment: bool) {
+        self.wrap_lines.push(LineSegment::new(line, idx, length, last_segment));
     }
 
     fn set_display_width(&mut self, width: usize) {
@@ -432,15 +436,11 @@ impl TextBuffer<'_> {
                 .take(trailing_spaces)
                 .collect::<String>();
 
-            self.display.push_line(Line::from(Span::raw(spaces)), current_row, trailing_spaces);
+            self.display.push_line(Line::from(Span::raw(spaces)), current_row, trailing_spaces, true);
         } 
-        //else if current_row == self.cursor.row as usize {
-        //    // current selected row -- add a line with a single space for cursor position
-        //    self.display.push_line(Line::from(Span::raw(" ")));
         else {
             // add empty row
-            //self.display.push_line(Line::from(Span::raw("")));
-            self.display.push_line(Line::from(Span::raw("")), current_row, 0);
+            self.display.push_line(Line::from(Span::raw("")), current_row, 0, true);
         }
     }
 
@@ -484,16 +484,18 @@ impl TextBuffer<'_> {
             }
 
             let mut current_line = Line::from(spans);
-            if trailing_spaces > 0 && idx == wrapped_lines.len() - 1 {
+
+            let last_segment = idx == wrapped_lines.len() - 1;
+
+            if last_segment && trailing_spaces > 0 {
                 // Add trailing spaces back to end of the last line
                 let spaces = std::iter::repeat(' ')
                     .take(trailing_spaces)
                     .collect::<String>();
                 current_line.spans.push(Span::raw(spaces));
             }
-            //self.display.push_line(current_line);
             let current_line_length = current_line.spans.iter().map(|span| span.content.len()).sum::<usize>();
-            self.display.push_line(current_line, unwrapped_line_index, current_line_length);
+            self.display.push_line(current_line, unwrapped_line_index, current_line_length, last_segment);
             char_pos += 1; // account for newline character
         }
     }
@@ -504,14 +506,13 @@ impl TextBuffer<'_> {
         }
         // Retrieve the cursor's column and row in the wrapped display
         let (column, row) = self.display.update_column_row(&self.cursor);
-
-        let last_line = self.display.wrap_lines().len().saturating_sub(1) == row;
         let mut line_column = column;
 
         if let Some(current_line) = self.display.wrap_lines_mut().get_mut(row) {
             let line_length = current_line.length;
+            let last_segment = current_line.last_segment;
             let spans = current_line.spans_mut();
-            if last_line && line_column >= line_length {
+            if line_column >= line_length && last_segment {
                 spans.push(Span::styled(
                     "_",
                     Style::default().bg(Color::Green),
@@ -522,7 +523,6 @@ impl TextBuffer<'_> {
                 let mut span_offset = 0;
                 for span in spans.iter() {
                     let span_length = span.content.len();
-
                     if line_column < span_length {
                         // Split the span at the cursor position
                         let before = &span.content[..line_column];

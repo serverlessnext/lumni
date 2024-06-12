@@ -159,6 +159,7 @@ impl PieceTable {
         self.pieces.clear();
         self.undo_stack.clear();
         self.redo_stack.clear();
+        self.modified = true;
     }
 
     pub fn insert(

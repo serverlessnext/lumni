@@ -193,8 +193,6 @@ impl TextWrapper {
                     // first part is triple-backticks, text is always added on a new line
                     current_line.add_segment(part.to_string(), segment.style().clone());
                 }                
-                wrapped_lines.push(current_line.clone());
-                *current_line = TextLine::new();
             }
             if i < parts.len() - 1 {
                 // Add the triple-backticks on its own line

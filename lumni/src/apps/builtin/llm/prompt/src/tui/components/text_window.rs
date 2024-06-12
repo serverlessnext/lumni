@@ -67,7 +67,7 @@ impl<'a> TextWindow<'a> {
     }
 
     fn scroll_to_cursor(&mut self) {
-        let (_, cursor_row) = self.text_buffer.display_column_row(); // current cursor row
+        let (_, cursor_row) = self.text_buffer.get_column_row(); // current cursor row
         let visible_rows = self.area.height() as usize; // max number of rows visible in the window
 
         let first_visible_row = self.vertical_scroll;

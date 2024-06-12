@@ -414,6 +414,8 @@ impl PieceTable {
     }
 
     pub fn update_if_modified(&mut self) {
+        // this function is called by the UI to make sure text_lines are updated,
+        // updating the lines is only necessary if the text has been modified in between
         if self.modified {
             self.update_lines_styled();
             self.modified = false;

@@ -193,10 +193,6 @@ impl<'a> TextWindow<'a> {
         self.text_buffer.text_insert_add(text, style);
     }
 
-    pub fn text_insert_commit(&mut self) -> String {
-        self.text_buffer.text_insert_commit()
-    }
-
     pub fn text_append(&mut self, text: &str, style: Option<Style>) {
         self.text_buffer.text_append(text, style);
         self.scroll_to_end();
@@ -264,10 +260,6 @@ pub trait TextWindowTrait<'a> {
 
     fn text_append_with_insert(&mut self, text: &str, style: Option<Style>) {
         self.base().text_append_with_insert(text, style);
-    }
-
-    fn text_insert_commit(&mut self) -> String {
-        self.base().text_insert_commit()
     }
 
     fn text_append(&mut self, text: &str, style: Option<Style>) {

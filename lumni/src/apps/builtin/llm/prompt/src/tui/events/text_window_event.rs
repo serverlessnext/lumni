@@ -28,18 +28,10 @@ where
             }
         }
         KeyCode::Esc => {
-            if window.is_status_insert() {
-                // commit
-                window.text_insert_commit();
-            }
             window.set_normal_mode();
         }
         KeyCode::Tab => {
             // same as Escape
-            if window.is_status_insert() {
-                // commit
-                window.text_insert_commit();
-            }
             window.set_normal_mode();
         }
         KeyCode::Right => {
@@ -146,7 +138,6 @@ where
                 let mut clipboard = ClipboardProvider::new();
                 if let Ok(text) = clipboard.read_text() {
                     window.text_insert_add(&text, None);
-                    window.text_insert_commit();
                 }
             } else {
                 // TODO: give feedback

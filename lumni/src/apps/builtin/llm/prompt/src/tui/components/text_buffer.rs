@@ -102,7 +102,7 @@ impl TextBuffer<'_> {
     pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
         // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
-        self.text.cache_insert(text, Some(idx), style);
+        self.text.insert(idx, text, style, false);
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment
@@ -169,10 +169,6 @@ impl TextBuffer<'_> {
             // delete leftwards from the cursor
             self.move_cursor(MoveCursor::Left(char_count as u16), true);
         }
-    }
-
-    pub fn text_insert_commit(&mut self) -> String {
-        self.text.commit_insert_cache()
     }
 
     pub fn display_text(&self) -> Vec<Line> {
@@ -292,7 +288,7 @@ impl TextBuffer<'_> {
     }
 
     pub fn update_display_text(&mut self) {
-        self.text.update_lines_styled();
+        self.text.update_if_modified();
         self.display.clear();
         let mut text_lines = self.text.text_lines().to_vec();
 
@@ -508,7 +504,7 @@ impl TextBuffer<'_> {
     pub fn display_column_row(&self) -> (usize, usize) {
         // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = self.cursor.real_position();
-        let mut wrap_position = 0;
+        let mut new_line_position = 0;
         // TODO: there appears to be a bug, that for each wrapped line, the cursor position
         // is one character off. 
         for (row, line) in self.display.wrap_lines().iter().enumerate() {
@@ -518,14 +514,15 @@ impl TextBuffer<'_> {
                 .iter()
                 .map(|span| span.content.len())
                 .sum::<usize>();
+            // position_newline 
             //eprintln!("Line: {:?}|({})", line.to_string(), line_length);
-            if wrap_position + line_length >= cursor_position {
+            if new_line_position + line_length >= cursor_position {
                 // Cursor is on this line
-                let column = cursor_position - wrap_position;
-                //eprintln!("Cursor,r={},c={},t={}", row, column, cursor_position);
+                let column = cursor_position.saturating_sub(new_line_position);
+                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position);
                 return (column, row);
             }
-            wrap_position += line_length + 1; // account for newline character
+            new_line_position += line_length + 1; // account for newline character
         }
         (0, 0) // default to (0, 0) if cursor is not found
     }

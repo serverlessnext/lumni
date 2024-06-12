@@ -17,45 +17,6 @@ enum Action {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum InsertMode {
-    Append,
-    Insert(usize), // Include the index where the insertion starts
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Cache {
-    content: String,
-    insert_idx: Option<usize>,
-    style: Option<Style>,
-}
-
-impl Cache {
-    pub fn new() -> Self {
-        Cache {
-            content: String::new(),
-            insert_idx: None,
-            style: None,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.content.clear();
-        self.insert_idx = None;
-        self.style = None;
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.insert_idx.is_some()
-    }
-
-    pub fn start(&mut self, idx: usize, style: Option<Style>) {
-        self.content.clear();
-        self.insert_idx = Some(idx);
-        self.style = style;
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct TextSegment {
     text: String,
     style: Option<Style>,
@@ -126,9 +87,9 @@ pub struct PieceTable {
     text_lines: Vec<TextLine>, // text split into lines with styles
     add: String,               // All text that has been added
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
-    cache: Cache,       // Temporary buffer for caching many (small) insertions
     undo_stack: Vec<Action>, // Stack for undoing actions
     redo_stack: Vec<Action>, // Stack for redoing actions
+    modified: bool, // Flag to indicate if the text has been modified
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -150,9 +111,9 @@ impl PieceTable {
             text_lines: Vec::new(),
             add: String::new(),
             pieces: Vec::new(),
-            cache: Cache::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            modified: false,
         }
     }
 
@@ -196,18 +157,19 @@ impl PieceTable {
     pub fn empty(&mut self) {
         self.add.clear();
         self.pieces.clear();
-        self.cache.clear();
         self.undo_stack.clear();
         self.redo_stack.clear();
     }
 
-    fn insert(
+    pub fn insert(
         &mut self,
         idx: usize,
         text: &str,
         style: Option<Style>,
         is_redo: bool,
     ) {
+        self.modified = true;
+
         let add_start = self.add.len(); // start index of the text in the `add` buffer.
         self.add.push_str(&text); // append to the `add` buffer.
 
@@ -285,10 +247,6 @@ impl PieceTable {
         let mut offset = 0;
         let mut new_pieces = vec![];
 
-        if !self.cache.content.is_empty() {
-            self.commit_insert_cache();
-        }
-
         for (i, piece) in self.pieces.iter().enumerate() {
             let piece_end = offset + piece.length;
 
@@ -323,6 +281,7 @@ impl PieceTable {
             offset += piece.length;
         }
         self.pieces = new_pieces;
+        self.modified = true;
     }
 
     pub fn undo(&mut self) {
@@ -365,6 +324,7 @@ impl PieceTable {
                     });
                 }
             }
+            self.modified = true;
         }
     }
 
@@ -403,6 +363,7 @@ impl PieceTable {
                     });
                 }
             }
+            self.modified = true;
         }
     }
 
@@ -430,97 +391,7 @@ impl PieceTable {
 
         consolidated.push(last); // push the last accumulated piece
         self.pieces = consolidated;
-    }
-
-    fn committed_content_length(&self) -> usize {
-        self.pieces.iter().map(|p| p.length).sum()
-    }
-
-    fn start_insert_cache(&mut self, mode: InsertMode, style: Option<Style>) {
-        let insert_idx = match mode {
-            InsertMode::Append => {
-                // Set the index to the current length of content
-                self.committed_content_length()
-            }
-            InsertMode::Insert(idx) => {
-                // Set the index to the specified index
-                idx
-            }
-        };
-        self.cache.start(insert_idx, style);
-    }
-
-    pub fn cache_insert(
-        &mut self,
-        text: &str,
-        idx: Option<usize>,
-        style: Option<Style>,
-    ) {
-        // Check if there is an active cache with matching style
-        let style_change = self.cache.style.as_ref() != style.as_ref();
-        if self.cache.is_active() && style_change {
-            // If styles differ and there is active content in the cache, commit it
-            self.commit_insert_cache();
-        }
-
-        // Determine the current end index of the cached content
-        let current_end_idx = self.cache.insert_idx.map_or(None, |start_idx| {
-            Some(start_idx + self.cache.content.len())
-        });
-
-        match (idx, current_end_idx) {
-            (Some(new_idx), Some(end_idx)) if new_idx == end_idx => {
-                // If the new index matches exactly where the current cache ends, just append
-                self.cache.content.push_str(text);
-            }
-            (Some(new_idx), _) => {
-                if !self.cache.content.is_empty() {
-                    // commit existing cache because new will be created
-                    self.commit_insert_cache();
-                }
-                let initial_text: String;
-                if self.committed_content_length() < new_idx {
-                    // insert exceeds the current content length, fill with spaces
-                    let diff = new_idx - self.committed_content_length();
-                    let fill_text = " ".repeat(diff);
-                    self.start_insert_cache(
-                        InsertMode::Insert(self.committed_content_length()),
-                        style,
-                    );
-                    initial_text = format!("{}{}", fill_text, text);
-                } else {
-                    self.start_insert_cache(InsertMode::Insert(new_idx), style);
-                    initial_text = text.to_string();
-                }
-
-                self.cache.content.push_str(&initial_text);
-            }
-            (None, Some(_)) => {
-                // If no specific index is provided but a cache exists, append to it
-                self.cache.content.push_str(text);
-            }
-            (None, None) => {
-                // If no specific index and no existing cache, start appending at the end of the content
-                self.start_insert_cache(InsertMode::Append, style);
-                self.cache.content.push_str(text);
-            }
-        }
-    }
-
-    pub fn commit_insert_cache(&mut self) -> String {
-        if let (Some(idx), style) =
-            (self.cache.insert_idx, self.cache.style.clone())
-        {
-            if !self.cache.content.is_empty() {
-                // Take ownership of insert_cache, leaving an empty string behind
-                let cache_content = mem::take(&mut self.cache.content);
-                self.insert(idx, &cache_content, style, false);
-                self.cache.clear();
-                return cache_content;
-            }
-            self.cache.clear();
-        }
-        String::new() // return an empty string if no cache was committed
+        self.modified = true;
     }
 
     pub fn append(&mut self, text: &str, style: Option<Style>) {
@@ -539,11 +410,17 @@ impl PieceTable {
 
         // Append the new piece to the pieces list.
         self.pieces.push(new_piece);
+        self.modified = true;
     }
 
-    pub fn update_lines_styled(&mut self) {
-        // Ensure pending cache is committed before updating lines
-        self.commit_insert_cache();
+    pub fn update_if_modified(&mut self) {
+        if self.modified {
+            self.update_lines_styled();
+            self.modified = false;
+        }
+    }
+
+    fn update_lines_styled(&mut self) {
         self.text_lines.clear();
         let mut current_line_styled: Option<TextLine> = None;
         let mut current_text = String::new();
@@ -618,6 +495,10 @@ impl PieceTable {
     }
 
     pub fn trim(&mut self) {
+        if self.pieces.is_empty() {
+            return;
+        }
+
         while let Some(last_index) = self.pieces.len().checked_sub(1) {
             let last_piece = &self.pieces[last_index];
             let last_piece_text = match last_piece.source {
@@ -646,5 +527,6 @@ impl PieceTable {
                 break;
             }
         }
+        self.modified = true;
     }
 }

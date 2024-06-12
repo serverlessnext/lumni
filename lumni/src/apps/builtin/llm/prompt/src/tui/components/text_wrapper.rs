@@ -49,7 +49,6 @@ impl TextWrapper {
            if word.contains("```") {
                 // any existing current text should be added to the current line
                 // before we process the triple backticks
-                eprintln!("current_text: {:?}", current_text);
                 self.add_current_text_to_line(
                     &mut current_text,
                     segment,
@@ -206,7 +205,7 @@ impl TextWrapper {
                     // triple-backticks are always on their own line with no leading spaces.
                     if leading_spaces.len() > 0 {
                         current_line.add_segment(
-                            leading_spaces.to_string(),
+                            leading_spaces.clone(),
                             segment.style().clone(),
                         );
                     }

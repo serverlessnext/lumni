@@ -89,7 +89,7 @@ pub struct PieceTable {
     pieces: Vec<Piece>, // Pieces of text from either original or add buffer
     undo_stack: Vec<Action>, // Stack for undoing actions
     redo_stack: Vec<Action>, // Stack for redoing actions
-    modified: bool, // Flag to indicate if the text has been modified
+    modified: bool,     // Flag to indicate if the text has been modified
 }
 
 #[derive(Clone, Debug, PartialEq)]

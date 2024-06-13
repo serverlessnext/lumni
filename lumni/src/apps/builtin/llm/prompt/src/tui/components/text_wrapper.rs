@@ -46,7 +46,7 @@ impl TextWrapper {
         let words = self.split_text_into_words(text);
 
         for (mut leading_spaces, word) in words {
-           if word.contains("```") {
+            if word.contains("```") {
                 // any existing current text should be added to the current line
                 // before we process the triple backticks
                 self.add_current_text_to_line(
@@ -94,7 +94,18 @@ impl TextWrapper {
                     continue;
                 } else {
                     if !leading_spaces.is_empty() {
-                        leading_spaces.remove(0);
+                        // Calculate the number of spaces that can be added
+                        let available_spaces = max_width.saturating_sub(current_line.length());
+                        let spaces_to_add = available_spaces.min(leading_spaces.len());
+                    
+                        // Add the available leading spaces to the current line
+                        current_line.add_segment(
+                            leading_spaces[..spaces_to_add].to_string(),
+                            segment.style().clone(),
+                        );
+                    
+                        // Update leading_spaces by slicing off the added spaces
+                        leading_spaces = leading_spaces[spaces_to_add..].to_string();
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
@@ -106,10 +117,8 @@ impl TextWrapper {
         }
 
         if !current_text.is_empty() {
-            current_line.add_segment(
-                current_text.trim_end().to_string(),
-                segment.style().clone(),
-            );
+            current_line
+                .add_segment(current_text.to_string(), segment.style().clone());
         }
     }
 
@@ -127,10 +136,8 @@ impl TextWrapper {
         current_line: &mut TextLine,
     ) {
         if !current_text.is_empty() {
-            current_line.add_segment(
-                current_text.trim_end().to_string(),
-                segment.style().clone(),
-            );
+            current_line
+                .add_segment(current_text.to_string(), segment.style().clone());
             current_text.clear();
         }
     }
@@ -146,6 +153,7 @@ impl TextWrapper {
     ) {
         let mut current_text = leading_spaces.to_string();
         let mut start_index = 0;
+
         while start_index < word.len() {
             let end_index = std::cmp::min(
                 (start_index + max_width).saturating_sub(current_text.len()),
@@ -191,8 +199,9 @@ impl TextWrapper {
                     leading_spaces.clear(); // leading spaces are only added once
                 } else {
                     // first part is triple-backticks, text is always added on a new line
-                    current_line.add_segment(part.to_string(), segment.style().clone());
-                }                
+                    current_line
+                        .add_segment(part.to_string(), segment.style().clone());
+                }
             }
             if i < parts.len() - 1 {
                 // Add the triple-backticks on its own line
@@ -210,11 +219,11 @@ impl TextWrapper {
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
                 }
-                current_line.add_segment("```".to_string(), segment.style().clone());
+                current_line
+                    .add_segment("```".to_string(), segment.style().clone());
                 wrapped_lines.push(current_line.clone());
                 *current_line = TextLine::new();
             }
         }
     }
 }
-

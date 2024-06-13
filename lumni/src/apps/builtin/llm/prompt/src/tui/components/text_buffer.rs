@@ -8,13 +8,18 @@ use super::text_wrapper::TextWrapper;
 #[derive(Debug, Clone)]
 struct LineSegment<'a> {
     line: Line<'a>,
-    idx: usize,     // index in unwrapped (real) text lines
-    length: usize,  // length of the line segment
+    idx: usize,    // index in unwrapped (real) text lines
+    length: usize, // length of the line segment
     last_segment: bool,
 }
 
 impl<'a> LineSegment<'a> {
-    fn new(line: Line<'a>, idx: usize, length: usize, last_segment: bool) -> Self {
+    fn new(
+        line: Line<'a>,
+        idx: usize,
+        length: usize,
+        last_segment: bool,
+    ) -> Self {
         LineSegment {
             line,
             idx,
@@ -35,7 +40,7 @@ impl<'a> LineSegment<'a> {
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
     wrap_lines: Vec<LineSegment<'a>>, // Text (e.g., wrapped, highlighted) for display
-    display_width: usize,      // Width of the display area, used for wrapping
+    display_width: usize, // Width of the display area, used for wrapping
     column: usize,
     row: usize,
 }
@@ -67,19 +72,21 @@ impl<'a> TextDisplay<'a> {
                 line.length
             };
 
-            // position_newline 
-            if new_line_position + line.idx + line_length > cursor_position || row == last_line {
+            // position_newline
+            if new_line_position + line_length > cursor_position
+                || row == last_line
+            {
                 // Cursor is on this line
                 //eprintln!("{}:Line: {:?}|({})", line.idx, line.to_string(), line_length);
-                let column = cursor_position.saturating_sub(new_line_position + line.idx);
-                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position + line.idx);
+                let column = cursor_position.saturating_sub(new_line_position);
+                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position);
                 self.column = column;
                 self.row = row;
                 break;
             }
-            new_line_position += line.length;
+            new_line_position += line_length;
         }
-        (self.column, self.row) 
+        (self.column, self.row)
     }
 
     fn wrap_lines(&self) -> &[LineSegment<'a>] {
@@ -94,14 +101,20 @@ impl<'a> TextDisplay<'a> {
         self.display_width
     }
 
-    fn push_line(&mut self, line: Line<'a>, idx: usize, length: usize, last_segment: bool) {
-        self.wrap_lines.push(LineSegment::new(line, idx, length, last_segment));
+    fn push_line(
+        &mut self,
+        line: Line<'a>,
+        idx: usize,
+        length: usize,
+        last_segment: bool,
+    ) {
+        self.wrap_lines
+            .push(LineSegment::new(line, idx, length, last_segment));
     }
 
     fn set_display_width(&mut self, width: usize) {
         self.display_width = width;
     }
-
 
     fn get_column_row(&self) -> (usize, usize) {
         (self.column, self.row)
@@ -245,7 +258,11 @@ impl TextBuffer<'_> {
 
     pub fn display_text(&self) -> Vec<Line> {
         //self.display.wrap_lines().to_vec()
-        self.display.wrap_lines().iter().map(|line| line.line.clone()).collect()
+        self.display
+            .wrap_lines()
+            .iter()
+            .map(|line| line.line.clone())
+            .collect()
     }
 
     pub fn display_lines_len(&self) -> usize {
@@ -383,7 +400,6 @@ impl TextBuffer<'_> {
         //eprintln!("Text lines:\n{}|{}", text_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>().join("\n"), total_length);
 
         for (idx, line) in text_lines.iter().enumerate() {
-
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
 
@@ -395,7 +411,7 @@ impl TextBuffer<'_> {
             // debug wrapped lines
             //eprintln!("Wrapped lines: {:?}", wrapped_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>());
 
-            // length of the wrapped lines content 
+            // length of the wrapped lines content
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(idx, trailing_spaces);
             } else {
@@ -436,11 +452,20 @@ impl TextBuffer<'_> {
                 .take(trailing_spaces)
                 .collect::<String>();
 
-            self.display.push_line(Line::from(Span::raw(spaces)), current_row, trailing_spaces, true);
-        } 
-        else {
+            self.display.push_line(
+                Line::from(Span::raw(spaces)),
+                current_row,
+                trailing_spaces,
+                true,
+            );
+        } else {
             // add empty row
-            self.display.push_line(Line::from(Span::raw("")), current_row, 0, true);
+            self.display.push_line(
+                Line::from(Span::raw("")),
+                current_row,
+                0,
+                true,
+            );
         }
     }
 
@@ -494,8 +519,17 @@ impl TextBuffer<'_> {
                     .collect::<String>();
                 current_line.spans.push(Span::raw(spaces));
             }
-            let current_line_length = current_line.spans.iter().map(|span| span.content.len()).sum::<usize>();
-            self.display.push_line(current_line, unwrapped_line_index, current_line_length, last_segment);
+            let current_line_length = current_line
+                .spans
+                .iter()
+                .map(|span| span.content.len())
+                .sum::<usize>();
+            self.display.push_line(
+                current_line,
+                unwrapped_line_index,
+                current_line_length,
+                last_segment,
+            );
             char_pos += 1; // account for newline character
         }
     }
@@ -513,10 +547,8 @@ impl TextBuffer<'_> {
             let last_segment = current_line.last_segment;
             let spans = current_line.spans_mut();
             if line_column >= line_length && last_segment {
-                spans.push(Span::styled(
-                    "_",
-                    Style::default().bg(Color::Green),
-                ));
+                spans
+                    .push(Span::styled("_", Style::default().bg(Color::Green)));
             } else {
                 // Iterate through spans to find the correct position
                 let mut new_spans = Vec::new();
@@ -526,7 +558,8 @@ impl TextBuffer<'_> {
                     if line_column < span_length {
                         // Split the span at the cursor position
                         let before = &span.content[..line_column];
-                        let cursor_char = &span.content[line_column..line_column + 1];
+                        let cursor_char =
+                            &span.content[line_column..line_column + 1];
                         let after = &span.content[line_column + 1..];
 
                         if !before.is_empty() {
@@ -574,8 +607,6 @@ impl TextBuffer<'_> {
         self.text.redo();
         self.update_display_text();
     }
-
-
 
     pub fn to_string(&self) -> String {
         self.text.to_string()

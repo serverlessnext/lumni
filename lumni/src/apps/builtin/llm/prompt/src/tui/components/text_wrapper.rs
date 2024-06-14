@@ -71,7 +71,7 @@ impl TextWrapper {
                 + space_len
                 + leading_spaces.len()
                 + word.len()
-                + current_line.length()
+                + current_line.get_length()
                 > max_width;
 
             if needs_wrapping {
@@ -95,17 +95,20 @@ impl TextWrapper {
                 } else {
                     if !leading_spaces.is_empty() {
                         // Calculate the number of spaces that can be added
-                        let available_spaces = max_width.saturating_sub(current_line.length());
-                        let spaces_to_add = available_spaces.min(leading_spaces.len());
-                    
+                        let available_spaces =
+                            max_width.saturating_sub(current_line.get_length());
+                        let spaces_to_add =
+                            available_spaces.min(leading_spaces.len());
+
                         // Add the available leading spaces to the current line
                         current_line.add_segment(
                             leading_spaces[..spaces_to_add].to_string(),
                             segment.style().clone(),
                         );
-                    
+
                         // Update leading_spaces by slicing off the added spaces
-                        leading_spaces = leading_spaces[spaces_to_add..].to_string();
+                        leading_spaces =
+                            leading_spaces[spaces_to_add..].to_string();
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();

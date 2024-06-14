@@ -165,11 +165,15 @@ impl<'a> TextWindow<'a> {
             block = block.title(description);
         }
 
-        Paragraph::new(Text::from(self.text_buffer.display_text()))
+        let start_idx = self.vertical_scroll;
+        let window_text = self
+            .text_buffer
+            .display_window(start_idx, start_idx + self.area.height() as usize);
+
+        Paragraph::new(Text::from(window_text))
             .block(block)
             .style(self.window_type.style())
             .alignment(Alignment::Left)
-            .scroll((self.vertical_scroll as u16, 0))
     }
 
     pub fn vertical_scroll_bar_state<'b>(

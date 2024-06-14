@@ -217,7 +217,7 @@ impl Cursor {
         for (index, line) in lines.iter().enumerate() {
             if index < self.row as usize {
                 // row before the current row
-                position += line.length() + 1; // account for newline character
+                position += line.get_length() + 1; // account for newline character
             } else if index == self.row as usize {
                 // current row
                 position += self.col as usize; // add columns for the current row
@@ -237,7 +237,7 @@ pub fn get_max_col(lines: &[TextLine], row: u16) -> u16 {
     // to account for either a newline character or empty space for the cursor.
     // Because line is 0-indexed we can skip add and substract
     if let Some(line) = lines.get(row as usize) {
-        line.length() as u16
+        line.get_length() as u16
     } else {
         0
     }

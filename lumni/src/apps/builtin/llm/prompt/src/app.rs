@@ -123,8 +123,8 @@ async fn prompt_app<B: Backend>(
                                             // TODO: get the exact prompt from the
                                             // chat session (including role name, newline, etc.)
                                             response_window.text_append_with_insert(
-                                                &format!("{}\n", prompt),
-                                                Some(Style::new().fg(Color::Yellow)),
+                                                &format!("\n{}\n", prompt),
+                                                Some(Style::new().fg(Color::Yellow).bg(Color::Magenta)),
                                             );
 
                                             chat_session.message(tx.clone(), prompt).await?;

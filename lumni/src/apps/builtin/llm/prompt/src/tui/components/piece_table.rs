@@ -1,6 +1,5 @@
-use std::mem;
 
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Action {
@@ -36,6 +35,7 @@ impl TextSegment {
 pub struct TextLine {
     segments: Vec<TextSegment>,
     length: usize,
+    background: Option<Color>, 
 }
 
 impl TextLine {
@@ -43,6 +43,7 @@ impl TextLine {
         TextLine {
             segments: Vec::new(),
             length: 0,
+            background: None,
         }
     }
 
@@ -59,6 +60,9 @@ impl TextLine {
         }
         // Otherwise, create a new segment
         self.segments.push(TextSegment { text, style });
+        if let Some(style) = style {
+            self.background = style.bg;
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -69,8 +73,12 @@ impl TextLine {
         self.segments.iter()
     }
 
-    pub fn length(&self) -> usize {
+    pub fn get_length(&self) -> usize {
         self.length
+    }
+
+    pub fn get_background(&self) -> Option<Color> {
+        self.background
     }
 
     pub fn to_string(&self) -> String {

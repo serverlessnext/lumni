@@ -456,7 +456,7 @@ impl PieceTable {
         for (text, style) in pieces_data {
             for char in text.chars() {
                 if char == '\n' {
-                    // Handle non-empty current text
+                    // finalize previous line 
                     if !current_text.is_empty() {
                         if let Some(ref mut line) = current_line_styled {
                             line.add_segment(
@@ -465,9 +465,20 @@ impl PieceTable {
                             );
                         }
                         current_text.clear();
+                    } else {
+                        // previous line is empty - it will likely not have
+                        // background set (done in add_segment), so set it here
+                        if let Some(line) = current_line_styled.as_mut() {
+                            if line.background.is_none() {
+                                if let Some(style) = style {
+                                    line.background = style.bg;
+                                }
+                            }
+                        }
                     }
-                    // Always add the current line to text_lines
+                    // Add the previous line to text_lines
                     if let Some(line) = current_line_styled.take() {
+                        //line.background = last_style.and_then(|s| s.bg);
                         self.text_lines.push(line);
                     }
                     current_line_styled = Some(TextLine::new()); // new line

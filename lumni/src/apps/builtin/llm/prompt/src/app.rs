@@ -42,6 +42,7 @@ async fn prompt_app<B: Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut response_window = ResponseWindow::new();
     response_window.init(); // initialize with defaults
+    let response_style = Some(Style::default().bg(Color::Rgb(100,120,120)));
 
     let mut prompt_window = PromptWindow::new();
     prompt_window.set_normal_mode(); // initialize in normal mode
@@ -55,6 +56,10 @@ async fn prompt_app<B: Backend>(
     let mut current_mode = WindowEvent::PromptWindow;
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
+
+    // Buffer to store the trimmed trailing newlines or empty spaces
+    let mut trim_buffer: Option<String> = None;
+
     loop {
         tokio::select! {
             _ = tick.tick() => {
@@ -120,21 +125,28 @@ async fn prompt_app<B: Backend>(
                                 WindowEvent::Prompt(prompt_action) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            // TODO: get the exact prompt from the
-                                            // chat session (including role name, newline, etc.)
+                                            // prompt should end with single newline
+                                            let formatted_prompt = format!("{}\n", prompt.trim_end());
+
                                             response_window.text_append_with_insert(
-                                                &format!("\n{}\n", prompt),
+                                                &formatted_prompt,
                                                 Some(Style::new().fg(Color::Yellow).bg(Color::Magenta)),
                                             );
+                                            response_window.text_append_with_insert(
+                                                "\n",
+                                                None,
+                                            );
 
-                                            chat_session.message(tx.clone(), prompt).await?;
+                                            chat_session.message(tx.clone(), formatted_prompt).await?;
                                         }
                                         PromptAction::Clear => {
                                             response_window.text_empty();
                                             chat_session.reset();
+                                            trim_buffer = None;
                                         }
                                         PromptAction::Stop => {
                                             chat_session.stop();
+                                            finalize_response(chat_session, &mut response_window, response_style, None).await?;
                                         }
                                     }
                                     current_mode = WindowEvent::PromptWindow;
@@ -182,24 +194,44 @@ async fn prompt_app<B: Backend>(
                 log::debug!("Received response: {:?}", response);
 
                 let (response_content, is_final, tokens_predicted) = chat_session.process_response(&response);
-                // use insert, so we can continue to append to the response and get
-                // the final response back when committed
-                let response_style = Some(Style::default());
-                response_window.text_append_with_insert(&response_content, response_style);
-                chat_session.update_last_exchange(&response_content);
 
+                let trimmed_response_content = response_content.trim_end();
+
+                // display content should contain previous trimmed parts, 
+                // with a trimmed version of the new response content
+                let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
+                chat_session.update_last_exchange(&display_content);
+                response_window.text_append_with_insert(&display_content, response_style);
+        
                 if is_final {
-                    // models vary in adding trailing newlines/ empty spaces to a response,
-                    // which can lead to inconsistent behavior
-                    // trim trailing whitespaces or newlines
-                    response_window.text_trim();
-                    // trim exchange + update token length
-                    chat_session.finalize_last_exchange(tokens_predicted).await?;
+                    finalize_response(chat_session, &mut response_window, response_style, tokens_predicted).await?;
+                    trim_buffer = None;
+                } else {
+                    // Capture trailing whitespaces or newlines to the trim_buffer
+                    // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
+                    let trailing_whitespace_start = trimmed_response_content.len();
+                    trim_buffer = Some(response_content[trailing_whitespace_start..].to_string());
                 }
                 redraw_ui = true;
             },
         }
     }
+    Ok(())
+}
+
+async fn finalize_response(
+    chat_session: &mut ChatSession,
+    response_window: &mut ResponseWindow<'_>,
+    response_style: Option<Style>,
+    tokens_predicted: Option<usize>,
+) -> Result<(), Box<dyn Error>> {
+    // finalize with newline for in display
+    response_window.text_append_with_insert("\n", response_style);
+
+    // add an empty unstyled line
+    response_window.text_append_with_insert("\n", None);
+    // trim exchange + update token length
+    chat_session.finalize_last_exchange(tokens_predicted).await?;
     Ok(())
 }
 

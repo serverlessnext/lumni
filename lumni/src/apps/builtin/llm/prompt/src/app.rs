@@ -134,7 +134,7 @@ async fn prompt_app<B: Backend>(
                                             );
                                             response_window.text_append_with_insert(
                                                 "\n",
-                                                None,
+                                                Some(Style::reset()),
                                             );
 
                                             chat_session.message(tx.clone(), formatted_prompt).await?;
@@ -230,7 +230,7 @@ async fn finalize_response(
     response_window.text_append_with_insert("\n", response_style);
 
     // add an empty unstyled line
-    response_window.text_append_with_insert("\n", None);
+    response_window.text_append_with_insert("\n", Some(Style::reset()));
     // trim exchange + update token length
     chat_session
         .finalize_last_exchange(tokens_predicted)

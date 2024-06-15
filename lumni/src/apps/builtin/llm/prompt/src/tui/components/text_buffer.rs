@@ -1,5 +1,5 @@
 use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::{Line, Span, Masked};
 
 use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::{PieceTable, TextLine};
@@ -9,7 +9,8 @@ use super::text_wrapper::TextWrapper;
 pub enum LineType {
     Text,
     Code,
-    Hidden,  // hidden line (e.g. triple-backtick markers)
+    BlockStart,
+    BlockEnd,
 }
 
 #[derive(Debug, Clone)]
@@ -292,39 +293,67 @@ impl TextBuffer<'_> {
                 let text_width = line.width();
 
                 let line_type = line_segment.line_type;
-                let background = line_segment.background;
 
-                match line_type {
+                let background = match line_type {
                     Some(LineType::Text) => {
-                        if text_width < window_width {
-                            let spaces_needed = window_width - text_width;
-                            let spaces = " ".repeat(spaces_needed);
-                            if let Some(bg_color) = background {
-                                // fill background color with default if not already set
-                                for span in &mut line.spans {
-                                    if span.style.bg.is_none() {
-                                        span.style.bg = Some(bg_color);
-                                    }
+                        if line_segment.background.is_some() {
+                            for span in &mut line.spans {
+                                if span.style.bg.is_none() {
+                                    span.style.bg = line_segment.background;
                                 }
-                                line.spans.push(Span::styled(
-                                    spaces,
-                                    Style::default().bg(bg_color),
-                                ));
-                            } else {
-                                line.spans.push(Span::raw(spaces));
                             }
                         }
+                        line_segment.background
                     }
                     Some(LineType::Code) => {
                         // fill background color if not already set
+                        let background = Some(Color::Rgb(80, 80, 80));
                         for span in &mut line.spans {
                             if span.style.bg.is_none() {
-                                span.style.bg = Some(Color::Rgb(80, 80, 80));
+                                span.style.bg = background;
                             }
                         }
+                        background
                     }
-                    _ => {}
-                }
+                    Some(LineType::BlockStart) => {
+                        // hide line using modifier style
+                        let masked = Masked::new("```", '>');
+                        if let Some(background) = line_segment.background {
+                            line.spans = vec![Span::styled(masked, Style::default().bg(background))];
+                        } else {
+                            line.spans = vec![Span::raw(masked)];
+                        }
+                        line_segment.background
+                    }
+                    Some(LineType::BlockEnd) => {
+                        // hide line using modifier style
+                        let masked = Masked::new("```", '<');
+                        if let Some(background) = line_segment.background {
+                            line.spans = vec![Span::styled(masked, Style::default().bg(background))];
+                        } else {
+                            line.spans = vec![Span::raw(masked)];
+                        }
+                        line_segment.background
+                    }
+                    None => {
+                        // default background color
+                        line_segment.background
+                    }
+                };
+                if text_width < window_width {
+                    let spaces_needed = window_width - text_width;
+                    let spaces = " ".repeat(spaces_needed);
+
+                    if let Some(bg_color) = background {
+                        // fill background color with default if not already set
+                        line.spans.push(Span::styled(
+                            spaces,
+                            Style::default().bg(bg_color),
+                        ));
+                    } else {
+                        line.spans.push(Span::raw(spaces));
+                    }
+                };
                 line
             })
             .collect()
@@ -414,12 +443,26 @@ impl TextBuffer<'_> {
     fn mark_code_blocks(&mut self) {
         let mut in_code_block = false;
 
+        let reset = Style::reset();
+
         for line in self.display.wrap_lines_mut().iter_mut() {
+            if in_code_block && line.background == reset.bg {
+                // ensure code block does not persist across different text blocks
+                in_code_block = false;
+            }
+
             // check length first to avoid unnecessary comparison
             if line.length == 3 && line.line.to_string() == "```" {
-                in_code_block = !in_code_block;
-                // hide block marker
-                line.line_type = Some(LineType::Hidden);
+                if in_code_block {
+                    // end of code block
+                    in_code_block = false;
+                    // hide block marker
+                    line.line_type = Some(LineType::BlockEnd);
+                } else {
+                    // start of code block
+                    in_code_block = true;
+                    line.line_type = Some(LineType::BlockStart);
+                }
             } else {
                 // mark line as code or text based on wether it is in a code block
                 line.line_type = Some(if in_code_block {

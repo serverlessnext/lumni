@@ -15,7 +15,7 @@ use tokio::sync::{mpsc, oneshot};
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response,
     ChatCompletionOptions, ChatExchange, ChatHistory, ChatMessage,
-    PromptInstruction, PromptOptions, TokenResponse,
+    PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
 pub use super::model::{PromptModelTrait, PromptRole};

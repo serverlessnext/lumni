@@ -1,6 +1,4 @@
-use crossterm::style;
 use ratatui::style::{Color, Style};
-use ratatui::symbols::line;
 use ratatui::text::{Line, Span};
 
 use super::cursor::{Cursor, MoveCursor};
@@ -15,11 +13,11 @@ pub enum LineType {
 
 #[derive(Debug, Clone)]
 struct LineSegment<'a> {
-    line: Line<'a>,            // wrapped line segment
-    length: usize,             // length of the line segment
-    last_segment: bool,        // last part of a line
-    line_type: LineType,       // type of line: Text or Code
-    background: Option<Color>, // default background color
+    line: Line<'a>,             // wrapped line segment
+    length: usize,              // length of the line segment
+    last_segment: bool,         // last part of a line
+    line_type: Option<LineType>,    // type of line: Text or Code
+    background: Option<Color>,  // default background color
 }
 
 impl<'a> LineSegment<'a> {
@@ -27,7 +25,7 @@ impl<'a> LineSegment<'a> {
         line: Line<'a>,
         length: usize,
         last_segment: bool,
-        line_type: LineType,
+        line_type: Option<LineType>,
         background: Option<Color>,
     ) -> Self {
         LineSegment {
@@ -113,7 +111,7 @@ impl<'a> TextDisplay<'a> {
         line: Line<'a>,
         length: usize,
         last_segment: bool,
-        line_type: LineType,
+        line_type: Option<LineType>,
         background: Option<Color>,
     ) {
         self.wrap_lines.push(LineSegment::new(
@@ -295,8 +293,9 @@ impl TextBuffer<'_> {
                 let line_type = line_segment.line_type;
 
                 let style_bg = match line_type {
-                    LineType::Text => line_segment.background,
-                    LineType::Code => Some(Color::Rgb(30, 30, 30)),
+                    Some(LineType::Text) => line_segment.background,
+                    Some(LineType::Code) => Some(Color::Rgb(30, 30, 30)),
+                    None => None,
                 };
 
                 // fill background color if not already set
@@ -459,8 +458,6 @@ impl TextBuffer<'_> {
         //let total_length: usize = text_lines.iter().map(|l| l.length() + 1).sum::<usize>().saturating_sub(1);
         //eprintln!("Text lines:\n{}|{}", text_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>().join("\n"), total_length);
 
-        let line_type = LineType::Text;
-
         for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
                 line.segments().map(|s| s.text()).collect::<String>();
@@ -477,7 +474,6 @@ impl TextBuffer<'_> {
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(
                     trailing_spaces,
-                    line_type,
                     line.get_background(),
                 );
             } else {
@@ -487,15 +483,14 @@ impl TextBuffer<'_> {
                     idx,
                     &selection_bounds,
                     trailing_spaces,
-                    line_type,
                     line.get_background(),
                 );
             }
         }
 
         // apply code block styling after wrapping
-        //let code_block_style = Style::default().bg(Color::Gray);
-        //self.apply_code_block_styling(&code_block_style);
+        let code_block_style = Style::default().bg(Color::White);
+        self.apply_code_block_styling(&code_block_style);
 
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
@@ -512,7 +507,6 @@ impl TextBuffer<'_> {
     fn handle_empty_line(
         &mut self,
         trailing_spaces: usize,
-        line_type: LineType,
         background: Option<Color>,
     ) {
         if trailing_spaces > 0 {
@@ -525,7 +519,7 @@ impl TextBuffer<'_> {
                 Line::from(Span::raw(spaces)),
                 trailing_spaces,
                 true,
-                line_type,
+                None,
                 background,
             );
         } else {
@@ -534,7 +528,7 @@ impl TextBuffer<'_> {
                 Line::from(Span::raw("")),
                 0,
                 true,
-                line_type,
+                None,
                 background,
             );
         }
@@ -548,7 +542,6 @@ impl TextBuffer<'_> {
         // trailing spaces of the unwrapped line are removed during wrapping,
         // this is added back to the first and last (wrapped) line respectively
         trailing_spaces: usize,
-        line_type: LineType,
         background: Option<Color>,
     ) {
         let (start_row, start_col, end_row, end_col) = *selection_bounds;
@@ -601,7 +594,7 @@ impl TextBuffer<'_> {
                 current_line,
                 current_line_length,
                 last_segment,
-                line_type,
+                None,
                 background,
             );
             char_pos += 1; // account for newline character
@@ -700,10 +693,5 @@ impl TextBuffer<'_> {
         } else {
             Vec::new()
         }
-    }
-
-    pub fn trim(&mut self) {
-        self.text.trim();
-        self.update_display_text();
     }
 }

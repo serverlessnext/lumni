@@ -275,10 +275,6 @@ pub trait TextWindowTrait<'a> {
         self.text_append(text, style);
     }
 
-    fn text_trim(&mut self) {
-        self.base().text_buffer.trim();
-    }
-
     fn text_delete_char(&mut self) {
         // single-char delete on cursor position
         self.base().text_delete(true, 1);

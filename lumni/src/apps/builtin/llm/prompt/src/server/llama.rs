@@ -11,7 +11,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
     ChatHistory, Endpoints, HttpClient, PromptInstruction, PromptModelTrait,
-    PromptOptions, PromptRole, ServerTrait, TokenResponse,
+    PromptRole, ServerTrait, TokenResponse,
     DEFAULT_CONTEXT_SIZE,
 };
 

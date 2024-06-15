@@ -33,11 +33,6 @@ impl KeyTrack {
         self.current_key
     }
 
-    pub fn reset(&mut self) {
-        self.previous_char = None;
-        self.numeric_input = NumericInput::new();
-    }
-
     pub fn update_key(&mut self, key_event: KeyEvent) {
         if let KeyCode::Char(c) = self.current_key.code {
             // copy previous key_event to previous_char

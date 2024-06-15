@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

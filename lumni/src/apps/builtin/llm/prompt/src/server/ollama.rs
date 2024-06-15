@@ -136,6 +136,8 @@ struct ServerPayload<'a> {
 }
 
 impl ServerPayload<'_> {
+    #[allow(dead_code)]
+    // TODO: reformat and pass options to ollama
     fn serialize(&self) -> Option<String> {
         serde_json::to_string(self).ok()
     }
@@ -154,8 +156,8 @@ impl OllamaShowPayload<'_> {
 
 #[derive(Deserialize, Debug)]
 struct OllamaShowResponse {
-    modelfile: String,
-    details: OllamaShowResponseDetails,
+    _modelfile: String,
+    _details: OllamaShowResponseDetails,
 }
 
 impl OllamaShowResponse {
@@ -169,7 +171,7 @@ impl OllamaShowResponse {
 
 #[derive(Deserialize, Debug)]
 struct OllamaShowResponseDetails {
-    format: String,
+    _format: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

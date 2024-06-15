@@ -38,10 +38,6 @@ impl Default for ChatCompletionOptions {
 }
 
 impl ChatCompletionOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn update_from_json(&mut self, json: &str) {
         if let Ok(user_options) =
             serde_json::from_str::<ChatCompletionOptions>(json)
@@ -142,10 +138,6 @@ impl Default for PromptOptions {
 }
 
 impl PromptOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn update_from_json(&mut self, json: &str) {
         if let Ok(user_options) = serde_json::from_str::<PromptOptions>(json) {
             self.n_ctx = user_options.n_ctx.or(self.n_ctx);

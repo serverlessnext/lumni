@@ -168,7 +168,7 @@ impl<'a> TextWindow<'a> {
         let start_idx = self.vertical_scroll;
         let window_text = self
             .text_buffer
-            .display_window(start_idx, start_idx + self.area.height() as usize);
+            .display_window_lines(start_idx, start_idx + self.area.height() as usize);
 
         Paragraph::new(Text::from(window_text))
             .block(block)

@@ -9,6 +9,7 @@ use super::text_wrapper::TextWrapper;
 pub enum LineType {
     Text,
     Code,
+    Hidden,  // hidden line (e.g. triple-backtick markers)
 }
 
 #[derive(Debug, Clone)]
@@ -267,7 +268,7 @@ impl TextBuffer<'_> {
         }
     }
 
-    pub fn display_window(&self, start: usize, end: usize) -> Vec<Line> {
+    pub fn display_window_lines(&self, start: usize, end: usize) -> Vec<Line> {
         let lines = self.display.wrap_lines();
         let length = lines.len();
 
@@ -291,33 +292,38 @@ impl TextBuffer<'_> {
                 let text_width = line.width();
 
                 let line_type = line_segment.line_type;
+                let background = line_segment.background;
 
-                let style_bg = match line_type {
-                    Some(LineType::Text) => line_segment.background,
-                    Some(LineType::Code) => Some(Color::Rgb(30, 30, 30)),
-                    None => None,
-                };
-
-                // fill background color if not already set
-                if let Some(style_bg) = style_bg {
-                    for span in &mut line.spans {
-                        if span.style.bg.is_none() {
-                            span.style.bg = Some(style_bg);
+                match line_type {
+                    Some(LineType::Text) => {
+                        if text_width < window_width {
+                            let spaces_needed = window_width - text_width;
+                            let spaces = " ".repeat(spaces_needed);
+                            if let Some(bg_color) = background {
+                                // fill background color with default if not already set
+                                for span in &mut line.spans {
+                                    if span.style.bg.is_none() {
+                                        span.style.bg = Some(bg_color);
+                                    }
+                                }
+                                line.spans.push(Span::styled(
+                                    spaces,
+                                    Style::default().bg(bg_color),
+                                ));
+                            } else {
+                                line.spans.push(Span::raw(spaces));
+                            }
                         }
                     }
-                }
-
-                if text_width < window_width {
-                    let spaces_needed = window_width - text_width;
-                    let spaces = " ".repeat(spaces_needed);
-                    if let Some(style_bg) = style_bg {
-                        line.spans.push(Span::styled(
-                            spaces,
-                            Style::default().bg(style_bg),
-                        ));
-                    } else {
-                        line.spans.push(Span::raw(spaces));
+                    Some(LineType::Code) => {
+                        // fill background color if not already set
+                        for span in &mut line.spans {
+                            if span.style.bg.is_none() {
+                                span.style.bg = Some(Color::Rgb(80, 80, 80));
+                            }
+                        }
                     }
+                    _ => {}
                 }
                 line
             })
@@ -405,33 +411,31 @@ impl TextBuffer<'_> {
         self.update_display_text();
     }
 
-    fn apply_code_block_styling(&mut self, code_block_style: &Style) {
+    fn mark_code_blocks(&mut self) {
         let mut in_code_block = false;
 
         for line in self.display.wrap_lines_mut().iter_mut() {
-            let spans = line.spans_mut();
-            // Concatenate all span contents to check for code block delimiters
-            let full_line_content = spans
-                .iter()
-                .map(|span| span.content.as_ref()) // Convert Cow<str> to &str
-                .collect::<String>();
-            let line_contains_code_delimiter =
-                full_line_content.contains("```");
-
-            // Toggle code block state if delimiter found
-            if line_contains_code_delimiter {
+            // check length first to avoid unnecessary comparison
+            if line.length == 3 && line.line.to_string() == "```" {
                 in_code_block = !in_code_block;
-                // Process for altering just the delimiter span could go here
-                // Optionally apply style changes here if you want the delimiters styled
-            }
+                // hide block marker
+                line.line_type = Some(LineType::Hidden);
+            } else {
+                // mark line as code or text based on wether it is in a code block
+                line.line_type = Some(if in_code_block {
+                    // remove default background color if set
+                    // keep other background colors (e.g. selection, cursor highlighting)
+                    let bg_default = line.background;
+                    for span in line.spans_mut() {
+                        if span.style.bg == bg_default {
+                            span.style.bg = None;
+                        }
+                    }
 
-            // Apply styles to spans if inside a code block
-            if in_code_block {
-                for span in spans.iter_mut() {
-                    let mut new_style = span.style.clone();
-                    new_style.bg = Some(Color::Gray); // Set background color to gray
-                    span.style = new_style;
-                }
+                    LineType::Code
+                } else {
+                    LineType::Text
+                });
             }
         }
     }
@@ -488,10 +492,7 @@ impl TextBuffer<'_> {
             }
         }
 
-        // apply code block styling after wrapping
-        let code_block_style = Style::default().bg(Color::White);
-        self.apply_code_block_styling(&code_block_style);
-
+        self.mark_code_blocks();
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
     }

@@ -15,11 +15,11 @@ pub enum LineType {
 
 #[derive(Debug, Clone)]
 struct LineSegment<'a> {
-    line: Line<'a>,      // wrapped line segment
-    length: usize,       // length of the line segment
-    last_segment: bool,  // last part of a line
-    line_type: LineType, // type of line: Text or Code
-    background: Option<Color>,  // default background color
+    line: Line<'a>,            // wrapped line segment
+    length: usize,             // length of the line segment
+    last_segment: bool,        // last part of a line
+    line_type: LineType,       // type of line: Text or Code
+    background: Option<Color>, // default background color
 }
 
 impl<'a> LineSegment<'a> {
@@ -475,7 +475,11 @@ impl TextBuffer<'_> {
 
             // length of the wrapped lines content
             if wrapped_lines.is_empty() {
-                self.handle_empty_line(trailing_spaces, line_type, line.get_background());
+                self.handle_empty_line(
+                    trailing_spaces,
+                    line_type,
+                    line.get_background(),
+                );
             } else {
                 // process wrapped lines
                 self.process_wrapped_lines(

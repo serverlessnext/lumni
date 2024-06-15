@@ -42,7 +42,7 @@ async fn prompt_app<B: Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut response_window = ResponseWindow::new();
     response_window.init(); // initialize with defaults
-    let response_style = Some(Style::default().bg(Color::Rgb(100,120,120)));
+    let response_style = Some(Style::default().bg(Color::Rgb(100, 120, 120)));
 
     let mut prompt_window = PromptWindow::new();
     prompt_window.set_normal_mode(); // initialize in normal mode
@@ -147,6 +147,7 @@ async fn prompt_app<B: Backend>(
                                         PromptAction::Stop => {
                                             chat_session.stop();
                                             finalize_response(chat_session, &mut response_window, response_style, None).await?;
+                                            trim_buffer = None;
                                         }
                                     }
                                     current_mode = WindowEvent::PromptWindow;
@@ -197,12 +198,12 @@ async fn prompt_app<B: Backend>(
 
                 let trimmed_response_content = response_content.trim_end();
 
-                // display content should contain previous trimmed parts, 
+                // display content should contain previous trimmed parts,
                 // with a trimmed version of the new response content
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
                 chat_session.update_last_exchange(&display_content);
                 response_window.text_append_with_insert(&display_content, response_style);
-        
+
                 if is_final {
                     finalize_response(chat_session, &mut response_window, response_style, tokens_predicted).await?;
                     trim_buffer = None;
@@ -231,7 +232,9 @@ async fn finalize_response(
     // add an empty unstyled line
     response_window.text_append_with_insert("\n", None);
     // trim exchange + update token length
-    chat_session.finalize_last_exchange(tokens_predicted).await?;
+    chat_session
+        .finalize_last_exchange(tokens_predicted)
+        .await?;
     Ok(())
 }
 

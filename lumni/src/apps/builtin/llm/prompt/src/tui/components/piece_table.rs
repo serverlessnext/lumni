@@ -1,4 +1,3 @@
-
 use ratatui::style::{Color, Style};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,7 +34,7 @@ impl TextSegment {
 pub struct TextLine {
     segments: Vec<TextSegment>,
     length: usize,
-    background: Option<Color>, 
+    background: Option<Color>,
 }
 
 impl TextLine {
@@ -456,7 +455,7 @@ impl PieceTable {
         for (text, style) in pieces_data {
             for char in text.chars() {
                 if char == '\n' {
-                    // finalize previous line 
+                    // finalize previous line
                     if !current_text.is_empty() {
                         if let Some(ref mut line) = current_line_styled {
                             line.add_segment(

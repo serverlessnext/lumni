@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::text_window_event::handle_text_window_event;
 use super::{
     CommandLine, PromptAction, PromptWindow, ResponseWindow, TextWindowTrait,
-    WindowEvent,
+    WindowEvent, LineType,
 };
 
 #[derive(Debug, Clone)]
@@ -235,7 +235,7 @@ impl KeyEventHandler {
                     match self.key_track.current_key().code {
                         KeyCode::Enter => {
                             // send prompt if not inside editing block
-                            if !prompt_window.is_status_insert() {
+                            if !prompt_window.is_status_insert() || !in_editing_block(prompt_window) {
                                 ensure_closed_block(prompt_window);
                                 let question = prompt_window.text_buffer().to_string();
                                 prompt_window.text_empty();
@@ -280,5 +280,13 @@ fn ensure_closed_block(prompt_window: &mut PromptWindow) {
             // close block
             prompt_window.text_append_with_insert("```", None);
         }
+    }
+}
+
+fn in_editing_block(prompt_window: &mut PromptWindow) -> bool {
+    let line_type = prompt_window.current_line_type().unwrap_or(LineType::Text);
+    match line_type {
+        LineType::Code(block_line) => !block_line.is_end(),
+        _ => false,
     }
 }

@@ -252,6 +252,10 @@ pub trait TextWindowTrait<'a> {
             .set_placeholder(window_type.placeholder_text());
     }
 
+    fn current_line_type(&mut self) -> Option<LineType> {
+        self.base().current_line_type()
+    }
+
     fn current_code_block(&mut self) -> Option<CodeBlock> {
         self.base().current_code_block()
     }

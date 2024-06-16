@@ -7,6 +7,6 @@ mod text_wrapper;
 mod window_type;
 
 pub use cursor::MoveCursor;
-pub use text_buffer::TextBuffer;
+pub use text_buffer::{TextBuffer, LineType};
 pub use text_window::{TextWindow, TextWindowTrait};
 pub use window_type::{WindowKind, WindowStatus, WindowType};

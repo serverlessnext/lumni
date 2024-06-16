@@ -40,6 +40,10 @@ impl CodeBlockLine {
     pub fn get_type(&self) -> CodeBlockLineType {
         self.r#type
     }
+    
+    pub fn is_end(&self) -> bool {
+        self.r#type == CodeBlockLineType::End
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -525,12 +529,8 @@ impl TextBuffer<'_> {
         let mut current_code_block_start: Option<u16> = None;
         let mut code_block_ptr = 0;
 
-        self.code_blocks.clear();   // empty vec
-
+        self.code_blocks.clear();
         let reset = Style::reset();
-
-        // TODO: keep track on (start, end) line numbers of all code blocks
-        // this are stored in the code_blocks vec
 
         for (line_number, line) in self.display.wrap_lines_mut().iter_mut().enumerate() {
             let line_number = line_number as u16;
@@ -595,6 +595,8 @@ impl TextBuffer<'_> {
                 current_code_block_start = None;
             }
         }
+
+        // TODO: for each codeblock, add syntax styling
     }
 
     pub fn update_display_text(&mut self) {

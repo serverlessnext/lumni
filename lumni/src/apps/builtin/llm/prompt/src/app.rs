@@ -17,7 +17,7 @@ use crossterm::terminal::{
 };
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;

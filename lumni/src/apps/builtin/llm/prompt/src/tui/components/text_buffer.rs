@@ -5,12 +5,47 @@ use super::cursor::{Cursor, MoveCursor};
 use super::piece_table::{PieceTable, TextLine};
 use super::text_wrapper::TextWrapper;
 
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub struct CodeBlock {
+    start: u16, // start line of the code block
+    end: Option<u16>,   // end line of the code block (if closed)
+}
+
+impl CodeBlock {
+    pub fn is_closed(&self) -> bool {
+        self.end.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CodeBlockLineType {
+    Start,
+    End,
+    Line,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CodeBlockLine {
+    ptr: u16,   // refers to the code block itself
+    r#type: CodeBlockLineType,
+}
+
+impl CodeBlockLine {
+    pub fn get_ptr(&self) -> u16 {
+        self.ptr
+    }
+
+    pub fn get_type(&self) -> CodeBlockLineType {
+        self.r#type
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum LineType {
     Text,
-    Code,
-    BlockStart,
-    BlockEnd,
+    Code(CodeBlockLine),
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +179,7 @@ pub struct TextBuffer<'a> {
     placeholder: String,      // placeholder text
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     cursor: Cursor,
+    code_blocks: Vec<CodeBlock>,    // code blocks
     is_editable: bool,
 }
 
@@ -154,6 +190,7 @@ impl TextBuffer<'_> {
             placeholder: String::new(),
             display: TextDisplay::new(0),
             cursor: Cursor::new(0, 0, false),
+            code_blocks: Vec::new(),
             is_editable,
         }
     }
@@ -269,6 +306,18 @@ impl TextBuffer<'_> {
         }
     }
 
+    pub fn row_line_type(&self, row: usize) -> Option<LineType> {
+        let lines = self.display.wrap_lines();
+        if row >= lines.len() {
+            return None;    // out of bounds
+        }
+        lines[row].line_type
+    }
+
+    pub fn get_code_block(&self, ptr: u16) -> Option<&CodeBlock> {
+        self.code_blocks.get(ptr as usize)
+    }
+
     pub fn display_window_lines(&self, start: usize, end: usize) -> Vec<Line> {
         let lines = self.display.wrap_lines();
         let length = lines.len();
@@ -316,35 +365,39 @@ impl TextBuffer<'_> {
                         }
                         Some(line_bg)
                     }
-                    Some(LineType::Code) => {
-                        // fill background color if not already set
-                        let background = Some(Color::Rgb(80, 80, 80));
-                        for span in &mut line.spans {
-                            if span.style.bg.is_none() || span.style.bg == Some(Color::Reset) {
-                                span.style.bg = background;
+                    Some(LineType::Code(block_line)) => {
+                        match block_line.get_type() {
+                            CodeBlockLineType::Line => {
+                                // fill background color if not already set
+                                let background = Some(Color::Rgb(80, 80, 80));
+                                for span in &mut line.spans {
+                                    if span.style.bg.is_none() || span.style.bg == Some(Color::Reset) {
+                                        span.style.bg = background;
+                                    }
+                                }
+                                background
+                            },
+                            CodeBlockLineType::Start => {
+                                // hide line using modifier style
+                                let masked = Masked::new("```", '>');
+                                if let Some(background) = line_segment.background {
+                                    line.spans = vec![Span::styled(masked, Style::default().bg(background))];
+                                } else {
+                                    line.spans = vec![Span::raw(masked)];
+                                }
+                                line_segment.background
+                            }
+                            CodeBlockLineType::End => {
+                                // hide line using modifier style
+                                let masked = Masked::new("```", '<');
+                                if let Some(background) = line_segment.background {
+                                    line.spans = vec![Span::styled(masked, Style::default().bg(background))];
+                                } else {
+                                    line.spans = vec![Span::raw(masked)];
+                                }
+                                line_segment.background
                             }
                         }
-                        background
-                    }
-                    Some(LineType::BlockStart) => {
-                        // hide line using modifier style
-                        let masked = Masked::new("```", '>');
-                        if let Some(background) = line_segment.background {
-                            line.spans = vec![Span::styled(masked, Style::default().bg(background))];
-                        } else {
-                            line.spans = vec![Span::raw(masked)];
-                        }
-                        line_segment.background
-                    }
-                    Some(LineType::BlockEnd) => {
-                        // hide line using modifier style
-                        let masked = Masked::new("```", '<');
-                        if let Some(background) = line_segment.background {
-                            line.spans = vec![Span::styled(masked, Style::default().bg(background))];
-                        } else {
-                            line.spans = vec![Span::raw(masked)];
-                        }
-                        line_segment.background
                     }
                     None => {
                         // default background color
@@ -469,12 +522,19 @@ impl TextBuffer<'_> {
 
     fn mark_code_blocks(&mut self) {
         let mut in_code_block = false;
+        let mut current_code_block_start: Option<u16> = None;
+        let mut code_block_ptr = 0;
+
+        self.code_blocks.clear();   // empty vec
 
         let reset = Style::reset();
 
         // TODO: keep track on (start, end) line numbers of all code blocks
+        // this are stored in the code_blocks vec
 
-        for line in self.display.wrap_lines_mut().iter_mut() {
+        for (line_number, line) in self.display.wrap_lines_mut().iter_mut().enumerate() {
+            let line_number = line_number as u16;
+
             if in_code_block && line.background == reset.bg {
                 // ensure code block does not persist across different text blocks
                 in_code_block = false;
@@ -485,12 +545,31 @@ impl TextBuffer<'_> {
                 if in_code_block {
                     // end of code block
                     in_code_block = false;
-                    // hide block marker
-                    line.line_type = Some(LineType::BlockEnd);
+
+                    if let Some(_) = current_code_block_start {
+                        // close the last code block
+                        if let Some(last_code_block) = self.code_blocks.last_mut() {
+                            last_code_block.end = Some(line_number);
+                        }
+                    }
+
+                    line.line_type = Some(LineType::Code(CodeBlockLine {
+                        ptr: code_block_ptr,
+                        r#type: CodeBlockLineType::End,
+                    }));
+                    code_block_ptr += 1;    // increment for the next code block
                 } else {
                     // start of code block
                     in_code_block = true;
-                    line.line_type = Some(LineType::BlockStart);
+                    current_code_block_start = Some(line_number);
+                    self.code_blocks.push(CodeBlock {
+                        start: line_number,
+                        end: None,
+                    });
+                    line.line_type = Some(LineType::Code(CodeBlockLine {
+                        ptr: code_block_ptr,    // ptr to the code block
+                        r#type: CodeBlockLineType::Start,
+                    }));
                 }
             } else {
                 // mark line as code or text based on wether it is in a code block
@@ -503,11 +582,17 @@ impl TextBuffer<'_> {
                             span.style.bg = None;
                         }
                     }
-
-                    LineType::Code
+                    LineType::Code(CodeBlockLine {
+                        ptr: code_block_ptr,
+                        r#type: CodeBlockLineType::Line,
+                    })
                 } else {
                     LineType::Text
                 });
+            }
+
+            if !in_code_block {
+                current_code_block_start = None;
             }
         }
     }

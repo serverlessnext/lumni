@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 use super::cursor::MoveCursor;
 use super::prompt_rect::PromptRect;
 use super::window_type::Highlighted;
+use super::text_buffer::{CodeBlock, LineType};
 use super::{TextBuffer, WindowStatus, WindowType};
 
 pub struct TextWindow<'a> {
@@ -161,6 +162,26 @@ impl<'a> TextWindow<'a> {
         &mut self.text_buffer
     }
 
+    pub fn current_line_type(&self) -> Option<LineType> {
+        let (_, row) = self.text_buffer.get_column_row();
+        self.text_buffer.row_line_type(row)
+    }
+
+    pub fn current_code_block(&self) -> Option<CodeBlock> {
+        let line_type = self.current_line_type();
+        match line_type {
+            Some(LineType::Code(code_block)) => {
+                let ptr = code_block.get_ptr();
+                if let Some(code_block) = self.text_buffer.get_code_block(ptr) {
+                    return Some(code_block.clone());
+                } else {
+                    return None;
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
         if self.area.update(area) == true {
             // re-fit text to updated display
@@ -229,6 +250,10 @@ pub trait TextWindowTrait<'a> {
         self.base()
             .text_buffer
             .set_placeholder(window_type.placeholder_text());
+    }
+
+    fn current_code_block(&mut self) -> Option<CodeBlock> {
+        self.base().current_code_block()
     }
 
     fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b>

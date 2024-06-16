@@ -231,14 +231,27 @@ impl KeyEventHandler {
                         _ => {}
                     }
                     return WindowEvent::PromptWindow;
-                }
-
-                // catch Enter key press in prompt window
-                if self.key_track.current_key().code == KeyCode::Enter {
-                    let question = prompt_window.text_buffer().to_string();
-                    // send prompt if not editing, or if the last character is a space
-                    prompt_window.text_empty();
-                    return WindowEvent::Prompt(PromptAction::Write(question));
+                }  else {
+                    match self.key_track.current_key().code {
+                        KeyCode::Enter => {
+                            // send prompt if not inside editing block
+                            if !prompt_window.is_status_insert() {
+                                ensure_closed_block(prompt_window);
+                                let question = prompt_window.text_buffer().to_string();
+                                prompt_window.text_empty();
+                                return WindowEvent::Prompt(PromptAction::Write(question));
+                            }
+                        },
+                        KeyCode::Esc => {
+                            if prompt_window.is_status_insert() {
+                                ensure_closed_block(prompt_window);
+                            }
+                        },
+                        KeyCode::Tab => {
+                            // TODO: tab inside 
+                        },
+                        _ => {}
+                    }
                 }
                 handle_text_window_event(
                     &mut self.key_track,
@@ -247,6 +260,25 @@ impl KeyEventHandler {
                 )
             }
             _ => current_mode,
+        }
+    }
+}
+
+fn is_closed_block(prompt_window: &mut PromptWindow) -> Option<bool> {
+    // return None if not inside a block
+    // return Some(true) if block is closed, else return Some(false)
+    let code_block = prompt_window.current_code_block();
+    match code_block {
+        Some(block) => Some(block.is_closed()),
+        None => None,
+    }
+}
+
+fn ensure_closed_block(prompt_window: &mut PromptWindow) {
+    if let Some(closed_block) = is_closed_block(prompt_window) {
+        if !closed_block {
+            // close block
+            prompt_window.text_append_with_insert("```", None);
         }
     }
 }

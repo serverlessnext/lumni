@@ -294,22 +294,33 @@ impl TextBuffer<'_> {
 
                 let line_type = line_segment.line_type;
 
+                let line_bg = if let Some(bg) = line_segment.background {
+                    if bg == Color::Reset {
+                        Color::Black    // switch to black as default 
+                    } else {
+                        bg  // keep original background color
+                    }
+                } else {
+                    Color::Black    // default background color
+                };
+
                 let background = match line_type {
                     Some(LineType::Text) => {
                         if line_segment.background.is_some() {
                             for span in &mut line.spans {
-                                if span.style.bg.is_none() {
-                                    span.style.bg = line_segment.background;
+                                // fill background color if not already set
+                                if span.style.bg.is_none() || span.style.bg == Some(Color::Reset) {
+                                    span.style.bg = Some(line_bg);
                                 }
                             }
                         }
-                        line_segment.background
+                        Some(line_bg)
                     }
                     Some(LineType::Code) => {
                         // fill background color if not already set
                         let background = Some(Color::Rgb(80, 80, 80));
                         for span in &mut line.spans {
-                            if span.style.bg.is_none() {
+                            if span.style.bg.is_none() || span.style.bg == Some(Color::Reset) {
                                 span.style.bg = background;
                             }
                         }
@@ -340,13 +351,21 @@ impl TextBuffer<'_> {
                         line_segment.background
                     }
                 };
+
+                // left padding
+                line.spans.insert(0, Span::styled(
+                    " ",
+                    Style::default().bg(background.unwrap_or(Color::Black)),
+                ));
+ 
                 if text_width < window_width {
-                    let spaces_needed = window_width - text_width;
+                    // add 2 to account for left and right padding
+                    let spaces_needed = window_width.saturating_sub(text_width + 2);
                     let spaces = " ".repeat(spaces_needed);
 
                     if let Some(bg_color) = background {
                         // fill background color with default if not already set
-                        line.spans.push(Span::styled(
+                       line.spans.push(Span::styled(
                             spaces,
                             Style::default().bg(bg_color),
                         ));
@@ -354,6 +373,14 @@ impl TextBuffer<'_> {
                         line.spans.push(Span::raw(spaces));
                     }
                 };
+
+                // right padding
+                line.spans.push(Span::styled(
+                    " ",
+                    Style::default().bg(background.unwrap_or(Color::Black)),
+                ));
+ 
+
                 line
             })
             .collect()

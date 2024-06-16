@@ -23,6 +23,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
+use super::defaults::PromptStyle;
 use super::chat::{list_assistants, ChatSession, PromptInstruction};
 use super::model::{PromptModel, PromptModelTrait};
 use super::server::ModelServer;
@@ -42,7 +43,6 @@ async fn prompt_app<B: Backend>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut response_window = ResponseWindow::new();
     response_window.init(); // initialize with defaults
-    let response_style = Some(Style::default().bg(Color::Rgb(100, 120, 120)));
 
     let mut prompt_window = PromptWindow::new();
     prompt_window.set_normal_mode(); // initialize in normal mode
@@ -130,7 +130,7 @@ async fn prompt_app<B: Backend>(
 
                                             response_window.text_append_with_insert(
                                                 &formatted_prompt,
-                                                Some(Style::new().fg(Color::Yellow).bg(Color::Magenta)),
+                                                Some(PromptStyle::user()),
                                             );
                                             response_window.text_append_with_insert(
                                                 "\n",
@@ -146,7 +146,7 @@ async fn prompt_app<B: Backend>(
                                         }
                                         PromptAction::Stop => {
                                             chat_session.stop();
-                                            finalize_response(chat_session, &mut response_window, response_style, None).await?;
+                                            finalize_response(chat_session, &mut response_window, None).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -206,10 +206,10 @@ async fn prompt_app<B: Backend>(
                 // with a trimmed version of the new response content
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
                 chat_session.update_last_exchange(&display_content);
-                response_window.text_append_with_insert(&display_content, response_style);
+                response_window.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
 
                 if is_final {
-                    finalize_response(chat_session, &mut response_window, response_style, tokens_predicted).await?;
+                    finalize_response(chat_session, &mut response_window, tokens_predicted).await?;
                     trim_buffer = None;
                 } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
@@ -227,11 +227,10 @@ async fn prompt_app<B: Backend>(
 async fn finalize_response(
     chat_session: &mut ChatSession,
     response_window: &mut ResponseWindow<'_>,
-    response_style: Option<Style>,
     tokens_predicted: Option<usize>,
 ) -> Result<(), Box<dyn Error>> {
     // finalize with newline for in display
-    response_window.text_append_with_insert("\n", response_style);
+    response_window.text_append_with_insert("\n", Some(PromptStyle::assistant()));
 
     // add an empty unstyled line
     response_window.text_append_with_insert("\n", Some(Style::reset()));

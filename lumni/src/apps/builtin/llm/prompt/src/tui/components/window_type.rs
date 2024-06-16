@@ -74,14 +74,16 @@ impl WindowType {
     }
 
     pub fn border_style(&self) -> Style {
+        let light_gray = Color::Rgb(128, 128, 128);
+        let light_yellow = Color::Rgb(192, 192, 96);
         match self.status {
             WindowStatus::Normal(highlighted) => match highlighted {
                 Highlighted::True => Style::default().fg(Color::LightGreen),
-                Highlighted::False => Style::default().fg(Color::DarkGray),
+                Highlighted::False => Style::default().fg(light_gray),
             },
             WindowStatus::Insert => Style::default().fg(Color::LightBlue),
-            WindowStatus::Visual => Style::default().fg(Color::LightYellow),
-            WindowStatus::InActive => Style::default().fg(Color::DarkGray),
+            WindowStatus::Visual => Style::default().fg(light_yellow),            
+            WindowStatus::InActive => Style::default().fg(light_gray),
         }
     }
 

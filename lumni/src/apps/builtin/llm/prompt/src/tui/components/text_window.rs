@@ -171,7 +171,7 @@ impl<'a> TextWindow<'a> {
         let mut block = Block::default()
             .borders(self.window_type.borders())
             .border_style(self.window_type.border_style())
-            .padding(Padding::new(1, 1, 0, 0));
+            .padding(Padding::new(0, 0, 0, 0));
 
         let description = format!("{}", self.window_type.description());
         if !description.is_empty() {

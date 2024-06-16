@@ -15,6 +15,7 @@ pub struct TextWindow<'a> {
     window_type: WindowType,
     vertical_scroll: usize, // vertical scroll position (line index)
     vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
+    auto_scroll: bool,    // automatically scroll to end of text when updated
 }
 
 impl<'a> TextWindow<'a> {
@@ -25,6 +26,7 @@ impl<'a> TextWindow<'a> {
             window_type,
             vertical_scroll: 0,
             vertical_scroll_bar_state: ScrollbarState::default(),
+            auto_scroll: false,
         }
     }
 
@@ -64,6 +66,14 @@ impl<'a> TextWindow<'a> {
         // update placeholder text
         self.text_buffer
             .set_placeholder(self.window_type().placeholder_text());
+    }
+
+    pub fn enable_auto_scroll(&mut self) {
+        self.auto_scroll = true;
+    }
+
+    pub fn disable_auto_scroll(&mut self) {
+        self.auto_scroll = false;
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -119,6 +129,8 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn scroll_up(&mut self) {
+        self.disable_auto_scroll(); // disable auto-scroll when manually scrolling
+
         if self.vertical_scroll != 0 {
             self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
             self.update_scroll_bar();
@@ -138,6 +150,7 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
+        self.disable_auto_scroll(); // disable auto-scroll when manually moving cursor
         let (_, row_changed) = self.text_buffer.move_cursor(direction, false);
         if row_changed {
             self.scroll_to_cursor();
@@ -183,6 +196,7 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
+        // inserted text is added at cursor position
         self.text_buffer.text_insert_add(text, style);
         self.scroll_to_cursor();
     }
@@ -193,13 +207,12 @@ impl<'a> TextWindow<'a> {
         style: Option<Style>,
     ) {
         // inserted text is appended at end of text
-        self.scroll_to_end();
-        self.text_buffer.text_insert_add(text, style);
-    }
-
-    pub fn text_append(&mut self, text: &str, style: Option<Style>) {
-        self.text_buffer.text_append(text, style);
-        self.scroll_to_end();
+        if self.auto_scroll {
+            self.scroll_to_end();
+            self.text_buffer.text_insert_add(text, style);
+        } else{
+            self.text_buffer.text_append(text, style);
+        }
     }
 
     pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
@@ -238,6 +251,10 @@ pub trait TextWindowTrait<'a> {
         self.base().set_window_status(status);
     }
 
+    fn enable_auto_scroll(&mut self) {
+        self.base().enable_auto_scroll();
+    }
+
     fn window_type(&mut self) -> WindowType {
         self.base().window_type()
     }
@@ -266,13 +283,9 @@ pub trait TextWindowTrait<'a> {
         self.base().text_append_with_insert(text, style);
     }
 
-    fn text_append(&mut self, text: &str, style: Option<Style>) {
-        self.base().text_append(text, style);
-    }
-
     fn text_set(&mut self, text: &str, style: Option<Style>) {
         self.text_empty();
-        self.text_append(text, style);
+        self.text_insert_add(text, style)
     }
 
     fn text_delete_char(&mut self) {

@@ -445,6 +445,8 @@ impl TextBuffer<'_> {
 
         let reset = Style::reset();
 
+        // TODO: keep track on (start, end) line numbers of all code blocks
+
         for line in self.display.wrap_lines_mut().iter_mut() {
             if in_code_block && line.background == reset.bg {
                 // ensure code block does not persist across different text blocks

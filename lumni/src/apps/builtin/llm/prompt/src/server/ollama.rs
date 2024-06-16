@@ -154,10 +154,12 @@ impl OllamaShowPayload<'_> {
     }
 }
 
+// used to check if response can deserialize
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct OllamaShowResponse {
-    _modelfile: String,
-    _details: OllamaShowResponseDetails,
+    modelfile: String,
+    details: OllamaShowResponseDetails,
 }
 
 impl OllamaShowResponse {
@@ -169,9 +171,11 @@ impl OllamaShowResponse {
     }
 }
 
+// used to check if response can deserialize
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct OllamaShowResponseDetails {
-    _format: String,
+    format: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

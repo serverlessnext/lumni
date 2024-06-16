@@ -193,6 +193,10 @@ async fn prompt_app<B: Backend>(
             },
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
+                if trim_buffer.is_none() {
+                    // new response stream started
+                    response_window.enable_auto_scroll();
+                }
 
                 let (response_content, is_final, tokens_predicted) = chat_session.process_response(&response);
 

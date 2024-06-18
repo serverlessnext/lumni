@@ -75,7 +75,8 @@ jobs:
             TAG=$(echo $GITHUB_SHA |cut -c1-7)
           fi
           mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
-          cd ./build && tar -czf ../artifacts/$NAME-$TARGET-$TAG.tar.gz .
+          tar -czf ./artifacts/$NAME-$TARGET-$TAG.tar.gz -C ./build .
+          sha256sum ./artifacts/$NAME-$TARGET-$TAG.tar.gz > ./artifacts/$NAME-$TARGET-$TAG.tar.gz.sha256
 
       - name: Archive artifact
         uses: actions/upload-artifact@v3

@@ -66,14 +66,16 @@ jobs:
 
       - name: Compress
         run: |
-          mkdir -p ./artifacts
+          [ -e ./build ] && rm -rf ./build
+          [ -e ./artifacts ] && rm -rf ./artifacts
+          mkdir -p ./artifacts ./build/bin
           if [[ $GITHUB_REF_TYPE == "tag" ]]; then
             TAG=$GITHUB_REF_NAME
           else
             TAG=$(echo $GITHUB_SHA |cut -c1-7)
           fi
-          mv ./target/$TARGET/release/$NAME ./$NAME
-          tar -czf ./artifacts/$NAME-$TARGET-$TAG.tar.gz $NAME
+          mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
+          cd ./build && tar -czf ../artifacts/$NAME-$TARGET-$TAG.tar.gz .
 
       - name: Archive artifact
         uses: actions/upload-artifact@v3

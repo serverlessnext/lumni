@@ -25,10 +25,10 @@ jobs:
           #  os: ubuntu-latest
           #- target: aarch64-unknown-linux-musl
           #  os: ubuntu-latest
-          - target: aarch64-apple-darwin
-            os: macos-latest
-          - target: x86_64-apple-darwin
-            os: macos-latest
+          #- target: aarch64-apple-darwin
+          #  os: macos-latest
+          #- target: x86_64-apple-darwin
+          #  os: macos-latest
     env:
       TARGET: ${{ matrix.target }}
       OS: ${{ matrix.os }}
@@ -107,7 +107,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         with:
           files: ./artifacts/*.tar.gz
           tag_name: ${{ steps.vars.outputs.tag }}

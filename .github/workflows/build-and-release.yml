@@ -115,7 +115,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: ./artifacts/*.tar.gz
+          files: |
+            ./artifacts/*.tar.gz*
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.tag }}
           body: Automated release for ${{ github.sha }}

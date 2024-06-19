@@ -88,6 +88,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -105,9 +107,9 @@ jobs:
         id: vars
         run: |
           if [[ $GITHUB_REF_TYPE == "tag" ]]; then
-            echo "::set-output name=tag::$GITHUB_REF_NAME"
+            echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=tag::$(echo $GITHUB_SHA | cut -c1-7)"
+            echo "tag=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
           fi
 
       - name: Release
@@ -120,3 +122,90 @@ jobs:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.tag }}
           body: Automated release for ${{ github.sha }}
+
+  update-formula:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+  
+      - name: Get release tag from previous step
+        id: vars
+        run: |
+          echo "RELEASE_TAG=${{ needs.deploy.outputs.tag }}" >> $GITHUB_ENV
+  
+      - name: Get release information
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: process.env.RELEASE_TAG
+            });
+            core.setOutput('release_tag', release.data.tag_name);
+            core.setOutput('assets', release.data.assets.map(asset => asset.browser_download_url).join('\n'));
+
+      - name: Download assets
+        run: |
+          mkdir -p assets
+          cd assets
+          echo "${{ steps.release.outputs.assets }}" | while IFS= read -r url; do
+            if [[ "$url" == *.tar.gz.sha256 ]]; then
+              echo "Downloading $url"
+              curl -LO "$url"
+            fi
+          done
+
+      - name: Extract SHA256 checksums
+        id: checksums
+        run: |
+          cd assets
+          # The following are examples for different platforms, uncomment as needed
+          SHA256_MAC_INTEL=$(awk '{print $1}' "${NAME}-x86_64-apple-darwin-${RELEASE_TAG}.tar.gz.sha256")
+          SHA256_MAC_ARM=$(awk '{print $1}' "${NAME}-aarch64-apple-darwin-${RELEASE_TAG}.tar.gz.sha256")
+          SHA256_LINUX_INTEL=$(awk '{print $1}' "${NAME}-x86_64-unknown-linux-gnu-${RELEASE_TAG}.tar.gz.sha256")
+          echo "SHA256_MAC_INTEL=${SHA256_MAC_INTEL}" >> "$GITHUB_OUTPUT"
+          echo "SHA256_MAC_ARM=${SHA256_MAC_ARM}" >> "$GITHUB_OUTPUT"
+          echo "SHA256_LINUX_INTEL=${SHA256_LINUX_INTEL}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository using Git and SSH
+        uses: actions/checkout@v3
+        with:
+          repository: serverlessnext/homebrew-lumni
+          ssh-key: ${{ secrets.DEPLOY_KEY_HOMEBREW_LUMNI }}
+          path: homebrew-lumni
+
+      - name: Update formula
+        run: |
+          cd homebrew-lumni/Formula
+          cp ../templates/lumni.rb.template lumni.rb
+
+          SHA256_MAC_INTEL="${{ steps.checksums.outputs.SHA256_MAC_INTEL }}"
+          SHA256_MAC_ARM="${{ steps.checksums.outputs.SHA256_MAC_ARM }}"
+          SHA256_LINUX_INTEL="${{ steps.checksums.outputs.SHA256_LINUX_INTEL }}"
+
+          sed -i "s|{{ RELEASE_TAG }}|${RELEASE_TAG}|g" lumni.rb
+          sed -i "s|{{ SHA256_MAC_INTEL }}|${SHA256_MAC_INTEL}|g" lumni.rb
+          sed -i "s|{{ SHA256_MAC_ARM }}|${SHA256_MAC_ARM}|g" lumni.rb
+          sed -i "s|{{ SHA256_LINUX_INTEL }}|${SHA256_LINUX_INTEL}|g" lumni.rb
+
+      - name: Start SSH agent and deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY_HOMEBREW_LUMNI }}
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "$DEPLOY_KEY" | ssh-add -
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Commit and push changes using custom SSH key
+        run: |
+          cd homebrew-lumni
+          git config user.email "github-action@serverlessnext.com"
+          git config user.name "GitHub Action"
+          git add .
+          git commit -m "Update formula to release"
+          git push

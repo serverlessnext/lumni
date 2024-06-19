@@ -76,7 +76,7 @@ jobs:
           fi
           mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
           tar -czf ./artifacts/$NAME-$TARGET-$TAG.tar.gz -C ./build .
-          sha256sum ./artifacts/$NAME-$TARGET-$TAG.tar.gz > ./artifacts/$NAME-$TARGET-$TAG.tar.gz.sha256
+          shasum -a 256 ./artifacts/$NAME-$TARGET-$TAG.tar.gz > ./artifacts/$NAME-$TARGET-$TAG.tar.gz.sha256
 
       - name: Archive artifact
         uses: actions/upload-artifact@v3

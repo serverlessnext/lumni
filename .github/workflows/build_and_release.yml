@@ -61,20 +61,24 @@ jobs:
       - name: Update version in Cargo.toml
         id: update_version
         run: |
+          CURRENT_VERSION=$(grep '^version' ./$NAME/Cargo.toml | sed 's/^version = \"\(.*\)\"/\1/')
           if [[ $GITHUB_REF_TYPE == "tag" ]]; then
             if [[ $GITHUB_REF_NAME =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-              VERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
-              sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$NAME/Cargo.toml
+              VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
               echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
-              echo "Updated Cargo.toml to version $VERSION"
             fi
           else
             SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-            sed -i "s/-pre$/-$SHORT_SHA/" ./$NAME/Cargo.toml
+            VERSION="${CURRENT_VERSION%-pre}-$SHORT_SHA"
             echo "tag=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-            echo "Updated Cargo.toml to version x.x.x-$SHORT_SHA"
           fi
+
+          if [[ $OS == "macos-latest" ]]; then
+            sed -i '' "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$NAME/Cargo.toml
+          else
+            sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$NAME/Cargo.toml
+          fi
+          echo "Updated Cargo.toml to version $VERSION"
 
       - name: Build project
         run: cargo build -p $NAME --release --target $TARGET

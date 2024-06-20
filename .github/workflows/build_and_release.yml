@@ -70,7 +70,7 @@ jobs:
             fi
           else
             SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-            sed -i "s/-pre$/-$SHORT_SHA/" Cargo.toml
+            sed -i "s/-pre$/-$SHORT_SHA/" ./$NAME/Cargo.toml
             echo "tag=$SHORT_SHA" >> $GITHUB_OUTPUT
 
             echo "Updated Cargo.toml to version x.x.x-$SHORT_SHA"

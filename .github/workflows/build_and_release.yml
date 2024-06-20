@@ -178,6 +178,11 @@ jobs:
           ssh-key: ${{ secrets.DEPLOY_KEY_HOMEBREW_LUMNI }}
           path: homebrew-lumni
 
+      - name: Create a new feature branch
+        run: |
+          cd homebrew-lumni
+          git checkout -b gh-update-formula-${RELEASE_TAG}
+
       - name: Update formula
         run: |
           cd homebrew-lumni/Formula
@@ -207,5 +212,6 @@ jobs:
           git config user.email "github-action@serverlessnext.com"
           git config user.name "GitHub Action"
           git add .
-          git commit -m "Update formula to release"
-          git push
+          git commit -m "Update formula to release ${RELEASE_TAG}"
+          git push --set-upstream origin HEAD
+

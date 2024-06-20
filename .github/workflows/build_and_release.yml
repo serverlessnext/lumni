@@ -73,10 +73,11 @@ jobs:
             echo "tag=$SHORT_SHA" >> $GITHUB_OUTPUT
           fi
 
+          CARGO_TOML=$NAME/Cargo.toml
           if [[ $OS == "macos-latest" ]]; then
-            sed -i '' "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$NAME/Cargo.toml
+            sed -i '' "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$CARGO_TOML
           else
-            sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$NAME/Cargo.toml
+            sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$CARGO_TOML
           fi
           echo "Updated Cargo.toml to version $VERSION"
 
@@ -91,10 +92,11 @@ jobs:
           [ -e ./build ] && rm -rf ./build
           [ -e ./artifacts ] && rm -rf ./artifacts
           mkdir -p ./artifacts ./build/bin
-          TAG=${{ steps.update_version.outputs.version }}
+          TAG=${{ steps.update_version.outputs.tag }}
           mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
-          tar -czf ./artifacts/$NAME-$TARGET-$TAG.tar.gz -C ./build .
-          shasum -a 256 ./artifacts/$NAME-$TARGET-$TAG.tar.gz > ./artifacts/$NAME-$TARGET-$TAG.tar.gz.sha256
+          OUTFILE=./artifacts/$NAME-$TARGET-$TAG.tar.gz
+          tar -czf $OUTFILE -C ./build .
+          shasum -a 256 $OUTFILE > $OUTFILE.sha256
 
       - name: Archive artifact
         uses: actions/upload-artifact@v3

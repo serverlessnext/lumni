@@ -73,7 +73,9 @@ pub async fn run_cli(_args: Vec<String>) {
             }
         }
         Err(e) => {
-            if e.kind() == clap::error::ErrorKind::DisplayHelp {
+            if e.kind() == clap::error::ErrorKind::DisplayHelp 
+                || e.kind() == clap::error::ErrorKind::DisplayVersion {
+                    // catches --help and --version, which are not errors
                 print!("{}", e);
             } else {
                 eprintln!("Error parsing command-line arguments: {}", e);

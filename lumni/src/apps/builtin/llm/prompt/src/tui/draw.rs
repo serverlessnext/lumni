@@ -6,15 +6,16 @@ use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 
 use super::components::TextWindowTrait;
-use super::{CommandLine, PromptWindow, ResponseWindow};
-
+use super::AppUi;
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
-    prompt_window: &mut PromptWindow,
-    response_window: &mut ResponseWindow,
-    command_line: &mut CommandLine,
+    app_ui: &mut AppUi,
 ) -> Result<(), io::Error> {
+    let prompt_window = &mut app_ui.prompt;
+    let response_window = &mut app_ui.response;
+    let command_line = &mut app_ui.command_line;
+
     terminal.draw(|f| {
         let terminal_size = f.size();
         const COMMAND_LINE_HEIGHT: u16 = 3;
@@ -61,7 +62,6 @@ pub fn draw_ui<B: Backend>(
         prompt_log_area_scrollbar = log_window[1];
         prompt_edit_area = edit_window[0];
 
-            
         f.render_widget(
             prompt_window.widget(&prompt_edit_area),
             prompt_edit_area,

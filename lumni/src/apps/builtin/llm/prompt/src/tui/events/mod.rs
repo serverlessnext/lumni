@@ -4,7 +4,8 @@ mod text_window_event;
 pub use key_event::KeyEventHandler;
 
 use super::clipboard::ClipboardProvider;
-use super::components::{MoveCursor, TextWindowTrait, WindowKind, LineType};
+use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
+use super::ui::AppUi;
 use super::windows::{CommandLine, PromptWindow, ResponseWindow};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,6 +15,7 @@ pub enum WindowEvent {
     ResponseWindow,
     CommandLine(CommandLineAction),
     Prompt(PromptAction),
+    Container,  // TODO: container can hold many types
 }
 
 #[derive(Debug, Clone, PartialEq)]

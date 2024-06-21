@@ -1,5 +1,5 @@
 use super::components::{
-    TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowType,
+    Container, TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowType,
 };
 
 pub struct PromptWindow<'a> {
@@ -58,6 +58,18 @@ impl CommandLine<'_> {
             .set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
+        }
+    }
+}
+
+pub struct ContainerWindow {
+    base: Container,
+}
+
+impl ContainerWindow {
+    pub fn default() -> Self {
+        Self {
+            base: Container::default(),
         }
     }
 }

@@ -1,14 +1,14 @@
 use ratatui::layout::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PromptRect {
+pub struct RectArea {
     x: u16,
     y: u16,
     width: u16,
     height: u16,
 }
 
-impl PromptRect {
+impl RectArea {
     pub fn default() -> Self {
         Self {
             x: 0,
@@ -26,15 +26,15 @@ impl PromptRect {
         self.height
     }
 
-    pub fn update(&mut self, area: &Rect) -> bool {
+    pub fn update(&mut self, rect: &Rect) -> bool {
         // adjust widget area for borders
         // return true if updated, else false
         let previous = *self; // copy current state
 
-        self.x = area.x;
-        self.y = area.y;
-        self.width = area.width.saturating_sub(2);
-        self.height = area.height.saturating_sub(2);
+        self.x = rect.x;
+        self.y = rect.y;
+        self.width = rect.width.saturating_sub(2);
+        self.height = rect.height.saturating_sub(2);
 
         if *self != previous {
             true

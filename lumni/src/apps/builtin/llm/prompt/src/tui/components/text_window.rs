@@ -5,30 +5,27 @@ use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
-use super::prompt_rect::PromptRect;
-use super::window_type::Highlighted;
+use super::rect_area::RectArea;
 use super::text_buffer::{CodeBlock, LineType};
+use super::window_type::Highlighted;
+use super::scroller::Scroller;
 use super::{TextBuffer, WindowStatus, WindowType};
 
 pub struct TextWindow<'a> {
-    area: PromptRect,
-    text_buffer: TextBuffer<'a>,
+    area: RectArea,
     window_type: WindowType,
-    vertical_scroll: usize, // vertical scroll position (line index)
-    vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
-    auto_scroll: bool,    // automatically scroll to end of text when updated
+    scroller: Scroller,
+    text_buffer: TextBuffer<'a>,
 }
 
 impl<'a> TextWindow<'a> {
     pub fn new(window_type: WindowType) -> Self {
         Self {
-            area: PromptRect::default(),
-            text_buffer: TextBuffer::new(window_type.is_editable()),
+            area: RectArea::default(),
             window_type,
-            vertical_scroll: 0,
-            vertical_scroll_bar_state: ScrollbarState::default(),
-            auto_scroll: false,
-        }
+            scroller: Scroller::new(),
+            text_buffer: TextBuffer::new(window_type.is_editable()),
+       }
     }
 
     pub fn window_type(&self) -> WindowType {
@@ -69,29 +66,21 @@ impl<'a> TextWindow<'a> {
             .set_placeholder(self.window_type().placeholder_text());
     }
 
-    pub fn enable_auto_scroll(&mut self) {
-        self.auto_scroll = true;
-    }
-
-    pub fn disable_auto_scroll(&mut self) {
-        self.auto_scroll = false;
-    }
-
     fn scroll_to_cursor(&mut self) {
         let (_, cursor_row) = self.text_buffer.get_column_row(); // current cursor row
         let visible_rows = self.area.height() as usize; // max number of rows visible in the window
 
-        let first_visible_row = self.vertical_scroll;
+        let first_visible_row = self.scroller.vertical_scroll;
         let last_visible_row =
             first_visible_row.saturating_add(visible_rows.saturating_sub(1));
 
         // check if cursor is within visible area
         if cursor_row < first_visible_row {
             // cursor is above visible area
-            self.vertical_scroll = cursor_row;
+            self.scroller.vertical_scroll = cursor_row;
         } else if cursor_row > last_visible_row {
             // cursor is below visible area
-            self.vertical_scroll =
+            self.scroller.vertical_scroll =
                 cursor_row.saturating_sub(visible_rows.saturating_sub(1));
         } else {
             // cursor is within visible area - no need to scroll
@@ -106,10 +95,10 @@ impl<'a> TextWindow<'a> {
         let end_scroll = content_length.saturating_sub(area_height);
         if content_length > area_height {
             // scrolling enabled when content length exceeds area height
-            if self.vertical_scroll + 10 <= end_scroll {
-                self.vertical_scroll += 10;
+            if self.scroller.vertical_scroll + 10 <= end_scroll {
+                self.scroller.vertical_scroll += 10;
             } else {
-                self.vertical_scroll = end_scroll;
+                self.scroller.vertical_scroll = end_scroll;
             }
             self.update_scroll_bar();
         }
@@ -121,7 +110,7 @@ impl<'a> TextWindow<'a> {
 
         let cursor_row = self.text_buffer.display_lines_len().saturating_sub(1);
         let visible_rows = self.area.height();
-        self.vertical_scroll = if cursor_row >= visible_rows as usize {
+        self.scroller.vertical_scroll = if cursor_row >= visible_rows as usize {
             cursor_row - visible_rows as usize + 1
         } else {
             0
@@ -130,10 +119,10 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn scroll_up(&mut self) {
-        self.disable_auto_scroll(); // disable auto-scroll when manually scrolling
+        self.scroller.disable_auto_scroll(); // disable auto-scroll when manually scrolling
 
-        if self.vertical_scroll != 0 {
-            self.vertical_scroll = self.vertical_scroll.saturating_sub(10);
+        if self.scroller.vertical_scroll != 0 {
+            self.scroller.vertical_scroll = self.scroller.vertical_scroll.saturating_sub(10);
             self.update_scroll_bar();
         }
     }
@@ -143,15 +132,11 @@ impl<'a> TextWindow<'a> {
             .text_buffer
             .display_lines_len()
             .saturating_sub(self.area.height() as usize);
-        self.vertical_scroll_bar_state = self
-            .vertical_scroll_bar_state
-            .content_length(display_length)
-            .viewport_content_length(self.area.height().into())
-            .position(self.vertical_scroll);
+        self.scroller.update_scroll_bar(display_length, self.area.height() as usize);
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {
-        self.disable_auto_scroll(); // disable auto-scroll when manually moving cursor
+        self.scroller.disable_auto_scroll(); // disable auto-scroll when manually moving cursor
         let (_, row_changed) = self.text_buffer.move_cursor(direction, false);
         if row_changed {
             self.scroll_to_cursor();
@@ -199,21 +184,16 @@ impl<'a> TextWindow<'a> {
             block = block.title(description);
         }
 
-        let start_idx = self.vertical_scroll;
-        let window_text = self
-            .text_buffer
-            .display_window_lines(start_idx, start_idx + self.area.height() as usize);
+        let start_idx = self.scroller.vertical_scroll;
+        let window_text = self.text_buffer.display_window_lines(
+            start_idx,
+            start_idx + self.area.height() as usize,
+        );
 
         Paragraph::new(Text::from(window_text))
             .block(block)
             .style(self.window_type.style())
             .alignment(Alignment::Left)
-    }
-
-    pub fn vertical_scroll_bar_state<'b>(
-        &'b mut self,
-    ) -> &'b mut ScrollbarState {
-        &mut self.vertical_scroll_bar_state
     }
 
     pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
@@ -228,10 +208,10 @@ impl<'a> TextWindow<'a> {
         style: Option<Style>,
     ) {
         // inserted text is appended at end of text
-        if self.auto_scroll {
+        if self.scroller.auto_scroll {
             self.scroll_to_end();
             self.text_buffer.text_insert_add(text, style);
-        } else{
+        } else {
             self.text_buffer.text_append(text, style);
         }
     }
@@ -272,7 +252,7 @@ pub trait TextWindowTrait<'a> {
     where
         'a: 'b,
     {
-        self.base().vertical_scroll_bar_state()
+        self.base().scroller.vertical_scroll_bar_state()
     }
 
     fn set_window_status(&mut self, status: WindowStatus) {
@@ -281,7 +261,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn enable_auto_scroll(&mut self) {
-        self.base().enable_auto_scroll();
+        self.base().scroller.enable_auto_scroll();
     }
 
     fn window_type(&mut self) -> WindowType {

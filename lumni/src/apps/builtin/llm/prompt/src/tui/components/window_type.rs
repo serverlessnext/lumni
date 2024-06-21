@@ -20,6 +20,7 @@ pub enum WindowKind {
     ResponseWindow,
     PromptWindow,
     CommandLine,
+    Container,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +43,7 @@ impl WindowType {
             WindowKind::ResponseWindow => "Chat",
             WindowKind::PromptWindow => "Prompt",
             WindowKind::CommandLine => "",
+            WindowKind::Container => "",
         }
     }
 
@@ -55,6 +57,7 @@ impl WindowType {
                 WindowStatus::InActive => "",
             },
             WindowKind::CommandLine => "Ready",
+            WindowKind::Container => "",
         }
     }
 
@@ -63,6 +66,7 @@ impl WindowType {
             WindowKind::ResponseWindow => Borders::ALL,
             WindowKind::PromptWindow => Borders::ALL,
             WindowKind::CommandLine => Borders::NONE,
+            WindowKind::Container => Borders::ALL,
         }
     }
 
@@ -82,7 +86,7 @@ impl WindowType {
                 Highlighted::False => Style::default().fg(light_gray),
             },
             WindowStatus::Insert => Style::default().fg(Color::LightBlue),
-            WindowStatus::Visual => Style::default().fg(light_yellow),            
+            WindowStatus::Visual => Style::default().fg(light_yellow),
             WindowStatus::InActive => Style::default().fg(light_gray),
         }
     }
@@ -92,6 +96,7 @@ impl WindowType {
             WindowKind::ResponseWindow => false,
             WindowKind::PromptWindow => true,
             WindowKind::CommandLine => true,
+            WindowKind::Container => false,
         }
     }
 

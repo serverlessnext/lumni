@@ -5,8 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::text_window_event::handle_text_window_event;
 use super::{
-    CommandLine, PromptAction, PromptWindow, ResponseWindow, TextWindowTrait,
-    WindowEvent, LineType,
+    AppUi, CommandLine, LineType, PromptAction, PromptWindow, ResponseWindow,
+    TextWindowTrait, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -108,14 +108,17 @@ impl KeyEventHandler {
     pub async fn process_key(
         &mut self,
         key_event: KeyEvent,
+        app_ui: &mut AppUi<'_>,
         current_mode: WindowEvent,
-        command_line: &mut CommandLine<'_>,
-        prompt_window: &mut PromptWindow<'_>,
         is_running: Arc<AtomicBool>,
-        response_window: &mut ResponseWindow<'_>,
     ) -> WindowEvent {
         self.key_track.update_key(key_event);
 
+        let command_line = &mut app_ui.command_line;
+        let prompt_window = &mut app_ui.prompt;
+        let response_window = &mut app_ui.response;
+
+        eprintln!("KeyEvent={:?}", key_event);
         // try to catch Shift+Enter key press in prompt window
         match current_mode {
             WindowEvent::CommandLine(_) => {
@@ -231,25 +234,30 @@ impl KeyEventHandler {
                         _ => {}
                     }
                     return WindowEvent::PromptWindow;
-                }  else {
+                } else {
                     match self.key_track.current_key().code {
                         KeyCode::Enter => {
                             // send prompt if not inside editing block
-                            if !prompt_window.is_status_insert() || !in_editing_block(prompt_window) {
+                            if !prompt_window.is_status_insert()
+                                || !in_editing_block(prompt_window)
+                            {
                                 ensure_closed_block(prompt_window);
-                                let question = prompt_window.text_buffer().to_string();
+                                let question =
+                                    prompt_window.text_buffer().to_string();
                                 prompt_window.text_empty();
-                                return WindowEvent::Prompt(PromptAction::Write(question));
+                                return WindowEvent::Prompt(
+                                    PromptAction::Write(question),
+                                );
                             }
-                        },
+                        }
                         KeyCode::Esc => {
                             if prompt_window.is_status_insert() {
                                 ensure_closed_block(prompt_window);
                             }
-                        },
+                        }
                         KeyCode::Tab => {
-                            // TODO: tab inside 
-                        },
+                            // TODO: tab inside
+                        }
                         _ => {}
                     }
                 }

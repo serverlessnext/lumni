@@ -10,14 +10,10 @@ pub struct PromptStyle;
 
 impl PromptStyle {
     pub fn user() -> Style {
-        Style::new()
-            .fg(Color::White)
-            .bg(Color::Rgb(0,64,64))
+        Style::new().fg(Color::White).bg(Color::Rgb(0, 64, 64))
     }
 
     pub fn assistant() -> Style {
-        Style::new()
-            .fg(Color::Black)
-            .bg(Color::Rgb(225,205,175))
+        Style::new().fg(Color::Black).bg(Color::Rgb(225, 205, 175))
     }
 }

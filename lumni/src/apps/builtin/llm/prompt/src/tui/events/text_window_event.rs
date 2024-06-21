@@ -76,7 +76,8 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
         WindowKind::CommandLine => {
             WindowEvent::CommandLine(CommandLineAction::None)
-        }
+        },
+        WindowKind::Container => WindowEvent::Container,
     }
 }
 
@@ -185,7 +186,8 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
         WindowKind::CommandLine => {
             WindowEvent::CommandLine(CommandLineAction::None)
-        }
+        },
+        WindowKind::Container => WindowEvent::Container,
     }
 }
 

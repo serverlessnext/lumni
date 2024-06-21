@@ -11,8 +11,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
     ChatHistory, Endpoints, HttpClient, PromptInstruction, PromptModelTrait,
-    PromptRole, ServerTrait, TokenResponse,
-    DEFAULT_CONTEXT_SIZE,
+    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
 };
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";

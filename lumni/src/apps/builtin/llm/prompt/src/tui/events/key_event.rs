@@ -53,7 +53,10 @@ impl KeyTrack {
         }
     }
 
-    pub fn update_previous_key_with_leader(&mut self, key_event: KeyEvent) {
+    pub fn update_previous_key_with_leader(
+        &mut self,
+        key_event: KeyEvent,
+    ) -> Option<&str> {
         if let KeyCode::Char(new_c) = key_event.code {
             // Ensure previous_key_str is initialized to Some if it was None
             // Reset the previous key to an empty string if the current key is a space
@@ -68,7 +71,7 @@ impl KeyTrack {
                     // currently insert always disables leader key
                     // this means we cant use <leader> + something that "i" to trigger an action
                     // may need to change this in the future after UI shows feedback that
-                    // <leader> is enabled (e.g. with a popup to shows matching commands)
+                    // <leader> is enabled (e.g. with a popup to show matching commands)
                     self.set_leader_key(false);
                 }
                 'v' => {
@@ -86,6 +89,7 @@ impl KeyTrack {
             // non char key
             self.set_leader_key(false);
         }
+        self.previous_key_str()
     }
 
     pub fn take_numeric_input(&mut self) -> Option<usize> {
@@ -157,9 +161,13 @@ impl KeyEventHandler {
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
     ) -> Option<WindowEvent> {
-        if self.key_track.leader_key_set() {
-            self.key_track.update_previous_key_with_leader(key_event);
-        } else {
+        if !self.key_track.leader_key_set()
+            || self
+                .key_track
+                .update_previous_key_with_leader(key_event)
+                .is_none()
+        {
+            // leader key not set or updating leader is un-successful
             self.key_track.update_previous_key(key_event);
         }
 

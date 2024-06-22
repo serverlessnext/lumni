@@ -1,8 +1,9 @@
 use std::io;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
+use ratatui::widgets::{Clear, Block};
 use ratatui::Terminal;
 
 use super::components::TextWindowTrait;
@@ -15,6 +16,8 @@ pub fn draw_ui<B: Backend>(
     let prompt_window = &mut app_ui.prompt;
     let response_window = &mut app_ui.response;
     let command_line = &mut app_ui.command_line;
+
+    let app_ui_modal = app_ui.modal;
 
     terminal.draw(|f| {
         let terminal_size = f.size();
@@ -83,6 +86,33 @@ pub fn draw_ui<B: Backend>(
             command_line.widget(&command_line_area),
             command_line_area,
         );
+
+        if let Some(_modal) = app_ui_modal {
+            let block = Block::bordered().title("Popup");
+            let height = main_window[0].height;
+            let width = main_window[0].width;
+            let area = Rect::new(2, 1, width - 6, height - 2);
+            f.render_widget(Clear, area);
+            f.render_widget(block, area);
+        }
+
     })?;
     Ok(())
+}
+
+/// helper function to create a centered rect using up certain percentage of the available rect `r`
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::vertical([
+        Constraint::Percentage((100 - percent_y) / 2),
+        Constraint::Percentage(percent_y),
+        Constraint::Percentage((100 - percent_y) / 2),
+    ])
+    .split(r);
+
+    Layout::horizontal([
+        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(percent_x),
+        Constraint::Percentage((100 - percent_x) / 2),
+    ])
+    .split(popup_layout[1])[1]
 }

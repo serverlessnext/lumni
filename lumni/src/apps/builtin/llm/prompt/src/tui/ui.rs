@@ -1,11 +1,12 @@
-use super::{CommandLine, PromptWindow, ResponseWindow, ContainerWindow, TextWindowTrait};
+use super::{
+    CommandLine, ModalWindow, PromptWindow, ResponseWindow, TextWindowTrait,
+};
 
 pub struct AppUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
-    pub configuration: ContainerWindow,
-    show_config: bool,
+    pub modal: Option<ModalWindow>,
 }
 
 impl AppUi<'_> {
@@ -14,8 +15,7 @@ impl AppUi<'_> {
             prompt: PromptWindow::new(),
             response: ResponseWindow::new(),
             command_line: CommandLine::new(),
-            configuration: ContainerWindow::default(),
-            show_config: false,
+            modal: None,
         }
     }
 
@@ -25,11 +25,11 @@ impl AppUi<'_> {
         self.command_line.init(); // initialize with defaults
     }
 
-    pub fn get_show_config(&self) -> bool {
-        self.show_config
+    pub fn set_modal(&mut self, modal: ModalWindow) {
+        self.modal = Some(modal);
     }
 
-    pub fn set_show_config(&mut self, show_config: bool) {
-        self.show_config = show_config;
+    pub fn clear_modal(&mut self) {
+        self.modal = None;
     }
 }

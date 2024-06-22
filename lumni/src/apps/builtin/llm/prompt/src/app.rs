@@ -158,6 +158,9 @@ async fn prompt_app<B: Backend>(
                                         CommandLineAction::None => {}
                                     }
                                 }
+                                WindowEvent::Modal(modal) => {
+                                    app_ui.set_modal(modal);
+                                }
                                 _ => {}
                             }
                         },
@@ -172,9 +175,15 @@ async fn prompt_app<B: Backend>(
                                     window.scroll_down();
                                 },
                                 MouseEventKind::Down(_) => {
-                                    //eprintln!("Mouse down: {:?}", mouse_event);
+                                    // mouse click is ignored currently
+                                    // TODO: implement mouse click for certain actions
+                                    // i.e. close modal, scroll to position, set cursor, etc.
+                                    continue;   // skip redraw_ui
                                 },
-                                _ => {} // Other mouse events are ignored
+                                _ => {
+                                    // other mouse events are ignored
+                                    continue;   // skip redraw_ui
+                                }
                             }
                         },
                         _ => {} // Other events are ignored

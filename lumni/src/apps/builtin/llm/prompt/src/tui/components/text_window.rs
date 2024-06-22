@@ -6,9 +6,9 @@ use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::rect_area::RectArea;
+use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
 use super::window_type::Highlighted;
-use super::scroller::Scroller;
 use super::{TextBuffer, WindowStatus, WindowType};
 
 pub struct TextWindow<'a> {
@@ -25,7 +25,7 @@ impl<'a> TextWindow<'a> {
             window_type,
             scroller: Scroller::new(),
             text_buffer: TextBuffer::new(window_type.is_editable()),
-       }
+        }
     }
 
     pub fn window_type(&self) -> WindowType {
@@ -122,7 +122,8 @@ impl<'a> TextWindow<'a> {
         self.scroller.disable_auto_scroll(); // disable auto-scroll when manually scrolling
 
         if self.scroller.vertical_scroll != 0 {
-            self.scroller.vertical_scroll = self.scroller.vertical_scroll.saturating_sub(10);
+            self.scroller.vertical_scroll =
+                self.scroller.vertical_scroll.saturating_sub(10);
             self.update_scroll_bar();
         }
     }
@@ -132,7 +133,8 @@ impl<'a> TextWindow<'a> {
             .text_buffer
             .display_lines_len()
             .saturating_sub(self.area.height() as usize);
-        self.scroller.update_scroll_bar(display_length, self.area.height() as usize);
+        self.scroller
+            .update_scroll_bar(display_length, self.area.height() as usize);
     }
 
     pub fn move_cursor(&mut self, direction: MoveCursor) {

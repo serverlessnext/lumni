@@ -1,5 +1,6 @@
 use super::components::{
-    Container, TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowType,
+    Container, TextWindow, TextWindowTrait, WindowKind, WindowStatus,
+    WindowType,
 };
 
 pub struct PromptWindow<'a> {
@@ -62,11 +63,12 @@ impl CommandLine<'_> {
     }
 }
 
-pub struct ContainerWindow {
+#[derive(Debug, Clone, Copy)]
+pub struct ModalWindow {
     base: Container,
 }
 
-impl ContainerWindow {
+impl ModalWindow {
     pub fn default() -> Self {
         Self {
             base: Container::default(),

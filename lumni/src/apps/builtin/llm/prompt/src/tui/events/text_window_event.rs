@@ -2,11 +2,12 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::KeyCode;
+use hmac::digest::generic_array::typenum::Mod;
 
 use super::key_event::KeyTrack;
 use super::{
-    ClipboardProvider, CommandLineAction, MoveCursor, TextWindowTrait,
-    WindowEvent, WindowKind,
+    ClipboardProvider, CommandLineAction, MoveCursor,
+    TextWindowTrait, WindowEvent, WindowKind, ModalWindow,
 };
 
 pub fn handle_text_window_event<'a, T>(
@@ -76,8 +77,11 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
         WindowKind::CommandLine => {
             WindowEvent::CommandLine(CommandLineAction::None)
-        },
-        WindowKind::Container => WindowEvent::Container,
+        }
+        WindowKind::Container => {
+            // TODO: container should already be in AppUi
+            WindowEvent::Modal(ModalWindow::default())
+        }
     }
 }
 
@@ -186,8 +190,11 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow,
         WindowKind::CommandLine => {
             WindowEvent::CommandLine(CommandLineAction::None)
-        },
-        WindowKind::Container => WindowEvent::Container,
+        }
+        WindowKind::Container => {
+            // TODO: container should already be in AppUi
+            WindowEvent::Modal(ModalWindow::default())
+        }
     }
 }
 

@@ -11,4 +11,4 @@ pub use events::{
     CommandLineAction, KeyEventHandler, PromptAction, WindowEvent,
 };
 pub use ui::AppUi;
-pub use windows::{ContainerWindow, CommandLine, PromptWindow, ResponseWindow};
+pub use windows::{CommandLine, ModalWindow, PromptWindow, ResponseWindow};

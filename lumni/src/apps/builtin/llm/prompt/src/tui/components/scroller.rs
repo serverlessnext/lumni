@@ -1,10 +1,10 @@
-
 use ratatui::widgets::ScrollbarState;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Scroller {
     vertical_scroll_bar_state: ScrollbarState, // visual state of the scrollbar
     pub vertical_scroll: usize, // vertical scroll position (line index)
-    pub auto_scroll: bool,      // automatically scroll to end of text when updated
+    pub auto_scroll: bool, // automatically scroll to end of text when updated
 }
 
 impl Scroller {
@@ -30,7 +30,11 @@ impl Scroller {
         &mut self.vertical_scroll_bar_state
     }
 
-    pub fn update_scroll_bar(&mut self, display_length: usize, content_length: usize) {
+    pub fn update_scroll_bar(
+        &mut self,
+        display_length: usize,
+        content_length: usize,
+    ) {
         self.vertical_scroll_bar_state = self
             .vertical_scroll_bar_state
             .content_length(display_length)
@@ -38,4 +42,3 @@ impl Scroller {
             .position(self.vertical_scroll);
     }
 }
-

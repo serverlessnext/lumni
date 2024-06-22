@@ -2,16 +2,15 @@ mod handle_command_line;
 mod handle_prompt_window;
 mod handle_response_window;
 mod key_event;
+mod leader_key;
 mod text_window_event;
 
 pub use key_event::KeyEventHandler;
 
 use super::clipboard::ClipboardProvider;
-use super::components::{
-    LineType, MoveCursor, TextWindowTrait, WindowKind,
-};
+use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::ui::AppUi;
-use super::windows::{PromptWindow, ModalWindow};
+use super::windows::{ModalWindow, PromptWindow};
 
 #[derive(Debug)]
 pub enum WindowEvent {
@@ -20,7 +19,7 @@ pub enum WindowEvent {
     ResponseWindow,
     CommandLine(CommandLineAction),
     Prompt(PromptAction),
-    Modal(ModalWindow),
+    Modal(Option<ModalWindow>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

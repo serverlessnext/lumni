@@ -2,8 +2,7 @@ use std::io;
 
 use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
-use ratatui::widgets::{Clear, Block};
+use ratatui::widgets::{Block, Clear, Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 
 use super::components::TextWindowTrait;
@@ -95,7 +94,6 @@ pub fn draw_ui<B: Backend>(
             f.render_widget(Clear, area);
             f.render_widget(block, area);
         }
-
     })?;
     Ok(())
 }

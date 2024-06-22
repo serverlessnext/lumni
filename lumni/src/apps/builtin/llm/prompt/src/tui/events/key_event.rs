@@ -6,40 +6,40 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{
-    AppUi, WindowEvent,
-};
+use super::{AppUi, WindowEvent};
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
-    previous_char: Option<String>,
+    previous_key_str: Option<String>,
     numeric_input: NumericInput,
     current_key: KeyEvent,
+    leader_key_set: bool,
 }
 
 impl KeyTrack {
     pub fn new() -> Self {
         KeyTrack {
-            previous_char: None,
+            previous_key_str: None,
             numeric_input: NumericInput::new(),
             current_key: KeyEvent::new(KeyCode::Null, KeyModifiers::NONE),
+            leader_key_set: false,
         }
     }
 
-    pub fn previous_char(&self) -> Option<&str> {
-        self.previous_char.as_deref()
+    pub fn previous_key_str(&self) -> Option<&str> {
+        self.previous_key_str.as_deref()
     }
 
     pub fn current_key(&self) -> KeyEvent {
         self.current_key
     }
 
-    pub fn update_key(&mut self, key_event: KeyEvent) {
+    pub fn update_previous_key(&mut self, key_event: KeyEvent) {
         if let KeyCode::Char(c) = self.current_key.code {
             // copy previous key_event to previous_char
-            self.previous_char = Some(c.to_string());
+            self.previous_key_str = Some(c.to_string());
         } else {
-            self.previous_char = None;
+            self.previous_key_str = None;
         }
 
         // /update current key with the new key_event
@@ -53,8 +53,52 @@ impl KeyTrack {
         }
     }
 
+    pub fn update_previous_key_with_leader(&mut self, key_event: KeyEvent) {
+        if let KeyCode::Char(new_c) = key_event.code {
+            // Ensure previous_key_str is initialized to Some if it was None
+            // Reset the previous key to an empty string if the current key is a space
+            if self.previous_key_str.is_none() {
+                self.previous_key_str = Some(String::new());
+            }
+            match new_c {
+                ' ' => {
+                    self.previous_key_str = Some(String::new());
+                }
+                'i' => {
+                    // currently insert always disables leader key
+                    // this means we cant use <leader> + something that "i" to trigger an action
+                    // may need to change this in the future after UI shows feedback that
+                    // <leader> is enabled (e.g. with a popup to shows matching commands)
+                    self.set_leader_key(false);
+                }
+                'v' => {
+                    // idem with 'i'
+                    self.set_leader_key(false);
+                }
+                _ => {
+                    // append the current key to the previous key str
+                    if let Some(prev_str) = &mut self.previous_key_str {
+                        prev_str.push(new_c);
+                    }
+                }
+            }
+        } else {
+            // non char key
+            self.set_leader_key(false);
+        }
+    }
+
     pub fn take_numeric_input(&mut self) -> Option<usize> {
         self.numeric_input.take()
+    }
+
+    pub fn leader_key_set(&self) -> bool {
+        self.leader_key_set
+    }
+
+    pub fn set_leader_key(&mut self, leader_key_set: bool) {
+        self.leader_key_set = leader_key_set;
+        self.previous_key_str = None;
     }
 }
 
@@ -112,8 +156,12 @@ impl KeyEventHandler {
         app_ui: &mut AppUi<'_>,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-    ) -> WindowEvent {
-        self.key_track.update_key(key_event);
+    ) -> Option<WindowEvent> {
+        if self.key_track.leader_key_set() {
+            self.key_track.update_previous_key_with_leader(key_event);
+        } else {
+            self.key_track.update_previous_key(key_event);
+        }
 
         // try to catch Shift+Enter key press in prompt window
         match current_mode {
@@ -134,14 +182,16 @@ impl KeyEventHandler {
             ),
             WindowEvent::Modal(modal) => {
                 // get Escape key press to close modal window
-                if self.key_track.current_key().code == KeyCode::Esc {
+                if self.key_track.current_key().code == KeyCode::Esc
+                    || self.key_track.current_key().code == KeyCode::Char('q')
+                {
                     app_ui.clear_modal();
-                    WindowEvent::PromptWindow
+                    Some(WindowEvent::PromptWindow)
                 } else {
-                    WindowEvent::Modal(modal)
+                    Some(WindowEvent::Modal(modal))
                 }
             }
-            _ => current_mode,
+            _ => Some(current_mode),
         }
     }
 }

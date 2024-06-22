@@ -2,86 +2,103 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::KeyCode;
-use hmac::digest::generic_array::typenum::Mod;
 
 use super::key_event::KeyTrack;
+use super::leader_key::{process_leader_key, LEADER_KEY};
 use super::{
-    ClipboardProvider, CommandLineAction, MoveCursor,
-    TextWindowTrait, WindowEvent, WindowKind, ModalWindow,
+    ClipboardProvider, CommandLineAction, MoveCursor, TextWindowTrait,
+    WindowEvent, WindowKind,
 };
 
 pub fn handle_text_window_event<'a, T>(
     key_track: &mut KeyTrack,
     window: &mut T,
     _is_running: Arc<AtomicBool>,
-) -> WindowEvent
+) -> Option<WindowEvent>
 where
     T: TextWindowTrait<'a>,
 {
     let key_event = key_track.current_key();
-    match key_event.code {
-        KeyCode::Char(c) => {
-            // check mode
-            if window.is_status_insert() {
-                window.text_insert_add(&c.to_string(), None);
-            } else {
-                return handle_char_key(c, key_track, window);
+    let is_insert_mode = window.is_status_insert();
+
+    // in non-insert mode, enable leader_key if not yet enabled,
+    // and the previous key was <leader>, and the current key is a char,
+    // except current key is "i" (insert mode)
+    if !is_insert_mode
+        && !key_track.leader_key_set()
+        && key_event.code == KeyCode::Char(LEADER_KEY)
+    // leader key
+    {
+        key_track.set_leader_key(true); // enable leader key capture
+    } else if key_track.leader_key_set() {
+        let window_event = process_leader_key(key_track); // process captured leader key string
+        if window_event.is_some() {
+            return window_event;
+        }
+    } else {
+        // process regular key
+        match key_event.code {
+            KeyCode::Char(c) => {
+                // check mode
+                if is_insert_mode {
+                    window.text_insert_add(&c.to_string(), None);
+                } else {
+                    return handle_char_key(c, key_track, window);
+                }
             }
-        }
-        KeyCode::Esc => {
-            window.set_normal_mode();
-        }
-        KeyCode::Tab => {
-            // same as Escape
-            window.set_normal_mode();
-        }
-        KeyCode::Right => {
-            window.move_cursor(MoveCursor::Right(1));
-        }
-        KeyCode::Left => {
-            window.move_cursor(MoveCursor::Left(1));
-        }
-        KeyCode::Up => {
-            window.move_cursor(MoveCursor::Up(1));
-        }
-        KeyCode::Down => {
-            window.move_cursor(MoveCursor::Down(1));
-        }
-        KeyCode::Enter => {
-            if window.window_type().is_editable() {
-                window.text_insert_add("\n", None);
+            KeyCode::Esc => {
+                window.set_normal_mode();
             }
-        }
-        KeyCode::Backspace => {
-            if window.window_type().is_editable() {
-                window.text_delete_backspace();
+            KeyCode::Tab => {
+                // same as Escape
+                window.set_normal_mode();
             }
-        }
-        KeyCode::Delete => {
-            if window.window_type().is_editable() {
-                window.text_delete_char();
+            KeyCode::Right => {
+                window.move_cursor(MoveCursor::Right(1));
             }
+            KeyCode::Left => {
+                window.move_cursor(MoveCursor::Left(1));
+            }
+            KeyCode::Up => {
+                window.move_cursor(MoveCursor::Up(1));
+            }
+            KeyCode::Down => {
+                window.move_cursor(MoveCursor::Down(1));
+            }
+            KeyCode::Enter => {
+                if window.window_type().is_editable() {
+                    window.text_insert_add("\n", None);
+                }
+            }
+            KeyCode::Backspace => {
+                if window.window_type().is_editable() {
+                    window.text_delete_backspace();
+                }
+            }
+            KeyCode::Delete => {
+                if window.window_type().is_editable() {
+                    window.text_delete_char();
+                }
+            }
+            KeyCode::Home => {
+                window.move_cursor(MoveCursor::StartOfLine);
+            }
+            KeyCode::End => {
+                window.move_cursor(MoveCursor::EndOfLine);
+            }
+            // Default to stay in the s mode if no relevant key is pressed
+            _ => {}
         }
-        KeyCode::Home => {
-            window.move_cursor(MoveCursor::StartOfLine);
-        }
-        KeyCode::End => {
-            window.move_cursor(MoveCursor::EndOfLine);
-        }
-        // Default to stay in the s mode if no relevant key is pressed
-        _ => {}
     }
 
     match window.window_type().kind() {
-        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::PromptWindow => WindowEvent::PromptWindow,
+        WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
+        WindowKind::PromptWindow => Some(WindowEvent::PromptWindow),
         WindowKind::CommandLine => {
-            WindowEvent::CommandLine(CommandLineAction::None)
+            Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        WindowKind::Container => {
-            // TODO: container should already be in AppUi
-            WindowEvent::Modal(ModalWindow::default())
-        }
+        WindowKind::ModalWindow => Some(WindowEvent::Modal(None)), // keep current modal window
+        WindowKind::None => None,
     }
 }
 
@@ -89,7 +106,7 @@ fn handle_char_key<'a, T>(
     character: char,
     key_track: &mut KeyTrack,
     window: &mut T,
-) -> WindowEvent
+) -> Option<WindowEvent>
 where
     T: TextWindowTrait<'a>,
 {
@@ -108,7 +125,7 @@ where
         }
         'g' => {
             // Check if the last command was also 'g'
-            if let Some(prev) = key_track.previous_char() {
+            if let Some(prev) = key_track.previous_key_str() {
                 if prev == "g" {
                     window.move_cursor(MoveCursor::StartOfFile);
                 }
@@ -161,7 +178,7 @@ where
         }
         'y' => {
             // Check if the last command was also 'y'
-            if let Some(prev) = key_track.previous_char() {
+            if let Some(prev) = key_track.previous_key_str() {
                 if prev == "y" {
                     // yy yanks the current line
                     let yanked_text =
@@ -178,23 +195,21 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return WindowEvent::CommandLine(CommandLineAction::Write(
+            return Some(WindowEvent::CommandLine(CommandLineAction::Write(
                 ":".to_string(),
-            ));
+            )));
         }
         // ignore other characters
         _ => {}
     }
     match window.window_type().kind() {
-        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::PromptWindow => WindowEvent::PromptWindow,
+        WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
+        WindowKind::PromptWindow => Some(WindowEvent::PromptWindow),
         WindowKind::CommandLine => {
-            WindowEvent::CommandLine(CommandLineAction::None)
+            Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        WindowKind::Container => {
-            // TODO: container should already be in AppUi
-            WindowEvent::Modal(ModalWindow::default())
-        }
+        WindowKind::ModalWindow => Some(WindowEvent::Modal(None)), // keep current modal window
+        WindowKind::None => None,
     }
 }
 

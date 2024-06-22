@@ -13,21 +13,21 @@ pub fn handle_prompt_window_event(
     key_track: &mut KeyTrack,
     app_ui: &mut AppUi,
     is_running: Arc<AtomicBool>,
-) -> WindowEvent {
-    // catch Ctrl + shortcut key
-    let mut prompt_window = &mut app_ui.prompt;
+) -> Option<WindowEvent> {
+    let prompt_window = &mut app_ui.prompt;
 
     if key_track.current_key().modifiers == KeyModifiers::CONTROL {
+        // catch Ctrl + shortcut key
         match key_track.current_key().code {
             KeyCode::Char('c') => {
                 if prompt_window.text_buffer().is_empty() {
-                    return WindowEvent::Quit;
+                    return Some(WindowEvent::Quit);
                 } else {
                     prompt_window.text_empty();
                 }
             }
             KeyCode::Char('q') => {
-                return WindowEvent::Quit;
+                return Some(WindowEvent::Quit);
             }
             KeyCode::Char('a') => {
                 prompt_window.text_select_all();
@@ -37,7 +37,7 @@ pub fn handle_prompt_window_event(
             }
             _ => {}
         }
-        return WindowEvent::PromptWindow;
+        return Some(WindowEvent::PromptWindow);
     } else {
         match key_track.current_key().code {
             KeyCode::Enter => {
@@ -48,7 +48,9 @@ pub fn handle_prompt_window_event(
                     ensure_closed_block(prompt_window);
                     let question = prompt_window.text_buffer().to_string();
                     prompt_window.text_empty();
-                    return WindowEvent::Prompt(PromptAction::Write(question));
+                    return Some(WindowEvent::Prompt(PromptAction::Write(
+                        question,
+                    )));
                 }
             }
             KeyCode::Esc => {

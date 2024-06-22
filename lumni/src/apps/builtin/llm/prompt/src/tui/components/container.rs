@@ -13,7 +13,7 @@ impl Container {
     pub fn default() -> Self {
         Self {
             area: RectArea::default(),
-            window_type: WindowType::new(WindowKind::Container),
+            window_type: WindowType::new(WindowKind::None),
             scroller: Scroller::new(),
         }
     }

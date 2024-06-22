@@ -47,7 +47,7 @@ async fn prompt_app<B: Backend>(
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
-    let mut current_mode = WindowEvent::PromptWindow;
+    let mut current_mode = Some(WindowEvent::PromptWindow);
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
@@ -69,22 +69,22 @@ async fn prompt_app<B: Backend>(
                             if key_event.code == KeyCode::Tab {
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
-                                    WindowEvent::PromptWindow => {
+                                    Some(WindowEvent::PromptWindow) => {
                                         if app_ui.prompt.is_status_insert() {
                                             // tab is locked to prompt window when in insert mode
-                                            WindowEvent::PromptWindow
+                                            Some(WindowEvent::PromptWindow)
                                         } else {
                                             app_ui.prompt.set_status_inactive();
                                             app_ui.response.set_status_normal();
-                                            WindowEvent::ResponseWindow
+                                            Some(WindowEvent::ResponseWindow)
                                         }
                                     }
-                                    WindowEvent::ResponseWindow => {
+                                    Some(WindowEvent::ResponseWindow) => {
                                         app_ui.response.set_status_inactive();
                                         app_ui.prompt.set_status_normal();
-                                        WindowEvent::PromptWindow
+                                        Some(WindowEvent::PromptWindow)
                                     }
-                                    WindowEvent::CommandLine(_) => {
+                                    Some(WindowEvent::CommandLine(_)) => {
                                         // exit command line mode
                                         app_ui.command_line.text_empty();
                                         app_ui.command_line.set_status_inactive();
@@ -92,28 +92,32 @@ async fn prompt_app<B: Backend>(
                                         // switch to the active window,
                                         if app_ui.response.is_active() {
                                             app_ui.response.set_status_normal();
-                                            WindowEvent::ResponseWindow
+                                            Some(WindowEvent::ResponseWindow)
                                         } else {
                                             app_ui.prompt.set_status_normal();
-                                            WindowEvent::PromptWindow
+                                            Some(WindowEvent::PromptWindow)
                                         }
                                     }
                                     _ => current_mode,
                                 };
                             }
 
-                            current_mode = key_event_handler.process_key(
-                                key_event,
-                                &mut app_ui,
-                                current_mode,
-                                keep_running.clone(),
-                            ).await;
+                            current_mode = if let Some(mode) = current_mode {
+                                key_event_handler.process_key(
+                                    key_event,
+                                    &mut app_ui,
+                                    mode,
+                                    keep_running.clone(),
+                                ).await
+                            } else {
+                                None
+                            };
 
                             match current_mode {
-                                WindowEvent::Quit => {
+                                Some(WindowEvent::Quit) => {
                                     break;
                                 }
-                                WindowEvent::Prompt(prompt_action) => {
+                                Some(WindowEvent::Prompt(prompt_action)) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
                                             // prompt should end with single newline
@@ -141,9 +145,9 @@ async fn prompt_app<B: Backend>(
                                             trim_buffer = None;
                                         }
                                     }
-                                    current_mode = WindowEvent::PromptWindow;
+                                    current_mode = Some(WindowEvent::PromptWindow);
                                 }
-                                WindowEvent::CommandLine(ref action) => {
+                                Some(WindowEvent::CommandLine(ref action)) => {
                                     // enter command line mode
                                     if app_ui.prompt.is_active() {
                                         app_ui.prompt.set_status_background();
@@ -158,8 +162,10 @@ async fn prompt_app<B: Backend>(
                                         CommandLineAction::None => {}
                                     }
                                 }
-                                WindowEvent::Modal(modal) => {
-                                    app_ui.set_modal(modal);
+                                Some(WindowEvent::Modal(modal)) => {
+                                    if let Some(modal) = modal {
+                                        app_ui.set_modal(modal);
+                                    }
                                 }
                                 _ => {}
                             }

@@ -5,13 +5,13 @@ mod key_event;
 mod leader_key;
 mod text_window_event;
 
-pub use key_event::KeyEventHandler;
+pub use key_event::{KeyEventHandler, KeyTrack};
 
 use super::clipboard::ClipboardProvider;
 use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
+use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;
-use super::modal::ModalWindowType;
 
 #[derive(Debug)]
 pub enum WindowEvent {

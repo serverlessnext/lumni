@@ -196,7 +196,12 @@ impl KeyEventHandler {
                     tab_ui.clear_modal();
                     Some(WindowEvent::PromptWindow)
                 } else {
-                    Some(WindowEvent::Modal(window_type))
+                    if let Some(modal) = tab_ui.modal.as_mut() {
+                        // handled by modal window
+                        modal.handle_key_event(&mut self.key_track)
+                    } else {
+                        Some(WindowEvent::Modal(window_type))
+                    }
                 }
             }
             _ => Some(current_mode),

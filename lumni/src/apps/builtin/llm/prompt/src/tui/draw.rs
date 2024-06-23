@@ -12,8 +12,6 @@ pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
     tab: &mut TabSession,
 ) -> Result<(), io::Error> {
-    let app_ui = &mut tab.ui;
-
     terminal.draw(|frame| {
         let terminal_size = frame.size();
         const COMMAND_LINE_HEIGHT: u16 = 3;
@@ -61,11 +59,11 @@ pub fn draw_ui<B: Backend>(
         prompt_edit_area = edit_window[0];
 
         frame.render_widget(
-            app_ui.prompt.widget(&prompt_edit_area),
+            tab.ui.prompt.widget(&prompt_edit_area),
             prompt_edit_area,
         );
         frame.render_widget(
-            app_ui.response.widget(&prompt_log_area),
+            tab.ui.response.widget(&prompt_log_area),
             prompt_log_area,
         );
         frame.render_stateful_widget(
@@ -74,37 +72,22 @@ pub fn draw_ui<B: Backend>(
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓")),
             prompt_log_area_scrollbar,
-            &mut app_ui.response.vertical_scroll_bar_state(),
+            &mut tab.ui.response.vertical_scroll_bar_state(),
         );
 
         frame.render_widget(
-            app_ui.command_line.widget(&command_line_area),
+            tab.ui.command_line.widget(&command_line_area),
             command_line_area,
         );
 
-        if let Some(modal) = &mut app_ui.modal {
-            let height = main_window[0].height;
-            let width = main_window[0].width;
-            let area = Rect::new(2, 1, width - 6, height - 2);
+        if let Some(modal) = &mut tab.ui.modal {
+            let area = modal_area(main_window[0]);
             modal.render_on_frame(frame, area);
         }
     })?;
     Ok(())
 }
 
-/// helper function to create a centered rect using up certain percentage of the available rect `r`
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::vertical([
-        Constraint::Percentage((100 - percent_y) / 2),
-        Constraint::Percentage(percent_y),
-        Constraint::Percentage((100 - percent_y) / 2),
-    ])
-    .split(r);
-
-    Layout::horizontal([
-        Constraint::Percentage((100 - percent_x) / 2),
-        Constraint::Percentage(percent_x),
-        Constraint::Percentage((100 - percent_x) / 2),
-    ])
-    .split(popup_layout[1])[1]
+fn modal_area(area: Rect) -> Rect {
+    Rect::new(2, 0, area.width - 0, area.height - 4)
 }

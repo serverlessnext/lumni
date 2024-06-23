@@ -21,6 +21,8 @@ pub use super::defaults::*;
 pub use super::model::{PromptModelTrait, PromptRole};
 use crate::external as lumni;
 
+pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 2] = ["llama", "ollama"];
+
 pub enum ModelServer {
     Llama(Llama),
     Ollama(Ollama),

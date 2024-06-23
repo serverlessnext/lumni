@@ -1,48 +1,68 @@
-use ratatui::buffer::Buffer;
+use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::style::Modifier;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, Widget};
+use ratatui::widgets::Clear;
 use ratatui::Frame;
 
 use super::components::Scroller;
-
+use super::events::KeyTrack;
+use super::widgets::ConfigModal;
+use super::WindowEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
     Config,
 }
 
-pub struct ModalWindow {
-    window_type: ModalWindowType,
+pub struct ModalConfigWindow {
+    widget: ConfigModal,
     _scroller: Option<Scroller>,
 }
 
-impl ModalWindow {
-    pub fn new(window_type: ModalWindowType) -> Self {
-        Self { window_type, _scroller: None }
+impl ModalConfigWindow {
+    pub fn new() -> Self {
+        Self {
+            widget: ConfigModal::new(),
+            _scroller: None,
+        }
+    }
+}
+
+pub trait ModalWindowTrait {
+    fn get_type(&self) -> ModalWindowType;
+    fn render_on_frame(&mut self, frame: &mut Frame, area: Rect);
+    fn handle_key_event(
+        &mut self,
+        key_event: &mut KeyTrack,
+    ) -> Option<WindowEvent>;
+}
+
+impl ModalWindowTrait for ModalConfigWindow {
+    fn get_type(&self) -> ModalWindowType {
+        ModalWindowType::Config
     }
 
-    pub fn render_on_frame(&self, frame: &mut Frame, area: Rect) {
-        let widget = match self.window_type {
-            ModalWindowType::Config => ConfigWidget {
-                text: "Initializing Config".to_string(),
-            },
+    fn render_on_frame(&mut self, frame: &mut Frame, mut area: Rect) {
+        let (max_width, max_height) = self.widget.max_area_size();
+        if area.width > max_width {
+            area.x = area.width.saturating_sub(max_width);
+            area.width = max_width;
         };
-        // render the widget on the frame
+        if area.height > max_height {
+            area.height = max_height;
+        };
         frame.render_widget(Clear, area);
-        frame.render_widget(widget, area);
+        frame.render_widget(&mut self.widget, area);
     }
-}
 
-pub struct ConfigWidget {
-    text: String,
-}
-
-impl Widget for ConfigWidget {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let text = Span::styled(&self.text, Modifier::BOLD);
-        let line = Line::from(vec![text]);
-        line.render(area, buf);
+    fn handle_key_event(
+        &mut self,
+        key_event: &mut KeyTrack,
+    ) -> Option<WindowEvent> {
+        match key_event.current_key().code {
+            KeyCode::Up => self.widget.key_up(),
+            KeyCode::Down => self.widget.key_down(),
+           _ => {} // Ignore other keys
+        }
+        Some(WindowEvent::Modal(ModalWindowType::Config))
     }
 }

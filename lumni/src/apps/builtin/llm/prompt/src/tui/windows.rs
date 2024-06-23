@@ -1,7 +1,5 @@
-
 use super::components::{
-    TextWindow, TextWindowTrait, WindowKind, WindowStatus,
-    WindowType,
+    TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowType,
 };
 
 pub struct PromptWindow<'a> {

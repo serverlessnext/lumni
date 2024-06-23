@@ -26,11 +26,11 @@ use tokio::time::{interval, Duration};
 use super::chat::{list_assistants, ChatSession, PromptInstruction};
 use super::defaults::PromptStyle;
 use super::model::{PromptModel, PromptModelTrait};
-use super::server::ModelServer;
+use super::server::{ModelServer, SUPPORTED_MODEL_ENDPOINTS};
 use super::session::AppSession;
 use super::tui::{
-    TabUi, CommandLineAction, KeyEventHandler, ModalWindow, PromptAction,
-    TextWindowTrait, WindowEvent,
+    CommandLineAction, KeyEventHandler, ModalConfigWindow, ModalWindowTrait,
+    ModalWindowType, PromptAction, TabUi, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -166,8 +166,9 @@ async fn prompt_app<B: Backend>(
                                     }
                                 }
                                 Some(WindowEvent::Modal(modal_window_type)) => {
-                                    let modal = ModalWindow::new(modal_window_type);
-                                    tab_ui.set_modal(modal);
+                                    if tab_ui.needs_modal_update(modal_window_type) {
+                                        tab_ui.set_new_modal(modal_window_type);
+                                    }
                                 }
                                 _ => {}
                             }
@@ -265,8 +266,6 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
         .collect();
 
-    let servers = vec!["ollama", "llama"];
-
     Command::new(name)
         .version(version)
         .about("CLI for prompt interaction")
@@ -289,7 +288,9 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                 .long("server")
                 .short('S')
                 .help("Server to use for processing the request")
-                .value_parser(PossibleValuesParser::new(&servers)),
+                .value_parser(PossibleValuesParser::new(
+                    &SUPPORTED_MODEL_ENDPOINTS,
+                )),
         )
         .arg(
             Arg::new("model")

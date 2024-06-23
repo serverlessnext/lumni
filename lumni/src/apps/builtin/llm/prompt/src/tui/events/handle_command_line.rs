@@ -6,7 +6,7 @@ use crossterm::event::KeyCode;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    TabUi, ModalWindowType, PromptAction, TextWindowTrait, WindowEvent,
+    ModalWindowType, PromptAction, TabUi, TextWindowTrait, WindowEvent,
 };
 
 pub fn handle_command_line_event(

@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
-use super::{TabUi, PromptAction, TextWindowTrait, WindowEvent};
+use super::{PromptAction, TabUi, TextWindowTrait, WindowEvent};
 
 pub fn handle_response_window_event(
     tab_ui: &mut TabUi,

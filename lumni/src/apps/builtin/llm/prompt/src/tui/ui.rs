@@ -2,14 +2,14 @@ use super::{
     CommandLine, ModalWindow, PromptWindow, ResponseWindow, TextWindowTrait,
 };
 
-pub struct AppUi<'a> {
+pub struct TabUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
     pub modal: Option<ModalWindow>,
 }
 
-impl AppUi<'_> {
+impl TabUi<'_> {
     pub fn new() -> Self {
         Self {
             prompt: PromptWindow::new(),

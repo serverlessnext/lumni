@@ -29,7 +29,7 @@ use super::model::{PromptModel, PromptModelTrait};
 use super::server::ModelServer;
 use super::session::AppSession;
 use super::tui::{
-    AppUi, CommandLineAction, KeyEventHandler, ModalWindow, PromptAction,
+    TabUi, CommandLineAction, KeyEventHandler, ModalWindow, PromptAction,
     TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
@@ -58,11 +58,10 @@ async fn prompt_app<B: Backend>(
         tokio::select! {
             _ = tick.tick() => {
                 if redraw_ui {
-                    //draw_ui(terminal, &mut tab)?;
                     tab.draw_ui(terminal)?;
                     redraw_ui = false;
                 }
-                let mut app_ui = &mut tab.ui;
+                let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
 
                 // set timeout to 1ms to allow for non-blocking polling
@@ -74,31 +73,31 @@ async fn prompt_app<B: Backend>(
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
                                     Some(WindowEvent::PromptWindow) => {
-                                        if app_ui.prompt.is_status_insert() {
+                                        if tab_ui.prompt.is_status_insert() {
                                             // tab is locked to prompt window when in insert mode
                                             Some(WindowEvent::PromptWindow)
                                         } else {
-                                            app_ui.prompt.set_status_inactive();
-                                            app_ui.response.set_status_normal();
+                                            tab_ui.prompt.set_status_inactive();
+                                            tab_ui.response.set_status_normal();
                                             Some(WindowEvent::ResponseWindow)
                                         }
                                     }
                                     Some(WindowEvent::ResponseWindow) => {
-                                        app_ui.response.set_status_inactive();
-                                        app_ui.prompt.set_status_normal();
+                                        tab_ui.response.set_status_inactive();
+                                        tab_ui.prompt.set_status_normal();
                                         Some(WindowEvent::PromptWindow)
                                     }
                                     Some(WindowEvent::CommandLine(_)) => {
                                         // exit command line mode
-                                        app_ui.command_line.text_empty();
-                                        app_ui.command_line.set_status_inactive();
+                                        tab_ui.command_line.text_empty();
+                                        tab_ui.command_line.set_status_inactive();
 
                                         // switch to the active window,
-                                        if app_ui.response.is_active() {
-                                            app_ui.response.set_status_normal();
+                                        if tab_ui.response.is_active() {
+                                            tab_ui.response.set_status_normal();
                                             Some(WindowEvent::ResponseWindow)
                                         } else {
-                                            app_ui.prompt.set_status_normal();
+                                            tab_ui.prompt.set_status_normal();
                                             Some(WindowEvent::PromptWindow)
                                         }
                                     }
@@ -109,7 +108,7 @@ async fn prompt_app<B: Backend>(
                             current_mode = if let Some(mode) = current_mode {
                                 key_event_handler.process_key(
                                     key_event,
-                                    &mut app_ui,
+                                    &mut tab_ui,
                                     mode,
                                     keep_running.clone(),
                                 ).await
@@ -127,11 +126,11 @@ async fn prompt_app<B: Backend>(
                                             // prompt should end with single newline
                                             let formatted_prompt = format!("{}\n", prompt.trim_end());
 
-                                            app_ui.response.text_append_with_insert(
+                                            tab_ui.response.text_append_with_insert(
                                                 &formatted_prompt,
                                                 Some(PromptStyle::user()),
                                             );
-                                            app_ui.response.text_append_with_insert(
+                                            tab_ui.response.text_append_with_insert(
                                                 "\n",
                                                 Some(Style::reset()),
                                             );
@@ -139,13 +138,13 @@ async fn prompt_app<B: Backend>(
                                             chat.message(tx.clone(), formatted_prompt).await?;
                                         }
                                         PromptAction::Clear => {
-                                            app_ui.response.text_empty();
+                                            tab_ui.response.text_empty();
                                             chat.reset();
                                             trim_buffer = None;
                                         }
                                         PromptAction::Stop => {
                                             chat.stop();
-                                            finalize_response(&mut chat, &mut app_ui, None).await?;
+                                            finalize_response(&mut chat, &mut tab_ui, None).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -153,29 +152,29 @@ async fn prompt_app<B: Backend>(
                                 }
                                 Some(WindowEvent::CommandLine(ref action)) => {
                                     // enter command line mode
-                                    if app_ui.prompt.is_active() {
-                                        app_ui.prompt.set_status_background();
+                                    if tab_ui.prompt.is_active() {
+                                        tab_ui.prompt.set_status_background();
                                     } else {
-                                        app_ui.response.set_status_background();
+                                        tab_ui.response.set_status_background();
                                     }
                                     match action {
                                         CommandLineAction::Write(prefix) => {
-                                            app_ui.command_line.set_insert_mode();
-                                            app_ui.command_line.text_set(prefix, None);
+                                            tab_ui.command_line.set_insert_mode();
+                                            tab_ui.command_line.text_set(prefix, None);
                                         }
                                         CommandLineAction::None => {}
                                     }
                                 }
                                 Some(WindowEvent::Modal(modal_window_type)) => {
                                     let modal = ModalWindow::new(modal_window_type);
-                                    app_ui.set_modal(modal);
+                                    tab_ui.set_modal(modal);
                                 }
                                 _ => {}
                             }
                         },
                         Event::Mouse(mouse_event) => {
                             // TODO: should track on which window the cursor actually is
-                            let window = &mut app_ui.response;
+                            let window = &mut tab_ui.response;
                             match mouse_event.kind {
                                 MouseEventKind::ScrollUp => {
                                     window.scroll_up();
@@ -202,12 +201,12 @@ async fn prompt_app<B: Backend>(
             },
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
-                let mut app_ui = &mut tab.ui;
+                let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
 
                 if trim_buffer.is_none() {
                     // new response stream started
-                    app_ui.response.enable_auto_scroll();
+                    tab_ui.response.enable_auto_scroll();
                 }
 
                 let (response_content, is_final, tokens_predicted) = chat.process_response(&response);
@@ -218,10 +217,10 @@ async fn prompt_app<B: Backend>(
                 // with a trimmed version of the new response content
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
                 chat.update_last_exchange(&display_content);
-                app_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
+                tab_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
 
                 if is_final {
-                    finalize_response(&mut chat, &mut app_ui, tokens_predicted).await?;
+                    finalize_response(&mut chat, &mut tab_ui, tokens_predicted).await?;
                     trim_buffer = None;
                 } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
@@ -239,16 +238,16 @@ async fn prompt_app<B: Backend>(
 async fn finalize_response(
     chat: &mut ChatSession,
     //response_window: &mut ResponseWindow<'_>,
-    app_ui: &mut AppUi<'_>,
+    tab_ui: &mut TabUi<'_>,
     tokens_predicted: Option<usize>,
 ) -> Result<(), Box<dyn Error>> {
     // finalize with newline for in display
-    app_ui
+    tab_ui
         .response
         .text_append_with_insert("\n", Some(PromptStyle::assistant()));
 
     // add an empty unstyled line
-    app_ui
+    tab_ui
         .response
         .text_append_with_insert("\n", Some(Style::reset()));
     // trim exchange + update token length

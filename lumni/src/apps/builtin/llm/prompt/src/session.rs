@@ -4,19 +4,19 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use super::chat::ChatSession;
-use super::tui::{draw_ui, AppUi};
+use super::tui::{draw_ui, TabUi};
 
 pub struct TabSession<'a> {
     pub chat: ChatSession,
-    pub ui: AppUi<'a>,
+    pub ui: TabUi<'a>,
 }
 
 impl TabSession<'_> {
     pub fn new(chat: ChatSession) -> Self {
-        let mut app_ui = AppUi::new();
-        app_ui.init();
+        let mut tab_ui = TabUi::new();
+        tab_ui.init();
 
-        TabSession { chat, ui: app_ui }
+        TabSession { chat, ui: tab_ui }
     }
 
     pub fn draw_ui<B: Backend>(

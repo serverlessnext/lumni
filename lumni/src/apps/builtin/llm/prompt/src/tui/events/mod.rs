@@ -9,7 +9,7 @@ pub use key_event::KeyEventHandler;
 
 use super::clipboard::ClipboardProvider;
 use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
-use super::ui::AppUi;
+use super::ui::TabUi;
 use super::windows::PromptWindow;
 use super::modal::ModalWindowType;
 

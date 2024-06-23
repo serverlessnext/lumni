@@ -11,7 +11,7 @@ pub use draw::draw_ui;
 pub use events::{
     CommandLineAction, KeyEventHandler, PromptAction, WindowEvent,
 };
-pub use ui::AppUi;
+pub use ui::TabUi;
 pub use windows::{
     CommandLine, PromptWindow, ResponseWindow,
 };

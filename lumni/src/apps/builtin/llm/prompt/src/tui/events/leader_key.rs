@@ -1,5 +1,5 @@
 use super::key_event::KeyTrack;
-use super::{ModalWindow, WindowEvent};
+use super::{ModalWindowType, WindowEvent};
 
 pub const LEADER_KEY: char = ' ';
 
@@ -48,27 +48,20 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
     let leader_key_str = key_track.previous_key_str();
 
     match leader_key_str {
-        Some(key_str) => {
-            match LeaderKeyCommand::match_command(key_str) {
-                MatchOutcome::FullMatch(cmd) => {
-                    let window_event = match cmd.as_str() {
-                        "pc" => {
-                            // TODO: instead of default, open a Config window
-                            Some(WindowEvent::Modal(Some(
-                                ModalWindow::default(),
-                            )))
-                        }
-                        _ => None,
-                    };
-                    key_track.set_leader_key(false);
-                    return window_event;
-                }
-                MatchOutcome::PartialMatch => {}
-                MatchOutcome::NoMatch => {
-                    key_track.set_leader_key(false);
-                }
+        Some(key_str) => match LeaderKeyCommand::match_command(key_str) {
+            MatchOutcome::FullMatch(cmd) => {
+                let window_event = match cmd.as_str() {
+                    "pc" => Some(WindowEvent::Modal(ModalWindowType::Config)),
+                    _ => None,
+                };
+                key_track.set_leader_key(false);
+                return window_event;
             }
-        }
+            MatchOutcome::PartialMatch => {}
+            MatchOutcome::NoMatch => {
+                key_track.set_leader_key(false);
+            }
+        },
         _ => {
             key_track.set_leader_key(false);
         }

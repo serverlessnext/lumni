@@ -20,8 +20,7 @@ pub enum WindowKind {
     ResponseWindow,
     PromptWindow,
     CommandLine,
-    ModalWindow,
-    None,
+    Container,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,8 +43,7 @@ impl WindowType {
             WindowKind::ResponseWindow => "Chat",
             WindowKind::PromptWindow => "Prompt",
             WindowKind::CommandLine => "",
-            WindowKind::ModalWindow => "",
-            WindowKind::None => "",
+            WindowKind::Container => "",
         }
     }
 
@@ -59,8 +57,7 @@ impl WindowType {
                 WindowStatus::InActive => "",
             },
             WindowKind::CommandLine => "Ready",
-            WindowKind::ModalWindow => "",
-            WindowKind::None => "",
+            WindowKind::Container => "",
         }
     }
 
@@ -69,8 +66,7 @@ impl WindowType {
             WindowKind::ResponseWindow => Borders::ALL,
             WindowKind::PromptWindow => Borders::ALL,
             WindowKind::CommandLine => Borders::NONE,
-            WindowKind::ModalWindow => Borders::ALL,
-            WindowKind::None => Borders::NONE,
+            WindowKind::Container => Borders::NONE,
         }
     }
 
@@ -100,8 +96,7 @@ impl WindowType {
             WindowKind::ResponseWindow => false,
             WindowKind::PromptWindow => true,
             WindowKind::CommandLine => true,
-            WindowKind::ModalWindow => false,
-            WindowKind::None => false,
+            WindowKind::Container => false,
         }
     }
 

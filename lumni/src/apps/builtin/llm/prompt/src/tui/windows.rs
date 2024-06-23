@@ -1,5 +1,6 @@
+
 use super::components::{
-    Container, TextWindow, TextWindowTrait, WindowKind, WindowStatus,
+    TextWindow, TextWindowTrait, WindowKind, WindowStatus,
     WindowType,
 };
 
@@ -59,19 +60,6 @@ impl CommandLine<'_> {
             .set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ModalWindow {
-    base: Container,
-}
-
-impl ModalWindow {
-    pub fn default() -> Self {
-        Self {
-            base: Container::default(),
         }
     }
 }

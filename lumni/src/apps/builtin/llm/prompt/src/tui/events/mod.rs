@@ -10,7 +10,8 @@ pub use key_event::KeyEventHandler;
 use super::clipboard::ClipboardProvider;
 use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::ui::AppUi;
-use super::windows::{ModalWindow, PromptWindow};
+use super::windows::PromptWindow;
+use super::modal::ModalWindowType;
 
 #[derive(Debug)]
 pub enum WindowEvent {
@@ -19,7 +20,7 @@ pub enum WindowEvent {
     ResponseWindow,
     CommandLine(CommandLineAction),
     Prompt(PromptAction),
-    Modal(Option<ModalWindow>),
+    Modal(ModalWindowType),
 }
 
 #[derive(Debug, Clone, PartialEq)]

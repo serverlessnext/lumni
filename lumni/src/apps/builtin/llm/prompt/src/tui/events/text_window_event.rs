@@ -97,8 +97,7 @@ where
         WindowKind::CommandLine => {
             Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        WindowKind::ModalWindow => Some(WindowEvent::Modal(None)), // keep current modal window
-        WindowKind::None => None,
+        _ => None, // no additional event
     }
 }
 
@@ -208,8 +207,7 @@ where
         WindowKind::CommandLine => {
             Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        WindowKind::ModalWindow => Some(WindowEvent::Modal(None)), // keep current modal window
-        WindowKind::None => None,
+        _ => None, // no additional event
     }
 }
 

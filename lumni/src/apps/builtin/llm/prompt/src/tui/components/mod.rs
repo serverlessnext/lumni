@@ -1,4 +1,3 @@
-mod container;
 mod cursor;
 mod piece_table;
 mod rect_area;
@@ -8,8 +7,8 @@ mod text_window;
 mod text_wrapper;
 mod window_type;
 
-pub use container::Container;
 pub use cursor::MoveCursor;
+pub use scroller::Scroller;
 pub use text_buffer::{LineType, TextBuffer};
 pub use text_window::{TextWindow, TextWindowTrait};
 pub use window_type::{WindowKind, WindowStatus, WindowType};

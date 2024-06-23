@@ -11,6 +11,7 @@ use super::text_buffer::{CodeBlock, LineType};
 use super::window_type::Highlighted;
 use super::{TextBuffer, WindowStatus, WindowType};
 
+#[derive(Debug, Clone)]
 pub struct TextWindow<'a> {
     area: RectArea,
     window_type: WindowType,

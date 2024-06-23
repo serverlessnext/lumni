@@ -56,7 +56,7 @@ tokio = { version = "1.12", default-features = false, features = ["rt-multi-thre
 # tokio = { version = "1.12", default-features = false, features = ["full"], optional = true }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
 crossterm = { version = "0.27", optional = true }
-ratatui = { version = ">=0.23.0, <1", default-features = false, features = ["crossterm"], optional = true }
+ratatui = { version = ">=0.26.0, <1", default-features = false, features = ["crossterm"], optional = true }
 arboard = { version = "3.2", default-features = false, optional = true }
 
 # WEB 

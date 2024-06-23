@@ -10,30 +10,28 @@ use super::{
 };
 
 pub fn handle_prompt_window_event(
-    key_track: &mut KeyTrack,
     app_ui: &mut AppUi,
+    key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
 ) -> Option<WindowEvent> {
-    let prompt_window = &mut app_ui.prompt;
-
     if key_track.current_key().modifiers == KeyModifiers::CONTROL {
         // catch Ctrl + shortcut key
         match key_track.current_key().code {
             KeyCode::Char('c') => {
-                if prompt_window.text_buffer().is_empty() {
+                if app_ui.prompt.text_buffer().is_empty() {
                     return Some(WindowEvent::Quit);
                 } else {
-                    prompt_window.text_empty();
+                    app_ui.prompt.text_empty();
                 }
             }
             KeyCode::Char('q') => {
                 return Some(WindowEvent::Quit);
             }
             KeyCode::Char('a') => {
-                prompt_window.text_select_all();
+                app_ui.prompt.text_select_all();
             }
             KeyCode::Char('j') => {
-                prompt_window.text_insert_add("\n", None);
+                app_ui.prompt.text_insert_add("\n", None);
             }
             _ => {}
         }
@@ -42,20 +40,20 @@ pub fn handle_prompt_window_event(
         match key_track.current_key().code {
             KeyCode::Enter => {
                 // send prompt if not inside editing block
-                if !prompt_window.is_status_insert()
-                    || !in_editing_block(prompt_window)
+                if !app_ui.prompt.is_status_insert()
+                    || !in_editing_block(&mut app_ui.prompt)
                 {
-                    ensure_closed_block(prompt_window);
-                    let question = prompt_window.text_buffer().to_string();
-                    prompt_window.text_empty();
+                    ensure_closed_block(&mut app_ui.prompt);
+                    let question = app_ui.prompt.text_buffer().to_string();
+                    app_ui.prompt.text_empty();
                     return Some(WindowEvent::Prompt(PromptAction::Write(
                         question,
                     )));
                 }
             }
             KeyCode::Esc => {
-                if prompt_window.is_status_insert() {
-                    ensure_closed_block(prompt_window);
+                if app_ui.prompt.is_status_insert() {
+                    ensure_closed_block(&mut app_ui.prompt);
                 }
             }
             KeyCode::Tab => {
@@ -64,7 +62,7 @@ pub fn handle_prompt_window_event(
             _ => {}
         }
     }
-    handle_text_window_event(key_track, prompt_window, is_running)
+    handle_text_window_event(key_track, &mut app_ui.prompt, is_running)
 }
 
 fn is_closed_block(prompt_window: &mut PromptWindow) -> Option<bool> {

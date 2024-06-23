@@ -27,8 +27,9 @@ use super::chat::{list_assistants, ChatSession, PromptInstruction};
 use super::defaults::PromptStyle;
 use super::model::{PromptModel, PromptModelTrait};
 use super::server::ModelServer;
+use super::session::AppSession;
 use super::tui::{
-    draw_ui, AppUi, CommandLineAction, KeyEventHandler, PromptAction,
+    AppUi, CommandLineAction, KeyEventHandler, ModalWindow, PromptAction,
     TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
@@ -39,10 +40,9 @@ const CHANNEL_QUEUE_SIZE: usize = 32;
 
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    chat_session: &mut ChatSession,
+    mut app_session: AppSession<'_>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut app_ui = AppUi::new();
-    app_ui.init();
+    let tab = app_session.get_tab_mut(0).expect("No tab found");
 
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
@@ -58,9 +58,13 @@ async fn prompt_app<B: Backend>(
         tokio::select! {
             _ = tick.tick() => {
                 if redraw_ui {
-                    draw_ui(terminal, &mut app_ui)?;
+                    //draw_ui(terminal, &mut tab)?;
+                    tab.draw_ui(terminal)?;
                     redraw_ui = false;
                 }
+                let mut app_ui = &mut tab.ui;
+                let mut chat = &mut tab.chat;
+
                 // set timeout to 1ms to allow for non-blocking polling
                 if poll(Duration::from_millis(1))? {
                     let event = read()?;
@@ -132,16 +136,16 @@ async fn prompt_app<B: Backend>(
                                                 Some(Style::reset()),
                                             );
 
-                                            chat_session.message(tx.clone(), formatted_prompt).await?;
+                                            chat.message(tx.clone(), formatted_prompt).await?;
                                         }
                                         PromptAction::Clear => {
                                             app_ui.response.text_empty();
-                                            chat_session.reset();
+                                            chat.reset();
                                             trim_buffer = None;
                                         }
                                         PromptAction::Stop => {
-                                            chat_session.stop();
-                                            finalize_response(chat_session, &mut app_ui, None).await?;
+                                            chat.stop();
+                                            finalize_response(&mut chat, &mut app_ui, None).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -162,10 +166,9 @@ async fn prompt_app<B: Backend>(
                                         CommandLineAction::None => {}
                                     }
                                 }
-                                Some(WindowEvent::Modal(modal)) => {
-                                    if let Some(modal) = modal {
-                                        app_ui.set_modal(modal);
-                                    }
+                                Some(WindowEvent::Modal(modal_window_type)) => {
+                                    let modal = ModalWindow::new(modal_window_type);
+                                    app_ui.set_modal(modal);
                                 }
                                 _ => {}
                             }
@@ -199,23 +202,26 @@ async fn prompt_app<B: Backend>(
             },
             Some(response) = rx.recv() => {
                 log::debug!("Received response: {:?}", response);
+                let mut app_ui = &mut tab.ui;
+                let mut chat = &mut tab.chat;
+
                 if trim_buffer.is_none() {
                     // new response stream started
                     app_ui.response.enable_auto_scroll();
                 }
 
-                let (response_content, is_final, tokens_predicted) = chat_session.process_response(&response);
+                let (response_content, is_final, tokens_predicted) = chat.process_response(&response);
 
                 let trimmed_response_content = response_content.trim_end();
 
                 // display content should contain previous trimmed parts,
                 // with a trimmed version of the new response content
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
-                chat_session.update_last_exchange(&display_content);
+                chat.update_last_exchange(&display_content);
                 app_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
 
                 if is_final {
-                    finalize_response(chat_session, &mut app_ui, tokens_predicted).await?;
+                    finalize_response(&mut chat, &mut app_ui, tokens_predicted).await?;
                     trim_buffer = None;
                 } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
@@ -231,7 +237,7 @@ async fn prompt_app<B: Backend>(
 }
 
 async fn finalize_response(
-    chat_session: &mut ChatSession,
+    chat: &mut ChatSession,
     //response_window: &mut ResponseWindow<'_>,
     app_ui: &mut AppUi<'_>,
     tokens_predicted: Option<usize>,
@@ -246,9 +252,7 @@ async fn finalize_response(
         .response
         .text_append_with_insert("\n", Some(Style::reset()));
     // trim exchange + update token length
-    chat_session
-        .finalize_last_exchange(tokens_predicted)
-        .await?;
+    chat.finalize_last_exchange(tokens_predicted).await?;
     Ok(())
 }
 
@@ -366,18 +370,20 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            interactive_mode(&mut chat_session).await
+            let mut app_session = AppSession::new();
+            app_session.add_tab(chat_session);
+            interactive_mode(app_session).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
-            process_non_interactive_input(&mut chat_session).await
+            process_non_interactive_input(chat_session).await
         }
     }
 }
 
 async fn interactive_mode(
-    chat_session: &mut ChatSession,
+    app_session: AppSession<'_>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
@@ -408,7 +414,7 @@ async fn interactive_mode(
     };
 
     // Run the application logic and capture the result
-    let result = prompt_app(&mut terminal, chat_session).await;
+    let result = prompt_app(&mut terminal, app_session).await;
 
     // Regardless of the result, perform cleanup
     let _ = disable_raw_mode();
@@ -423,7 +429,7 @@ async fn interactive_mode(
 }
 
 async fn process_non_interactive_input(
-    chat_session: &mut ChatSession,
+    mut chat: ChatSession,
 ) -> Result<(), Box<dyn Error>> {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
@@ -442,8 +448,7 @@ async fn process_non_interactive_input(
         }
 
         let keep_running = Arc::new(AtomicBool::new(true));
-        chat_session
-            .process_prompt(stdin_input.trim_end().to_string(), keep_running)
+        chat.process_prompt(stdin_input.trim_end().to_string(), keep_running)
             .await;
     } else {
         return Err(

@@ -5,26 +5,12 @@ use ratatui::Frame;
 
 use super::components::Scroller;
 use super::events::KeyTrack;
-use super::widgets::ConfigModal;
+use super::widgets::SelectEndpoint;
 use super::WindowEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
     Config,
-}
-
-pub struct ModalConfigWindow {
-    widget: ConfigModal,
-    _scroller: Option<Scroller>,
-}
-
-impl ModalConfigWindow {
-    pub fn new() -> Self {
-        Self {
-            widget: ConfigModal::new(),
-            _scroller: None,
-        }
-    }
 }
 
 pub trait ModalWindowTrait {
@@ -34,6 +20,20 @@ pub trait ModalWindowTrait {
         &mut self,
         key_event: &mut KeyTrack,
     ) -> Option<WindowEvent>;
+}
+
+pub struct ModalConfigWindow {
+    widget: SelectEndpoint,
+    _scroller: Option<Scroller>,
+}
+
+impl ModalConfigWindow {
+    pub fn new() -> Self {
+        Self {
+            widget: SelectEndpoint::new(),
+            _scroller: None,
+        }
+    }
 }
 
 impl ModalWindowTrait for ModalConfigWindow {
@@ -61,7 +61,11 @@ impl ModalWindowTrait for ModalConfigWindow {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
             KeyCode::Down => self.widget.key_down(),
-           _ => {} // Ignore other keys
+            KeyCode::Enter => {
+                let endpoint = self.widget.current_endpoint();
+                eprintln!("Selected endpoint: {}", endpoint);
+            }
+            _ => {} // Ignore other keys
         }
         Some(WindowEvent::Modal(ModalWindowType::Config))
     }

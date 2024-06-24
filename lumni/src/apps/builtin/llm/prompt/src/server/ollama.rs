@@ -17,18 +17,16 @@ pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";
 pub struct Ollama {
     http_client: HttpClient,
     endpoints: Endpoints,
-    instruction: PromptInstruction,
 }
 
 impl Ollama {
-    pub fn new(instruction: PromptInstruction) -> Result<Self, Box<dyn Error>> {
+    pub fn new() -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?);
 
         Ok(Ollama {
             http_client: HttpClient::new(),
             endpoints,
-            instruction,
         })
     }
 
@@ -36,10 +34,11 @@ impl Ollama {
         &self,
         model: &Box<dyn PromptModelTrait>,
         exchanges: &Vec<ChatExchange>,
+        system_prompt: Option<&str>,
     ) -> Result<String, serde_json::Error> {
         let messages = ChatHistory::exchanges_to_messages(
             exchanges,
-            Some(self.instruction.get_instruction()),
+            system_prompt,
             &|role| self.get_role_name(role),
         );
 
@@ -57,6 +56,7 @@ impl ServerTrait for Ollama {
     async fn initialize(
         &mut self,
         model: &Box<dyn PromptModelTrait>,
+        _prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         let model_name = model.get_model_data().get_name();
         let payload = OllamaShowPayload {
@@ -85,14 +85,6 @@ impl ServerTrait for Ollama {
         Ok(())
     }
 
-    fn get_instruction(&self) -> &PromptInstruction {
-        &self.instruction
-    }
-
-    fn get_instruction_mut(&mut self) -> &mut PromptInstruction {
-        &mut self.instruction
-    }
-
     fn process_response(
         &self,
         response: &Bytes,
@@ -107,10 +99,13 @@ impl ServerTrait for Ollama {
         &self,
         exchanges: &Vec<ChatExchange>,
         model: &Box<dyn PromptModelTrait>,
+        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>> {
-        let data_payload = self.completion_api_payload(model, exchanges);
+        let system_prompt = prompt_instruction.get_instruction();
+        let data_payload =
+            self.completion_api_payload(model, exchanges, Some(system_prompt));
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         if let Ok(payload) = data_payload {
             http_post(

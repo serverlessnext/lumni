@@ -31,12 +31,12 @@ pub enum ModelServer {
 impl ModelServer {
     pub fn from_str(
         s: &str,
-        instruction: PromptInstruction,
+        //instruction: PromptInstruction,
     ) -> Result<Self, Box<dyn Error>> {
         match s {
-            "llama" => Ok(ModelServer::Llama(Llama::new(instruction)?)),
-            "ollama" => Ok(ModelServer::Ollama(Ollama::new(instruction)?)),
-            _ => Ok(ModelServer::Llama(Llama::new(instruction)?)),
+            "llama" => Ok(ModelServer::Llama(Llama::new()?)),
+            "ollama" => Ok(ModelServer::Ollama(Ollama::new()?)),
+            _ => Ok(ModelServer::Llama(Llama::new()?)),
         }
     }
 }
@@ -46,24 +46,15 @@ impl ServerTrait for ModelServer {
     async fn initialize(
         &mut self,
         model: &Box<dyn PromptModelTrait>,
+        prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         match self {
-            ModelServer::Llama(llama) => llama.initialize(model).await,
-            ModelServer::Ollama(ollama) => ollama.initialize(model).await,
-        }
-    }
-
-    fn get_instruction(&self) -> &PromptInstruction {
-        match self {
-            ModelServer::Llama(llama) => llama.get_instruction(),
-            ModelServer::Ollama(ollama) => ollama.get_instruction(),
-        }
-    }
-
-    fn get_instruction_mut(&mut self) -> &mut PromptInstruction {
-        match self {
-            ModelServer::Llama(llama) => llama.get_instruction_mut(),
-            ModelServer::Ollama(ollama) => ollama.get_instruction_mut(),
+            ModelServer::Llama(llama) => {
+                llama.initialize(model, prompt_instruction).await
+            }
+            ModelServer::Ollama(ollama) => {
+                ollama.initialize(model, prompt_instruction).await
+            }
         }
     }
 
@@ -91,15 +82,32 @@ impl ServerTrait for ModelServer {
         &self,
         exchanges: &Vec<ChatExchange>,
         model: &Box<dyn PromptModelTrait>,
+        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>> {
         match self {
             ModelServer::Llama(llama) => {
-                llama.completion(exchanges, model, tx, cancel_rx).await
+                llama
+                    .completion(
+                        exchanges,
+                        model,
+                        prompt_instruction,
+                        tx,
+                        cancel_rx,
+                    )
+                    .await
             }
             ModelServer::Ollama(ollama) => {
-                ollama.completion(exchanges, model, tx, cancel_rx).await
+                ollama
+                    .completion(
+                        exchanges,
+                        model,
+                        prompt_instruction,
+                        tx,
+                        cancel_rx,
+                    )
+                    .await
             }
         }
     }
@@ -107,13 +115,11 @@ impl ServerTrait for ModelServer {
 
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
-    fn get_instruction(&self) -> &PromptInstruction;
-    fn get_instruction_mut(&mut self) -> &mut PromptInstruction;
-
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
         model: &Box<dyn PromptModelTrait>,
+        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>>;
@@ -127,6 +133,7 @@ pub trait ServerTrait: Send + Sync {
     async fn initialize(
         &mut self,
         _model: &Box<dyn PromptModelTrait>,
+        _prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
@@ -138,7 +145,10 @@ pub trait ServerTrait: Send + Sync {
         Ok(None)
     }
 
-    async fn get_context_size(&mut self) -> Result<usize, Box<dyn Error>> {
+    async fn get_context_size(
+        &self,
+        _prompt_instruction: &mut PromptInstruction,
+    ) -> Result<usize, Box<dyn Error>> {
         Ok(DEFAULT_CONTEXT_SIZE)
     }
 

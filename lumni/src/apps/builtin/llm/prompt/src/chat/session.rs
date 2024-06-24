@@ -9,34 +9,56 @@ use tokio::sync::{mpsc, oneshot};
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::prompt::Prompt;
-use super::{PromptModel, PromptModelTrait, ServerTrait, PERSONAS};
+use super::{
+    PromptInstruction, PromptModel, ModelServer, PromptModelTrait, ServerTrait, PERSONAS,
+};
 
 pub struct ChatSession {
     history: ChatHistory,
-    prompt_template: Option<String>,
-    model: Box<dyn PromptModelTrait>,
     server: Box<dyn ServerTrait>,
+    model: Box<dyn PromptModelTrait>,
+    prompt_instruction: PromptInstruction,
+    prompt_template: Option<String>,
     assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
     pub fn new(
-        server: Box<dyn ServerTrait>,
-        model: Option<Box<dyn PromptModelTrait>>,
+        server_name: String,
+        model_name: Option<&String>,
+        options: Option<&String>,
     ) -> Result<Self, Box<dyn Error>> {
-        let model = match model {
-            Some(m) => m,
-            None => {
-                Box::new(PromptModel::default()?) as Box<dyn PromptModelTrait>
-            }
+
+        let server = Box::new(ModelServer::from_str(&server_name)?);
+        let model = if let Some(name) = model_name {
+            Box::new(PromptModel::from_str(&name)?)
+        } else {
+            // TODO: get default from server
+            Box::new(PromptModel::default()?)
         };
+
+        let mut prompt_instruction = PromptInstruction::default();
+        if let Some(json_str) = options {
+            prompt_instruction
+                .get_prompt_options_mut()
+                .update_from_json(json_str);
+            prompt_instruction
+                .get_completion_options_mut()
+                .update_from_json(json_str);
+        }
+
+        prompt_instruction
+            .get_completion_options_mut()
+            .update_from_model(&*model as &dyn PromptModelTrait);
+
 
         Ok(ChatSession {
             history: ChatHistory::new(),
-            prompt_template: None,
-            model,
             server,
+            model,
+            prompt_instruction,
+            prompt_template: None,
             assistant: None,
             cancel_tx: None,
         })
@@ -55,8 +77,8 @@ impl ChatSession {
         } else {
             None
         };
-        let prompt_instruction = self.server.get_instruction_mut();
-        prompt_instruction.set_system_prompt(instruction, token_length);
+        self.prompt_instruction
+            .set_system_prompt(instruction, token_length);
         Ok(())
     }
 
@@ -92,7 +114,9 @@ impl ChatSession {
             }
         }
 
-        self.server.initialize(&self.model).await?;
+        self.server
+            .initialize(&self.model, &mut self.prompt_instruction)
+            .await?;
 
         Ok(())
     }
@@ -154,9 +178,12 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: String,
     ) -> Result<(), Box<dyn Error>> {
-        let max_token_length = self.server.get_context_size().await?;
+        let max_token_length = self
+            .server
+            .get_context_size(&mut self.prompt_instruction)
+            .await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
-        let n_keep = self.server.get_instruction().get_n_keep();
+        let n_keep = self.prompt_instruction.get_n_keep();
         let exchanges =
             self.history
                 .new_prompt(new_exchange, max_token_length, n_keep);
@@ -165,7 +192,13 @@ impl ChatSession {
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
         self.server
-            .completion(&exchanges, &self.model, Some(tx), Some(cancel_rx))
+            .completion(
+                &exchanges,
+                &self.model,
+                &self.prompt_instruction,
+                Some(tx),
+                Some(cancel_rx),
+            )
             .await?;
         Ok(())
     }

@@ -23,14 +23,13 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
-use super::chat::{list_assistants, ChatSession, PromptInstruction};
+use super::chat::{list_assistants, ChatSession};
 use super::defaults::PromptStyle;
-use super::model::{PromptModel, PromptModelTrait};
-use super::server::{ModelServer, SUPPORTED_MODEL_ENDPOINTS};
+use super::server::SUPPORTED_MODEL_ENDPOINTS;
 use super::session::AppSession;
 use super::tui::{
-    CommandLineAction, KeyEventHandler, ModalConfigWindow, ModalWindowTrait,
-    ModalWindowType, PromptAction, TabUi, TextWindowTrait, WindowEvent,
+    CommandLineAction, KeyEventHandler, PromptAction, TabUi, TextWindowTrait,
+    WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -316,11 +315,9 @@ pub async fn run_cli(
 
     // set default values for required arguments
     let instruction = matches.get_one::<String>("system");
-    let model_name = matches
-        .get_one::<String>("model")
-        .cloned()
-        .unwrap_or_else(|| "llama3".to_string());
     // optional arguments
+    let model_name = matches
+        .get_one::<String>("model");
     let mut assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
 
@@ -339,29 +336,13 @@ pub async fn run_cli(
         assistant = Some("Default".to_string());
     }
 
-    let server = matches
+    let server_name = matches
         .get_one::<String>("server")
         .cloned()
         .unwrap_or_else(|| "llama".to_string());
 
-    let mut prompt_instruction = PromptInstruction::default();
-
-    if let Some(json_str) = options {
-        prompt_instruction
-            .get_prompt_options_mut()
-            .update_from_json(json_str);
-        prompt_instruction
-            .get_completion_options_mut()
-            .update_from_json(json_str);
-    }
-    let model = Box::new(PromptModel::from_str(&model_name)?);
-    prompt_instruction
-        .get_completion_options_mut()
-        .update_from_model(&*model as &dyn PromptModelTrait);
-
-    let server = Box::new(ModelServer::from_str(&server, prompt_instruction)?);
-
-    let mut chat_session = ChatSession::new(server, Some(model))?;
+    let mut chat_session =
+        ChatSession::new(server_name, model_name, options)?;
     if let Some(instruction) = instruction {
         chat_session.set_system_prompt(instruction).await?;
     }

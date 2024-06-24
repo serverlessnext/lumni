@@ -19,7 +19,7 @@ pub use session::ChatSession;
 
 pub use super::defaults::*;
 pub use super::model::{PromptModel, PromptModelTrait, PromptRole};
-pub use super::server::ServerTrait;
+pub use super::server::{ModelServer, ServerTrait};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

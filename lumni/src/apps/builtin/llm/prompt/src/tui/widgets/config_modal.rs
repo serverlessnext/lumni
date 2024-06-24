@@ -3,20 +3,18 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::block::{Block, Padding};
-use ratatui::widgets::{
-    List, ListItem, Widget,
-};
+use ratatui::widgets::{List, ListItem, Widget};
 
 use super::SUPPORTED_MODEL_ENDPOINTS;
 
-const MAX_WIDTH : u16 = 20;
-const MAX_HEIGHT : u16 = 8;
+const MAX_WIDTH: u16 = 20;
+const MAX_HEIGHT: u16 = 8;
 
-pub struct ConfigModal {
+pub struct SelectEndpoint {
     current_index: usize, // Current selection index
 }
 
-impl ConfigModal {
+impl SelectEndpoint {
     pub fn new() -> Self {
         Self { current_index: 0 } // Initialize with the first item selected
     }
@@ -24,7 +22,6 @@ impl ConfigModal {
     pub fn max_area_size(&self) -> (u16, u16) {
         (MAX_WIDTH, MAX_HEIGHT)
     }
-
 
     pub fn key_down(&mut self) {
         // Increment the current index, wrapping around to 0 if past the last item
@@ -44,9 +41,13 @@ impl ConfigModal {
     pub fn current_index(&self) -> usize {
         self.current_index
     }
+
+    pub fn current_endpoint(&self) -> &str {
+        SUPPORTED_MODEL_ENDPOINTS[self.current_index]
+    }
 }
 
-impl Widget for &mut ConfigModal {
+impl Widget for &mut SelectEndpoint {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Define the layout: a line of text and a list below it
         let chunks = Layout::default()
@@ -80,13 +81,12 @@ impl Widget for &mut ConfigModal {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .padding(Padding::uniform(1))
-                    .style(Style::default().bg(Color::Black))
-                    .borders(ratatui::widgets::Borders::NONE)
-            );
-        list.render(chunks[0], buf); 
+        let list = List::new(items).block(
+            Block::default()
+                .padding(Padding::uniform(1))
+                .style(Style::default().bg(Color::Black))
+                .borders(ratatui::widgets::Borders::NONE),
+        );
+        list.render(chunks[0], buf);
     }
 }

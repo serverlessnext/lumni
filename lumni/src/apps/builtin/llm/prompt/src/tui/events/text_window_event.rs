@@ -97,7 +97,6 @@ where
         WindowKind::CommandLine => {
             Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        _ => None, // no additional event
     }
 }
 
@@ -207,7 +206,6 @@ where
         WindowKind::CommandLine => {
             Some(WindowEvent::CommandLine(CommandLineAction::None))
         }
-        _ => None, // no additional event
     }
 }
 

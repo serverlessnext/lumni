@@ -89,5 +89,5 @@ pub fn draw_ui<B: Backend>(
 }
 
 fn modal_area(area: Rect) -> Rect {
-    Rect::new(2, 0, area.width - 0, area.height - 4)
+    Rect::new(2, 1, area.width - 3, area.height - 4)
 }

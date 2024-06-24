@@ -35,6 +35,8 @@ jobs:
     env:
       TARGET: ${{ matrix.target }}
       OS: ${{ matrix.os }}
+    outputs:
+      tag: ${{ steps.update_version.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -65,12 +67,11 @@ jobs:
           if [[ $GITHUB_REF_TYPE == "tag" ]]; then
             if [[ $GITHUB_REF_NAME =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
               VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
-              echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+              TAG=$GITHUB_REF_NAME
             fi
           else
-            SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-            VERSION="${CURRENT_VERSION%-pre}-$SHORT_SHA"
-            echo "tag=$SHORT_SHA" >> $GITHUB_OUTPUT
+            TAG=$(./ci/base36timestamp.sh)
+            VERSION="${CURRENT_VERSION%-pre}-$TAG"
           fi
 
           CARGO_TOML=$NAME/Cargo.toml
@@ -80,6 +81,7 @@ jobs:
             sed -i "s/^version = \"[^\"]*\"/version = \"$VERSION\"/" ./$CARGO_TOML
           fi
           echo "Updated Cargo.toml to version $VERSION"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build project
         run: cargo build -p $NAME --release --target $TARGET
@@ -108,8 +110,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    outputs:
-      tag: ${{ steps.vars.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -123,15 +123,6 @@ jobs:
       - name: List artifacts
         run: find ./artifacts
 
-      - name: Set release tag
-        id: vars
-        run: |
-          if [[ $GITHUB_REF_TYPE == "tag" ]]; then
-            echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
-          else
-            echo "tag=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
-          fi
-
       - name: Release
         uses: softprops/action-gh-release@v2
         env:
@@ -139,8 +130,8 @@ jobs:
         with:
           files: |
             ./artifacts/*.tar.gz*
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: ${{ needs.build.outputs.tag }}
           body: Automated release for ${{ github.sha }}
 
   update-formula:
@@ -153,7 +144,7 @@ jobs:
       - name: Get release tag from previous step
         id: vars
         run: |
-          echo "RELEASE_TAG=${{ needs.deploy.outputs.tag }}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${{ needs.build.outputs.tag }}" >> $GITHUB_ENV
   
       - name: Get release information
         id: release

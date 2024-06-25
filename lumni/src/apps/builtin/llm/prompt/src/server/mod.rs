@@ -1,5 +1,6 @@
 mod endpoints;
 mod llama;
+mod llm;
 mod ollama;
 
 use std::error::Error;
@@ -8,6 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
+pub use llm::LLMDefinition;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
 use tokio::sync::{mpsc, oneshot};
@@ -18,7 +20,7 @@ pub use super::chat::{
     PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
-pub use super::model::{PromptModelTrait, PromptRole};
+pub use super::model::PromptRole;
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 2] = ["llama", "ollama"];
@@ -29,10 +31,7 @@ pub enum ModelServer {
 }
 
 impl ModelServer {
-    pub fn from_str(
-        s: &str,
-        //instruction: PromptInstruction,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn from_str(s: &str) -> Result<Self, Box<dyn Error>> {
         match s {
             "llama" => Ok(ModelServer::Llama(Llama::new()?)),
             "ollama" => Ok(ModelServer::Ollama(Ollama::new()?)),
@@ -43,21 +42,6 @@ impl ModelServer {
 
 #[async_trait]
 impl ServerTrait for ModelServer {
-    async fn initialize(
-        &mut self,
-        model: &Box<dyn PromptModelTrait>,
-        prompt_instruction: &mut PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
-        match self {
-            ModelServer::Llama(llama) => {
-                llama.initialize(model, prompt_instruction).await
-            }
-            ModelServer::Ollama(ollama) => {
-                ollama.initialize(model, prompt_instruction).await
-            }
-        }
-    }
-
     fn process_response(
         &self,
         response: &Bytes,
@@ -65,6 +49,20 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => llama.process_response(response),
             ModelServer::Ollama(ollama) => ollama.process_response(response),
+        }
+    }
+
+    async fn get_context_size(
+        &self,
+        prompt_instruction: &mut PromptInstruction,
+    ) -> Result<usize, Box<dyn Error>> {
+        match self {
+            ModelServer::Llama(llama) => {
+                llama.get_context_size(prompt_instruction).await
+            }
+            ModelServer::Ollama(ollama) => {
+                ollama.get_context_size(prompt_instruction).await
+            }
         }
     }
 
@@ -81,7 +79,7 @@ impl ServerTrait for ModelServer {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &Box<dyn PromptModelTrait>,
+        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -111,6 +109,15 @@ impl ServerTrait for ModelServer {
             }
         }
     }
+
+    async fn list_models(
+        &self,
+    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+        match self {
+            ModelServer::Llama(llama) => llama.list_models().await,
+            ModelServer::Ollama(ollama) => ollama.list_models().await,
+        }
+    }
 }
 
 #[async_trait]
@@ -118,11 +125,24 @@ pub trait ServerTrait: Send + Sync {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &Box<dyn PromptModelTrait>,
+        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>>;
+
+    async fn list_models(
+        &self,
+    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>>;
+
+    async fn get_model(&self) -> Result<Option<LLMDefinition>, Box<dyn Error>> {
+        // get first model from list if available
+        if let Some(models) = self.list_models().await? {
+            Ok(models.get(0).cloned())
+        } else {
+            Ok(None)
+        }
+    }
 
     fn process_response(
         &self,
@@ -132,7 +152,7 @@ pub trait ServerTrait: Send + Sync {
     // optional methods
     async fn initialize(
         &mut self,
-        _model: &Box<dyn PromptModelTrait>,
+        _model: Option<&LLMDefinition>,
         _prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         Ok(())

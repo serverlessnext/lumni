@@ -10,13 +10,13 @@ use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::prompt::Prompt;
 use super::{
-    PromptInstruction, PromptModel, ModelServer, PromptModelTrait, ServerTrait, PERSONAS,
+    LLMDefinition, ModelServer, PromptInstruction, ServerTrait, PERSONAS,
 };
 
 pub struct ChatSession {
     history: ChatHistory,
     server: Box<dyn ServerTrait>,
-    model: Box<dyn PromptModelTrait>,
+    model: Option<LLMDefinition>,
     prompt_instruction: PromptInstruction,
     prompt_template: Option<String>,
     assistant: Option<String>,
@@ -26,17 +26,9 @@ pub struct ChatSession {
 impl ChatSession {
     pub fn new(
         server_name: String,
-        model_name: Option<&String>,
         options: Option<&String>,
     ) -> Result<Self, Box<dyn Error>> {
-
         let server = Box::new(ModelServer::from_str(&server_name)?);
-        let model = if let Some(name) = model_name {
-            Box::new(PromptModel::from_str(&name)?)
-        } else {
-            // TODO: get default from server
-            Box::new(PromptModel::default()?)
-        };
 
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
@@ -48,15 +40,10 @@ impl ChatSession {
                 .update_from_json(json_str);
         }
 
-        prompt_instruction
-            .get_completion_options_mut()
-            .update_from_model(&*model as &dyn PromptModelTrait);
-
-
         Ok(ChatSession {
             history: ChatHistory::new(),
             server,
-            model,
+            model: None,
             prompt_instruction,
             prompt_template: None,
             assistant: None,
@@ -88,6 +75,14 @@ impl ChatSession {
     }
 
     pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
+        self.model = self.server.get_model().await?;
+
+        if let Some(model) = self.model.as_ref() {
+            self.prompt_instruction
+                .get_completion_options_mut()
+                .update_from_model(model);
+        }
+
         if let Some(assistant) = self.assistant.clone() {
             // Find the selected persona by name
             let assistant_prompts: Vec<Prompt> =
@@ -115,7 +110,7 @@ impl ChatSession {
         }
 
         self.server
-            .initialize(&self.model, &mut self.prompt_instruction)
+            .initialize(self.model.as_ref(), &mut self.prompt_instruction)
             .await?;
 
         Ok(())
@@ -150,8 +145,10 @@ impl ChatSession {
             last_exchange.set_answer(trimmed_answer);
 
             let temp_vec = vec![&*last_exchange];
-            let last_prompt_text =
-                ChatHistory::exchanges_to_string(&self.model, temp_vec);
+            let last_prompt_text = ChatHistory::exchanges_to_string(
+                self.model.as_ref().ok_or_else(|| "Model not available")?,
+                temp_vec,
+            )?;
 
             if let Some(response) =
                 self.server.tokenizer(&last_prompt_text).await?
@@ -191,10 +188,12 @@ impl ChatSession {
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
+        let model = self.model.as_ref().ok_or_else(|| "Model not available")?;
+
         self.server
             .completion(
                 &exchanges,
-                &self.model,
+                model,
                 &self.prompt_instruction,
                 Some(tx),
                 Some(cancel_rx),
@@ -223,8 +222,11 @@ impl ChatSession {
 
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
-        let last_prompt_text =
-            ChatHistory::exchanges_to_string(&self.model, temp_vec);
+
+        let last_prompt_text = ChatHistory::exchanges_to_string(
+            self.model.as_ref().ok_or_else(|| "Model not available")?,
+            temp_vec,
+        )?;
 
         if let Some(token_response) =
             self.server.tokenizer(&last_prompt_text).await?

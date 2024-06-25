@@ -291,13 +291,14 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                     &SUPPORTED_MODEL_ENDPOINTS,
                 )),
         )
-        .arg(
-            Arg::new("model")
-                .long("model")
-                .short('m')
-                .help("Model to use for processing the request")
-                .default_value("auto"),
-        )
+        // TODO: model_name is inferred from the server, need to be moved to options
+        //        .arg(
+        //            Arg::new("model")
+        //                .long("model")
+        //                .short('m')
+        //                .help("Model to use for processing the request")
+        //                .default_value("auto"),
+        //        )
         .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
              temperature=1,max_tokens=100",
@@ -316,8 +317,9 @@ pub async fn run_cli(
     // set default values for required arguments
     let instruction = matches.get_one::<String>("system");
     // optional arguments
-    let model_name = matches
-        .get_one::<String>("model");
+    // TODO: model_name is inferred from the server, but should be allowed
+    // to be overriden via options
+    // let model_name = matches.get_one::<String>("model");
     let mut assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
 
@@ -339,10 +341,9 @@ pub async fn run_cli(
     let server_name = matches
         .get_one::<String>("server")
         .cloned()
-        .unwrap_or_else(|| "llama".to_string());
+        .unwrap_or_else(|| "ollama".to_string());
 
-    let mut chat_session =
-        ChatSession::new(server_name, model_name, options)?;
+    let mut chat_session = ChatSession::new(server_name, options)?;
     if let Some(instruction) = instruction {
         chat_session.set_system_prompt(instruction).await?;
     }

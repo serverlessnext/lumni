@@ -10,7 +10,7 @@ use url::Url;
 
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
-    ChatHistory, Endpoints, HttpClient, PromptInstruction, PromptModelTrait,
+    ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
     PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
 };
 
@@ -64,17 +64,33 @@ impl Llama {
 
     fn completion_api_payload(
         &self,
-        model: &Box<dyn PromptModelTrait>,
-        exchanges: &Vec<ChatExchange>,
+        prompt: String,
+        _exchanges: &Vec<ChatExchange>,
         prompt_instruction: &PromptInstruction,
     ) -> Result<String, serde_json::Error> {
-        let prompt = ChatHistory::exchanges_to_string(model, exchanges);
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,
             options: prompt_instruction.get_completion_options(),
         };
         serde_json::to_string(&payload)
+    }
+
+    async fn get_props(
+        &self,
+    ) -> Result<LlamaServerSettingsResponse, Box<dyn Error>> {
+        let settings_endpoint = self
+            .endpoints
+            .get_settings()
+            .expect("Settings endpoint not set")
+            .to_string();
+
+        let response =
+            http_get_with_response(settings_endpoint, self.http_client.clone())
+                .await?;
+        Ok(serde_json::from_slice::<LlamaServerSettingsResponse>(
+            &response,
+        )?)
     }
 }
 
@@ -93,13 +109,14 @@ impl ServerTrait for Llama {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &Box<dyn PromptModelTrait>,
+        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>> {
+        let prompt = ChatHistory::exchanges_to_string(model, exchanges)?;
         let data_payload =
-            self.completion_api_payload(model, exchanges, prompt_instruction);
+            self.completion_api_payload(prompt, exchanges, prompt_instruction);
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         if let Ok(payload) = data_payload {
@@ -115,9 +132,19 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
+    async fn list_models(
+        &self,
+    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+        let settings = self.get_props().await?;
+        let model_file = settings.default_generation_settings.model;
+        let model_name = model_file.split('/').last().unwrap().to_lowercase();
+        let llm_def = LLMDefinition::new(model_name.to_string());
+        Ok(Some(vec![llm_def]))
+    }
+
     async fn initialize(
         &mut self,
-        _model: &Box<dyn PromptModelTrait>,
+        _model: Option<&LLMDefinition>,
         prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         // Send the system prompt to the completion endpoint at initialization
@@ -155,30 +182,9 @@ impl ServerTrait for Llama {
             Some(size) => Ok(size), // Return the context size if it's already set
             None => {
                 // fetch the context size, and store it in the prompt options
-                let context_size = match self.endpoints.get_settings() {
-                    Some(endpoint) => {
-                        match http_get_with_response(
-                            endpoint.to_string(),
-                            self.http_client.clone(),
-                        )
-                        .await
-                        {
-                            Ok(response) => {
-                                match serde_json::from_slice::<
-                                    LlamaServerSettingsResponse,
-                                >(
-                                    &response
-                                ) {
-                                    Ok(response_json) => {
-                                        response_json.get_n_ctx()
-                                    }
-                                    Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on JSON error
-                                }
-                            }
-                            Err(_) => DEFAULT_CONTEXT_SIZE, // Fallback on HTTP request error
-                        }
-                    }
-                    None => DEFAULT_CONTEXT_SIZE, // Fallback if no endpoint is available
+                let context_size = match self.get_props().await {
+                    Ok(props) => props.get_n_ctx(),
+                    Err(_) => DEFAULT_CONTEXT_SIZE,
                 };
                 prompt_instruction
                     .get_prompt_options_mut()
@@ -257,6 +263,7 @@ impl LlamaServerSystemPrompt {
 #[derive(Deserialize)]
 struct LlamaServerDefaultGenerationSettings {
     n_ctx: usize,
+    model: String,
 }
 
 #[derive(Deserialize)]

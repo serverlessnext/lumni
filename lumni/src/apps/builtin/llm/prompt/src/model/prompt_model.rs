@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use async_trait::async_trait;
+use regex::Regex;
 
 use super::generic::Generic;
 use super::llama3::Llama3;
@@ -18,15 +19,17 @@ pub enum PromptModel {
 }
 
 impl PromptModel {
-    pub fn default() -> Result<Self, Box<dyn Error>> {
-        Ok(PromptModel::Generic(Generic::new("auto")?))
-    }
-
     pub fn from_str(s: &str) -> Result<Self, Box<dyn Error>> {
-        match s {
-            "llama3" => Ok(PromptModel::Llama3(Llama3::new()?)),
-            // fallback to generic model
-            _ => Ok(PromptModel::Generic(Generic::new(s)?)),
+        let model_name = s.to_lowercase();
+        // infer model name from given pattern, e.g. llama-3, llama3
+        // used for llama.cpp only
+        // TODO: add more patterns for more popular models
+        let llama3_pattern = Regex::new(r"llama-?3").unwrap();
+        // add more patterns for other models
+        if llama3_pattern.is_match(&model_name) {
+            Ok(PromptModel::Llama3(Llama3::new()?))
+        } else {
+            Ok(PromptModel::Generic(Generic::new(s)?))
         }
     }
 }

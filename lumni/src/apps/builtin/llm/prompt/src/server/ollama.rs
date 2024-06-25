@@ -7,12 +7,15 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, http_post_with_response, ChatExchange, ChatHistory, ChatMessage,
-    Endpoints, HttpClient, PromptInstruction, PromptModelTrait, ServerTrait,
+    http_get_with_response, http_post, http_post_with_response, ChatExchange,
+    ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
+    PromptInstruction, ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
 pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";
+pub const DEFAULT_LIST_MODELS_ENDPOINT: &str =
+    "http://localhost:11434/api/tags";
 
 pub struct Ollama {
     http_client: HttpClient,
@@ -22,7 +25,8 @@ pub struct Ollama {
 impl Ollama {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
-            .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?);
+            .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?)
+            .set_list_models(Url::parse(DEFAULT_LIST_MODELS_ENDPOINT)?);
 
         Ok(Ollama {
             http_client: HttpClient::new(),
@@ -32,7 +36,7 @@ impl Ollama {
 
     fn completion_api_payload(
         &self,
-        model: &Box<dyn PromptModelTrait>,
+        model: &LLMDefinition,
         exchanges: &Vec<ChatExchange>,
         system_prompt: Option<&str>,
     ) -> Result<String, serde_json::Error> {
@@ -43,7 +47,7 @@ impl Ollama {
         );
 
         let payload = ServerPayload {
-            model: model.get_model_data().get_name(),
+            model: model.get_name(),
             messages: &messages,
             //options: &self.completion_options,
         };
@@ -55,15 +59,17 @@ impl Ollama {
 impl ServerTrait for Ollama {
     async fn initialize(
         &mut self,
-        model: &Box<dyn PromptModelTrait>,
+        //model: &Box<dyn PromptModelTrait>,
+        model: Option<&LLMDefinition>,
         _prompt_instruction: &mut PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
-        let model_name = model.get_model_data().get_name();
-        let payload = OllamaShowPayload {
-            name: model.get_model_data().get_name(),
-        }
-        .serialize()
-        .expect("Failed to serialize show payload");
+        let model_name = model
+            .ok_or_else(|| "Model name required to initialize Ollama")?
+            .get_name();
+
+        let payload = OllamaShowPayload { name: model_name }
+            .serialize()
+            .expect("Failed to serialize show payload");
 
         let response = http_post_with_response(
             DEFAULT_SHOW_ENDPOINT.to_string(),
@@ -98,7 +104,7 @@ impl ServerTrait for Ollama {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &Box<dyn PromptModelTrait>,
+        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -118,6 +124,37 @@ impl ServerTrait for Ollama {
             .await;
         }
         Ok(())
+    }
+
+    async fn list_models(
+        &self,
+    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+        let list_models_endpoint = self.endpoints.get_list_models_endpoint()?;
+        let response = http_get_with_response(
+            list_models_endpoint.to_string(),
+            self.http_client.clone(),
+        )
+        .await?;
+
+        let api_response: ListModelsApiResponse =
+            serde_json::from_slice(&response)?;
+        let models = api_response
+            .models
+            .into_iter()
+            .map(|model| {
+                let mut llm_def = LLMDefinition::new(model.name);
+                llm_def
+                    .set_size(model.size)
+                    .set_family(model.details.family)
+                    .set_description(format!(
+                        "Parameter Size: {}",
+                        model.details.parameter_size
+                    ));
+
+                Some(llm_def)
+            })
+            .collect();
+        Ok(models)
     }
 }
 
@@ -147,6 +184,33 @@ impl OllamaShowPayload<'_> {
     fn serialize(&self) -> Option<String> {
         serde_json::to_string(self).ok()
     }
+}
+
+// used to check if response can deserialize
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+struct ListModelsApiResponse {
+    models: Vec<ModelDetail>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+struct ModelDetail {
+    name: String,
+    modified_at: String,
+    size: usize,
+    digest: String,
+    details: ModelDetails,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+struct ModelDetails {
+    format: String,
+    family: String,
+    families: Option<Vec<String>>,
+    parameter_size: String,
+    quantization_level: String,
 }
 
 // used to check if response can deserialize

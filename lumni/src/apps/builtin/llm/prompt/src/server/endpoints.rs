@@ -7,6 +7,7 @@ pub struct Endpoints {
     completion: Option<Url>,
     tokenizer: Option<Url>,
     settings: Option<Url>,
+    list_models: Option<Url>,
 }
 
 impl Endpoints {
@@ -15,6 +16,7 @@ impl Endpoints {
             completion: None,
             tokenizer: None,
             settings: None,
+            list_models: None,
         }
     }
 
@@ -22,6 +24,13 @@ impl Endpoints {
         match self.completion.as_ref() {
             Some(url) => Ok(url.to_string()),
             None => Err("Completion endpoint not set".into()),
+        }
+    }
+
+    pub fn get_list_models_endpoint(&self) -> Result<String, Box<dyn Error>> {
+        match self.list_models.as_ref() {
+            Some(url) => Ok(url.to_string()),
+            None => Err("List models endpoint not set".into()),
         }
     }
 
@@ -40,6 +49,11 @@ impl Endpoints {
 
     pub fn set_tokenizer(mut self, url: Url) -> Self {
         self.tokenizer = Some(url);
+        self
+    }
+
+    pub fn set_list_models(mut self, url: Url) -> Self {
+        self.list_models = Some(url);
         self
     }
 

@@ -8,21 +8,28 @@ use super::{LLMDefinition, PromptModel, PromptModelTrait, PromptRole};
 #[derive(Debug, Clone)]
 pub struct ChatHistory {
     exchanges: Vec<ChatExchange>,
+    keep_n: Option<usize>,  // keep n exchanges in history if reset
 }
 
 impl ChatHistory {
     pub fn new() -> Self {
         ChatHistory {
             exchanges: Vec::new(),
+            keep_n: None,
         }
     }
 
     pub fn new_with_exchanges(exchanges: Vec<ChatExchange>) -> Self {
-        ChatHistory { exchanges }
+        let keep_n = Some(exchanges.len()); // keep initial exchanges if reset
+        ChatHistory { exchanges, keep_n }
     }
 
-    pub fn clear(&mut self) {
-        self.exchanges.clear();
+    pub fn reset(&mut self) {
+        if let Some(keep_n) = self.keep_n {
+            self.exchanges.truncate(keep_n);
+        } else {
+            self.exchanges.clear();
+        }
     }
 
     pub fn get_last_exchange_mut(&mut self) -> Option<&mut ChatExchange> {

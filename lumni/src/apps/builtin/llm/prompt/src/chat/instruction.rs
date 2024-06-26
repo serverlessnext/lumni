@@ -3,14 +3,15 @@ use std::error::Error;
 use super::history::ChatHistory;
 use super::prompt::Prompt;
 use super::{
-    ChatCompletionOptions, PromptOptions, DEFAULT_N_PREDICT,
-    DEFAULT_TEMPERATURE, PERSONAS,
+    ChatCompletionOptions, PromptOptions, ChatExchange,
+    DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
 };
 
 pub struct PromptInstruction {
     completion_options: ChatCompletionOptions,
     prompt_options: PromptOptions,
     system_prompt: SystemPrompt,
+    history: ChatHistory,
     prompt_template: Option<String>,
 }
 
@@ -26,12 +27,69 @@ impl Default for PromptInstruction {
             completion_options,
             prompt_options: PromptOptions::default(),
             system_prompt: SystemPrompt::default(),
+            history: ChatHistory::new(),
             prompt_template: None,
         }
     }
 }
 
 impl PromptInstruction {
+    pub fn new(
+        instruction: Option<String>,
+        assistant: Option<String>,
+        options: Option<&String>,
+    ) -> Result<Self, Box<dyn Error>> {
+        let mut prompt_instruction = PromptInstruction::default();
+        if let Some(json_str) = options {
+            prompt_instruction
+                .get_prompt_options_mut()
+                .update_from_json(json_str);
+            prompt_instruction
+                .get_completion_options_mut()
+                .update_from_json(json_str);
+        }
+    
+        // If both instruction and assistant are None, use the default assistant
+        let assistant = if instruction.is_none() && assistant.is_none() {
+            // for useful responses, there should either be a system prompt or an
+            // assistant set. If none are given use the default assistant.
+            Some("Default".to_string())
+        } else {
+            assistant
+        };
+    
+        if let Some(assistant) = assistant {
+            prompt_instruction.preload_from_assistant(
+                assistant,
+                instruction, // add user-instruction with assistant
+            )?;
+        } else if let Some(instruction) = instruction {
+            prompt_instruction.set_system_prompt(instruction);
+        };
+        Ok(prompt_instruction)
+    }
+
+    pub fn reset_history(&mut self) {
+        self.history.reset();
+    }
+
+    pub fn update_last_exchange(&mut self, answer: &str) {
+        self.history.update_last_exchange(answer);
+    }
+
+    pub fn get_last_exchange_mut(&mut self) -> Option<&mut ChatExchange> {
+        self.history.get_last_exchange_mut()
+    }
+ 
+    pub fn new_prompt(
+        &mut self,
+        new_exchange: ChatExchange,
+        max_token_length: usize,
+        n_keep: Option<usize>,
+    ) -> Vec<ChatExchange> {
+        self.history.new_prompt(new_exchange, max_token_length, n_keep)
+    }
+
     pub fn get_completion_options(&self) -> &ChatCompletionOptions {
         &self.completion_options
     }
@@ -75,7 +133,6 @@ impl PromptInstruction {
     pub fn preload_from_assistant(
         &mut self,
         assistant: String,
-        history: &mut ChatHistory,
         user_instruction: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         // Find the selected persona by name
@@ -107,7 +164,7 @@ impl PromptInstruction {
 
             // Load predefined exchanges from persona if available
             if let Some(exchanges) = prompt.exchanges() {
-                *history = ChatHistory::new_with_exchanges(exchanges.clone());
+                self.history = ChatHistory::new_with_exchanges(exchanges.clone());
             }
 
             if let Some(prompt_template) = prompt.prompt_template() {

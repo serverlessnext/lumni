@@ -2,6 +2,7 @@ use std::error::Error;
 
 use super::PromptModelTrait;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Generic {
     name: String,

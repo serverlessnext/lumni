@@ -23,9 +23,9 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
-use super::chat::{list_assistants, ChatSession};
+use super::chat::ChatSession;
 use super::defaults::PromptStyle;
-use super::server::SUPPORTED_MODEL_ENDPOINTS;
+use super::server::{PromptInstruction, SUPPORTED_MODEL_ENDPOINTS};
 use super::session::AppSession;
 use super::tui::{
     CommandLineAction, KeyEventHandler, PromptAction, TabUi, TextWindowTrait,
@@ -237,7 +237,6 @@ async fn prompt_app<B: Backend>(
 
 async fn finalize_response(
     chat: &mut ChatSession,
-    //response_window: &mut ResponseWindow<'_>,
     tab_ui: &mut TabUi<'_>,
     tokens_predicted: Option<usize>,
 ) -> Result<(), Box<dyn Error>> {
@@ -309,8 +308,9 @@ pub async fn run_cli(
         .cloned()
         .unwrap_or_else(|| "ollama".to_string());
 
-    let mut chat_session = ChatSession::new(server_name, options)?;
-    chat_session.init(instruction, assistant).await?;
+    let prompt_instruction = PromptInstruction::new(instruction, assistant, options)?;
+    let mut chat_session = ChatSession::new(server_name, prompt_instruction)?;
+    chat_session.init().await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

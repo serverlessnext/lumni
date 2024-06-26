@@ -2,6 +2,7 @@ use std::error::Error;
 
 use super::{PromptModelTrait, PromptRole};
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Llama3 {
     name: String,

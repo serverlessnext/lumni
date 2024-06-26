@@ -24,6 +24,8 @@ pub use super::server::{LLMDefinition, ModelServer, ServerTrait};
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));
 
+// TODO: add ability to change assistant
+#[allow(dead_code)]
 pub fn list_assistants() -> Result<Vec<String>, Box<dyn Error>> {
     let prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
     let assistants: Vec<String> =

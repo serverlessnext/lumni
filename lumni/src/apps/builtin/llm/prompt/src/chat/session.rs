@@ -11,7 +11,6 @@ use super::history::ChatHistory;
 use super::{LLMDefinition, ModelServer, PromptInstruction, ServerTrait};
 
 pub struct ChatSession {
-    history: ChatHistory,
     server: Box<dyn ServerTrait>,
     model: Option<LLMDefinition>,
     prompt_instruction: PromptInstruction,
@@ -21,22 +20,11 @@ pub struct ChatSession {
 impl ChatSession {
     pub fn new(
         server_name: String,
-        options: Option<&String>,
+        prompt_instruction: PromptInstruction,
     ) -> Result<Self, Box<dyn Error>> {
         let server = Box::new(ModelServer::from_str(&server_name)?);
 
-        let mut prompt_instruction = PromptInstruction::default();
-        if let Some(json_str) = options {
-            prompt_instruction
-                .get_prompt_options_mut()
-                .update_from_json(json_str);
-            prompt_instruction
-                .get_completion_options_mut()
-                .update_from_json(json_str);
-        }
-
         Ok(ChatSession {
-            history: ChatHistory::new(),
             server,
             model: None,
             prompt_instruction,
@@ -46,27 +34,7 @@ impl ChatSession {
 
     pub async fn init(
         &mut self,
-        instruction: Option<String>,
-        assistant: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
-        // If both instruction and assistant are None, use the default assistant
-        let assistant = if instruction.is_none() && assistant.is_none() {
-            // for useful responses, there should either be a system prompt or an
-            // assistant set. If none are given use the default assistant.
-            Some("Default".to_string())
-        } else {
-            assistant
-        };
-
-        if let Some(assistant) = assistant {
-            self.prompt_instruction.preload_from_assistant(
-                assistant,
-                &mut self.history,
-                instruction, // add user-instruction with assistant
-            )?;
-        } else if let Some(instruction) = instruction {
-            self.prompt_instruction.set_system_prompt(instruction);
-        };
         // set token length for the system prompt
         let instruction = self.prompt_instruction.get_instruction();
         if instruction.is_empty() {
@@ -101,11 +69,11 @@ impl ChatSession {
 
     pub fn reset(&mut self) {
         self.stop();
-        self.history.clear();
+        self.prompt_instruction.reset_history();
     }
 
     pub fn update_last_exchange(&mut self, answer: &str) {
-        self.history.update_last_exchange(answer);
+        self.prompt_instruction.update_last_exchange(answer);
     }
 
     pub async fn finalize_last_exchange(
@@ -114,7 +82,7 @@ impl ChatSession {
     ) -> Result<(), Box<dyn Error>> {
         // extract the last exchange, trim and tokenize it
         let token_length = if let Some(last_exchange) =
-            self.history.get_last_exchange_mut()
+            self.prompt_instruction.get_last_exchange_mut()
         {
             // Strip off trailing whitespaces or newlines from the last exchange
             let trimmed_answer = last_exchange.get_answer().trim().to_string();
@@ -138,7 +106,7 @@ impl ChatSession {
         };
 
         if let Some(token_length) = token_length {
-            if let Some(last_exchange) = self.history.get_last_exchange_mut() {
+            if let Some(last_exchange) = self.prompt_instruction.get_last_exchange_mut() {
                 last_exchange.set_token_length(token_length);
             }
         }
@@ -158,8 +126,7 @@ impl ChatSession {
         let new_exchange = self.initiate_new_exchange(question).await?;
         let n_keep = self.prompt_instruction.get_n_keep();
         let exchanges =
-            self.history
-                .new_prompt(new_exchange, max_token_length, n_keep);
+            self.prompt_instruction.new_prompt(new_exchange, max_token_length, n_keep);
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel

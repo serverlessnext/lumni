@@ -8,18 +8,13 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
-use super::prompt::Prompt;
-use super::{
-    LLMDefinition, ModelServer, PromptInstruction, ServerTrait, PERSONAS,
-};
+use super::{LLMDefinition, ModelServer, PromptInstruction, ServerTrait};
 
 pub struct ChatSession {
     history: ChatHistory,
     server: Box<dyn ServerTrait>,
     model: Option<LLMDefinition>,
     prompt_instruction: PromptInstruction,
-    prompt_template: Option<String>,
-    assistant: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
@@ -45,20 +40,18 @@ impl ChatSession {
             server,
             model: None,
             prompt_instruction,
-            prompt_template: None,
-            assistant: None,
             cancel_tx: None,
         })
     }
 
-    pub async fn set_system_prompt(
+    async fn init_system_prompt(
         &mut self,
-        instruction: &str,
+        instruction: String,
     ) -> Result<(), Box<dyn Error>> {
         let token_length = if instruction.is_empty() {
             Some(0)
         } else if let Some(token_response) =
-            self.server.tokenizer(instruction).await?
+            self.server.tokenizer(&instruction).await?
         {
             Some(token_response.get_tokens().len())
         } else {
@@ -69,44 +62,36 @@ impl ChatSession {
         Ok(())
     }
 
-    pub fn set_assistant(&mut self, assistant: Option<String>) -> &mut Self {
-        self.assistant = assistant;
-        self
-    }
+    pub async fn init(
+        &mut self,
+        instruction: Option<String>,
+        assistant: Option<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        // If both instruction and assistant are None, use the default assistant
+        let assistant = if instruction.is_none() && assistant.is_none() {
+            // for useful responses, there should either be a system prompt or an
+            // assistant set. If none are given use the default assistant.
+            Some("Default".to_string())
+        } else {
+            assistant
+        };
 
-    pub async fn init(&mut self) -> Result<(), Box<dyn Error>> {
+        if let Some(assistant) = assistant {
+            self.prompt_instruction.preload_from_assistant(
+                assistant,
+                &mut self.history,
+                instruction,    // add user-instruction with assistant
+            )?;
+        } else if let Some(instruction) = instruction {
+            self.init_system_prompt(instruction).await?;
+        };
+
         self.model = self.server.get_model().await?;
 
         if let Some(model) = self.model.as_ref() {
             self.prompt_instruction
                 .get_completion_options_mut()
                 .update_from_model(model);
-        }
-
-        if let Some(assistant) = self.assistant.clone() {
-            // Find the selected persona by name
-            let assistant_prompts: Vec<Prompt> =
-                serde_yaml::from_str(PERSONAS)?;
-            if let Some(prompt) = assistant_prompts
-                .into_iter()
-                .find(|p| p.name() == assistant)
-            {
-                // Set session instruction from persona's system prompt
-                if let Some(instruction) = prompt.system_prompt() {
-                    self.set_system_prompt(instruction).await?;
-                }
-                // Load predefined exchanges from persona if available
-                if let Some(exchanges) = prompt.exchanges() {
-                    self.history =
-                        ChatHistory::new_with_exchanges(exchanges.clone());
-                }
-
-                if let Some(prompt_template) = prompt.prompt_template() {
-                    self.prompt_template = Some(prompt_template.to_string());
-                }
-            } else {
-                return Err("Selected persona not found in the dataset".into());
-            }
         }
 
         self.server
@@ -210,11 +195,10 @@ impl ChatSession {
         let user_question = if user_question.is_empty() {
             "continue".to_string()
         } else {
-            if self.prompt_template.is_some() {
-                self.prompt_template
-                    .as_ref()
-                    .unwrap()
-                    .replace("{{ USER_QUESTION }}", user_question)
+            if let Some(prompt_template) =
+                self.prompt_instruction.get_prompt_template()
+            {
+                prompt_template.replace("{{ USER_QUESTION }}", user_question)
             } else {
                 user_question.to_string()
             }

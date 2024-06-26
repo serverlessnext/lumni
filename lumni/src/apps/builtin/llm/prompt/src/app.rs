@@ -259,12 +259,6 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
     let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
     let version = Box::leak(spec.version().into_boxed_str()) as &'static str;
 
-    let assistants: Vec<&'static str> = list_assistants()
-        .expect("Failed to list assistants")
-        .into_iter()
-        .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
-        .collect();
-
     Command::new(name)
         .version(version)
         .about("CLI for prompt interaction")
@@ -279,8 +273,7 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
             Arg::new("assistant")
                 .long("assistant")
                 .short('a')
-                .help("Specify which assistant to use")
-                .value_parser(PossibleValuesParser::new(&assistants)),
+                .help("Specify an assistant to use"),
         )
         .arg(
             Arg::new("server")
@@ -291,14 +284,6 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                     &SUPPORTED_MODEL_ENDPOINTS,
                 )),
         )
-        // TODO: model_name is inferred from the server, need to be moved to options
-        //        .arg(
-        //            Arg::new("model")
-        //                .long("model")
-        //                .short('m')
-        //                .help("Model to use for processing the request")
-        //                .default_value("auto"),
-        //        )
         .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
              temperature=1,max_tokens=100",
@@ -314,12 +299,8 @@ pub async fn run_cli(
         e.exit();
     });
 
-    // set default values for required arguments
-    let instruction = matches.get_one::<String>("system");
     // optional arguments
-    // TODO: model_name is inferred from the server, but should be allowed
-    // to be overriden via options
-    // let model_name = matches.get_one::<String>("model");
+    let instruction = matches.get_one::<String>("system").cloned();
     let mut assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
 
@@ -332,11 +313,7 @@ pub async fn run_cli(
         std::process::exit(1);
     }
 
-    if instruction.is_none() && assistant.is_none() {
-        // for useful responses, there should either be a system prompt or an
-        // assistant set. If none are given use the default assistant.
-        assistant = Some("Default".to_string());
-    }
+
 
     let server_name = matches
         .get_one::<String>("server")
@@ -344,10 +321,7 @@ pub async fn run_cli(
         .unwrap_or_else(|| "ollama".to_string());
 
     let mut chat_session = ChatSession::new(server_name, options)?;
-    if let Some(instruction) = instruction {
-        chat_session.set_system_prompt(instruction).await?;
-    }
-    chat_session.set_assistant(assistant).init().await?;
+    chat_session.init(instruction, assistant).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

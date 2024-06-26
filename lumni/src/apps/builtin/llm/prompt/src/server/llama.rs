@@ -163,7 +163,8 @@ impl ServerTrait for Llama {
             .await;
         }
 
-        if let Some(token_length) = prompt_instruction.get_token_length() {
+        if let Some(token_length) = prompt_instruction.get_system_token_length()
+        {
             prompt_instruction
                 .get_completion_options_mut()
                 .set_n_keep(token_length);

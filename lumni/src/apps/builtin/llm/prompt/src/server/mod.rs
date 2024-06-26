@@ -165,6 +165,17 @@ pub trait ServerTrait: Send + Sync {
         Ok(None)
     }
 
+    async fn token_length(
+        &self,
+        _content: &str,
+    ) -> Result<Option<usize>, Box<dyn Error>> {
+        if let Some(token_response) = self.tokenizer(_content).await? {
+            Ok(Some(token_response.get_tokens().len()))
+        } else {
+            Ok(None)
+        }
+    }
+
     async fn get_context_size(
         &self,
         _prompt_instruction: &mut PromptInstruction,

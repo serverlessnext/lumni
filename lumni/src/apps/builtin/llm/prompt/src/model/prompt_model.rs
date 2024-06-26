@@ -71,7 +71,6 @@ impl PromptModelTrait for PromptModel {
 
 #[async_trait]
 pub trait PromptModelTrait: Send + Sync {
-//    fn get_model_data(&self) -> &ModelData;
     fn get_stop_tokens(&self) -> &Vec<String>;
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {

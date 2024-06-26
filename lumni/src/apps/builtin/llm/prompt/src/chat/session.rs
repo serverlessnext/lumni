@@ -44,24 +44,6 @@ impl ChatSession {
         })
     }
 
-    async fn init_system_prompt(
-        &mut self,
-        instruction: String,
-    ) -> Result<(), Box<dyn Error>> {
-        let token_length = if instruction.is_empty() {
-            Some(0)
-        } else if let Some(token_response) =
-            self.server.tokenizer(&instruction).await?
-        {
-            Some(token_response.get_tokens().len())
-        } else {
-            None
-        };
-        self.prompt_instruction
-            .set_system_prompt(instruction, token_length);
-        Ok(())
-    }
-
     pub async fn init(
         &mut self,
         instruction: Option<String>,
@@ -80,10 +62,19 @@ impl ChatSession {
             self.prompt_instruction.preload_from_assistant(
                 assistant,
                 &mut self.history,
-                instruction,    // add user-instruction with assistant
+                instruction, // add user-instruction with assistant
             )?;
         } else if let Some(instruction) = instruction {
-            self.init_system_prompt(instruction).await?;
+            self.prompt_instruction.set_system_prompt(instruction);
+        };
+        // set token length for the system prompt
+        let instruction = self.prompt_instruction.get_instruction();
+        if instruction.is_empty() {
+            self.prompt_instruction.set_system_token_length(Some(0));
+        } else {
+            self.prompt_instruction.set_system_token_length(
+                self.server.token_length(instruction).await?,
+            );
         };
 
         self.model = self.server.get_model().await?;

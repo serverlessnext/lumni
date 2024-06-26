@@ -301,19 +301,8 @@ pub async fn run_cli(
 
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
-    let mut assistant = matches.get_one::<String>("assistant").cloned();
+    let assistant = matches.get_one::<String>("assistant").cloned();
     let options = matches.get_one::<String>("options");
-
-    // custom conflict check for system and assistant options
-    if assistant.is_some() && instruction.is_some() {
-        eprintln!(
-            "Error: --system and --assistant options cannot be used together. \
-             Please choose one."
-        );
-        std::process::exit(1);
-    }
-
-
 
     let server_name = matches
         .get_one::<String>("server")

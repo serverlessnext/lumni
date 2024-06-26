@@ -52,12 +52,16 @@ impl PromptInstruction {
         self.completion_options.get_n_keep()
     }
 
-    pub fn set_system_prompt(
-        &mut self,
-        instruction: String,
-        token_length: Option<usize>,
-    ) {
-        self.system_prompt = SystemPrompt::new(instruction, token_length);
+    pub fn set_system_prompt(&mut self, instruction: String) {
+        self.system_prompt = SystemPrompt::new(instruction);
+    }
+
+    pub fn get_system_token_length(&self) -> Option<usize> {
+        self.system_prompt.get_token_length()
+    }
+
+    pub fn set_system_token_length(&mut self, token_length: Option<usize>) {
+        self.system_prompt.set_token_length(token_length);
     }
 
     pub fn get_prompt_template(&self) -> Option<&str> {
@@ -68,15 +72,11 @@ impl PromptInstruction {
         self.system_prompt.get_instruction()
     }
 
-    pub fn get_token_length(&self) -> Option<usize> {
-        self.system_prompt.get_token_length()
-    }
-
     pub fn preload_from_assistant(
         &mut self,
         assistant: String,
         history: &mut ChatHistory,
-        instruction: Option<String>,
+        user_instruction: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         // Find the selected persona by name
         let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
@@ -84,10 +84,27 @@ impl PromptInstruction {
             .into_iter()
             .find(|p| p.name() == assistant)
         {
-            // Set session instruction from persona's system prompt
-            if let Some(instruction) = prompt.system_prompt() {
-                self.set_system_prompt(instruction.to_string(), None);
-            }
+            // system prompt is the assistant instruction + user instruction
+            // default to empty string if either is not available
+            let system_prompt =
+                if let Some(assistant_instruction) = prompt.system_prompt() {
+                    let system_prompt =
+                        if let Some(user_instruction) = user_instruction {
+                            // strip trailing whitespace from assistant instruction
+                            format!(
+                                "{} {}",
+                                assistant_instruction.trim_end(),
+                                user_instruction
+                            )
+                        } else {
+                            assistant_instruction.to_string()
+                        };
+                    system_prompt
+                } else {
+                    user_instruction.unwrap_or_default()
+                };
+            self.set_system_prompt(system_prompt);
+
             // Load predefined exchanges from persona if available
             if let Some(exchanges) = prompt.exchanges() {
                 *history = ChatHistory::new_with_exchanges(exchanges.clone());
@@ -98,7 +115,11 @@ impl PromptInstruction {
             }
             Ok(())
         } else {
-            return Err(format!("Assistant '{}' not found in the dataset", assistant).into());
+            return Err(format!(
+                "Assistant '{}' not found in the dataset",
+                assistant
+            )
+            .into());
         }
     }
 }
@@ -116,10 +137,10 @@ impl SystemPrompt {
         }
     }
 
-    fn new(instruction: String, token_length: Option<usize>) -> Self {
+    fn new(instruction: String) -> Self {
         SystemPrompt {
             instruction,
-            token_length,
+            token_length: None,
         }
     }
 
@@ -129,5 +150,9 @@ impl SystemPrompt {
 
     fn get_token_length(&self) -> Option<usize> {
         self.token_length
+    }
+
+    fn set_token_length(&mut self, token_length: Option<usize>) {
+        self.token_length = token_length;
     }
 }

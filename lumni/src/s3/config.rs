@@ -1,8 +1,7 @@
 use std::env;
 
+use super::aws_credentials::AWS_DEFAULT_REGION;
 use crate::{EnvironmentConfig, LakestreamError};
-
-const AWS_DEFAULT_REGION: &str = "us-east-1";
 
 pub fn validate_config(
     config: &mut EnvironmentConfig,

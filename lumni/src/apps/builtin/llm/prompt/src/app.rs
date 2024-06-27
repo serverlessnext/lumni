@@ -25,7 +25,9 @@ use tokio::time::{interval, Duration};
 
 use super::chat::ChatSession;
 use super::defaults::PromptStyle;
-use super::server::{PromptInstruction, SUPPORTED_MODEL_ENDPOINTS};
+use super::server::{
+    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
+};
 use super::session::AppSession;
 use super::tui::{
     CommandLineAction, KeyEventHandler, PromptAction, TabUi, TextWindowTrait,
@@ -308,9 +310,38 @@ pub async fn run_cli(
         .cloned()
         .unwrap_or_else(|| "ollama".to_string());
 
-    let prompt_instruction = PromptInstruction::new(instruction, assistant, options)?;
-    let mut chat_session = ChatSession::new(server_name, prompt_instruction)?;
-    chat_session.init().await?;
+    // setup server
+    let mut server = ModelServer::from_str(&server_name)?;
+
+    let models = server.list_models().await?.ok_or("No models available.")?;
+    let model = if models.is_empty() {
+        return Err("Model list is empty.".into());
+    } else {
+        models[0].to_owned()
+    };
+
+    // setup prompt instruction
+    let mut prompt_instruction =
+        PromptInstruction::new(instruction, assistant, options)?;
+
+    // update completion options from the model, i.e. stop tokens
+    prompt_instruction
+        .get_completion_options_mut()
+        .update_from_model(&model);
+
+    let instruction = prompt_instruction.get_instruction();
+
+    if instruction.is_empty() {
+        prompt_instruction.set_system_token_length(Some(0));
+    } else {
+        prompt_instruction
+            .set_system_token_length(server.token_length(instruction).await?);
+    };
+    server
+        .initialize_with_model(model, &prompt_instruction)
+        .await?;
+
+    let chat_session = ChatSession::new(Box::new(server), prompt_instruction)?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

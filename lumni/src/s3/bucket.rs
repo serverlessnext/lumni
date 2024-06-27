@@ -11,39 +11,6 @@ use crate::s3::config::validate_config;
 use crate::table::FileObjectTable;
 use crate::{FileObjectFilter, LakestreamError};
 
-#[derive(Clone)]
-pub struct S3Credentials {
-    access_key: String,
-    secret_key: String,
-    session_token: Option<String>,
-}
-
-impl S3Credentials {
-    pub fn new(
-        access_key: String,
-        secret_key: String,
-        session_token: Option<String>,
-    ) -> S3Credentials {
-        S3Credentials {
-            access_key,
-            secret_key,
-            session_token,
-        }
-    }
-
-    pub fn access_key(&self) -> &str {
-        &self.access_key
-    }
-
-    pub fn secret_key(&self) -> &str {
-        &self.secret_key
-    }
-
-    pub fn session_token(&self) -> Option<&str> {
-        self.session_token.as_deref()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct S3Bucket {
     name: String,

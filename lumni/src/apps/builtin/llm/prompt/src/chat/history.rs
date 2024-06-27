@@ -8,7 +8,7 @@ use super::{LLMDefinition, PromptRole};
 #[derive(Debug, Clone)]
 pub struct ChatHistory {
     exchanges: Vec<ChatExchange>,
-    keep_n: Option<usize>,  // keep n exchanges in history if reset
+    keep_n: Option<usize>, // keep n exchanges in history if reset
 }
 
 impl ChatHistory {

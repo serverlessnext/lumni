@@ -37,8 +37,9 @@ impl Headers for S3Client {
     ) -> Result<HashMap<String, String>, LakestreamError> {
         let method = "GET";
         self.request_builder.generate_headers(
-            self.config(),
             method,
+            "s3",
+            self.config().credentials(),
             None,
             None,
             None,
@@ -60,8 +61,9 @@ impl Headers for S3Client {
 
         self.query_string = query_string.clone();
         self.request_builder.generate_headers(
-            self.config(),
             method,
+            "s3",
+            self.config().credentials(),
             self.resource.as_deref(),
             query_string.as_deref(),
             None,
@@ -75,8 +77,9 @@ impl Headers for S3Client {
         self.resource = Some(object_key.to_string());
         let method = "GET";
         self.request_builder.generate_headers(
-            self.config(),
             method,
+            "s3",
+            self.config().credentials(),
             self.resource.as_deref(),
             self.query_string.as_deref(),
             None,
@@ -90,8 +93,9 @@ impl Headers for S3Client {
         self.resource = Some(object_key.to_string());
         let method = "HEAD";
         self.request_builder.generate_headers(
-            self.config(),
             method,
+            "s3",
+            self.config().credentials(),
             self.resource.as_deref(),
             None,
             None,

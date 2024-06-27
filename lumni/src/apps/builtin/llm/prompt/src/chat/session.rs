@@ -8,56 +8,24 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
-use super::{LLMDefinition, ModelServer, PromptInstruction, ServerTrait};
+use super::{PromptInstruction, ServerTrait};
 
 pub struct ChatSession {
     server: Box<dyn ServerTrait>,
-    model: Option<LLMDefinition>,
     prompt_instruction: PromptInstruction,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
     pub fn new(
-        server_name: String,
+        server: Box<dyn ServerTrait>,
         prompt_instruction: PromptInstruction,
     ) -> Result<Self, Box<dyn Error>> {
-        let server = Box::new(ModelServer::from_str(&server_name)?);
-
         Ok(ChatSession {
             server,
-            model: None,
             prompt_instruction,
             cancel_tx: None,
         })
-    }
-
-    pub async fn init(
-        &mut self,
-    ) -> Result<(), Box<dyn Error>> {
-        // set token length for the system prompt
-        let instruction = self.prompt_instruction.get_instruction();
-        if instruction.is_empty() {
-            self.prompt_instruction.set_system_token_length(Some(0));
-        } else {
-            self.prompt_instruction.set_system_token_length(
-                self.server.token_length(instruction).await?,
-            );
-        };
-
-        self.model = self.server.get_model().await?;
-
-        if let Some(model) = self.model.as_ref() {
-            self.prompt_instruction
-                .get_completion_options_mut()
-                .update_from_model(model);
-        }
-
-        self.server
-            .initialize(self.model.as_ref(), &mut self.prompt_instruction)
-            .await?;
-
-        Ok(())
     }
 
     pub fn stop(&mut self) {
@@ -89,10 +57,10 @@ impl ChatSession {
             last_exchange.set_answer(trimmed_answer);
 
             let temp_vec = vec![&*last_exchange];
-            let last_prompt_text = ChatHistory::exchanges_to_string(
-                self.model.as_ref().ok_or_else(|| "Model not available")?,
-                temp_vec,
-            )?;
+            let model = self.server.get_model().expect("Model not available");
+
+            let last_prompt_text =
+                ChatHistory::exchanges_to_string(model, temp_vec)?;
 
             if let Some(response) =
                 self.server.tokenizer(&last_prompt_text).await?
@@ -106,7 +74,9 @@ impl ChatSession {
         };
 
         if let Some(token_length) = token_length {
-            if let Some(last_exchange) = self.prompt_instruction.get_last_exchange_mut() {
+            if let Some(last_exchange) =
+                self.prompt_instruction.get_last_exchange_mut()
+            {
                 last_exchange.set_token_length(token_length);
             }
         }
@@ -125,18 +95,18 @@ impl ChatSession {
             .await?;
         let new_exchange = self.initiate_new_exchange(question).await?;
         let n_keep = self.prompt_instruction.get_n_keep();
-        let exchanges =
-            self.prompt_instruction.new_prompt(new_exchange, max_token_length, n_keep);
+        let exchanges = self.prompt_instruction.new_prompt(
+            new_exchange,
+            max_token_length,
+            n_keep,
+        );
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
-        let model = self.model.as_ref().ok_or_else(|| "Model not available")?;
-
         self.server
             .completion(
                 &exchanges,
-                model,
                 &self.prompt_instruction,
                 Some(tx),
                 Some(cancel_rx),
@@ -165,10 +135,10 @@ impl ChatSession {
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
 
-        let last_prompt_text = ChatHistory::exchanges_to_string(
-            self.model.as_ref().ok_or_else(|| "Model not available")?,
-            temp_vec,
-        )?;
+        let model = self.server.get_model().expect("Model not available");
+
+        let last_prompt_text =
+            ChatHistory::exchanges_to_string(model, temp_vec)?;
 
         if let Some(token_response) =
             self.server.tokenizer(&last_prompt_text).await?

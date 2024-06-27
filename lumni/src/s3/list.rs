@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use log::error;
 
-use super::bucket::{S3Bucket, S3Credentials};
+use super::aws_credentials::AWSCredentials;
+use super::bucket::S3Bucket;
 use super::client::S3Client;
 use super::client_config::S3ClientConfig;
 use super::client_headers::Headers;
@@ -244,9 +245,10 @@ pub fn create_s3_client(
 
     let session_token = config.get("AWS_SESSION_TOKEN").map(|s| s.to_string());
 
-    let credentials = S3Credentials::new(
-        String::from(access_key),
-        String::from(secret_key),
+    let credentials = AWSCredentials::new(
+        access_key.to_string(),
+        secret_key.to_string(),
+        region.to_string(),
         session_token,
     );
     let endpoint_url = config.get("S3_ENDPOINT_URL").map(String::as_str);

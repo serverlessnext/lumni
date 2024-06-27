@@ -32,6 +32,8 @@ pub mod external {
     pub use crate::handlers::HttpHandler;
     #[cfg(feature = "http_client")]
     pub use crate::http::HttpClient;
+    #[cfg(feature = "http_client")]
+    pub use crate::s3::{AWSCredentials, AWSRequestBuilder};
 }
 pub use default::*;
 pub use external::*;

@@ -20,6 +20,7 @@ pub const DEFAULT_LIST_MODELS_ENDPOINT: &str =
 pub struct Ollama {
     http_client: HttpClient,
     endpoints: Endpoints,
+    model: Option<LLMDefinition>,
 }
 
 impl Ollama {
@@ -31,6 +32,7 @@ impl Ollama {
         Ok(Ollama {
             http_client: HttpClient::new(),
             endpoints,
+            model: None,
         })
     }
 
@@ -57,15 +59,16 @@ impl Ollama {
 
 #[async_trait]
 impl ServerTrait for Ollama {
-    async fn initialize(
+    async fn initialize_with_model(
         &mut self,
-        //model: &Box<dyn PromptModelTrait>,
-        model: Option<&LLMDefinition>,
-        _prompt_instruction: &mut PromptInstruction,
+        model: LLMDefinition,
+        _prompt_instruction: &PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
-        let model_name = model
-            .ok_or_else(|| "Model name required to initialize Ollama")?
-            .get_name();
+        self.model = Some(model);
+
+        eprintln!("Initializing with model: {:?}", self.model);
+        let model_name =
+            self.model.as_ref().expect("Model not available").get_name();
 
         let payload = OllamaShowPayload { name: model_name }
             .serialize()
@@ -91,6 +94,10 @@ impl ServerTrait for Ollama {
         Ok(())
     }
 
+    fn get_model(&self) -> Option<&LLMDefinition> {
+        self.model.as_ref()
+    }
+
     fn process_response(
         &self,
         response: &Bytes,
@@ -104,12 +111,14 @@ impl ServerTrait for Ollama {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>> {
         let system_prompt = prompt_instruction.get_instruction();
+
+        let model = self.model.as_ref().expect("Model not available");
+
         let data_payload =
             self.completion_api_payload(model, exchanges, Some(system_prompt));
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;

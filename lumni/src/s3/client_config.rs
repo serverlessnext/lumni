@@ -1,8 +1,9 @@
-use super::bucket::{configure_bucket_url, S3Credentials};
+use super::aws_credentials::AWSCredentials;
+use super::bucket::configure_bucket_url;
 
 #[derive(Clone)]
 pub struct S3ClientConfig {
-    credentials: S3Credentials,
+    credentials: AWSCredentials,
     bucket_name: Option<String>,
     endpoint_url: Option<String>,
     region: String,
@@ -10,7 +11,7 @@ pub struct S3ClientConfig {
 
 impl S3ClientConfig {
     pub fn new(
-        credentials: S3Credentials,
+        credentials: AWSCredentials,
         bucket_name: Option<&str>,
         endpoint_url: Option<&str>,
         region: &str,
@@ -23,7 +24,7 @@ impl S3ClientConfig {
         }
     }
 
-    pub fn credentials(&self) -> &S3Credentials {
+    pub fn credentials(&self) -> &AWSCredentials {
         &self.credentials
     }
 

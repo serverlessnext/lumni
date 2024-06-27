@@ -22,6 +22,7 @@ pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 pub struct Llama {
     http_client: HttpClient,
     endpoints: Endpoints,
+    model: Option<LLMDefinition>,
 }
 
 impl Llama {
@@ -34,6 +35,7 @@ impl Llama {
         Ok(Llama {
             http_client: HttpClient::new(),
             endpoints,
+            model: None,
         })
     }
 
@@ -109,11 +111,11 @@ impl ServerTrait for Llama {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), Box<dyn Error>> {
+        let model = self.model.as_ref().expect("Model not available");
         let prompt = ChatHistory::exchanges_to_string(model, exchanges)?;
         let data_payload =
             self.completion_api_payload(prompt, exchanges, prompt_instruction);
@@ -142,11 +144,13 @@ impl ServerTrait for Llama {
         Ok(Some(vec![llm_def]))
     }
 
-    async fn initialize(
+    async fn initialize_with_model(
         &mut self,
-        _model: Option<&LLMDefinition>,
-        prompt_instruction: &mut PromptInstruction,
+        model: LLMDefinition,
+        prompt_instruction: &PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
+        self.model = Some(model);
+
         // Send the system prompt to the completion endpoint at initialization
         let system_prompt_payload =
             self.system_prompt_payload(prompt_instruction);
@@ -162,15 +166,11 @@ impl ServerTrait for Llama {
             )
             .await;
         }
-
-        if let Some(token_length) = prompt_instruction.get_system_token_length()
-        {
-            prompt_instruction
-                .get_completion_options_mut()
-                .set_n_keep(token_length);
-        };
-
         Ok(())
+    }
+
+    fn get_model(&self) -> Option<&LLMDefinition> {
+        self.model.as_ref()
     }
 
     async fn get_context_size(

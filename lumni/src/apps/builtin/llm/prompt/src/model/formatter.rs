@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use async_trait::async_trait;
 use regex::Regex;
 
@@ -41,7 +39,7 @@ impl ModelFormatter {
 }
 
 impl ModelFormatterTrait for ModelFormatter {
-    fn get_stop_tokens(&self) ->  &Vec<String> {
+    fn get_stop_tokens(&self) -> &Vec<String> {
         match self.model {
             PromptModel::Generic(ref generic) => generic.get_stop_tokens(),
             PromptModel::Llama3(ref llama3) => llama3.get_stop_tokens(),
@@ -59,7 +57,11 @@ impl ModelFormatterTrait for ModelFormatter {
         }
     }
 
-    fn fmt_prompt_message(&self,prompt_role:PromptRole,message: &str,) -> String {
+    fn fmt_prompt_message(
+        &self,
+        prompt_role: PromptRole,
+        message: &str,
+    ) -> String {
         match self.model {
             PromptModel::Generic(ref generic) => {
                 generic.fmt_prompt_message(prompt_role, message)

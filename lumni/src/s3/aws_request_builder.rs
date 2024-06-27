@@ -5,24 +5,24 @@ use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
 use url::{form_urlencoded, Url};
 
-use super::client_config::S3ClientConfig;
+use super::aws_credentials::AWSCredentials;
 use crate::utils::time::UtcTimeNow;
 use crate::LakestreamError;
 
-pub struct RequestBuilder {
+pub struct AWSRequestBuilder {
     url: String,
 }
 
-impl RequestBuilder {
-    pub fn new(url: &str) -> Self {
-        let url = url.to_string();
+impl AWSRequestBuilder {
+    pub fn new(url: String) -> Self {
         Self { url }
     }
 
     pub fn generate_headers(
         &self,
-        config: &S3ClientConfig,
         method: &str,
+        service: &str,
+        credentials: &AWSCredentials,
         resource: Option<&str>,
         query_string: Option<&str>,
         payload_hash: Option<&str>,
@@ -31,8 +31,12 @@ impl RequestBuilder {
         let date_stamp = utc_now.date_stamp();
         let x_amz_date = utc_now.x_amz_date();
 
-        let credential_scope =
-            format!("{}/{}/s3/aws4_request", date_stamp, config.region());
+        let credential_scope = format!(
+            "{}/{}/{}/aws4_request",
+            date_stamp,
+            credentials.region(),
+            service
+        );
         let mut headers = self.initiate_headers(&x_amz_date, payload_hash);
 
         let url = Url::parse(&self.url)?;
@@ -44,7 +48,7 @@ impl RequestBuilder {
 
         headers.insert("host".to_string(), host);
 
-        if let Some(session_token) = config.credentials().session_token() {
+        if let Some(session_token) = credentials.session_token() {
             headers.insert(
                 "x-amz-security-token".to_string(),
                 session_token.to_string(),
@@ -52,14 +56,10 @@ impl RequestBuilder {
         }
 
         let canonical_uri = self.get_canonical_uri(&url, resource);
-
         let canonical_headers = self.get_canonical_headers(&headers);
-
         let mut signed_headers: Vec<String> =
             headers.keys().map(|key| key.to_lowercase()).collect();
-
         signed_headers.sort();
-
         let signed_headers_str = signed_headers.join(";");
 
         let canonical_query_string =
@@ -83,14 +83,14 @@ impl RequestBuilder {
         );
         let signing_key = self.generate_signing_key(
             &date_stamp,
-            config.credentials().secret_key(),
-            config.region(),
+            credentials.secret_key(),
+            credentials.region(),
         );
         let signature = sign(&signing_key, string_to_sign.as_bytes());
 
         let authorization_header = format!(
             "AWS4-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
-            config.credentials().access_key(),
+            credentials.access_key(),
             credential_scope,
             signed_headers_str,
             hex::encode(signature)

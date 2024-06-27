@@ -1,11 +1,11 @@
+use super::aws_request_builder::AWSRequestBuilder;
 use super::client_config::S3ClientConfig;
-use super::request_builder::RequestBuilder;
 
 pub struct S3Client {
     pub resource: Option<String>,
     pub config: S3ClientConfig,
     pub query_string: Option<String>,
-    pub request_builder: RequestBuilder,
+    pub request_builder: AWSRequestBuilder,
 }
 
 impl S3Client {
@@ -16,7 +16,7 @@ impl S3Client {
         );
 
         // Initialize RequestBuilder
-        let request_builder = RequestBuilder::new(&config.bucket_url());
+        let request_builder = AWSRequestBuilder::new(config.bucket_url());
 
         S3Client {
             resource: None,

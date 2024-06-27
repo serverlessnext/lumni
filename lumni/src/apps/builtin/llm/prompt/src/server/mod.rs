@@ -20,7 +20,7 @@ pub use super::chat::{
     PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
-pub use super::model::{PromptRole, ModelFormatter, ModelFormatterTrait};
+pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 2] = ["llama", "ollama"];
@@ -42,6 +42,23 @@ impl ModelServer {
 
 #[async_trait]
 impl ServerTrait for ModelServer {
+    async fn initialize_with_model(
+        &mut self,
+        model: LLMDefinition,
+        prompt_instruction: &PromptInstruction,
+    ) -> Result<(), Box<dyn Error>> {
+        match self {
+            ModelServer::Llama(llama) => {
+                llama.initialize_with_model(model, prompt_instruction).await
+            }
+            ModelServer::Ollama(ollama) => {
+                ollama
+                    .initialize_with_model(model, prompt_instruction)
+                    .await
+            }
+        }
+    }
+
     fn process_response(
         &self,
         response: &Bytes,
@@ -79,7 +96,6 @@ impl ServerTrait for ModelServer {
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -87,24 +103,12 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => {
                 llama
-                    .completion(
-                        exchanges,
-                        model,
-                        prompt_instruction,
-                        tx,
-                        cancel_rx,
-                    )
+                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
                     .await
             }
             ModelServer::Ollama(ollama) => {
                 ollama
-                    .completion(
-                        exchanges,
-                        model,
-                        prompt_instruction,
-                        tx,
-                        cancel_rx,
-                    )
+                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
                     .await
             }
         }
@@ -118,14 +122,26 @@ impl ServerTrait for ModelServer {
             ModelServer::Ollama(ollama) => ollama.list_models().await,
         }
     }
+
+    fn get_model(&self) -> Option<&LLMDefinition> {
+        match self {
+            ModelServer::Llama(llama) => llama.get_model(),
+            ModelServer::Ollama(ollama) => ollama.get_model(),
+        }
+    }
 }
 
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
+    async fn initialize_with_model(
+        &mut self,
+        model: LLMDefinition,
+        prompt_instruction: &PromptInstruction,
+    ) -> Result<(), Box<dyn Error>>;
+
     async fn completion(
         &self,
         exchanges: &Vec<ChatExchange>,
-        model: &LLMDefinition,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -135,7 +151,11 @@ pub trait ServerTrait: Send + Sync {
         &self,
     ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>>;
 
-    async fn get_model(&self) -> Result<Option<LLMDefinition>, Box<dyn Error>> {
+    fn get_model(&self) -> Option<&LLMDefinition>;
+
+    async fn get_new_model(
+        &self,
+    ) -> Result<Option<LLMDefinition>, Box<dyn Error>> {
         // get first model from list if available
         if let Some(models) = self.list_models().await? {
             Ok(models.get(0).cloned())
@@ -148,15 +168,6 @@ pub trait ServerTrait: Send + Sync {
         &self,
         response: &Bytes,
     ) -> (String, bool, Option<usize>);
-
-    // optional methods
-    async fn initialize(
-        &mut self,
-        _model: Option<&LLMDefinition>,
-        _prompt_instruction: &mut PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
 
     async fn tokenizer(
         &self,

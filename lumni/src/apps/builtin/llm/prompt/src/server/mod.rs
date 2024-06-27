@@ -20,7 +20,7 @@ pub use super::chat::{
     PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
-pub use super::model::PromptRole;
+pub use super::model::{PromptRole, ModelFormatter, ModelFormatterTrait};
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 2] = ["llama", "ollama"];

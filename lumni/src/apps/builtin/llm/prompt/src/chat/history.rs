@@ -3,7 +3,7 @@ use std::error::Error;
 use serde::{Deserialize, Serialize};
 
 use super::exchange::ChatExchange;
-use super::{LLMDefinition, PromptModel, PromptModelTrait, PromptRole};
+use super::{LLMDefinition, PromptRole};
 
 #[derive(Debug, Clone)]
 pub struct ChatHistory {
@@ -90,16 +90,16 @@ impl ChatHistory {
         I: IntoIterator<Item = &'a ChatExchange>,
     {
         let mut prompt = String::new();
-        let prompt_model = PromptModel::from_str(model.get_name())?;
+        let formatter = model.get_formatter();
 
         for exchange in exchanges {
             prompt.push_str(
-                &prompt_model.fmt_prompt_message(
+                &formatter.fmt_prompt_message(
                     PromptRole::User,
                     exchange.get_question(),
                 ),
             );
-            prompt.push_str(&prompt_model.fmt_prompt_message(
+            prompt.push_str(&formatter.fmt_prompt_message(
                 PromptRole::Assistant,
                 exchange.get_answer(),
             ));

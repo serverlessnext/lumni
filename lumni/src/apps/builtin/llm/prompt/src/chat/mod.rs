@@ -18,7 +18,7 @@ use serde::Deserialize;
 pub use session::ChatSession;
 
 pub use super::defaults::*;
-pub use super::model::{PromptModel, PromptModelTrait, PromptRole};
+pub use super::model::PromptRole;
 pub use super::server::{LLMDefinition, ModelServer, ServerTrait};
 
 // gets PERSONAS from the generated code

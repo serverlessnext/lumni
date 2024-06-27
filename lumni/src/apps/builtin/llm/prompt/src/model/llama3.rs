@@ -1,6 +1,4 @@
-use std::error::Error;
-
-use super::{PromptModelTrait, PromptRole};
+use super::{ModelFormatterTrait, PromptRole};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
@@ -10,8 +8,8 @@ pub struct Llama3 {
 }
 
 impl Llama3 {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
-        Ok(Llama3 {
+    pub fn new() -> Self {
+        Llama3 {
             name: "llama3".to_string(),
             stop_tokens: vec![
                 "<|eot_id|>".to_string(),
@@ -21,11 +19,11 @@ impl Llama3 {
                 "User: ".to_string(),
                 "Human: ".to_string(),
             ],
-        })
+        }
     }
 }
 
-impl PromptModelTrait for Llama3 {
+impl ModelFormatterTrait for Llama3 {
     fn get_stop_tokens(&self) -> &Vec<String> {
         &self.stop_tokens
     }

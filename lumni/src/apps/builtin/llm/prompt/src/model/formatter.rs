@@ -13,56 +13,58 @@ pub enum PromptRole {
 }
 
 #[derive(Clone, Debug)]
-pub enum PromptModel {
+enum PromptModel {
     Generic(Generic),
     Llama3(Llama3),
 }
 
-impl PromptModel {
-    pub fn from_str(s: &str) -> Result<Self, Box<dyn Error>> {
+#[derive(Clone, Debug)]
+pub struct ModelFormatter {
+    model: PromptModel,
+}
+
+impl ModelFormatter {
+    pub fn from_str(s: &str) -> Self {
         let model_name = s.to_lowercase();
         // infer model name from given pattern, e.g. llama-3, llama3
         // used for llama.cpp only
         // TODO: add more patterns for more popular models
         let llama3_pattern = Regex::new(r"llama-?3").unwrap();
         // add more patterns for other models
-        if llama3_pattern.is_match(&model_name) {
-            Ok(PromptModel::Llama3(Llama3::new()?))
+        let model = if llama3_pattern.is_match(&model_name) {
+            PromptModel::Llama3(Llama3::new())
         } else {
-            Ok(PromptModel::Generic(Generic::new(s)?))
-        }
+            PromptModel::Generic(Generic::new(s))
+        };
+        ModelFormatter { model }
     }
 }
 
-impl PromptModelTrait for PromptModel {
-    fn get_stop_tokens(&self) -> &Vec<String> {
-        match self {
-            PromptModel::Generic(generic) => generic.get_stop_tokens(),
-            PromptModel::Llama3(llama3) => llama3.get_stop_tokens(),
+impl ModelFormatterTrait for ModelFormatter {
+    fn get_stop_tokens(&self) ->  &Vec<String> {
+        match self.model {
+            PromptModel::Generic(ref generic) => generic.get_stop_tokens(),
+            PromptModel::Llama3(ref llama3) => llama3.get_stop_tokens(),
         }
     }
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {
-        match self {
-            PromptModel::Generic(generic) => {
+        match self.model {
+            PromptModel::Generic(ref generic) => {
                 generic.fmt_prompt_system(instruction)
             }
-            PromptModel::Llama3(llama3) => {
+            PromptModel::Llama3(ref llama3) => {
                 llama3.fmt_prompt_system(instruction)
             }
         }
     }
 
-    fn fmt_prompt_message(
-        &self,
-        prompt_role: PromptRole,
-        message: &str,
-    ) -> String {
-        match self {
-            PromptModel::Generic(generic) => {
+    fn fmt_prompt_message(&self,prompt_role:PromptRole,message: &str,) -> String {
+        match self.model {
+            PromptModel::Generic(ref generic) => {
                 generic.fmt_prompt_message(prompt_role, message)
             }
-            PromptModel::Llama3(llama3) => {
+            PromptModel::Llama3(ref llama3) => {
                 llama3.fmt_prompt_message(prompt_role, message)
             }
         }
@@ -70,7 +72,7 @@ impl PromptModelTrait for PromptModel {
 }
 
 #[async_trait]
-pub trait PromptModelTrait: Send + Sync {
+pub trait ModelFormatterTrait: Send + Sync {
     fn get_stop_tokens(&self) -> &Vec<String>;
 
     fn fmt_prompt_system(&self, instruction: Option<&str>) -> String {

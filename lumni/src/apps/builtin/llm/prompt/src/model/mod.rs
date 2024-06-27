@@ -1,5 +1,5 @@
 mod generic;
 mod llama3;
-mod prompt_model;
+mod formatter;
 
-pub use prompt_model::{PromptModel, PromptModelTrait, PromptRole};
+pub use formatter::{ModelFormatter, ModelFormatterTrait, PromptRole};

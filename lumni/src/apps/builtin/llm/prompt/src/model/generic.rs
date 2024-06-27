@@ -1,6 +1,4 @@
-use std::error::Error;
-
-use super::PromptModelTrait;
+use super::ModelFormatterTrait;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
@@ -10,8 +8,8 @@ pub struct Generic {
 }
 
 impl Generic {
-    pub fn new(name: &str) -> Result<Self, Box<dyn Error>> {
-        Ok(Generic {
+    pub fn new(name: &str) -> Self {
+        Generic {
             name: name.to_string(),
             stop_tokens: vec![
                 "### User: ".to_string(),
@@ -19,11 +17,11 @@ impl Generic {
                 "User: ".to_string(),
                 "Human: ".to_string(),
             ],
-        })
+        }
     }
 }
 
-impl PromptModelTrait for Generic {
+impl ModelFormatterTrait for Generic {
     fn get_stop_tokens(&self) -> &Vec<String> {
         &self.stop_tokens
     }

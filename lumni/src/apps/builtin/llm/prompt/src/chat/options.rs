@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{LLMDefinition, PromptModel, PromptModelTrait, PromptRole};
+use super::{LLMDefinition, PromptRole};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
@@ -60,9 +60,7 @@ impl ChatCompletionOptions {
 
     pub fn update_from_model(&mut self, model: &LLMDefinition) {
         if self.stop.is_none() {
-            if let Ok(prompt_model) = PromptModel::from_str(model.get_name()) {
-                self.stop = Some(prompt_model.get_stop_tokens().clone());
-            }
+            self.stop = Some(model.get_stop_tokens().clone());
         }
     }
 

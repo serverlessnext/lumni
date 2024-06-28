@@ -1,3 +1,4 @@
+mod bedrock;
 mod endpoints;
 mod llama;
 mod llm;
@@ -6,6 +7,7 @@ mod ollama;
 use std::error::Error;
 
 use async_trait::async_trait;
+pub use bedrock::Bedrock;
 use bytes::Bytes;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
@@ -23,11 +25,12 @@ pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
 
-pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 2] = ["llama", "ollama"];
+pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 3] = ["llama", "ollama", "bedrock"];
 
 pub enum ModelServer {
     Llama(Llama),
     Ollama(Ollama),
+    Bedrock(Bedrock),
 }
 
 impl ModelServer {
@@ -35,6 +38,7 @@ impl ModelServer {
         match s {
             "llama" => Ok(ModelServer::Llama(Llama::new()?)),
             "ollama" => Ok(ModelServer::Ollama(Ollama::new()?)),
+            "bedrock" => Ok(ModelServer::Bedrock(Bedrock::new()?)),
             _ => Ok(ModelServer::Llama(Llama::new()?)),
         }
     }
@@ -56,6 +60,11 @@ impl ServerTrait for ModelServer {
                     .initialize_with_model(model, prompt_instruction)
                     .await
             }
+            ModelServer::Bedrock(bedrock) => {
+                bedrock
+                    .initialize_with_model(model, prompt_instruction)
+                    .await
+            }
         }
     }
 
@@ -66,6 +75,7 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => llama.process_response(response),
             ModelServer::Ollama(ollama) => ollama.process_response(response),
+            ModelServer::Bedrock(bedrock) => bedrock.process_response(response),
         }
     }
 
@@ -80,6 +90,9 @@ impl ServerTrait for ModelServer {
             ModelServer::Ollama(ollama) => {
                 ollama.get_context_size(prompt_instruction).await
             }
+            ModelServer::Bedrock(bedrock) => {
+                bedrock.get_context_size(prompt_instruction).await
+            }
         }
     }
 
@@ -90,6 +103,7 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => llama.tokenizer(content).await,
             ModelServer::Ollama(ollama) => ollama.tokenizer(content).await,
+            ModelServer::Bedrock(bedrock) => bedrock.tokenizer(content).await,
         }
     }
 
@@ -111,6 +125,11 @@ impl ServerTrait for ModelServer {
                     .completion(exchanges, prompt_instruction, tx, cancel_rx)
                     .await
             }
+            ModelServer::Bedrock(bedrock) => {
+                bedrock
+                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .await
+            }
         }
     }
 
@@ -120,6 +139,7 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => llama.list_models().await,
             ModelServer::Ollama(ollama) => ollama.list_models().await,
+            ModelServer::Bedrock(bedrock) => bedrock.list_models().await,
         }
     }
 
@@ -127,6 +147,7 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => llama.get_model(),
             ModelServer::Ollama(ollama) => ollama.get_model(),
+            ModelServer::Bedrock(bedrock) => bedrock.get_model(),
         }
     }
 }

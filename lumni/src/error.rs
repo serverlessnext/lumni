@@ -18,7 +18,7 @@ pub enum LakestreamError {
     #[cfg(target_arch = "wasm32")]
     Js(wasm_bindgen::JsValue),
     #[cfg(feature = "http_client")]
-    HttpClientError(crate::http::HttpClientError),
+    HttpClientError(crate::http::client::HttpClientError),
 }
 
 impl fmt::Display for LakestreamError {

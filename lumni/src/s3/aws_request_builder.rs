@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use hmac::{Hmac, Mac, NewMac};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
 use sha2::{Digest, Sha256};
-use url::{form_urlencoded, Url};
+use url::Url;
 
 use super::aws_credentials::AWSCredentials;
+use crate::http::client::HttpClient;
 use crate::utils::time::UtcTimeNow;
 use crate::LakestreamError;
 
@@ -54,6 +55,8 @@ impl AWSRequestBuilder {
                 session_token.to_string(),
             );
         }
+        headers
+            .insert("content-type".to_string(), "application/json".to_string());
 
         let canonical_uri = self.get_canonical_uri(&url, resource);
         let canonical_headers = self.get_canonical_headers(&headers);
@@ -61,7 +64,6 @@ impl AWSRequestBuilder {
             headers.keys().map(|key| key.to_lowercase()).collect();
         signed_headers.sort();
         let signed_headers_str = signed_headers.join(";");
-
         let canonical_query_string =
             self.get_canonical_query_string(query_string)?;
 
@@ -74,7 +76,6 @@ impl AWSRequestBuilder {
             signed_headers_str,
             payload_hash.unwrap_or("UNSIGNED-PAYLOAD")
         );
-
         let string_to_sign = format!(
             "AWS4-HMAC-SHA256\n{}\n{}\n{:x}",
             x_amz_date,
@@ -85,6 +86,7 @@ impl AWSRequestBuilder {
             &date_stamp,
             credentials.secret_key(),
             credentials.region(),
+            service,
         );
         let signature = sign(&signing_key, string_to_sign.as_bytes());
 
@@ -95,7 +97,6 @@ impl AWSRequestBuilder {
             signed_headers_str,
             hex::encode(signature)
         );
-
         headers.insert("Authorization".to_string(), authorization_header);
         Ok(headers)
     }
@@ -129,13 +130,14 @@ impl AWSRequestBuilder {
         date_stamp: &str,
         secret_key: &str,
         region: &str,
+        service: &str,
     ) -> Vec<u8> {
         let k_date = sign(
             format!("AWS4{}", secret_key).as_bytes(),
             date_stamp.as_bytes(),
         );
         let k_region = sign(&k_date, region.as_bytes());
-        let k_service = sign(&k_region, b"s3");
+        let k_service = sign(&k_region, service.as_bytes());
         sign(&k_service, b"aws4_request")
     }
 
@@ -153,27 +155,23 @@ impl AWSRequestBuilder {
         headers
     }
 
-    fn get_canonical_uri(&self, url: &Url, resource: Option<&str>) -> String {
-        let canonical_resource = form_urlencoded::byte_serialize(
-            resource
-                .unwrap_or_default()
-                .trim_start_matches('/')
-                .trim_end_matches('/')
-                .as_bytes(),
+    fn encode_uri_component(&self, component: &str) -> String {
+        HttpClient::percent_encode_with_exclusion(
+            component.trim_start_matches('/').trim_end_matches('/'),
+            Some(&[b'/', b'.', b'-', b'_', b'~', b' ']),
         )
-        .collect::<String>();
-        let endpoint_path =
-            url.path().trim_start_matches('/').trim_end_matches('/');
+        .replace("+", "%20")
+    }
 
-        if endpoint_path.is_empty() {
+    fn get_canonical_uri(&self, url: &Url, resource: Option<&str>) -> String {
+        let canonical_resource =
+            self.encode_uri_component(resource.unwrap_or_default());
+        let canonical_endpoint = self.encode_uri_component(url.path());
+
+        if canonical_endpoint.is_empty() {
             canonical_resource
         } else {
-            format!(
-                "{}/{}",
-                form_urlencoded::byte_serialize(endpoint_path.as_bytes())
-                    .collect::<String>(),
-                canonical_resource
-            )
+            format!("{}/{}", canonical_endpoint, canonical_resource)
         }
     }
 

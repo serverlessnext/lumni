@@ -212,7 +212,6 @@ async fn prompt_app<B: Backend>(
                 }
 
                 let (response_content, is_final, tokens_predicted) = chat.process_response(&response);
-
                 let trimmed_response_content = response_content.trim_end();
 
                 // display content should contain previous trimmed parts,
@@ -224,6 +223,8 @@ async fn prompt_app<B: Backend>(
                 if is_final {
                     finalize_response(&mut chat, &mut tab_ui, tokens_predicted).await?;
                     trim_buffer = None;
+                    // cancel the keep_running flag
+
                 } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
@@ -242,11 +243,12 @@ async fn finalize_response(
     tab_ui: &mut TabUi<'_>,
     tokens_predicted: Option<usize>,
 ) -> Result<(), Box<dyn Error>> {
+    // stop trying to get more responses
+    chat.stop();
     // finalize with newline for in display
     tab_ui
         .response
         .text_append_with_insert("\n", Some(PromptStyle::assistant()));
-
     // add an empty unstyled line
     tab_ui
         .response

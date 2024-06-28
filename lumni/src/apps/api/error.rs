@@ -1,7 +1,7 @@
 use std::fmt;
 
 // export the http client error via api::error
-pub use crate::http::HttpClientError;
+pub use crate::http::client::HttpClientError;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]

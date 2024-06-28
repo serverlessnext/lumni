@@ -65,8 +65,6 @@ impl ServerTrait for Ollama {
         _prompt_instruction: &PromptInstruction,
     ) -> Result<(), Box<dyn Error>> {
         self.model = Some(model);
-
-        eprintln!("Initializing with model: {:?}", self.model);
         let model_name =
             self.model.as_ref().expect("Model not available").get_name();
 
@@ -128,6 +126,7 @@ impl ServerTrait for Ollama {
                 self.http_client.clone(),
                 tx,
                 payload,
+                None,
                 cancel_rx,
             )
             .await;

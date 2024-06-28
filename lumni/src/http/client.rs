@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::str::FromStr;
 use std::string::FromUtf8Error;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
@@ -16,17 +17,18 @@ use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
+use percent_encoding::{percent_encode, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::de::DeserializeOwned;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
-pub struct HttpResponse {
+pub struct HttpClientResponse {
     body: Option<Bytes>,
     status_code: u16,
     headers: HeaderMap,
 }
 
-impl HttpResponse {
+impl HttpClientResponse {
     pub fn body(&self) -> Option<&Bytes> {
         self.body.as_ref()
     }
@@ -66,6 +68,13 @@ impl fmt::Display for HttpClientError {
         }
     }
 }
+pub trait HttpClientErrorHandler {
+    fn handle_error(
+        &self,
+        response: HttpClientResponse,
+        canonical_reason: String,
+    ) -> HttpClientError;
+}
 
 impl From<hyper::http::Error> for HttpClientError {
     fn from(err: hyper::http::Error) -> Self {
@@ -85,7 +94,7 @@ impl From<FromUtf8Error> for HttpClientError {
     }
 }
 
-impl HttpResponse {
+impl HttpClientResponse {
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
         if let Some(body) = &self.body {
             serde_json::from_slice(body).map_err(|e| anyhow!(e))
@@ -95,7 +104,7 @@ impl HttpResponse {
     }
 }
 
-pub type HttpResult = Result<HttpResponse, HttpClientError>;
+pub type HttpClientResult = Result<HttpClientResponse, HttpClientError>;
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -104,6 +113,7 @@ pub struct HttpClient {
         BoxBody<bytes::Bytes, Infallible>,
     >,
     timeout: Duration,
+    error_handler: Option<Arc<dyn HttpClientErrorHandler + Send + Sync>>,
 }
 
 impl HttpClient {
@@ -119,11 +129,20 @@ impl HttpClient {
         HttpClient {
             client,
             timeout: Duration::from_secs(30),
+            error_handler: None,
         }
     }
 
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    pub fn with_error_handler(
+        mut self,
+        error_handler: Arc<dyn HttpClientErrorHandler + Send + Sync>,
+    ) -> Self {
+        self.error_handler = Some(error_handler);
         self
     }
 
@@ -135,7 +154,7 @@ impl HttpClient {
         body: Option<&Bytes>,
         tx: Option<mpsc::Sender<Bytes>>,
         mut cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> HttpResult {
+    ) -> HttpClientResult {
         let uri = Uri::from_str(url)
             .map_err(|e| HttpClientError::Other(AnyhowError::new(e)))?;
 
@@ -150,24 +169,34 @@ impl HttpClient {
                 req_builder = req_builder.header(header_name, header_value);
             }
         }
-
         let request_body = create_request_body(body);
 
         let request = req_builder
             .body(request_body)
             .expect("Failed to build the request");
-
         // Send the request and await the response, handling timeout as needed
         let mut response = self.client.request(request).await.map_err(|e| {
             HttpClientError::ConnectionError(AnyhowError::new(e))
         })?;
         if !response.status().is_success() {
+            let canonical_reason = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("")
+                .to_string();
+            if let Some(error_handler) = &self.error_handler {
+                // Custom error handling
+                let http_client_response = HttpClientResponse {
+                    body: None,
+                    status_code: response.status().as_u16(),
+                    headers: response.headers().clone(),
+                };
+                return Err(error_handler
+                    .handle_error(http_client_response, canonical_reason));
+            }
             return Err(HttpClientError::HttpError(
                 response.status().as_u16(),
-                format!(
-                    "{}",
-                    response.status().canonical_reason().unwrap_or("")
-                ),
+                canonical_reason,
             ));
         }
 
@@ -219,7 +248,7 @@ impl HttpClient {
             body = Some(body_bytes.into());
         }
 
-        Ok(HttpResponse {
+        Ok(HttpClientResponse {
             body,
             status_code,
             headers,
@@ -233,7 +262,7 @@ impl HttpClient {
         _params: Option<&HashMap<String, String>>,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> HttpResult {
+    ) -> HttpClientResult {
         self.request("GET", url, headers, None, tx, cancel_rx).await
     }
 
@@ -245,9 +274,37 @@ impl HttpClient {
         body: Option<&Bytes>,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> HttpResult {
+    ) -> HttpClientResult {
         self.request("POST", url, headers, body, tx, cancel_rx)
             .await
+    }
+}
+
+// additional non associated helper functions
+impl HttpClient {
+    pub fn percent_encode_with_exclusion(
+        input: &str,
+        exclude: Option<&[u8]>,
+    ) -> String {
+        let mut result = String::new();
+        let set = NON_ALPHANUMERIC;
+
+        if let Some(exclusions) = exclude {
+            // percent-encode each byte while skipping excluded characters
+            for byte in input.bytes() {
+                if exclusions.contains(&byte) {
+                    result.push(byte as char);
+                } else {
+                    result.push_str(
+                        &percent_encode(&[byte][..], &set).to_string(),
+                    );
+                }
+            }
+        } else {
+            // use the standard percent encoding for the entire input
+            result.push_str(&utf8_percent_encode(input, &set).to_string());
+        }
+        result
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::http::HttpClient;
+use crate::http::client::HttpClient;
 use crate::{BinaryCallbackWrapper, LakestreamError};
 
 pub struct HttpHandler {

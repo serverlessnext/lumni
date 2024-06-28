@@ -13,18 +13,24 @@ pub async fn http_post(
     http_client: HttpClient,
     tx: Option<mpsc::Sender<Bytes>>,
     payload: String,
+    http_headers: Option<HashMap<String, String>>,
     cancel_rx: Option<oneshot::Receiver<()>>,
 ) {
-    let header = HashMap::from([(
-        "Content-Type".to_string(),
-        "application/json".to_string(),
-    )]);
+    let headers = if let Some(http_headers) = http_headers {
+        http_headers
+    } else {
+        HashMap::from([(
+            "Content-Type".to_string(),
+            "application/json".to_string(),
+        )])
+    };
+
     let payload_bytes = Bytes::from(payload.into_bytes());
     tokio::spawn(async move {
         match http_client
             .post(
                 &url,
-                Some(&header),
+                Some(&headers),
                 None,
                 Some(&payload_bytes),
                 tx.clone(),
@@ -83,7 +89,7 @@ pub async fn http_post_with_response(
 ) -> Result<Bytes, Box<dyn Error>> {
     let mut response_bytes = BytesMut::new();
     let (tx, mut rx) = mpsc::channel(1);
-    http_post(url, http_client, Some(tx), payload, None).await;
+    http_post(url, http_client, Some(tx), payload, None, None).await;
 
     while let Some(response) = rx.recv().await {
         response_bytes.extend_from_slice(&response);

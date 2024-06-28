@@ -127,6 +127,7 @@ impl ServerTrait for Llama {
                 self.http_client.clone(),
                 tx,
                 payload,
+                None,
                 cancel_rx,
             )
             .await;
@@ -162,6 +163,7 @@ impl ServerTrait for Llama {
                 self.http_client.clone(),
                 None,
                 payload,
+                None,
                 None,
             )
             .await;

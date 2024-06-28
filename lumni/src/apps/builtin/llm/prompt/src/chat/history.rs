@@ -146,6 +146,6 @@ impl ChatHistory {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
-    role: String,
-    content: String,
+    pub role: String,
+    pub content: String,
 }

@@ -1,13 +1,18 @@
+mod eventstream;
+mod request;
+
 use std::error::Error;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use eventstream::EventStreamMessage;
+use request::*;
 use lumni::{
     AWSCredentials, AWSRequestBuilder, HttpClient, HttpClientError,
     HttpClientErrorHandler, HttpClientResponse,
 };
-use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
@@ -52,7 +57,8 @@ pub struct Bedrock {
 impl Bedrock {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         // TODO: get region from AWSCredentials
-        let bedrock_endpoint = "https://bedrock-runtime.us-east-1.amazonaws.com";
+        let bedrock_endpoint =
+            "https://bedrock-runtime.us-east-1.amazonaws.com";
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(bedrock_endpoint)?)
             .set_list_models(Url::parse(bedrock_endpoint)?);
@@ -72,15 +78,17 @@ impl Bedrock {
         system_prompt: Option<&str>,
     ) -> Result<String, serde_json::Error> {
         // Convert ChatExchange to list of ChatMessages
-        let chat_messages: Vec<ChatMessage> = ChatHistory::exchanges_to_messages(
-            exchanges,
-            None,   // dont add system prompt for Bedrock, this is added in the system field
-            &|role| self.get_role_name(role),
-        );
+        let chat_messages: Vec<ChatMessage> =
+            ChatHistory::exchanges_to_messages(
+                exchanges,
+                None, // dont add system prompt for Bedrock, this is added in the system field
+                &|role| self.get_role_name(role),
+            );
 
-        // Convert ChatMessages to Messages for AmazonBedrockPayload
-        let messages: Vec<Message> = chat_messages.iter().map(|chat_message| {
-            Message {
+        // Convert ChatMessages to Messages for BedrockRequestPayload
+        let messages: Vec<Message> = chat_messages
+            .iter()
+            .map(|chat_message| Message {
                 role: chat_message.role.clone(),
                 content: vec![Content {
                     text: Some(chat_message.content.clone()),
@@ -89,12 +97,12 @@ impl Bedrock {
                     tool_use: None,
                     tool_result: None,
                     guard_content: None,
-                }]
-            }
-        }).collect();
+                }],
+            })
+            .collect();
 
-        // Cconvert system_prompt to a system message for AmazonBedrockPayload
-        let system_messages = if let Some(prompt) = system_prompt {
+        // Cconvert system_prompt to a system message for BedrockRequestPayload
+        let system = if let Some(prompt) = system_prompt {
             Some(vec![SystemMessage {
                 text: prompt.to_string(),
                 guard_content: None,
@@ -103,7 +111,7 @@ impl Bedrock {
             None
         };
 
-        let payload = AmazonBedrockPayload {
+        let payload = BedrockRequestPayload {
             additional_model_request_fields: None,
             additional_model_response_field_paths: None,
             guardrail_config: None,
@@ -113,8 +121,8 @@ impl Bedrock {
                 temperature: 0.7,
                 top_p: 0.9,
             },
-            messages: messages,
-            system: system_messages,
+            messages,
+            system,
             tool_config: None,
         };
         serde_json::to_string(&payload)
@@ -138,10 +146,35 @@ impl ServerTrait for Bedrock {
 
     fn process_response(
         &self,
-        response_bytes: &Bytes,
+        response_bytes: Bytes,
     ) -> (String, bool, Option<usize>) {
-        // placeholder -- response not yet implemented
-        (response_bytes.len().to_string(), true, None)
+        match EventStreamMessage::from_bytes(response_bytes) {
+            Ok(event) => {
+                eprintln!("Headers: {:?}", event.headers);
+                let event_type = event
+                    .headers
+                    .get(":event-type")
+                    .cloned()
+                    .unwrap_or_default();
+                eprintln!("Processing {} event", event_type);
+
+                // Parse the payload as JSON
+                if let Ok(json) =
+                    serde_json::from_slice::<Value>(&event.payload)
+                {
+                    eprintln!("Successfully parsed JSON: {:?}", json);
+                    // TODO: Implement proper processing of the JSON response
+                    (format!("{:?}", json), false, None)
+                } else {
+                    eprintln!("Failed, raw payload: {:?}", event.payload);
+                    ("".to_string(), true, None)
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse EventStream message: {:?}", e);
+                ("".to_string(), true, None)
+            }
+        }
     }
 
     async fn completion(
@@ -184,7 +217,6 @@ impl ServerTrait for Bedrock {
             Some(&payload_hash),
         )?;
 
-        //let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         http_post(
             full_url,
             self.http_client.clone(),
@@ -200,157 +232,10 @@ impl ServerTrait for Bedrock {
     async fn list_models(
         &self,
     ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
-        let model = LLMDefinition::new("anthropic.claude-3-5-sonnet-20240620-v1:0".to_string());
+        let model = LLMDefinition::new(
+            "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string(),
+        );
         Ok(Some(vec![model]))
     }
 }
 
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AmazonBedrockPayload {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    additional_model_request_fields: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    additional_model_response_field_paths: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    guardrail_config: Option<GuardrailConfig>,
-    inference_config: InferenceConfig,
-    messages: Vec<Message>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<Vec<SystemMessage>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_config: Option<ToolConfig>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Message {
-    role: String,
-    content: Vec<Content>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Content {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    text: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    image: Option<Image>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    document: Option<Document>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_use: Option<ToolUse>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_result: Option<ToolResult>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    guard_content: Option<GuardContent>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Image {
-    format: String,
-    source: ImageSource,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ImageSource {
-    bytes: Vec<u8>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Document {
-    format: String,
-    name: String,
-    source: DocumentSource,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DocumentSource {
-    bytes: Vec<u8>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolUse {
-    tool_use_id: Option<String>,
-    name: Option<String>,
-    input: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolResult {
-    tool_use_id: String,
-    content: Vec<ToolContent>,
-    status: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolContent {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    json: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    text: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    image: Option<Image>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    document: Option<Document>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GuardContent {
-    text: TextContent,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TextContent {
-    text: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct GuardrailConfig {
-    guardrail_identifier: String,
-    guardrail_version: String,
-    stream_processing_mode: String,
-    trace: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct InferenceConfig {
-    max_tokens: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stop_sequences: Option<Vec<String>>,
-    temperature: f32,
-    top_p: f32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SystemMessage {
-    text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    guard_content: Option<GuardContent>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolConfig {
-    tool_choice: ToolChoice,
-    tools: Vec<ToolSpec>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolSpec {
-    name: String,
-    description: String,
-    input_schema: serde_json::Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolChoice {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    auto: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    any: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool: Option<ToolChoiceSpecific>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ToolChoiceSpecific {
-    name: String,
-}

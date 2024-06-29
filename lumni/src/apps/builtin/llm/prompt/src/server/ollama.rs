@@ -98,7 +98,7 @@ impl ServerTrait for Ollama {
 
     fn process_response(
         &self,
-        response: &Bytes,
+        response: Bytes,
     ) -> (String, bool, Option<usize>) {
         match OllamaCompletionResponse::extract_content(response) {
             Ok(chat) => (chat.message.content, chat.done, chat.eval_count),
@@ -262,7 +262,7 @@ struct OllamaResponseMessage {
 
 impl OllamaCompletionResponse {
     pub fn extract_content(
-        bytes: &Bytes,
+        bytes: Bytes,
     ) -> Result<OllamaCompletionResponse, Box<dyn Error>> {
         let text = String::from_utf8(bytes.to_vec())?;
 

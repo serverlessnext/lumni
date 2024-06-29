@@ -208,6 +208,7 @@ impl HttpClient {
         if let Some(tx) = &tx {
             body = None;
 
+            eprintln!("Headers={:?}", response.headers());
             loop {
                 let frame_future = response.frame();
                 tokio::select! {
@@ -240,6 +241,7 @@ impl HttpClient {
         } else {
             let mut body_bytes = BytesMut::new();
             while let Some(next) = response.frame().await {
+                // get headers for debugging
                 let frame = next.map_err(|e| anyhow!(e))?;
                 if let Some(chunk) = frame.data_ref() {
                     body_bytes.extend_from_slice(chunk);

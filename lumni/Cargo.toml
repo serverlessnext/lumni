@@ -47,7 +47,7 @@ log = { version = "0.4" }
 libc = "0.2"
 tiktoken-rs = "0.5.9"
 syntect = { version = "5.2.0", default-features = false, features = ["parsing", "default-fancy"] }
-
+crc32fast = { version = "1.4" }
 
 # CLI
 env_logger = { version = "0.9", optional = true }

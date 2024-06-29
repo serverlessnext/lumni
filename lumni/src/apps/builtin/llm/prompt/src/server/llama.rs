@@ -100,7 +100,7 @@ impl Llama {
 impl ServerTrait for Llama {
     fn process_response(
         &self,
-        response: &Bytes,
+        response: Bytes,
     ) -> (String, bool, Option<usize>) {
         match LlamaCompletionResponse::extract_content(response) {
             Ok(chat) => (chat.content, chat.stop, chat.tokens_predicted),
@@ -289,7 +289,7 @@ struct LlamaCompletionResponse {
 
 impl LlamaCompletionResponse {
     pub fn extract_content(
-        bytes: &Bytes,
+        bytes: Bytes,
     ) -> Result<LlamaCompletionResponse, Box<dyn Error>> {
         let text = String::from_utf8(bytes.to_vec())?;
 

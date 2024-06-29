@@ -201,8 +201,8 @@ async fn prompt_app<B: Backend>(
                     redraw_ui = true;   // redraw the UI after each type of event
                 }
             },
-            Some(response) = rx.recv() => {
-                log::debug!("Received response: {:?}", response);
+            Some(response_bytes) = rx.recv() => {
+                log::debug!("Received response: {:?}", response_bytes);
                 let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
 
@@ -211,7 +211,7 @@ async fn prompt_app<B: Backend>(
                     tab_ui.response.enable_auto_scroll();
                 }
 
-                let (response_content, is_final, tokens_predicted) = chat.process_response(&response);
+                let (response_content, is_final, tokens_predicted) = chat.process_response(response_bytes);
                 let trimmed_response_content = response_content.trim_end();
 
                 // display content should contain previous trimmed parts,

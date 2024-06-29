@@ -24,14 +24,13 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::chat::ChatSession;
-use super::defaults::PromptStyle;
 use super::server::{
     ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
 };
 use super::session::AppSession;
 use super::tui::{
     CommandLineAction, KeyEventHandler, PromptAction, TabUi, TextWindowTrait,
-    WindowEvent,
+    WindowEvent, ColorScheme, ColorSchemeType,
 };
 pub use crate::external as lumni;
 
@@ -54,6 +53,9 @@ async fn prompt_app<B: Backend>(
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
+
+    // TODO: add color scheme selection via modal
+    let color_scheme = ColorScheme::new(ColorSchemeType::Default);
 
     loop {
         tokio::select! {
@@ -129,7 +131,8 @@ async fn prompt_app<B: Backend>(
 
                                             tab_ui.response.text_append_with_insert(
                                                 &formatted_prompt,
-                                                Some(PromptStyle::user()),
+                                                //Some(PromptStyle::user()),
+                                                Some(color_scheme.get_primary_style()),
                                             );
                                             tab_ui.response.text_append_with_insert(
                                                 "\n",
@@ -145,7 +148,7 @@ async fn prompt_app<B: Backend>(
                                         }
                                         PromptAction::Stop => {
                                             chat.stop();
-                                            finalize_response(&mut chat, &mut tab_ui, None).await?;
+                                            finalize_response(&mut chat, &mut tab_ui, None, &color_scheme).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -227,7 +230,7 @@ async fn prompt_app<B: Backend>(
 
                 if !display_content.is_empty() {
                     chat.update_last_exchange(&display_content);
-                    tab_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
+                    tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()));
                 }
 
                 if is_final {
@@ -238,7 +241,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(post_bytes) = rx.try_recv() {
                         chat.process_response(post_bytes);
                     }
-                    finalize_response(&mut chat, &mut tab_ui, tokens_predicted).await?;
+                    finalize_response(&mut chat, &mut tab_ui, tokens_predicted, &color_scheme).await?;
                     trim_buffer = None;
                } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
@@ -261,13 +264,14 @@ async fn finalize_response(
     chat: &mut ChatSession,
     tab_ui: &mut TabUi<'_>,
     tokens_predicted: Option<usize>,
+    color_scheme: &ColorScheme,
 ) -> Result<(), Box<dyn Error>> {
     // stop trying to get more responses
     chat.stop();
     // finalize with newline for in display
     tab_ui
         .response
-        .text_append_with_insert("\n", Some(PromptStyle::assistant()));
+        .text_append_with_insert("\n", Some(color_scheme.get_secondary_style()));
     // add an empty unstyled line
     tab_ui
         .response

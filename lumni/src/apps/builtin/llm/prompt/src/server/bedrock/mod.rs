@@ -155,7 +155,6 @@ impl ServerTrait for Bedrock {
                     .get(":event-type")
                     .cloned()
                     .unwrap_or_default();
-
                 process_event_payload(event_type, event.payload)
             }
             Err(e) => {

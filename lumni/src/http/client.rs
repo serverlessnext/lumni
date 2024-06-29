@@ -207,8 +207,6 @@ impl HttpClient {
 
         if let Some(tx) = &tx {
             body = None;
-
-            eprintln!("Headers={:?}", response.headers());
             loop {
                 let frame_future = response.frame();
                 tokio::select! {

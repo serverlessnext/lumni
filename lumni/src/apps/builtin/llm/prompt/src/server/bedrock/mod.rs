@@ -7,11 +7,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use eventstream::EventStreamMessage;
-use request::*;
 use lumni::{
     AWSCredentials, AWSRequestBuilder, HttpClient, HttpClientError,
     HttpClientErrorHandler, HttpClientResponse,
 };
+use request::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
@@ -147,32 +147,26 @@ impl ServerTrait for Bedrock {
     fn process_response(
         &self,
         response_bytes: Bytes,
-    ) -> (String, bool, Option<usize>) {
+    ) -> (Option<String>, bool, Option<usize>) {
         match EventStreamMessage::from_bytes(response_bytes) {
             Ok(event) => {
-                eprintln!("Headers: {:?}", event.headers);
                 let event_type = event
                     .headers
                     .get(":event-type")
                     .cloned()
                     .unwrap_or_default();
-                eprintln!("Processing {} event", event_type);
 
-                // Parse the payload as JSON
-                if let Ok(json) =
-                    serde_json::from_slice::<Value>(&event.payload)
-                {
-                    eprintln!("Successfully parsed JSON: {:?}", json);
-                    // TODO: Implement proper processing of the JSON response
-                    (format!("{:?}", json), false, None)
+                if let Some(payload) = event.payload.as_ref() {
+                    process_event_payload(event_type, payload)
                 } else {
-                    eprintln!("Failed, raw payload: {:?}", event.payload);
-                    ("".to_string(), true, None)
+                    // no payload, return stop
+                    log::debug!("No payload in EventStreamMessage");
+                    (None, true, None)
                 }
             }
             Err(e) => {
-                eprintln!("Failed to parse EventStream message: {:?}", e);
-                ("".to_string(), true, None)
+                log::error!("Failed to parse EventStreamMessage: {}", e);
+                (None, true, None)
             }
         }
     }
@@ -197,7 +191,6 @@ impl ServerTrait for Bedrock {
         let data_payload =
             self.completion_api_payload(model, exchanges, Some(system_prompt))?;
 
-        eprintln!("Payload: {:?}", data_payload);
         let payload_hash = Sha256::digest(data_payload.as_bytes())
             .iter()
             .map(|byte| format!("{:02x}", byte))
@@ -239,3 +232,46 @@ impl ServerTrait for Bedrock {
     }
 }
 
+fn process_event_payload(
+    event_type: String,
+    payload: &[u8],
+) -> (Option<String>, bool, Option<usize>) {
+    if let Ok(json) = serde_json::from_slice::<Value>(payload) {
+        log::debug!("EventStream payload: {:?}", json);
+        match event_type.as_str() {
+            "messageStart" => {}
+            "contentBlockStart" => {}
+            "contentBlockDelta" => {
+                if let Some(text) = json["delta"]["text"].as_str() {
+                    log::debug!("Text received: {:?}", text);
+                    return (Some(text.to_string()), false, None);
+                }
+            }
+            "contentBlockStop" => {
+                log::debug!("ContentBlockStop: {:?}", json);
+                return (None, true, None);
+            }
+            "messageStop" => {
+                log::debug!("MessageStop: {:?}", json);
+                return (None, true, None);
+            }
+            "metadata" => {
+                log::debug!("Metadata: {:?}", json);
+                if let Some(usage) = json["usage"].as_object() {
+                    log::debug!("Usage: {:?}", usage);
+                }
+                if let Some(metrics) = json["metrics"].as_object() {
+                    log::debug!("Metrics: {:?}", metrics);
+                }
+            }
+            _ => {
+                log::warn!("Unhandled event type: {}", event_type);
+            }
+        }
+
+        (None, false, None)
+    } else {
+        log::error!("Failed to parse EventStream payload");
+        (None, true, None)
+    }
+}

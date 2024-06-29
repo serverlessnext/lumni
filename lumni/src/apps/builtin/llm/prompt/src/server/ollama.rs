@@ -99,10 +99,14 @@ impl ServerTrait for Ollama {
     fn process_response(
         &self,
         response: Bytes,
-    ) -> (String, bool, Option<usize>) {
+    ) -> (Option<String>, bool, Option<usize>) {
         match OllamaCompletionResponse::extract_content(response) {
-            Ok(chat) => (chat.message.content, chat.done, chat.eval_count),
-            Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
+            Ok(chat) => {
+                (Some(chat.message.content), chat.done, chat.eval_count)
+            }
+            Err(e) => {
+                (Some(format!("Failed to parse JSON: {}", e)), true, None)
+            }
         }
     }
 

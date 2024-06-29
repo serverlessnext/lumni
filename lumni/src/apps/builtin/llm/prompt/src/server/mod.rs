@@ -71,7 +71,7 @@ impl ServerTrait for ModelServer {
     fn process_response(
         &self,
         response: Bytes,
-    ) -> (String, bool, Option<usize>) {
+    ) -> (Option<String>, bool, Option<usize>) {
         match self {
             ModelServer::Llama(llama) => llama.process_response(response),
             ModelServer::Ollama(ollama) => ollama.process_response(response),
@@ -188,7 +188,7 @@ pub trait ServerTrait: Send + Sync {
     fn process_response(
         &self,
         response: Bytes,
-    ) -> (String, bool, Option<usize>);
+    ) -> (Option<String>, bool, Option<usize>);
 
     async fn tokenizer(
         &self,

@@ -101,10 +101,12 @@ impl ServerTrait for Llama {
     fn process_response(
         &self,
         response: Bytes,
-    ) -> (String, bool, Option<usize>) {
+    ) -> (Option<String>, bool, Option<usize>) {
         match LlamaCompletionResponse::extract_content(response) {
-            Ok(chat) => (chat.content, chat.stop, chat.tokens_predicted),
-            Err(e) => (format!("Failed to parse JSON: {}", e), true, None),
+            Ok(chat) => (Some(chat.content), chat.stop, chat.tokens_predicted),
+            Err(e) => {
+                (Some(format!("Failed to parse JSON: {}", e)), true, None)
+            }
         }
     }
 

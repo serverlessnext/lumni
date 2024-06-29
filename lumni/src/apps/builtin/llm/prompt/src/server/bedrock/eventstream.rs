@@ -6,12 +6,12 @@ use crc32fast::Hasher;
 #[derive(Debug)]
 pub struct EventStreamMessage {
     pub headers: HashMap<String, String>,
-    pub payload: Bytes,
+    pub payload: Option<Bytes>,
 }
 
 impl EventStreamMessage {
     pub fn from_bytes(mut buffer: Bytes) -> Result<Self, &'static str> {
-        // Parse a single message from an EventStream buffer. This works similar as to what is described in the AWS documentation for the Amazon Transcribe Streaming API: https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html
+        // Parse a single message from an EventStream buffer. This works similar as to what is described in the AWS documentation for the Amazon Transcribe Streaming API:
 
         if buffer.remaining() < 16 {
             // Minimum size of a message
@@ -20,7 +20,7 @@ impl EventStreamMessage {
 
         // store pointer to start of message, so we can calculate final CRC32
         let message_excluding_final_crc =
-            buffer.slice(..buffer.remaining() - 4);
+            buffer.slice(..buffer.remaining() - 4).clone();
 
         // Copy the prelude part for CRC calculation before advancing the buffer
         let prelude_for_crc = buffer.slice(..8);
@@ -61,11 +61,17 @@ impl EventStreamMessage {
         }
 
         let message_crc = buffer.get_u32();
-        if message_crc != calculate_crc32(&message_excluding_final_crc) {
-            return Err("Message CRC mismatch");
+        if message_crc == calculate_crc32(&message_excluding_final_crc) {
+            Ok(EventStreamMessage {
+                headers,
+                payload: Some(payload),
+            })
+        } else {
+            Ok(EventStreamMessage {
+                headers,
+                payload: None,
+            })
         }
-
-        Ok(EventStreamMessage { headers, payload })
     }
 }
 
@@ -89,7 +95,7 @@ fn parse_headers(mut buffer: Bytes) -> HashMap<String, String> {
         let value_type = buffer.get_u8();
         let value = match value_type {
             7 => {
-                // String
+                // string type
                 if buffer.remaining() < 2 {
                     break;
                 }
@@ -103,7 +109,7 @@ fn parse_headers(mut buffer: Bytes) -> HashMap<String, String> {
                 value
             }
             _ => {
-                eprintln!("Unsupported header value type: {}", value_type);
+                log::warn!("Unsupported header value type: {}", value_type);
                 continue;
             }
         };

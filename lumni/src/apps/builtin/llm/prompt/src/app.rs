@@ -202,34 +202,51 @@ async fn prompt_app<B: Backend>(
                 }
             },
             Some(response_bytes) = rx.recv() => {
-                log::debug!("Received response: {:?}", response_bytes);
+                log::debug!("Received response with length {:?}", response_bytes.len());
                 let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
 
                 if trim_buffer.is_none() {
                     // new response stream started
+                    log::debug!("New response stream started");
                     tab_ui.response.enable_auto_scroll();
                 }
 
                 let (response_content, is_final, tokens_predicted) = chat.process_response(response_bytes);
-                let trimmed_response_content = response_content.trim_end();
+
+                let trimmed_response = if let Some(text) = response_content.as_ref() {
+                    text.trim_end().to_string()
+                } else {
+                    "".to_string()
+                };
+                log::debug!("Trimmed response: {:?}", trimmed_response);
 
                 // display content should contain previous trimmed parts,
                 // with a trimmed version of the new response content
-                let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response_content);
-                chat.update_last_exchange(&display_content);
-                tab_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
+                let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response);
+
+                if !display_content.is_empty() {
+                    chat.update_last_exchange(&display_content);
+                    tab_ui.response.text_append_with_insert(&display_content, Some(PromptStyle::assistant()));
+                }
 
                 if is_final {
+                    log::debug!("Finalizing response");
                     finalize_response(&mut chat, &mut tab_ui, tokens_predicted).await?;
                     trim_buffer = None;
-                    // cancel the keep_running flag
-
+                    // clear rx buffer
+                    while let Ok(txt) = rx.try_recv() {
+                        log::debug!("Dropped={:?}", txt);
+                    }
                 } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
-                    let trailing_whitespace_start = trimmed_response_content.len();
-                    trim_buffer = Some(response_content[trailing_whitespace_start..].to_string());
+                    if let Some(text) = response_content {
+                        let trailing_whitespace_start = trimmed_response.len();
+                        trim_buffer = Some(text[trailing_whitespace_start..].to_string());
+                    } else {
+                        trim_buffer = Some("".to_string());
+                    }
                 }
                 redraw_ui = true;
             },

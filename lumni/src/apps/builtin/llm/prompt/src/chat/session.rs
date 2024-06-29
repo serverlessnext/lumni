@@ -151,7 +151,7 @@ impl ChatSession {
     pub fn process_response(
         &self,
         response: Bytes,
-    ) -> (String, bool, Option<usize>) {
+    ) -> (Option<String>, bool, Option<usize>) {
         self.server.process_response(response)
     }
 
@@ -175,7 +175,9 @@ impl ChatSession {
             while let Some(response) = rx.recv().await {
                 let (response_content, is_final, _) =
                     self.process_response(response);
-                print!("{}", response_content);
+                if let Some(response_content) = response_content {
+                    print!("{}", response_content);
+                }
                 io::stdout().flush().expect("Failed to flush stdout");
 
                 if is_final {

@@ -231,14 +231,16 @@ async fn prompt_app<B: Backend>(
                 }
 
                 if is_final {
-                    log::debug!("Finalizing response");
+                    log::debug!("Final response received");
+                    // some servers may still send events after final chat exchange
+                    // e.g. for logging or metrics. These should be retrieved to ensure
+                    // the stream is fully consumed and processed.
+                    while let Ok(post_bytes) = rx.try_recv() {
+                        chat.process_response(post_bytes);
+                    }
                     finalize_response(&mut chat, &mut tab_ui, tokens_predicted).await?;
                     trim_buffer = None;
-                    // clear rx buffer
-                    while let Ok(txt) = rx.try_recv() {
-                        log::debug!("Dropped={:?}", txt);
-                    }
-                } else {
+               } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
                     if let Some(text) = response_content {

@@ -156,13 +156,7 @@ impl ServerTrait for Bedrock {
                     .cloned()
                     .unwrap_or_default();
 
-                if let Some(payload) = event.payload.as_ref() {
-                    process_event_payload(event_type, payload)
-                } else {
-                    // no payload, return stop
-                    log::debug!("No payload in EventStreamMessage");
-                    (None, true, None)
-                }
+                process_event_payload(event_type, event.payload)
             }
             Err(e) => {
                 log::error!("Failed to parse EventStreamMessage: {}", e);
@@ -234,29 +228,16 @@ impl ServerTrait for Bedrock {
 
 fn process_event_payload(
     event_type: String,
-    payload: &[u8],
+    payload: Option<Bytes>,
 ) -> (Option<String>, bool, Option<usize>) {
-    if let Ok(json) = serde_json::from_slice::<Value>(payload) {
-        log::debug!("EventStream payload: {:?}", json);
-        match event_type.as_str() {
-            "messageStart" => {}
-            "contentBlockStart" => {}
-            "contentBlockDelta" => {
-                if let Some(text) = json["delta"]["text"].as_str() {
-                    log::debug!("Text received: {:?}", text);
-                    return (Some(text.to_string()), false, None);
-                }
-            }
-            "contentBlockStop" => {
-                log::debug!("ContentBlockStop: {:?}", json);
-                return (None, true, None);
-            }
-            "messageStop" => {
-                log::debug!("MessageStop: {:?}", json);
-                return (None, true, None);
-            }
-            "metadata" => {
-                log::debug!("Metadata: {:?}", json);
+    let mut stop = false;
+
+    log::debug!("EventType: {:?}", event_type);
+    match event_type.as_str() {
+        "messageStart" | "contentBlockStart" => {}
+        "contentBlockStop" | "messageStop" => stop = true,
+        "metadata" => {
+            if let Some(json) = parse_payload(payload) {
                 if let Some(usage) = json["usage"].as_object() {
                     log::debug!("Usage: {:?}", usage);
                 }
@@ -264,14 +245,28 @@ fn process_event_payload(
                     log::debug!("Metrics: {:?}", metrics);
                 }
             }
-            _ => {
-                log::warn!("Unhandled event type: {}", event_type);
+        }
+        "contentBlockDelta" => {
+            if let Some(json) = parse_payload(payload) {
+                if let Some(text) = json["delta"]["text"].as_str() {
+                    log::debug!("Text received: {:?}", text);
+                    return (Some(text.to_string()), false, None);
+                }
             }
         }
-
-        (None, false, None)
-    } else {
-        log::error!("Failed to parse EventStream payload");
-        (None, true, None)
+        _ => {
+            log::warn!("Unhandled event type: {}", event_type);
+        }
     }
+    (None, stop, None)
+}
+
+fn parse_payload(payload: Option<Bytes>) -> Option<Value> {
+    payload.and_then(|p| match serde_json::from_slice(&p) {
+        Ok(json) => Some(json),
+        Err(_) => {
+            log::error!("Failed to parse payload");
+            None
+        }
+    })
 }

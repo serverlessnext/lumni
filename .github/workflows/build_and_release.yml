@@ -28,6 +28,7 @@ jobs:
           TAG=$(bash ./ci/base36timestamp.sh)
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
   build:
+    needs: prebuild
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

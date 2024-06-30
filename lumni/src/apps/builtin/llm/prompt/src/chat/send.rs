@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+
 use bytes::{Bytes, BytesMut};
-use lumni::api::error::{HttpClientError, ApplicationError};
+use lumni::api::error::{ApplicationError, HttpClientError};
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
@@ -69,10 +70,15 @@ pub async fn http_get_with_response(
     url: String,
     http_client: HttpClient,
 ) -> Result<Bytes, ApplicationError> {
-    let header = HashMap::from([("Content-Type".to_string(), "application/json".to_string())]);
+    let header = HashMap::from([(
+        "Content-Type".to_string(),
+        "application/json".to_string(),
+    )]);
     let (tx, mut rx) = mpsc::channel(1);
-    
-    let result = http_client.get(&url, Some(&header), None, Some(tx), None).await;
+
+    let result = http_client
+        .get(&url, Some(&header), None, Some(tx), None)
+        .await;
 
     match result {
         Ok(_) => {
@@ -82,8 +88,8 @@ pub async fn http_get_with_response(
             }
             drop(rx); // drop the receiver to close the channel
             Ok(response_bytes.freeze())
-        },
-        Err(e) => Err(e.into())
+        }
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -92,11 +98,23 @@ pub async fn http_post_with_response(
     http_client: HttpClient,
     payload: String,
 ) -> Result<Bytes, ApplicationError> {
-    let headers = HashMap::from([("Content-Type".to_string(), "application/json".to_string())]);
+    let headers = HashMap::from([(
+        "Content-Type".to_string(),
+        "application/json".to_string(),
+    )]);
     let (tx, mut rx) = mpsc::channel(1);
     let payload_bytes = Bytes::from(payload.into_bytes());
 
-    let result = http_client.post(&url, Some(&headers), None, Some(&payload_bytes), Some(tx), None).await;
+    let result = http_client
+        .post(
+            &url,
+            Some(&headers),
+            None,
+            Some(&payload_bytes),
+            Some(tx),
+            None,
+        )
+        .await;
 
     // Handle the result of the HTTP POST request
     match result {
@@ -107,8 +125,7 @@ pub async fn http_post_with_response(
             }
             drop(rx); // drop the receiver to close the channel
             Ok(response_bytes.freeze())
-        },
-        Err(e) => Err(e.into())
+        }
+        Err(e) => Err(e.into()),
     }
 }
-

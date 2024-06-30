@@ -3,16 +3,18 @@ use std::error::Error;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
-use crate::external as lumni;
-use lumni::api::error::ApplicationError;
 use super::{
-    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange, ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction, PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE
+    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
+    ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
+    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
 };
+use crate::external as lumni;
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
@@ -84,15 +86,22 @@ impl Llama {
         let settings_endpoint = self
             .endpoints
             .get_settings()
-            .expect("Settings endpoint not set")
+            .ok_or_else(|| {
+                ApplicationError::ServerConfigurationError(
+                    "Settings endpoint not set".to_string(),
+                )
+            })?
             .to_string();
 
         let response =
             http_get_with_response(settings_endpoint, self.http_client.clone())
                 .await?;
-        Ok(serde_json::from_slice::<LlamaServerSettingsResponse>(
-            &response,
-        ).map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?)
+        Ok(
+            serde_json::from_slice::<LlamaServerSettingsResponse>(&response)
+                .map_err(|e| {
+                    ApplicationError::ServerConfigurationError(e.to_string())
+                })?,
+        )
     }
 }
 
@@ -117,7 +126,7 @@ impl ServerTrait for Llama {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.model.as_ref().expect("Model not available");
+        let model = self.get_model_selected()?;
         let prompt = ChatHistory::exchanges_to_string(model, exchanges);
         let data_payload =
             self.completion_api_payload(prompt, exchanges, prompt_instruction);
@@ -159,7 +168,8 @@ impl ServerTrait for Llama {
         let system_prompt_payload =
             self.system_prompt_payload(prompt_instruction);
         if let Some(payload) = system_prompt_payload {
-            let completion_endpoint = self.endpoints.get_completion_endpoint()?;
+            let completion_endpoint =
+                self.endpoints.get_completion_endpoint()?;
 
             http_post(
                 completion_endpoint,
@@ -205,9 +215,12 @@ impl ServerTrait for Llama {
         content: &str,
     ) -> Result<Option<TokenResponse>, ApplicationError> {
         if let Some(endpoint) = self.endpoints.get_tokenizer() {
-            let body_content =
-                serde_json::to_string(&json!({ "content": content }))
-                    .map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?;
+            let body_content = serde_json::to_string(
+                &json!({ "content": content }),
+            )
+            .map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?;
             let body = Bytes::copy_from_slice(body_content.as_bytes());
 
             let url = endpoint.to_string();
@@ -223,7 +236,10 @@ impl ServerTrait for Llama {
                 .await
                 .map_err(|e| ApplicationError::HttpClientError(e))?;
 
-            let response = http_response.json::<TokenResponse>().map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?;
+            let response =
+                http_response.json::<TokenResponse>().map_err(|e| {
+                    ApplicationError::ServerConfigurationError(e.to_string())
+                })?;
             Ok(Some(response))
         } else {
             Ok(None)

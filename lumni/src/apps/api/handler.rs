@@ -3,7 +3,7 @@ use std::pin::Pin;
 
 use futures::channel::mpsc;
 
-use super::error::Error;
+use super::error::LumniError;
 use super::invoke::Request;
 use super::spec::ApplicationSpec;
 
@@ -16,10 +16,10 @@ pub trait AppHandler: Send + Sync + 'static {
     fn incoming_request(
         &self,
         _rx: mpsc::UnboundedReceiver<Request>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), LumniError>>>> {
         let package_name = self.package_name();
         Box::pin(async move {
-            Err(Error::NotImplemented(format!(
+            Err(LumniError::NotImplemented(format!(
                 "Incoming request handling is not implemented for '{}'.",
                 package_name
             )))
@@ -30,10 +30,10 @@ pub trait AppHandler: Send + Sync + 'static {
         &self,
         _spec: ApplicationSpec,
         _args: Vec<String>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), LumniError>>>> {
         let package_name = self.package_name();
         Box::pin(async move {
-            Err(Error::NotImplemented(format!(
+            Err(LumniError::NotImplemented(format!(
                 "CLI is not implemented for '{}'.",
                 package_name
             )))

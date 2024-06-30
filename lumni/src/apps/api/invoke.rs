@@ -1,6 +1,6 @@
 use futures::channel::mpsc;
 
-use super::error::*;
+use super::error::LumniError;
 use crate::api::types::Data;
 use crate::EnvironmentConfig;
 
@@ -8,14 +8,14 @@ use crate::EnvironmentConfig;
 pub struct Request {
     content: Data,
     config: Option<EnvironmentConfig>,
-    tx: mpsc::UnboundedSender<Result<Response, Error>>,
+    tx: mpsc::UnboundedSender<Result<Response, LumniError>>,
 }
 
 impl Request {
     pub fn new(
         content: Data,
         config: Option<EnvironmentConfig>,
-        tx: mpsc::UnboundedSender<Result<Response, Error>>,
+        tx: mpsc::UnboundedSender<Result<Response, LumniError>>,
     ) -> Self {
         Self {
             content,
@@ -32,7 +32,7 @@ impl Request {
         self.config.clone()
     }
 
-    pub fn tx(&self) -> &mpsc::UnboundedSender<Result<Response, Error>> {
+    pub fn tx(&self) -> &mpsc::UnboundedSender<Result<Response, LumniError>> {
         &self.tx
     }
 }

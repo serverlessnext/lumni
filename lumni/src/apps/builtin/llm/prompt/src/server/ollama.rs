@@ -2,15 +2,17 @@ use std::error::Error;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
-use crate::external as lumni;
-use lumni::api::error::ApplicationError;
 use super::{
-    http_get_with_response, http_post, http_post_with_response, ChatExchange, ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerTrait
+    http_get_with_response, http_post, http_post_with_response, ChatExchange,
+    ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
+    PromptInstruction, ServerTrait,
 };
+use crate::external as lumni;
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
 pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";
@@ -64,13 +66,15 @@ impl ServerTrait for Ollama {
         model: LLMDefinition,
         _prompt_instruction: &PromptInstruction,
     ) -> Result<(), ApplicationError> {
-        self.model = Some(model);
-        let model_name =
-            self.model.as_ref().expect("Model not available").get_name();
-
-        let payload = OllamaShowPayload { name: model_name }
-            .serialize()
-            .expect("Failed to serialize show payload");
+        let payload = OllamaShowPayload {
+            name: model.get_name(),
+        }
+        .serialize()
+        .ok_or_else(|| {
+            ApplicationError::ServerConfigurationError(
+                "Failed to serialize show payload".to_string(),
+            )
+        })?;
 
         let response = http_post_with_response(
             DEFAULT_SHOW_ENDPOINT.to_string(),
@@ -84,13 +88,14 @@ impl ServerTrait for Ollama {
             if OllamaShowResponse::extract_content(&response).is_err() {
                 let error_message = format!(
                     "Failed to get model information for: {}",
-                    model_name
+                    model.get_name()
                 );
                 return Err(ApplicationError::ServerConfigurationError(
                     error_message,
                 ));
             }
         }
+        self.model = Some(model);
         Ok(())
     }
 
@@ -119,9 +124,8 @@ impl ServerTrait for Ollama {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
+        let model = self.get_model_selected()?;
         let system_prompt = prompt_instruction.get_instruction();
-
-        let model = self.model.as_ref().expect("Model not available");
 
         let data_payload =
             self.completion_api_payload(model, exchanges, Some(system_prompt));

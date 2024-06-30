@@ -10,6 +10,7 @@ use bytes::Bytes;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
 pub use llm::LLMDefinition;
+use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
 use tokio::sync::{mpsc, oneshot};
@@ -22,7 +23,6 @@ pub use super::chat::{
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
-use lumni::api::error::ApplicationError;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 3] = ["llama", "ollama", "bedrock"];
 
@@ -38,12 +38,16 @@ impl ModelServer {
             "llama" => Ok(ModelServer::Llama(Llama::new().map_err(|e| {
                 ApplicationError::ServerConfigurationError(e.to_string())
             })?)),
-            "ollama" => Ok(ModelServer::Ollama(Ollama::new().map_err(|e| {
-                ApplicationError::ServerConfigurationError(e.to_string())
-            })?)),
-            "bedrock" => Ok(ModelServer::Bedrock(Bedrock::new().map_err(|e| {
-                ApplicationError::ServerConfigurationError(e.to_string())
-            })?)),
+            "ollama" => {
+                Ok(ModelServer::Ollama(Ollama::new().map_err(|e| {
+                    ApplicationError::ServerConfigurationError(e.to_string())
+                })?))
+            }
+            "bedrock" => {
+                Ok(ModelServer::Bedrock(Bedrock::new().map_err(|e| {
+                    ApplicationError::ServerConfigurationError(e.to_string())
+                })?))
+            }
             _ => Err(ApplicationError::NotImplemented(format!(
                 "Server {} not supported",
                 s
@@ -176,11 +180,19 @@ pub trait ServerTrait: Send + Sync {
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError>;
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError>;
+    async fn list_models(&self)
+        -> Result<Vec<LLMDefinition>, ApplicationError>;
 
     fn get_model(&self) -> Option<&LLMDefinition>;
+
+    fn get_model_selected(&self) -> Result<&LLMDefinition, ApplicationError> {
+        match self.get_model() {
+            Some(m) => Ok(m),
+            None => {
+                Err(ApplicationError::NotReady("No model selected".to_string()))
+            }
+        }
+    }
 
     fn process_response(
         &self,

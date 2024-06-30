@@ -5,11 +5,10 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::api::error::ApplicationError;
-
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
 use super::{PromptInstruction, ServerTrait};
+use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
     server: Box<dyn ServerTrait>,
@@ -58,7 +57,7 @@ impl ChatSession {
             last_exchange.set_answer(trimmed_answer);
 
             let temp_vec = vec![&*last_exchange];
-            let model = self.server.get_model().expect("Model not available");
+            let model = self.server.get_model_selected()?;
 
             let last_prompt_text =
                 ChatHistory::exchanges_to_string(model, temp_vec);
@@ -136,7 +135,7 @@ impl ChatSession {
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
 
-        let model = self.server.get_model().expect("Model not available");
+        let model = self.server.get_model_selected()?;
 
         let last_prompt_text =
             ChatHistory::exchanges_to_string(model, temp_vec);

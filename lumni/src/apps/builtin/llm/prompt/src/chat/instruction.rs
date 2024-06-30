@@ -1,4 +1,3 @@
-
 use lumni::api::error::ApplicationError;
 
 use super::history::ChatHistory;
@@ -8,7 +7,6 @@ use super::{
     DEFAULT_TEMPERATURE, PERSONAS,
 };
 pub use crate::external as lumni;
-
 
 pub struct PromptInstruction {
     completion_options: ChatCompletionOptions,
@@ -140,12 +138,13 @@ impl PromptInstruction {
         user_instruction: Option<String>,
     ) -> Result<(), ApplicationError> {
         // Find the selected persona by name
-        let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS).map_err(|e| {
-            ApplicationError::Unexpected(format!(
-                "Failed to parse persona data: {}",
-                e.to_string()
-            ))
-        })?;
+        let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)
+            .map_err(|e| {
+                ApplicationError::Unexpected(format!(
+                    "Failed to parse persona data: {}",
+                    e.to_string()
+                ))
+            })?;
         if let Some(prompt) = assistant_prompts
             .into_iter()
             .find(|p| p.name() == assistant)

@@ -33,9 +33,7 @@ pub struct ColorScheme {
 impl ColorScheme {
     pub fn new(scheme_type: ColorSchemeType) -> Self {
         let colors = Self::get_colors(&scheme_type);
-        ColorScheme {
-            colors: colors,
-        }
+        ColorScheme { colors: colors }
     }
 
     pub fn switch_scheme(&mut self, new_scheme: ColorSchemeType) {

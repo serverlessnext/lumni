@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use lumni::api::error::Error;
+use lumni::api::error::LumniError;
 use lumni::api::get_app_handler;
 use lumni::api::handler::AppHandler;
 use lumni::api::spec::SpecYamlType;
@@ -84,13 +84,13 @@ impl AppConfig {
 
     pub fn configuration_form_elements(
         &self,
-    ) -> Result<Vec<ElementBuilder>, Error> {
+    ) -> Result<Vec<ElementBuilder>, LumniError> {
         parse_yaml(self.load_app_specification(), SpecYamlType::Configuration)
     }
 
     pub fn interface_form_elements(
         &self,
-    ) -> Result<Vec<ElementBuilder>, Error> {
+    ) -> Result<Vec<ElementBuilder>, LumniError> {
         parse_yaml(self.load_app_specification(), SpecYamlType::Interface)
     }
 }

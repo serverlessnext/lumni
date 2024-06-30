@@ -52,7 +52,6 @@ pub enum HttpClientError {
     Other(String),
 }
 
-
 impl fmt::Display for HttpClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -176,9 +175,11 @@ impl HttpClient {
             .body(request_body)
             .expect("Failed to build the request");
         // Send the request and await the response, handling timeout as needed
-        let mut response = self.client.request(request).await.map_err(|e| {
-            HttpClientError::ConnectionError(e.to_string())
-        })?;
+        let mut response = self
+            .client
+            .request(request)
+            .await
+            .map_err(|e| HttpClientError::ConnectionError(e.to_string()))?;
 
         if !response.status().is_success() {
             let canonical_reason = response

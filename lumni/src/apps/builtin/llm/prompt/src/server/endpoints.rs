@@ -1,4 +1,3 @@
-
 use url::Url;
 
 use crate::api::error::ApplicationError;
@@ -24,14 +23,18 @@ impl Endpoints {
     pub fn get_completion_endpoint(&self) -> Result<String, ApplicationError> {
         match self.completion.as_ref() {
             Some(url) => Ok(url.to_string()),
-            None => Err(ApplicationError::NotImplemented("Completion endpoint not defined".to_string())),
+            None => Err(ApplicationError::NotImplemented(
+                "Completion endpoint not defined".to_string(),
+            )),
         }
     }
 
     pub fn get_list_models_endpoint(&self) -> Result<String, ApplicationError> {
         match self.list_models.as_ref() {
             Some(url) => Ok(url.to_string()),
-            None => Err(ApplicationError::NotImplemented("List models endpoint not defined".to_string())),
+            None => Err(ApplicationError::NotImplemented(
+                "List models endpoint not defined".to_string(),
+            )),
         }
     }
 

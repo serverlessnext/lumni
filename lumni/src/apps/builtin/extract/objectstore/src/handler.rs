@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
 
-use crate::api::error::*;
+use crate::api::error::{LumniError, RequestError};
 use crate::api::handler::AppHandler;
 use crate::api::invoke::{Request, Response};
 use crate::api::types::{
@@ -26,14 +26,14 @@ impl AppHandler for Handler {
     fn incoming_request(
         &self,
         rx: mpsc::UnboundedReceiver<Request>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Error>>>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), LumniError>>>> {
         Box::pin(handle_incoming_request(rx))
     }
 }
 
 async fn handle_incoming_request(
     mut rx: mpsc::UnboundedReceiver<Request>,
-) -> Result<(), Error> {
+) -> Result<(), LumniError> {
     if let Some(request) = rx.next().await {
         let tx = request.tx();
 
@@ -55,7 +55,7 @@ async fn handle_incoming_request(
                 Ok(generate_test_data_row())
             }
             _ => {
-                let err = Error::Request(RequestError::QueryInvalid(
+                let err = LumniError::Request(RequestError::QueryInvalid(
                     "Invalid data type".into(),
                 ));
                 Err(err)

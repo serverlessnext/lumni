@@ -1,6 +1,6 @@
 use std::env;
 
-use crate::LakestreamError;
+use crate::{ApplicationError, LumniError};
 
 pub const AWS_DEFAULT_REGION: &str = "us-east-1";
 
@@ -27,17 +27,22 @@ impl AWSCredentials {
         }
     }
 
-    pub fn from_env() -> Result<AWSCredentials, LakestreamError> {
+    pub fn from_env() -> Result<AWSCredentials, LumniError> {
         let access_key = env::var("AWS_ACCESS_KEY_ID").map_err(|_| {
-            LakestreamError::ConfigError(
-                "AWS_ACCESS_KEY_ID not found in the config and environment"
-                    .to_string(),
+            LumniError::Application(
+                ApplicationError::InvalidCredentials(
+                    "AWS_ACCESS_KEY_ID not found in environment".to_string(),
+                ),
+                None,
             )
         })?;
         let secret_key = env::var("AWS_SECRET_ACCESS_KEY").map_err(|_| {
-            LakestreamError::ConfigError(
-                "AWS_SECRET_ACCESS_KEY not found in the config and environment"
-                    .to_string(),
+            LumniError::Application(
+                ApplicationError::InvalidCredentials(
+                    "AWS_SECRET_ACCESS_KEY not found in environment"
+                        .to_string(),
+                ),
+                None,
             )
         })?;
         let region = env::var("AWS_REGION").unwrap_or_else(|_| {

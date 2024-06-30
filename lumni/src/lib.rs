@@ -11,12 +11,14 @@ pub(crate) mod utils;
 
 // note - please not rely on these components to remain exposed as part of the API
 // see external module for parts that are meant to be part of the stable API
+pub use api::error::{ApplicationError, LumniError};
 pub use base::callback_wrapper::{
     BinaryCallbackWrapper, CallbackItem, CallbackWrapper,
 };
 pub use base::config::EnvironmentConfig;
 pub use base::file_object::FileObject;
 pub use base::filters::FileObjectFilter;
+// LakestreamError should be phased out in favor of LumniError
 pub use error::LakestreamError;
 pub use handlers::ObjectStoreHandler;
 pub use table::{

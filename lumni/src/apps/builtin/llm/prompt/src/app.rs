@@ -14,8 +14,8 @@ use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
-use lumni::api::spec::ApplicationSpec;
 use lumni::api::error::ApplicationError;
+use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
@@ -25,12 +25,12 @@ use tokio::time::{interval, Duration};
 
 use super::chat::ChatSession;
 use super::server::{
-    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS
+    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
 };
 use super::session::AppSession;
 use super::tui::{
-    CommandLineAction, KeyEventHandler, PromptAction, TabUi, TextWindowTrait,
-    WindowEvent, ColorScheme, ColorSchemeType,
+    ColorScheme, ColorSchemeType, CommandLineAction, KeyEventHandler,
+    PromptAction, TabUi, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -269,9 +269,10 @@ async fn finalize_response(
     // stop trying to get more responses
     chat.stop();
     // finalize with newline for in display
-    tab_ui
-        .response
-        .text_append_with_insert("\n", Some(color_scheme.get_secondary_style()));
+    tab_ui.response.text_append_with_insert(
+        "\n",
+        Some(color_scheme.get_secondary_style()),
+    );
     // add an empty unstyled line
     tab_ui
         .response
@@ -338,10 +339,12 @@ pub async fn run_cli(
     // setup server
     let mut server = ModelServer::from_str(&server_name)?;
 
-    let models = server.list_models().await?;   //.ok_or("No models available.")?;
-    
+    let models = server.list_models().await?; //.ok_or("No models available.")?;
+
     let model = if models.is_empty() {
-        return Err(ApplicationError::ServerConfigurationError("No mode.".to_string()));
+        return Err(ApplicationError::ServerConfigurationError(
+            "No mode.".to_string(),
+        ));
         //return Err("Model list is empty.".into());
     } else {
         models[0].to_owned()
@@ -450,11 +453,12 @@ async fn process_non_interactive_input(
         }
 
         let keep_running = Arc::new(AtomicBool::new(true));
-        Ok(chat.process_prompt(stdin_input.trim_end().to_string(), keep_running)
+        Ok(chat
+            .process_prompt(stdin_input.trim_end().to_string(), keep_running)
             .await)
     } else {
         Err(ApplicationError::Unexpected(
-            "Failed to read initial byte from stdin, possibly empty".into()
+            "Failed to read initial byte from stdin, possibly empty".into(),
         ))
     }
 }

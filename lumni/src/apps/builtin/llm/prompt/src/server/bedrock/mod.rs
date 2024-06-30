@@ -1,3 +1,4 @@
+mod error;
 mod eventstream;
 mod request;
 
@@ -6,11 +7,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use error::AWSErrorHandler;
 use eventstream::EventStreamMessage;
-use lumni::{
-    AWSCredentials, AWSRequestBuilder, HttpClient, HttpClientError,
-    HttpClientErrorHandler, HttpClientResponse,
-};
+use lumni::api::error::ApplicationError;
+use lumni::{AWSCredentials, AWSRequestBuilder, HttpClient};
 use request::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -21,33 +21,7 @@ use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
     LLMDefinition, PromptInstruction, ServerTrait,
 };
-use lumni::api::error::ApplicationError;
 pub use crate::external as lumni;
-
-struct AWSErrorHandler;
-
-impl HttpClientErrorHandler for AWSErrorHandler {
-    fn handle_error(
-        &self,
-        response: HttpClientResponse,
-        canonical_reason: String,
-    ) -> HttpClientError {
-        if response.status_code() == 403 {
-            if let Some(value) = response.headers().get("x-amzn-errortype") {
-                if let Ok(err_type) = value.to_str() {
-                    if err_type.starts_with("ExpiredTokenException") {
-                        return HttpClientError::HttpError(
-                            403,
-                            "ExpiredToken".to_string(),
-                        );
-                    }
-                }
-            }
-        }
-        // Fallback if no special handling is needed
-        HttpClientError::HttpError(response.status_code(), canonical_reason)
-    }
-}
 
 pub struct Bedrock {
     http_client: HttpClient,
@@ -172,8 +146,8 @@ impl ServerTrait for Bedrock {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
+        let model = self.get_model_selected()?;
         let system_prompt = prompt_instruction.get_instruction();
-        let model = self.model.as_ref().expect("Model not available");
 
         let resource = HttpClient::percent_encode_with_exclusion(
             &format!("/model/{}/converse-stream", model.get_name()),
@@ -182,28 +156,34 @@ impl ServerTrait for Bedrock {
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let full_url = format!("{}{}", completion_endpoint, resource);
 
-        let data_payload =
-            self.completion_api_payload(model, exchanges, Some(system_prompt))
-                .map_err(|e| ApplicationError::InvalidUserConfiguration(e.to_string()))?;
+        let data_payload = self
+            .completion_api_payload(model, exchanges, Some(system_prompt))
+            .map_err(|e| {
+                ApplicationError::InvalidUserConfiguration(e.to_string())
+            })?;
 
         let payload_hash = Sha256::digest(data_payload.as_bytes())
             .iter()
             .map(|byte| format!("{:02x}", byte))
             .collect::<String>();
+
         let request_builder = AWSRequestBuilder::new(completion_endpoint);
-        let credentials = AWSCredentials::from_env()
-            .ok()
-            .expect("No credentials found");
-        let headers = request_builder.generate_headers(
-            "POST",
-            "bedrock",
-            &credentials,
-            // resource must be double percent encoded, generate_headers() will percent encode
-            // it again. I.e. double percent-encoded, required to get correct v4 sig
-            Some(&resource),
-            None, // query string
-            Some(&payload_hash),
-        ).map_err(|e| ApplicationError::InvalidUserConfiguration(e.to_string()))?;
+        let credentials = AWSCredentials::from_env()?;
+
+        let headers = request_builder
+            .generate_headers(
+                "POST",
+                "bedrock",
+                &credentials,
+                // resource must be double percent encoded, generate_headers() will percent encode
+                // it again. I.e. double percent-encoded, required to get correct v4 sig
+                Some(&resource),
+                None, // query string
+                Some(&payload_hash),
+            )
+            .map_err(|e| {
+                ApplicationError::InvalidUserConfiguration(e.to_string())
+            })?;
 
         http_post(
             full_url,

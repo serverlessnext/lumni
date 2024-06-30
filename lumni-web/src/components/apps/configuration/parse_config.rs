@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lumni::api::error::{ApplicationError, Error};
+use lumni::api::error::{ApplicationError, LumniError};
 use lumni::api::spec::{
     parse_yaml_to_root, ApplicationSpec, SpecYamlType, YamlFormElement,
 };
@@ -10,32 +10,38 @@ use crate::components::forms::builders::ElementBuilder;
 
 fn transform_to_configuration_environment(
     spec: &ApplicationSpec,
-) -> Result<Vec<ElementBuilder>, Error> {
+) -> Result<Vec<ElementBuilder>, LumniError> {
     if let Some(configuration) = spec.configuration() {
         form_elements_from_yaml(configuration.form_elements())
     } else {
-        Err(Error::Application(ApplicationError::InvalidUserConfiguration(
-            "Configuration not found in YAML.".to_string(),
-        )))
+        Err(LumniError::Application(
+            ApplicationError::InvalidUserConfiguration(
+                "Configuration not found in YAML.".to_string(),
+            ),
+            None,
+        ))
     }
 }
 
 fn transform_to_interface_form(
     spec: &ApplicationSpec,
-) -> Result<Vec<ElementBuilder>, Error> {
+) -> Result<Vec<ElementBuilder>, LumniError> {
     if let Some(interface) = spec.interface() {
         form_elements_from_yaml(interface.form_elements())
     } else {
-        Err(Error::Application(ApplicationError::InvalidUserConfiguration(
-            "Interface not found in YAML.".to_string(),
-        )))
+        Err(LumniError::Application(
+            ApplicationError::InvalidUserConfiguration(
+                "Interface not found in YAML.".to_string(),
+            ),
+            None,
+        ))
     }
 }
 
 pub fn parse_yaml(
     yaml_str: &str,
     yaml_type: SpecYamlType,
-) -> Result<Vec<ElementBuilder>, Error> {
+) -> Result<Vec<ElementBuilder>, LumniError> {
     let root = parse_yaml_to_root(yaml_str)?;
 
     match yaml_type {
@@ -43,15 +49,18 @@ pub fn parse_yaml(
             transform_to_configuration_environment(&root)
         }
         SpecYamlType::Interface => transform_to_interface_form(&root),
-        _ => Err(Error::Application(ApplicationError::InvalidUserConfiguration(
-            "Invalid YAML type.".to_string(),
-        ))),
+        _ => Err(LumniError::Application(
+            ApplicationError::InvalidUserConfiguration(
+                "Invalid YAML type.".to_string(),
+            ),
+            None,
+        )),
     }
 }
 
 fn form_elements_from_yaml(
     data: &[YamlFormElement],
-) -> Result<Vec<ElementBuilder>, Error> {
+) -> Result<Vec<ElementBuilder>, LumniError> {
     let mut results: Vec<ElementBuilder> = Vec::new();
 
     for element in data.iter() {
@@ -74,10 +83,11 @@ fn form_elements_from_yaml(
             let pattern = match Regex::new(&validation.pattern()) {
                 Ok(pat) => pat,
                 Err(_) => {
-                    return Err(Error::Application(
+                    return Err(LumniError::Application(
                         ApplicationError::InvalidUserConfiguration(
                             "Invalid regex pattern".into(),
                         ),
+                        None,
                     ))
                 }
             };

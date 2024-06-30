@@ -5,7 +5,7 @@ use futures::stream::StreamExt;
 use leptos::ev::SubmitEvent;
 use leptos::logging::log;
 use leptos::*;
-use lumni::api::error::*;
+use lumni::api::error::{LumniError, RequestError, RuntimeError};
 use lumni::api::invoke::{Request, Response};
 use lumni::api::types::{Data, TableType};
 use lumni::EnvironmentConfig;
@@ -33,7 +33,7 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
 
     let results_rw = results_form.form_data_rw();
 
-    let (tx, mut rx) = mpsc::unbounded::<Result<Response, Error>>();
+    let (tx, mut rx) = mpsc::unbounded::<Result<Response, LumniError>>();
 
     let app_config =
         AppConfig::new(app_uri, Some("Search Form".to_string()), None);
@@ -96,44 +96,23 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     }
                 },
                 Err(error) => match error {
-                    Error::Request(RequestError::QueryInvalid(e)) => {
+                    LumniError::Request(RequestError::QueryInvalid(e)) => {
                         log::error!("RequestError - Invalid Query: {}", e);
                     }
-                    Error::Runtime(RuntimeError::Unexpected(e)) => {
+                    LumniError::Runtime(RuntimeError::Unexpected(e)) => {
                         log::error!("RuntimeError - Unexpected: {}", e);
                     }
-                    Error::Application(ApplicationError::InvalidUserConfiguration(e)) => {
-                        log::error!("ApplicationError - Invalid Config: {}", e);
-                    }
-                    Error::Application(ApplicationError::Unexpected(e)) => {
-                        log::error!("ApplicationError - Unexpected: {}", e);
-                    }
-                    Error::Application(ApplicationError::Runtime(e)) => {
-                        log::error!("ApplicationError - Runtime: {}", e);
-                    }
-                    Error::Application(ApplicationError::InvalidCredentials(e)) => {
-                        log::error!("ApplicationError - Invalid Credentials: {}", e);
-                    }
-                    Error::Application(ApplicationError::ServerConfigurationError(e)) => {
-                        log::error!("ApplicationError - Server Config Error: {}", e);
-                    }
-                    Error::Application(ApplicationError::HttpClientError(e)) => {
-                        log::error!("ApplicationError - HTTP Client Error: {}", e);
-                    }
-                    Error::Application(ApplicationError::NotImplemented(e)) => {
-                        log::error!("ApplicationError - Not Implemented: {}", e);
-                    }
-                    Error::Application(ApplicationError::IoError(e)) => {
-                        log::error!("ApplicationError - IO Error: {}", e);
-                    }
-                    Error::Invoke(e) => {
+                    LumniError::Invoke(e, _) => {
                         log::error!("InvokeError: {}", e);
                     }
-                    Error::NotImplemented(e) => {
+                    LumniError::NotImplemented(e) => {
                         log::error!("NotImplemented: {}", e);
                     }
-                    Error::Message(e) => {
+                    LumniError::Message(e) => {
                         log::error!("{}", e);
+                    }
+                    LumniError::Application(error, _) => {
+                        log::error!("ApplicationError: {:?}", error);
                     }
                 },
             }

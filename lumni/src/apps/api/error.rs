@@ -5,11 +5,11 @@ pub use crate::http::client::HttpClientError;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub enum Error {
+pub enum LumniError {
     Request(RequestError),
     Runtime(RuntimeError),
-    Application(ApplicationError),
-    Invoke(ApplicationError),
+    Application(ApplicationError, Option<String>),
+    Invoke(ApplicationError, Option<String>),
     NotImplemented(String),
     Message(String),
 }
@@ -30,8 +30,8 @@ pub enum ApplicationError {
     HttpClientError(HttpClientError),
     IoError(std::io::Error),
     NotImplemented(String),
+    NotReady(String),
 }
-
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -39,19 +39,29 @@ pub enum RuntimeError {
     Unexpected(String),
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for LumniError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Request(req_err) => write!(f, "RequestError: {}", req_err),
-            Error::Runtime(runtime_err) => {
+            LumniError::Request(req_err) => {
+                write!(f, "RequestError: {}", req_err)
+            }
+            LumniError::Runtime(runtime_err) => {
                 write!(f, "RuntimeError: {}", runtime_err)
             }
-            Error::Application(app_err) => {
+            LumniError::Application(app_err, Some(app_name)) => {
+                write!(f, "[{}]: {}", app_name, app_err)
+            }
+            LumniError::Invoke(app_err, Some(app_name)) => {
+                write!(f, "[{}]: {}", app_name, app_err)
+            }
+            LumniError::Invoke(app_err, None) => {
+                write!(f, "InvokeError: {}", app_err)
+            }
+            LumniError::Application(app_err, None) => {
                 write!(f, "ApplicationError: {}", app_err)
             }
-            Error::Invoke(app_err) => write!(f, "InvokeError: {}", app_err),
-            Error::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
-            Error::Message(s) => write!(f, "{}", s),
+            LumniError::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
+            LumniError::Message(s) => write!(f, "{}", s),
         }
     }
 }
@@ -64,9 +74,14 @@ impl fmt::Display for RequestError {
     }
 }
 
-impl From<ApplicationError> for Error {
-    fn from(err: ApplicationError) -> Self {
-        Error::Application(err)
+impl From<LumniError> for ApplicationError {
+    fn from(error: LumniError) -> Self {
+        match error {
+            LumniError::Application(app_error, None) => app_error,
+            _ => {
+                ApplicationError::Unexpected("Unhandled LumniError".to_string())
+            }
+        }
     }
 }
 
@@ -92,22 +107,19 @@ impl fmt::Display for ApplicationError {
             ApplicationError::ServerConfigurationError(s) => {
                 write!(f, "ServerConfigurationError: {}", s)
             }
-            ApplicationError::HttpClientError(e) => write!(f, "HttpClientError: {}", e),
+            ApplicationError::HttpClientError(e) => {
+                write!(f, "HttpClientError: {}", e)
+            }
             ApplicationError::IoError(e) => write!(f, "IoError: {}", e),
-            ApplicationError::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
+            ApplicationError::NotImplemented(s) => {
+                write!(f, "NotImplemented: {}", s)
+            }
+            ApplicationError::NotReady(s) => write!(f, "NotReady: {}", s),
         }
     }
 }
 
 impl std::error::Error for ApplicationError {}
-
-impl From<Box<dyn std::error::Error>> for Error {
-    // any other Error type can be assumed to come from an
-    // application Invoke() method
-    fn from(error: Box<dyn std::error::Error>) -> Self {
-        Error::Invoke(ApplicationError::Runtime(error.to_string()))
-    }
-}
 
 impl From<HttpClientError> for ApplicationError {
     fn from(error: HttpClientError) -> Self {

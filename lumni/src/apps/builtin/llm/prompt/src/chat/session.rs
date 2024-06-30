@@ -7,20 +7,29 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
-use super::{PromptInstruction, ServerTrait};
+use super::{LLMDefinition, PromptInstruction, ServerManager};
 use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
-    server: Box<dyn ServerTrait>,
+    server: Box<dyn ServerManager>,
     prompt_instruction: PromptInstruction,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
-    pub fn new(
-        server: Box<dyn ServerTrait>,
-        prompt_instruction: PromptInstruction,
+    pub async fn new(
+        mut server: Box<dyn ServerManager>,
+        mut prompt_instruction: PromptInstruction,
+        model: Option<LLMDefinition>,
     ) -> Result<Self, ApplicationError> {
+        // initialize server directly if a model is available
+        // otherwise, must be done from the terminal window
+        if let Some(model) = model {
+            server
+                .setup_and_initialize(model, &mut prompt_instruction)
+                .await?;
+        }
+
         Ok(ChatSession {
             server,
             prompt_instruction,
@@ -57,7 +66,7 @@ impl ChatSession {
             last_exchange.set_answer(trimmed_answer);
 
             let temp_vec = vec![&*last_exchange];
-            let model = self.server.get_model_selected()?;
+            let model = self.server.get_selected_model()?;
 
             let last_prompt_text =
                 ChatHistory::exchanges_to_string(model, temp_vec);
@@ -135,7 +144,7 @@ impl ChatSession {
         let mut new_exchange = ChatExchange::new(user_question, "".to_string());
         let temp_vec = vec![&new_exchange];
 
-        let model = self.server.get_model_selected()?;
+        let model = self.server.get_selected_model()?;
 
         let last_prompt_text =
             ChatHistory::exchanges_to_string(model, temp_vec);

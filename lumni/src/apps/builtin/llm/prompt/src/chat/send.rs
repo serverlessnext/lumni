@@ -44,28 +44,6 @@ pub async fn http_post(
     });
 }
 
-pub async fn http_get(
-    url: String,
-    http_client: HttpClient,
-    tx: Option<mpsc::Sender<Bytes>>,
-    cancel_rx: Option<oneshot::Receiver<()>>,
-) {
-    let header = HashMap::from([(
-        "Content-Type".to_string(),
-        "application/json".to_string(),
-    )]);
-    tokio::spawn(async move {
-        match http_client
-            .get(&url, Some(&header), None, tx.clone(), cancel_rx)
-            .await
-        {
-            Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
-            Err(e) => log::error!("HTTP Get error: {}", e),
-            Ok(_) => {}
-        }
-    });
-}
-
 pub async fn http_get_with_response(
     url: String,
     http_client: HttpClient,

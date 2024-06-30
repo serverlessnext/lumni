@@ -49,12 +49,14 @@ impl ModelServer {
                 })?))
             }
             _ => Err(ApplicationError::NotImplemented(format!(
-                "Server {} not supported",
-                s
+                "{}. Supported server types: {:?}",
+                s, SUPPORTED_MODEL_ENDPOINTS
             ))),
         }
     }
 }
+
+impl ServerManager for ModelServer {}
 
 #[async_trait]
 impl ServerTrait for ModelServer {
@@ -185,7 +187,7 @@ pub trait ServerTrait: Send + Sync {
 
     fn get_model(&self) -> Option<&LLMDefinition>;
 
-    fn get_model_selected(&self) -> Result<&LLMDefinition, ApplicationError> {
+    fn get_selected_model(&self) -> Result<&LLMDefinition, ApplicationError> {
         match self.get_model() {
             Some(m) => Ok(m),
             None => {
@@ -230,5 +232,32 @@ pub trait ServerTrait: Send + Sync {
             PromptRole::Assistant => "assistant",
             PromptRole::System => "system",
         }
+    }
+}
+
+#[async_trait]
+pub trait ServerManager: ServerTrait {
+    async fn setup_and_initialize(
+        &mut self,
+        model: LLMDefinition,
+        prompt_instruction: &mut PromptInstruction,
+    ) -> Result<(), ApplicationError> {
+        log::debug!("Initializing server with model: {:?}", model);
+        // update completion options from the model, i.e. stop tokens
+        prompt_instruction
+            .get_completion_options_mut()
+            .update_from_model(&model);
+
+        // TODO: not fully implement yet
+        // requires both model and server to be ready, and then run
+        // in correct order
+        let instruction = prompt_instruction.get_instruction();
+        if instruction.is_empty() {
+            prompt_instruction.set_system_token_length(Some(0));
+        } else {
+            prompt_instruction
+                .set_system_token_length(self.token_length(instruction).await?);
+        };
+        self.initialize_with_model(model, prompt_instruction).await
     }
 }

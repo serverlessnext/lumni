@@ -126,7 +126,7 @@ impl ServerTrait for Llama {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_model_selected()?;
+        let model = self.get_selected_model()?;
         let prompt = ChatHistory::exchanges_to_string(model, exchanges);
         let data_payload =
             self.completion_api_payload(prompt, exchanges, prompt_instruction);

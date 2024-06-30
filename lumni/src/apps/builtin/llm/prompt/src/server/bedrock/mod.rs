@@ -146,7 +146,7 @@ impl ServerTrait for Bedrock {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_model_selected()?;
+        let model = self.get_selected_model()?;
         let system_prompt = prompt_instruction.get_instruction();
 
         let resource = HttpClient::percent_encode_with_exclusion(

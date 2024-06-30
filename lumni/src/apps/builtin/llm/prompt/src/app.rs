@@ -2,7 +2,6 @@ use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use clap::builder::PossibleValuesParser;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -25,7 +24,7 @@ use tokio::time::{interval, Duration};
 
 use super::chat::ChatSession;
 use super::server::{
-    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
+    ModelServer, PromptInstruction, ServerTrait,
 };
 use super::session::AppSession;
 use super::tui::{
@@ -306,10 +305,7 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
             Arg::new("server")
                 .long("server")
                 .short('S')
-                .help("Server to use for processing the request")
-                .value_parser(PossibleValuesParser::new(
-                    &SUPPORTED_MODEL_ENDPOINTS,
-                )),
+                .help("Server to use for processing the request"),
         )
         .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
@@ -336,42 +332,32 @@ pub async fn run_cli(
         .cloned()
         .unwrap_or_else(|| "ollama".to_string());
 
-    // setup server
-    let mut server = ModelServer::from_str(&server_name)?;
+    // create new (un-initialized) server from requested server name
+    let server = ModelServer::from_str(&server_name)?;
 
-    let models = server.list_models().await?; //.ok_or("No models available.")?;
-
-    let model = if models.is_empty() {
-        return Err(ApplicationError::ServerConfigurationError(
-            "No mode.".to_string(),
-        ));
-        //return Err("Model list is empty.".into());
-    } else {
-        models[0].to_owned()
+    // get default model from server - if available
+    let default_model = match server.list_models().await {
+        Ok(models) => {
+            if models.is_empty() {
+                log::warn!("Received empty model list");
+                None
+            } else {
+                log::debug!("Available models: {:?}", models);
+                Some(models[0].to_owned())
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to list models: {}", e);
+            None
+        }
     };
 
-    // setup prompt instruction
-    let mut prompt_instruction =
+    // setup prompt, server and chat session
+    let prompt_instruction =
         PromptInstruction::new(instruction, assistant, options)?;
-
-    // update completion options from the model, i.e. stop tokens
-    prompt_instruction
-        .get_completion_options_mut()
-        .update_from_model(&model);
-
-    let instruction = prompt_instruction.get_instruction();
-
-    if instruction.is_empty() {
-        prompt_instruction.set_system_token_length(Some(0));
-    } else {
-        prompt_instruction
-            .set_system_token_length(server.token_length(instruction).await?);
-    };
-    server
-        .initialize_with_model(model, &prompt_instruction)
-        .await?;
-
-    let chat_session = ChatSession::new(Box::new(server), prompt_instruction)?;
+    let chat_session =
+        ChatSession::new(Box::new(server), prompt_instruction, default_model)
+            .await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

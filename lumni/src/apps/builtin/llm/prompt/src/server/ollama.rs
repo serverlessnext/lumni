@@ -124,12 +124,11 @@ impl ServerTrait for Ollama {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_model_selected()?;
+        let model = self.get_selected_model()?;
         let system_prompt = prompt_instruction.get_instruction();
 
         let data_payload =
             self.completion_api_payload(model, exchanges, Some(system_prompt));
-
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
         if let Ok(payload) = data_payload {
@@ -154,7 +153,13 @@ impl ServerTrait for Ollama {
             list_models_endpoint.to_string(),
             self.http_client.clone(),
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            ApplicationError::NotReady(format!(
+                "Cannot get model list: {}",
+                e.to_string()
+            ))
+        })?;
 
         let api_response: ListModelsApiResponse =
             serde_json::from_slice(&response).map_err(|e| {

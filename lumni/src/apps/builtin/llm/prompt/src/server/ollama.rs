@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
+use crate::external as lumni;
+use lumni::api::error::ApplicationError;
 use super::{
-    http_get_with_response, http_post, http_post_with_response, ChatExchange,
-    ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, ServerTrait,
+    http_get_with_response, http_post, http_post_with_response, ChatExchange, ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerTrait
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
@@ -63,7 +63,7 @@ impl ServerTrait for Ollama {
         &mut self,
         model: LLMDefinition,
         _prompt_instruction: &PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         self.model = Some(model);
         let model_name =
             self.model.as_ref().expect("Model not available").get_name();
@@ -86,7 +86,9 @@ impl ServerTrait for Ollama {
                     "Failed to get model information for: {}",
                     model_name
                 );
-                return Err(error_message.into());
+                return Err(ApplicationError::ServerConfigurationError(
+                    error_message,
+                ));
             }
         }
         Ok(())
@@ -116,14 +118,16 @@ impl ServerTrait for Ollama {
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let system_prompt = prompt_instruction.get_instruction();
 
         let model = self.model.as_ref().expect("Model not available");
 
         let data_payload =
             self.completion_api_payload(model, exchanges, Some(system_prompt));
+
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
+
         if let Ok(payload) = data_payload {
             http_post(
                 completion_endpoint,
@@ -140,7 +144,7 @@ impl ServerTrait for Ollama {
 
     async fn list_models(
         &self,
-    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
         let list_models_endpoint = self.endpoints.get_list_models_endpoint()?;
         let response = http_get_with_response(
             list_models_endpoint.to_string(),
@@ -149,7 +153,12 @@ impl ServerTrait for Ollama {
         .await?;
 
         let api_response: ListModelsApiResponse =
-            serde_json::from_slice(&response)?;
+            serde_json::from_slice(&response).map_err(|e| {
+                ApplicationError::ServerConfigurationError(format!(
+                    "Failed to parse list models response: {}",
+                    e
+                ))
+            })?;
         let models = api_response
             .models
             .into_iter()
@@ -163,7 +172,7 @@ impl ServerTrait for Ollama {
                         model.details.parameter_size
                     ));
 
-                Some(llm_def)
+                llm_def
             })
             .collect();
         Ok(models)

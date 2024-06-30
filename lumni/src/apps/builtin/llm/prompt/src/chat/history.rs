@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use serde::{Deserialize, Serialize};
 
 use super::exchange::ChatExchange;
@@ -85,7 +83,7 @@ impl ChatHistory {
     pub fn exchanges_to_string<'a, I>(
         model: &LLMDefinition,
         exchanges: I,
-    ) -> Result<String, Box<dyn Error>>
+    ) -> String
     where
         I: IntoIterator<Item = &'a ChatExchange>,
     {
@@ -104,7 +102,7 @@ impl ChatHistory {
                 exchange.get_answer(),
             ));
         }
-        Ok(prompt)
+        prompt
     }
 
     pub fn exchanges_to_messages<'a, I>(

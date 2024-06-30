@@ -1,4 +1,5 @@
-use std::error::Error;
+
+use lumni::api::error::ApplicationError;
 
 use super::history::ChatHistory;
 use super::prompt::Prompt;
@@ -6,6 +7,8 @@ use super::{
     ChatCompletionOptions, ChatExchange, PromptOptions, DEFAULT_N_PREDICT,
     DEFAULT_TEMPERATURE, PERSONAS,
 };
+pub use crate::external as lumni;
+
 
 pub struct PromptInstruction {
     completion_options: ChatCompletionOptions,
@@ -38,7 +41,7 @@ impl PromptInstruction {
         instruction: Option<String>,
         assistant: Option<String>,
         options: Option<&String>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, ApplicationError> {
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
             prompt_instruction
@@ -135,9 +138,14 @@ impl PromptInstruction {
         &mut self,
         assistant: String,
         user_instruction: Option<String>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         // Find the selected persona by name
-        let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)?;
+        let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS).map_err(|e| {
+            ApplicationError::Unexpected(format!(
+                "Failed to parse persona data: {}",
+                e.to_string()
+            ))
+        })?;
         if let Some(prompt) = assistant_prompts
             .into_iter()
             .find(|p| p.name() == assistant)
@@ -174,11 +182,10 @@ impl PromptInstruction {
             }
             Ok(())
         } else {
-            return Err(format!(
+            Err(ApplicationError::Unexpected(format!(
                 "Assistant '{}' not found in the dataset",
                 assistant
-            )
-            .into());
+            )))
         }
     }
 }

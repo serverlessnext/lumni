@@ -21,6 +21,7 @@ use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
     LLMDefinition, PromptInstruction, ServerTrait,
 };
+use lumni::api::error::ApplicationError;
 pub use crate::external as lumni;
 
 struct AWSErrorHandler;
@@ -135,7 +136,7 @@ impl ServerTrait for Bedrock {
         &mut self,
         model: LLMDefinition,
         _prompt_instruction: &PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         self.model = Some(model);
         Ok(())
     }
@@ -170,7 +171,7 @@ impl ServerTrait for Bedrock {
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let system_prompt = prompt_instruction.get_instruction();
         let model = self.model.as_ref().expect("Model not available");
 
@@ -182,7 +183,8 @@ impl ServerTrait for Bedrock {
         let full_url = format!("{}{}", completion_endpoint, resource);
 
         let data_payload =
-            self.completion_api_payload(model, exchanges, Some(system_prompt))?;
+            self.completion_api_payload(model, exchanges, Some(system_prompt))
+                .map_err(|e| ApplicationError::InvalidUserConfiguration(e.to_string()))?;
 
         let payload_hash = Sha256::digest(data_payload.as_bytes())
             .iter()
@@ -201,7 +203,7 @@ impl ServerTrait for Bedrock {
             Some(&resource),
             None, // query string
             Some(&payload_hash),
-        )?;
+        ).map_err(|e| ApplicationError::InvalidUserConfiguration(e.to_string()))?;
 
         http_post(
             full_url,
@@ -217,11 +219,11 @@ impl ServerTrait for Bedrock {
 
     async fn list_models(
         &self,
-    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
         let model = LLMDefinition::new(
             "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string(),
         );
-        Ok(Some(vec![model]))
+        Ok(vec![model])
     }
 }
 

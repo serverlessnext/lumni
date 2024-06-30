@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -16,6 +15,7 @@ use crossterm::terminal::{
     LeaveAlternateScreen,
 };
 use lumni::api::spec::ApplicationSpec;
+use lumni::api::error::ApplicationError;
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
@@ -25,7 +25,7 @@ use tokio::time::{interval, Duration};
 
 use super::chat::ChatSession;
 use super::server::{
-    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
+    ModelServer, PromptInstruction, ServerTrait, SUPPORTED_MODEL_ENDPOINTS
 };
 use super::session::AppSession;
 use super::tui::{
@@ -41,7 +41,7 @@ const CHANNEL_QUEUE_SIZE: usize = 32;
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app_session: AppSession<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ApplicationError> {
     let tab = app_session.get_tab_mut(0).expect("No tab found");
 
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
@@ -265,7 +265,7 @@ async fn finalize_response(
     tab_ui: &mut TabUi<'_>,
     tokens_predicted: Option<usize>,
     color_scheme: &ColorScheme,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), ApplicationError> {
     // stop trying to get more responses
     chat.stop();
     // finalize with newline for in display
@@ -319,7 +319,7 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
 pub async fn run_cli(
     spec: ApplicationSpec,
     args: Vec<String>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), ApplicationError> {
     let app = parse_cli_arguments(spec);
     let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
         e.exit();
@@ -338,9 +338,11 @@ pub async fn run_cli(
     // setup server
     let mut server = ModelServer::from_str(&server_name)?;
 
-    let models = server.list_models().await?.ok_or("No models available.")?;
+    let models = server.list_models().await?;   //.ok_or("No models available.")?;
+    
     let model = if models.is_empty() {
-        return Err("Model list is empty.".into());
+        return Err(ApplicationError::ServerConfigurationError("No mode.".to_string()));
+        //return Err("Model list is empty.".into());
     } else {
         models[0].to_owned()
     };
@@ -385,7 +387,7 @@ pub async fn run_cli(
 
 async fn interactive_mode(
     app_session: AppSession<'_>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
 
@@ -425,13 +427,12 @@ async fn interactive_mode(
         DisableMouseCapture
     );
     let _ = terminal.show_cursor();
-
-    result.map_err(Into::into)
+    result
 }
 
 async fn process_non_interactive_input(
     mut chat: ChatSession,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), ApplicationError> {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut stdin_input = String::new();
@@ -449,13 +450,11 @@ async fn process_non_interactive_input(
         }
 
         let keep_running = Arc::new(AtomicBool::new(true));
-        chat.process_prompt(stdin_input.trim_end().to_string(), keep_running)
-            .await;
+        Ok(chat.process_prompt(stdin_input.trim_end().to_string(), keep_running)
+            .await)
     } else {
-        return Err(
+        Err(ApplicationError::Unexpected(
             "Failed to read initial byte from stdin, possibly empty".into()
-        );
+        ))
     }
-
-    Ok(())
 }

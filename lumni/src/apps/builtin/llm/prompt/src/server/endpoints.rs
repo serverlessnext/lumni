@@ -1,6 +1,7 @@
-use std::error::Error;
 
 use url::Url;
+
+use crate::api::error::ApplicationError;
 
 #[derive(Clone)]
 pub struct Endpoints {
@@ -20,17 +21,17 @@ impl Endpoints {
         }
     }
 
-    pub fn get_completion_endpoint(&self) -> Result<String, Box<dyn Error>> {
+    pub fn get_completion_endpoint(&self) -> Result<String, ApplicationError> {
         match self.completion.as_ref() {
             Some(url) => Ok(url.to_string()),
-            None => Err("Completion endpoint not set".into()),
+            None => Err(ApplicationError::NotImplemented("Completion endpoint not defined".to_string())),
         }
     }
 
-    pub fn get_list_models_endpoint(&self) -> Result<String, Box<dyn Error>> {
+    pub fn get_list_models_endpoint(&self) -> Result<String, ApplicationError> {
         match self.list_models.as_ref() {
             Some(url) => Ok(url.to_string()),
-            None => Err("List models endpoint not set".into()),
+            None => Err(ApplicationError::NotImplemented("List models endpoint not defined".to_string())),
         }
     }
 

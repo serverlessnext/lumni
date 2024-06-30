@@ -102,7 +102,7 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     Error::Runtime(RuntimeError::Unexpected(e)) => {
                         log::error!("RuntimeError - Unexpected: {}", e);
                     }
-                    Error::Application(ApplicationError::ConfigInvalid(e)) => {
+                    Error::Application(ApplicationError::InvalidUserConfiguration(e)) => {
                         log::error!("ApplicationError - Invalid Config: {}", e);
                     }
                     Error::Application(ApplicationError::Unexpected(e)) => {
@@ -110,6 +110,21 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     }
                     Error::Application(ApplicationError::Runtime(e)) => {
                         log::error!("ApplicationError - Runtime: {}", e);
+                    }
+                    Error::Application(ApplicationError::InvalidCredentials(e)) => {
+                        log::error!("ApplicationError - Invalid Credentials: {}", e);
+                    }
+                    Error::Application(ApplicationError::ServerConfigurationError(e)) => {
+                        log::error!("ApplicationError - Server Config Error: {}", e);
+                    }
+                    Error::Application(ApplicationError::HttpClientError(e)) => {
+                        log::error!("ApplicationError - HTTP Client Error: {}", e);
+                    }
+                    Error::Application(ApplicationError::NotImplemented(e)) => {
+                        log::error!("ApplicationError - Not Implemented: {}", e);
+                    }
+                    Error::Application(ApplicationError::IoError(e)) => {
+                        log::error!("ApplicationError - IO Error: {}", e);
                     }
                     Error::Invoke(e) => {
                         log::error!("InvokeError: {}", e);

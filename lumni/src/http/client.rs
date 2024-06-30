@@ -42,15 +42,16 @@ impl HttpClientResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HttpClientError {
-    ConnectionError(anyhow::Error),
+    ConnectionError(String),
     TimeoutError,
     HttpError(u16, String), // Status code, status text
     Utf8Error(String),
     RequestCancelled,
-    Other(AnyhowError),
+    Other(String),
 }
+
 
 impl fmt::Display for HttpClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -78,13 +79,13 @@ pub trait HttpClientErrorHandler {
 
 impl From<hyper::http::Error> for HttpClientError {
     fn from(err: hyper::http::Error) -> Self {
-        HttpClientError::Other(AnyhowError::new(err))
+        HttpClientError::Other(err.to_string())
     }
 }
 
 impl From<AnyhowError> for HttpClientError {
     fn from(err: AnyhowError) -> Self {
-        HttpClientError::Other(err)
+        HttpClientError::Other(err.to_string())
     }
 }
 
@@ -156,7 +157,7 @@ impl HttpClient {
         mut cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> HttpClientResult {
         let uri = Uri::from_str(url)
-            .map_err(|e| HttpClientError::Other(AnyhowError::new(e)))?;
+            .map_err(|e| HttpClientError::Other(e.to_string()))?;
 
         let mut req_builder = Request::builder().method(method).uri(uri);
 
@@ -176,8 +177,9 @@ impl HttpClient {
             .expect("Failed to build the request");
         // Send the request and await the response, handling timeout as needed
         let mut response = self.client.request(request).await.map_err(|e| {
-            HttpClientError::ConnectionError(AnyhowError::new(e))
+            HttpClientError::ConnectionError(e.to_string())
         })?;
+
         if !response.status().is_success() {
             let canonical_reason = response
                 .status()
@@ -215,11 +217,11 @@ impl HttpClient {
                             Some(Ok(frame)) => {
                                 if let Ok(chunk) = frame.into_data() {
                                     if let Err(e) = tx.send(chunk).await {
-                                        return Err(HttpClientError::Other(e.into()));
+                                        return Err(HttpClientError::Other(e.to_string()));
                                     }
                                 }
                             },
-                            Some(Err(e)) => return Err(HttpClientError::Other(e.into())),
+                            Some(Err(e)) => return Err(HttpClientError::Other(e.to_string())),
                             None => break, // End of the stream
                         }
                     },

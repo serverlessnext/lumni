@@ -163,7 +163,7 @@ pub fn parse_yaml_to_root(
     app_specification: &str,
 ) -> Result<ApplicationSpec, Error> {
     serde_yaml::from_str::<ApplicationSpec>(app_specification).map_err(|_| {
-        Error::Application(ApplicationError::ConfigInvalid(
+        Error::Application(ApplicationError::InvalidUserConfiguration(
             "Failed to parse YAML".to_string(),
         ))
     })

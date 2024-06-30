@@ -1,10 +1,11 @@
-use std::error::Error;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot};
+
+use crate::api::error::ApplicationError;
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
@@ -20,7 +21,7 @@ impl ChatSession {
     pub fn new(
         server: Box<dyn ServerTrait>,
         prompt_instruction: PromptInstruction,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, ApplicationError> {
         Ok(ChatSession {
             server,
             prompt_instruction,
@@ -47,7 +48,7 @@ impl ChatSession {
     pub async fn finalize_last_exchange(
         &mut self,
         _tokens_predicted: Option<usize>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         // extract the last exchange, trim and tokenize it
         let token_length = if let Some(last_exchange) =
             self.prompt_instruction.get_last_exchange_mut()
@@ -60,7 +61,7 @@ impl ChatSession {
             let model = self.server.get_model().expect("Model not available");
 
             let last_prompt_text =
-                ChatHistory::exchanges_to_string(model, temp_vec)?;
+                ChatHistory::exchanges_to_string(model, temp_vec);
 
             if let Some(response) =
                 self.server.tokenizer(&last_prompt_text).await?
@@ -88,7 +89,7 @@ impl ChatSession {
         &mut self,
         tx: mpsc::Sender<Bytes>,
         question: String,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let max_token_length = self
             .server
             .get_context_size(&mut self.prompt_instruction)
@@ -118,7 +119,7 @@ impl ChatSession {
     pub async fn initiate_new_exchange(
         &self,
         user_question: String,
-    ) -> Result<ChatExchange, Box<dyn Error>> {
+    ) -> Result<ChatExchange, ApplicationError> {
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
@@ -138,7 +139,7 @@ impl ChatSession {
         let model = self.server.get_model().expect("Model not available");
 
         let last_prompt_text =
-            ChatHistory::exchanges_to_string(model, temp_vec)?;
+            ChatHistory::exchanges_to_string(model, temp_vec);
 
         if let Some(token_response) =
             self.server.tokenizer(&last_prompt_text).await?

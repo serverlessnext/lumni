@@ -14,7 +14,7 @@ fn transform_to_configuration_environment(
     if let Some(configuration) = spec.configuration() {
         form_elements_from_yaml(configuration.form_elements())
     } else {
-        Err(Error::Application(ApplicationError::ConfigInvalid(
+        Err(Error::Application(ApplicationError::InvalidUserConfiguration(
             "Configuration not found in YAML.".to_string(),
         )))
     }
@@ -26,7 +26,7 @@ fn transform_to_interface_form(
     if let Some(interface) = spec.interface() {
         form_elements_from_yaml(interface.form_elements())
     } else {
-        Err(Error::Application(ApplicationError::ConfigInvalid(
+        Err(Error::Application(ApplicationError::InvalidUserConfiguration(
             "Interface not found in YAML.".to_string(),
         )))
     }
@@ -43,7 +43,7 @@ pub fn parse_yaml(
             transform_to_configuration_environment(&root)
         }
         SpecYamlType::Interface => transform_to_interface_form(&root),
-        _ => Err(Error::Application(ApplicationError::ConfigInvalid(
+        _ => Err(Error::Application(ApplicationError::InvalidUserConfiguration(
             "Invalid YAML type.".to_string(),
         ))),
     }
@@ -75,7 +75,7 @@ fn form_elements_from_yaml(
                 Ok(pat) => pat,
                 Err(_) => {
                     return Err(Error::Application(
-                        ApplicationError::ConfigInvalid(
+                        ApplicationError::InvalidUserConfiguration(
                             "Invalid regex pattern".into(),
                         ),
                     ))

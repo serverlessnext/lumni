@@ -4,8 +4,6 @@ mod llama;
 mod llm;
 mod ollama;
 
-use std::error::Error;
-
 use async_trait::async_trait;
 pub use bedrock::Bedrock;
 use bytes::Bytes;
@@ -24,6 +22,7 @@ pub use super::chat::{
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
+use lumni::api::error::ApplicationError;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 3] = ["llama", "ollama", "bedrock"];
 
@@ -34,12 +33,21 @@ pub enum ModelServer {
 }
 
 impl ModelServer {
-    pub fn from_str(s: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn from_str(s: &str) -> Result<Self, ApplicationError> {
         match s {
-            "llama" => Ok(ModelServer::Llama(Llama::new()?)),
-            "ollama" => Ok(ModelServer::Ollama(Ollama::new()?)),
-            "bedrock" => Ok(ModelServer::Bedrock(Bedrock::new()?)),
-            _ => Ok(ModelServer::Llama(Llama::new()?)),
+            "llama" => Ok(ModelServer::Llama(Llama::new().map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?)),
+            "ollama" => Ok(ModelServer::Ollama(Ollama::new().map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?)),
+            "bedrock" => Ok(ModelServer::Bedrock(Bedrock::new().map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?)),
+            _ => Err(ApplicationError::NotImplemented(format!(
+                "Server {} not supported",
+                s
+            ))),
         }
     }
 }
@@ -50,7 +58,7 @@ impl ServerTrait for ModelServer {
         &mut self,
         model: LLMDefinition,
         prompt_instruction: &PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
                 llama.initialize_with_model(model, prompt_instruction).await
@@ -82,7 +90,7 @@ impl ServerTrait for ModelServer {
     async fn get_context_size(
         &self,
         prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize, ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
                 llama.get_context_size(prompt_instruction).await
@@ -99,7 +107,7 @@ impl ServerTrait for ModelServer {
     async fn tokenizer(
         &self,
         content: &str,
-    ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
+    ) -> Result<Option<TokenResponse>, ApplicationError> {
         match self {
             ModelServer::Llama(llama) => llama.tokenizer(content).await,
             ModelServer::Ollama(ollama) => ollama.tokenizer(content).await,
@@ -113,7 +121,7 @@ impl ServerTrait for ModelServer {
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
                 llama
@@ -135,7 +143,7 @@ impl ServerTrait for ModelServer {
 
     async fn list_models(
         &self,
-    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
         match self {
             ModelServer::Llama(llama) => llama.list_models().await,
             ModelServer::Ollama(ollama) => ollama.list_models().await,
@@ -158,7 +166,7 @@ pub trait ServerTrait: Send + Sync {
         &mut self,
         model: LLMDefinition,
         prompt_instruction: &PromptInstruction,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ApplicationError>;
 
     async fn completion(
         &self,
@@ -166,24 +174,13 @@ pub trait ServerTrait: Send + Sync {
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), ApplicationError>;
 
     async fn list_models(
         &self,
-    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>>;
+    ) -> Result<Vec<LLMDefinition>, ApplicationError>;
 
     fn get_model(&self) -> Option<&LLMDefinition>;
-
-    async fn get_new_model(
-        &self,
-    ) -> Result<Option<LLMDefinition>, Box<dyn Error>> {
-        // get first model from list if available
-        if let Some(models) = self.list_models().await? {
-            Ok(models.get(0).cloned())
-        } else {
-            Ok(None)
-        }
-    }
 
     fn process_response(
         &self,
@@ -193,14 +190,14 @@ pub trait ServerTrait: Send + Sync {
     async fn tokenizer(
         &self,
         _content: &str,
-    ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
+    ) -> Result<Option<TokenResponse>, ApplicationError> {
         Ok(None)
     }
 
     async fn token_length(
         &self,
         _content: &str,
-    ) -> Result<Option<usize>, Box<dyn Error>> {
+    ) -> Result<Option<usize>, ApplicationError> {
         if let Some(token_response) = self.tokenizer(_content).await? {
             Ok(Some(token_response.get_tokens().len()))
         } else {
@@ -211,7 +208,7 @@ pub trait ServerTrait: Send + Sync {
     async fn get_context_size(
         &self,
         _prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize, ApplicationError> {
         Ok(DEFAULT_CONTEXT_SIZE)
     }
 

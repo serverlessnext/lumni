@@ -8,10 +8,10 @@ use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
+use crate::external as lumni;
+use lumni::api::error::ApplicationError;
 use super::{
-    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
-    ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
-    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
+    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange, ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction, PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE
 };
 
 pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
@@ -80,7 +80,7 @@ impl Llama {
 
     async fn get_props(
         &self,
-    ) -> Result<LlamaServerSettingsResponse, Box<dyn Error>> {
+    ) -> Result<LlamaServerSettingsResponse, ApplicationError> {
         let settings_endpoint = self
             .endpoints
             .get_settings()
@@ -92,7 +92,7 @@ impl Llama {
                 .await?;
         Ok(serde_json::from_slice::<LlamaServerSettingsResponse>(
             &response,
-        )?)
+        ).map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?)
     }
 }
 
@@ -116,13 +116,14 @@ impl ServerTrait for Llama {
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         let model = self.model.as_ref().expect("Model not available");
-        let prompt = ChatHistory::exchanges_to_string(model, exchanges)?;
+        let prompt = ChatHistory::exchanges_to_string(model, exchanges);
         let data_payload =
             self.completion_api_payload(prompt, exchanges, prompt_instruction);
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
+
         if let Ok(payload) = data_payload {
             http_post(
                 completion_endpoint,
@@ -139,27 +140,27 @@ impl ServerTrait for Llama {
 
     async fn list_models(
         &self,
-    ) -> Result<Option<Vec<LLMDefinition>>, Box<dyn Error>> {
+    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
         let settings = self.get_props().await?;
         let model_file = settings.default_generation_settings.model;
         let model_name = model_file.split('/').last().unwrap().to_lowercase();
         let llm_def = LLMDefinition::new(model_name.to_string());
-        Ok(Some(vec![llm_def]))
+        Ok(vec![llm_def])
     }
 
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
         prompt_instruction: &PromptInstruction,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ApplicationError> {
         self.model = Some(model);
 
         // Send the system prompt to the completion endpoint at initialization
         let system_prompt_payload =
             self.system_prompt_payload(prompt_instruction);
         if let Some(payload) = system_prompt_payload {
-            let completion_endpoint =
-                self.endpoints.get_completion_endpoint()?;
+            let completion_endpoint = self.endpoints.get_completion_endpoint()?;
+
             http_post(
                 completion_endpoint,
                 self.http_client.clone(),
@@ -180,7 +181,7 @@ impl ServerTrait for Llama {
     async fn get_context_size(
         &self,
         prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize, ApplicationError> {
         let context_size =
             prompt_instruction.get_prompt_options().get_context_size();
         match context_size {
@@ -202,10 +203,11 @@ impl ServerTrait for Llama {
     async fn tokenizer(
         &self,
         content: &str,
-    ) -> Result<Option<TokenResponse>, Box<dyn Error>> {
+    ) -> Result<Option<TokenResponse>, ApplicationError> {
         if let Some(endpoint) = self.endpoints.get_tokenizer() {
             let body_content =
-                serde_json::to_string(&json!({ "content": content }))?;
+                serde_json::to_string(&json!({ "content": content }))
+                    .map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?;
             let body = Bytes::copy_from_slice(body_content.as_bytes());
 
             let url = endpoint.to_string();
@@ -219,9 +221,9 @@ impl ServerTrait for Llama {
                 .http_client
                 .post(&url, Some(&headers), None, Some(&body), None, None)
                 .await
-                .map_err(|e| format!("Error calling tokenizer: {}", e))?;
+                .map_err(|e| ApplicationError::HttpClientError(e))?;
 
-            let response = http_response.json::<TokenResponse>()?;
+            let response = http_response.json::<TokenResponse>().map_err(|e| ApplicationError::ServerConfigurationError(e.to_string()))?;
             Ok(Some(response))
         } else {
             Ok(None)

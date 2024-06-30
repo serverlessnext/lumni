@@ -4,7 +4,7 @@ use std::fmt;
 pub use crate::http::client::HttpClientError;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Error {
     Request(RequestError),
     Runtime(RuntimeError),
@@ -19,13 +19,19 @@ pub enum RequestError {
     QueryInvalid(String),
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
+//#[allow(dead_code)]
+#[derive(Debug)]
 pub enum ApplicationError {
-    ConfigInvalid(String),
+    InvalidUserConfiguration(String),
     Unexpected(String),
     Runtime(String),
+    InvalidCredentials(String),
+    ServerConfigurationError(String),
+    HttpClientError(HttpClientError),
+    IoError(std::io::Error),
+    NotImplemented(String),
 }
+
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -58,6 +64,12 @@ impl fmt::Display for RequestError {
     }
 }
 
+impl From<ApplicationError> for Error {
+    fn from(err: ApplicationError) -> Self {
+        Error::Application(err)
+    }
+}
+
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -69,19 +81,42 @@ impl fmt::Display for RuntimeError {
 impl fmt::Display for ApplicationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ApplicationError::ConfigInvalid(s) => {
-                write!(f, "ConfigInvalid: {}", s)
+            ApplicationError::InvalidUserConfiguration(s) => {
+                write!(f, "InvalidUserConfiguration: {}", s)
             }
             ApplicationError::Unexpected(s) => write!(f, "Unexpected: {}", s),
             ApplicationError::Runtime(s) => write!(f, "Runtime: {}", s),
+            ApplicationError::InvalidCredentials(s) => {
+                write!(f, "InvalidCredentials: {}", s)
+            }
+            ApplicationError::ServerConfigurationError(s) => {
+                write!(f, "ServerConfigurationError: {}", s)
+            }
+            ApplicationError::HttpClientError(e) => write!(f, "HttpClientError: {}", e),
+            ApplicationError::IoError(e) => write!(f, "IoError: {}", e),
+            ApplicationError::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
         }
     }
 }
+
+impl std::error::Error for ApplicationError {}
 
 impl From<Box<dyn std::error::Error>> for Error {
     // any other Error type can be assumed to come from an
     // application Invoke() method
     fn from(error: Box<dyn std::error::Error>) -> Self {
         Error::Invoke(ApplicationError::Runtime(error.to_string()))
+    }
+}
+
+impl From<HttpClientError> for ApplicationError {
+    fn from(error: HttpClientError) -> Self {
+        ApplicationError::HttpClientError(error)
+    }
+}
+
+impl From<std::io::Error> for ApplicationError {
+    fn from(error: std::io::Error) -> Self {
+        ApplicationError::IoError(error)
     }
 }

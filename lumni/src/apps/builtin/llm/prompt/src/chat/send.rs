@@ -1,12 +1,10 @@
 use std::collections::HashMap;
-use std::error::Error;
-
 use bytes::{Bytes, BytesMut};
-use lumni::api::error::HttpClientError;
+use lumni::api::error::{HttpClientError, ApplicationError};
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::external as lumni;
+pub use crate::external as lumni;
 
 pub async fn http_post(
     url: String,
@@ -70,30 +68,47 @@ pub async fn http_get(
 pub async fn http_get_with_response(
     url: String,
     http_client: HttpClient,
-) -> Result<Bytes, Box<dyn Error>> {
-    let mut response_bytes = BytesMut::new();
+) -> Result<Bytes, ApplicationError> {
+    let header = HashMap::from([("Content-Type".to_string(), "application/json".to_string())]);
     let (tx, mut rx) = mpsc::channel(1);
-    http_get(url, http_client, Some(tx), None).await;
+    
+    let result = http_client.get(&url, Some(&header), None, Some(tx), None).await;
 
-    while let Some(response) = rx.recv().await {
-        response_bytes.extend_from_slice(&response);
+    match result {
+        Ok(_) => {
+            let mut response_bytes = BytesMut::new();
+            while let Some(response) = rx.recv().await {
+                response_bytes.extend_from_slice(&response);
+            }
+            drop(rx); // drop the receiver to close the channel
+            Ok(response_bytes.freeze())
+        },
+        Err(e) => Err(e.into())
     }
-    drop(rx); // drop the receiver to close the channel
-    Ok(response_bytes.freeze())
 }
 
 pub async fn http_post_with_response(
     url: String,
     http_client: HttpClient,
     payload: String,
-) -> Result<Bytes, Box<dyn Error>> {
-    let mut response_bytes = BytesMut::new();
+) -> Result<Bytes, ApplicationError> {
+    let headers = HashMap::from([("Content-Type".to_string(), "application/json".to_string())]);
     let (tx, mut rx) = mpsc::channel(1);
-    http_post(url, http_client, Some(tx), payload, None, None).await;
+    let payload_bytes = Bytes::from(payload.into_bytes());
 
-    while let Some(response) = rx.recv().await {
-        response_bytes.extend_from_slice(&response);
+    let result = http_client.post(&url, Some(&headers), None, Some(&payload_bytes), Some(tx), None).await;
+
+    // Handle the result of the HTTP POST request
+    match result {
+        Ok(_) => {
+            let mut response_bytes = BytesMut::new();
+            while let Some(response) = rx.recv().await {
+                response_bytes.extend_from_slice(&response);
+            }
+            drop(rx); // drop the receiver to close the channel
+            Ok(response_bytes.freeze())
+        },
+        Err(e) => Err(e.into())
     }
-    drop(rx); // drop the receiver to close the channel
-    Ok(response_bytes.freeze())
 }
+

@@ -1,9 +1,8 @@
 use std::io::{self, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
@@ -168,31 +167,45 @@ impl ChatSession {
     pub async fn process_prompt(
         &mut self,
         question: String,
-        keep_running: Arc<AtomicBool>,
-    ) {
+        stop_signal: Arc<Mutex<bool>>,
+    ) -> Result<(), ApplicationError> {
         let (tx, rx) = mpsc::channel(32);
         let _ = self.message(tx, question).await;
-        self.handle_response(rx, keep_running).await;
+        self.handle_response(rx, stop_signal).await?;
+        self.stop();
+        Ok(())
     }
 
     async fn handle_response(
         &self,
         mut rx: mpsc::Receiver<Bytes>,
-        keep_running: Arc<AtomicBool>,
-    ) {
-        while keep_running.load(Ordering::Relaxed) {
-            while let Some(response) = rx.recv().await {
-                let (response_content, is_final, _) =
-                    self.process_response(response);
-                if let Some(response_content) = response_content {
-                    print!("{}", response_content);
-                }
-                io::stdout().flush().expect("Failed to flush stdout");
+        stop_signal: Arc<Mutex<bool>>,
+    ) -> Result<(), ApplicationError> {
+        let mut final_received = false;
+        while let Some(response) = rx.recv().await {
+            // check if the session must be kept running
+            if !*stop_signal.lock().await {
+                log::debug!("Received stop signal");
+                break;
+            }
 
-                if is_final {
-                    break;
-                }
+            if final_received {
+                // consume stream until its empty, as server may send additional events
+                // (e.g. stats, or logs) after the stop event.
+                // for now these are ignored.
+                continue;
+            }
+            let (response_content, is_final, _) =
+                self.process_response(response);
+            if let Some(response_content) = response_content {
+                print!("{}", response_content);
+            }
+            io::stdout().flush().expect("Failed to flush stdout");
+
+            if is_final {
+                final_received = true;
             }
         }
+        Ok(())
     }
 }

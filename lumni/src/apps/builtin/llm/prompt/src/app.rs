@@ -19,13 +19,12 @@ use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::style::Style;
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::sync::mpsc;
-use tokio::time::{interval, Duration};
+use tokio::signal;
+use tokio::sync::{mpsc, Mutex};
+use tokio::time::{interval, timeout, Duration};
 
 use super::chat::ChatSession;
-use super::server::{
-    ModelServer, PromptInstruction, ServerTrait,
-};
+use super::server::{ModelServer, PromptInstruction, ServerTrait};
 use super::session::AppSession;
 use super::tui::{
     ColorScheme, ColorSchemeType, CommandLineAction, KeyEventHandler,
@@ -420,17 +419,28 @@ async fn interactive_mode(
 }
 
 async fn process_non_interactive_input(
-    mut chat: ChatSession,
+    chat: ChatSession,
 ) -> Result<(), ApplicationError> {
+    let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut stdin_input = String::new();
+
+    // Shared state for handling Ctrl+C
+    let running = Arc::new(Mutex::new(true));
+    let shutdown_signal = Arc::new(Mutex::new(false));
+
+    // Spawn a task to handle Ctrl+C with multiple signal support
+    let running_clone = running.clone();
+    let shutdown_signal_clone = shutdown_signal.clone();
+    tokio::spawn(async move {
+        handle_ctrl_c(running_clone, shutdown_signal_clone).await
+    });
 
     // Attempt to read the first byte to determine if stdin has data
     let mut initial_buffer = [0; 1];
     if let Ok(1) = reader.read(&mut initial_buffer).await {
         stdin_input.push_str(&String::from_utf8_lossy(&initial_buffer));
-
         // Continue reading the rest of stdin
         let mut lines = reader.lines();
         while let Some(line) = lines.next_line().await? {
@@ -438,13 +448,90 @@ async fn process_non_interactive_input(
             stdin_input.push('\n'); // Maintain line breaks
         }
 
-        let keep_running = Arc::new(AtomicBool::new(true));
-        Ok(chat
-            .process_prompt(stdin_input.trim_end().to_string(), keep_running)
-            .await)
+        let chat_clone = chat.clone();
+        let input = stdin_input.trim_end().to_string();
+        // Process the prompt
+        let process_handle = tokio::spawn(async move {
+            let mut chat = chat_clone.lock().await;
+            chat.process_prompt(input, running.clone()).await
+        });
+
+        // Wait for the process to complete or for a shutdown signal
+        loop {
+            if *shutdown_signal.lock().await {
+                // Shutdown signal received, set a timeout for graceful shutdown
+                const GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
+                    Duration::from_secs(3);
+                match timeout(GRACEFUL_SHUTDOWN_TIMEOUT, process_handle).await {
+                    Ok(Ok(_)) => {
+                        eprintln!(
+                            "Processing completed successfully during \
+                             shutdown."
+                        );
+                        return Ok(());
+                    }
+                    Ok(Err(e)) => {
+                        eprintln!("Process error during shutdown: {}", e);
+                        return Err(ApplicationError::Unexpected(format!(
+                            "Process error: {}",
+                            e
+                        )));
+                    }
+                    Err(_) => {
+                        eprintln!(
+                            "Graceful shutdown timed out. Forcing exit..."
+                        );
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Check if the process has completed naturally
+            if process_handle.is_finished() {
+                process_handle
+                    .await
+                    .map_err(|e| {
+                        ApplicationError::Unexpected(format!(
+                            "Join error: {}",
+                            e
+                        ))
+                    })?
+                    .map_err(|e| {
+                        ApplicationError::Unexpected(format!(
+                            "Process error: {}",
+                            e
+                        ))
+                    })?;
+                return Ok(());
+            }
+
+            // Wait a bit before checking again
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
     } else {
         Err(ApplicationError::Unexpected(
             "Failed to read initial byte from stdin, possibly empty".into(),
         ))
+    }
+}
+
+async fn handle_ctrl_c(
+    r: Arc<Mutex<bool>>,
+    s: Arc<Mutex<bool>>,
+) {
+    let mut count = 0;
+    loop {
+        signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+        count += 1;
+        if count == 1 {
+            eprintln!("Received Ctrl+C, initiating graceful shutdown...");
+            let mut running = r.lock().await;
+            *running = false;
+            let mut shutdown = s.lock().await;
+            *shutdown = true;
+        } else {
+            eprintln!("Received multiple Ctrl+C signals, forcing exit...");
+            std::process::exit(1); // Force exit immediately
+        }
     }
 }

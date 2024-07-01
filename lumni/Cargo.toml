@@ -51,7 +51,7 @@ crc32fast = { version = "1.4" }
 
 # CLI
 env_logger = { version = "0.9", optional = true }
-tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"], optional = true }
+tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros", "signal"], optional = true }
 # tokio = { version = "1.12", default-features = false, features = ["full"], optional = true }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"], optional = true }
 crossterm = { version = "0.27", optional = true }

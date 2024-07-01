@@ -23,7 +23,6 @@ pub async fn http_post(
             "application/json".to_string(),
         )])
     };
-
     let payload_bytes = Bytes::from(payload.into_bytes());
     tokio::spawn(async move {
         match http_client

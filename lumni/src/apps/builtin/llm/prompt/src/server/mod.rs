@@ -1,4 +1,5 @@
 mod bedrock;
+mod openai;
 mod endpoints;
 mod llama;
 mod llm;
@@ -13,6 +14,7 @@ pub use llm::LLMDefinition;
 use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
+pub use openai::OpenAI;
 use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
@@ -24,12 +26,13 @@ pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
 
-pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 3] = ["llama", "ollama", "bedrock"];
+pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] = ["llama", "ollama", "bedrock", "openai"];
 
 pub enum ModelServer {
     Llama(Llama),
     Ollama(Ollama),
     Bedrock(Bedrock),
+    OpenAI(OpenAI),
 }
 
 impl ModelServer {
@@ -46,6 +49,11 @@ impl ModelServer {
             "bedrock" => {
                 Ok(ModelServer::Bedrock(Bedrock::new().map_err(|e| {
                     ApplicationError::ServerConfigurationError(e.to_string())
+                })?))
+            }
+            "openai" => {
+                Ok(ModelServer::OpenAI(OpenAI::new().map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
                 })?))
             }
             _ => Err(ApplicationError::NotImplemented(format!(
@@ -79,6 +87,11 @@ impl ServerTrait for ModelServer {
                     .initialize_with_model(model, prompt_instruction)
                     .await
             }
+            ModelServer::OpenAI(openai) => {
+                openai
+                    .initialize_with_model(model, prompt_instruction)
+                    .await
+            }
         }
     }
 
@@ -90,6 +103,7 @@ impl ServerTrait for ModelServer {
             ModelServer::Llama(llama) => llama.process_response(response),
             ModelServer::Ollama(ollama) => ollama.process_response(response),
             ModelServer::Bedrock(bedrock) => bedrock.process_response(response),
+            ModelServer::OpenAI(openai) => openai.process_response(response),
         }
     }
 
@@ -107,6 +121,9 @@ impl ServerTrait for ModelServer {
             ModelServer::Bedrock(bedrock) => {
                 bedrock.get_context_size(prompt_instruction).await
             }
+            ModelServer::OpenAI(openai) => {
+                openai.get_context_size(prompt_instruction).await
+            }
         }
     }
 
@@ -118,6 +135,7 @@ impl ServerTrait for ModelServer {
             ModelServer::Llama(llama) => llama.tokenizer(content).await,
             ModelServer::Ollama(ollama) => ollama.tokenizer(content).await,
             ModelServer::Bedrock(bedrock) => bedrock.tokenizer(content).await,
+            ModelServer::OpenAI(openai) => openai.tokenizer(content).await,
         }
     }
 
@@ -144,6 +162,11 @@ impl ServerTrait for ModelServer {
                     .completion(exchanges, prompt_instruction, tx, cancel_rx)
                     .await
             }
+            ModelServer::OpenAI(openai) => {
+                openai
+                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .await
+            }
         }
     }
 
@@ -154,6 +177,7 @@ impl ServerTrait for ModelServer {
             ModelServer::Llama(llama) => llama.list_models().await,
             ModelServer::Ollama(ollama) => ollama.list_models().await,
             ModelServer::Bedrock(bedrock) => bedrock.list_models().await,
+            ModelServer::OpenAI(openai) => openai.list_models().await,
         }
     }
 
@@ -162,6 +186,7 @@ impl ServerTrait for ModelServer {
             ModelServer::Llama(llama) => llama.get_model(),
             ModelServer::Ollama(ollama) => ollama.get_model(),
             ModelServer::Bedrock(bedrock) => bedrock.get_model(),
+            ModelServer::OpenAI(openai) => openai.get_model(),
         }
     }
 }

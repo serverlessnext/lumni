@@ -120,8 +120,9 @@ impl ServerTrait for Bedrock {
     }
 
     fn process_response(
-        &self,
+        &mut self,
         response_bytes: Bytes,
+        _start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
         match EventStreamMessage::from_bytes(response_bytes) {
             Ok(event) => {

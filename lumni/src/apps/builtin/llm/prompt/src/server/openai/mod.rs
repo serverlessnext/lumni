@@ -21,7 +21,7 @@ use super::{
 };
 use credentials::OpenAICredentials;
 use request::OpenAIRequestPayload;
-use response::OpenAIResponsePayload;
+use response::StreamParser;
 
 pub use crate::external as lumni;
 
@@ -29,6 +29,7 @@ pub struct OpenAI {
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
+    stream_parser: StreamParser,
 }
 
 const OPENAI_COMPLETION_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
@@ -44,6 +45,7 @@ impl OpenAI {
                 .with_error_handler(Arc::new(OpenAIErrorHandler)),
             endpoints,
             model: None,
+            stream_parser: StreamParser::new(),
         })
     }
 
@@ -93,30 +95,11 @@ impl ServerTrait for OpenAI {
     }
 
     fn process_response(
-        &self,
+        &mut self,
         response_bytes: Bytes,
+        start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
-        // TODO: OpenAI sents back split responses, which we need to concatenate first
-        match OpenAIResponsePayload::extract_content(response_bytes) {
-            Ok(chat) => {
-                let choices = chat.choices;
-                if choices.is_empty() {
-                    return (None, false, None);
-                }
-                let chat_message = &choices[0];
-                let delta = &chat_message.delta;
-                let stop = if let Some(_) = chat_message.finish_reason {
-                    true    // if finish_reason is present, then always stop
-                } else {
-                    false
-                };
-                let stop = true;
-                (delta.content.clone(), stop, None)
-            }
-            Err(e) => {
-                (Some(format!("Failed to parse JSON: {}", e)), true, None)
-            }
-        }
+        self.stream_parser.process_chunk(response_bytes, start_of_stream)
     }
 
     async fn completion(

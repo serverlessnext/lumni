@@ -96,14 +96,15 @@ impl ServerTrait for ModelServer {
     }
 
     fn process_response(
-        &self,
+        &mut self,
         response: Bytes,
+        start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
         match self {
-            ModelServer::Llama(llama) => llama.process_response(response),
-            ModelServer::Ollama(ollama) => ollama.process_response(response),
-            ModelServer::Bedrock(bedrock) => bedrock.process_response(response),
-            ModelServer::OpenAI(openai) => openai.process_response(response),
+            ModelServer::Llama(llama) => llama.process_response(response, start_of_stream),
+            ModelServer::Ollama(ollama) => ollama.process_response(response, start_of_stream),
+            ModelServer::Bedrock(bedrock) => bedrock.process_response(response, start_of_stream),
+            ModelServer::OpenAI(openai) => openai.process_response(response, start_of_stream),
         }
     }
 
@@ -222,8 +223,9 @@ pub trait ServerTrait: Send + Sync {
     }
 
     fn process_response(
-        &self,
+        &mut self,
         response: Bytes,
+        start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>);
 
     async fn tokenizer(

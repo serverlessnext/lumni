@@ -5,10 +5,10 @@ mod scroller;
 mod text_buffer;
 mod text_window;
 mod text_wrapper;
-mod window_type;
+mod window_config;
 
 pub use cursor::MoveCursor;
 pub use scroller::Scroller;
 pub use text_buffer::{LineType, TextBuffer};
 pub use text_window::{TextWindow, TextWindowTrait};
-pub use window_type::{WindowKind, WindowStatus, WindowType};
+pub use window_config::{WindowKind, WindowStatus, WindowConfig};

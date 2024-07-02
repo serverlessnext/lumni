@@ -3,10 +3,12 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::apps::builtin::llm::prompt::src::chat::ChatSession;
+
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{TabUi, WindowEvent};
+use super::{TabUi, TabSession, WindowEvent};
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -158,6 +160,7 @@ impl KeyEventHandler {
         &mut self,
         key_event: KeyEvent,
         tab_ui: &mut TabUi<'_>,
+        tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
     ) -> Option<WindowEvent> {
@@ -198,6 +201,8 @@ impl KeyEventHandler {
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
                         // handled by modal window
+                        // TODO: pass tab_chat to modal window, so it can
+                        // apply changes to the chat session
                         modal.handle_key_event(&mut self.key_track)
                     } else {
                         Some(WindowEvent::Modal(window_type))

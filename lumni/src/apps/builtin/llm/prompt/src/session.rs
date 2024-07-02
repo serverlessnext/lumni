@@ -7,8 +7,8 @@ use super::chat::ChatSession;
 use super::tui::{draw_ui, TabUi};
 
 pub struct TabSession<'a> {
-    pub chat: ChatSession,
     pub ui: TabUi<'a>,
+    pub chat: ChatSession,
 }
 
 impl TabSession<'_> {
@@ -16,7 +16,7 @@ impl TabSession<'_> {
         let mut tab_ui = TabUi::new();
         tab_ui.init();
 
-        TabSession { chat, ui: tab_ui }
+        TabSession { ui: tab_ui, chat }
     }
 
     pub fn draw_ui<B: Backend>(

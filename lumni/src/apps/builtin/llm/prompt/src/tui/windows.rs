@@ -1,5 +1,5 @@
 use super::components::{
-    TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowType,
+    TextWindow, TextWindowTrait, WindowKind, WindowStatus, WindowConfig,
 };
 
 pub struct PromptWindow<'a> {
@@ -14,8 +14,8 @@ impl<'a> TextWindowTrait<'a> for PromptWindow<'a> {
 
 impl PromptWindow<'_> {
     pub fn new() -> Self {
-        let window_type = WindowType::new(WindowKind::PromptWindow)
-            .set_window_status(WindowStatus::InActive);
+        let mut window_type = WindowConfig::new(WindowKind::PromptWindow);
+        window_type.set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
         }
@@ -34,8 +34,8 @@ impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
 
 impl ResponseWindow<'_> {
     pub fn new() -> Self {
-        let window_type = WindowType::new(WindowKind::ResponseWindow)
-            .set_window_status(WindowStatus::InActive);
+        let mut window_type = WindowConfig::new(WindowKind::ResponseWindow);
+        window_type.set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
         }
@@ -54,8 +54,8 @@ impl<'a> TextWindowTrait<'a> for CommandLine<'a> {
 
 impl CommandLine<'_> {
     pub fn new() -> Self {
-        let window_type = WindowType::new(WindowKind::CommandLine)
-            .set_window_status(WindowStatus::InActive);
+        let mut window_type = WindowConfig::new(WindowKind::CommandLine);
+        window_type.set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
         }

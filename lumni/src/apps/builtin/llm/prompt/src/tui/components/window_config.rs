@@ -1,4 +1,6 @@
 use ratatui::style::{Color, Style};
+use ratatui::layout::Alignment;
+use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,27 +24,33 @@ pub enum WindowKind {
     CommandLine,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WindowType {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowConfig {
     kind: WindowKind,
     status: WindowStatus,
+    title: Option<String>,
 }
 
-impl WindowType {
+impl WindowConfig {
     pub fn new(kind: WindowKind) -> Self {
-        WindowType {
+        WindowConfig {
             kind,
             status: WindowStatus::InActive,
+            title: None,
         }
     }
 
-    // Function to provide a specific description for each window type
-    pub fn description(&self) -> &str {
-        match self.kind {
-            WindowKind::ResponseWindow => "Chat",
-            WindowKind::PromptWindow => "Prompt",
-            WindowKind::CommandLine => "",
+    pub fn title(&self) -> Option<Title> {
+        if let Some(title) = &self.title {
+            Some(Title::from(title.as_str()).alignment(Alignment::Left))
+        } else {
+            None
         }
+    }
+
+    pub fn set_title_text(&mut self, title: &str) -> &Self {
+        self.title = Some(title.to_string());
+        self
     }
 
     pub fn placeholder_text(&self) -> &str {
@@ -103,8 +111,8 @@ impl WindowType {
         self.status
     }
 
-    pub fn set_window_status(&mut self, status: WindowStatus) -> Self {
+    pub fn set_window_status(&mut self, status: WindowStatus) -> &Self {
         self.status = status;
-        *self
+        self
     }
 }

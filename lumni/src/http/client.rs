@@ -205,7 +205,6 @@ impl HttpClient {
 
         let status_code = response.status().as_u16();
         let headers = response.headers().clone();
-
         let body;
 
         if let Some(tx) = &tx {

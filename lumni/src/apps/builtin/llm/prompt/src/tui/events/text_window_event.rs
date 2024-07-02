@@ -66,17 +66,17 @@ where
                 window.move_cursor(MoveCursor::Down(1));
             }
             KeyCode::Enter => {
-                if window.window_type().is_editable() {
+                if window.is_editable() {
                     window.text_insert_add("\n", None);
                 }
             }
             KeyCode::Backspace => {
-                if window.window_type().is_editable() {
+                if window.is_editable() {
                     window.text_delete_backspace();
                 }
             }
             KeyCode::Delete => {
-                if window.window_type().is_editable() {
+                if window.is_editable() {
                     window.text_delete_char();
                 }
             }
@@ -91,7 +91,7 @@ where
         }
     }
 
-    match window.window_type().kind() {
+    match window.get_kind() {
         WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
         WindowKind::PromptWindow => Some(WindowEvent::PromptWindow),
         WindowKind::CommandLine => {
@@ -147,14 +147,14 @@ where
             window.toggle_visual_mode();
         }
         'i' => {
-            if window.window_type().is_editable() {
+            if window.is_editable() {
                 window.set_insert_mode();
             } else {
                 // TODO: give feedback
             }
         }
         'p' => {
-            if window.window_type().is_editable() {
+            if window.is_editable() {
                 let mut clipboard = ClipboardProvider::new();
                 if let Ok(text) = clipboard.read_text() {
                     window.text_insert_add(&text, None);
@@ -165,12 +165,12 @@ where
             }
         }
         'u' => {
-            if window.window_type().is_editable() {
+            if window.is_editable() {
                 window.text_undo();
             }
         }
         'r' => {
-            if window.window_type().is_editable() {
+            if window.is_editable() {
                 window.text_redo();
             }
         }
@@ -200,7 +200,7 @@ where
         // ignore other characters
         _ => {}
     }
-    match window.window_type().kind() {
+    match window.get_kind() {
         WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
         WindowKind::PromptWindow => Some(WindowEvent::PromptWindow),
         WindowKind::CommandLine => {

@@ -108,8 +108,9 @@ impl Llama {
 #[async_trait]
 impl ServerTrait for Llama {
     fn process_response(
-        &self,
+        &mut self,
         response: Bytes,
+        _start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
         match LlamaCompletionResponse::extract_content(response) {
             Ok(chat) => (Some(chat.content), chat.stop, chat.tokens_predicted),

@@ -1,36 +1,38 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
+use ratatui::style::Color;
 use ratatui::text::Text;
-use ratatui::widgets::block::Padding;
+use ratatui::widgets::block::{Padding, Title};
 use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
-use super::window_type::Highlighted;
-use super::{TextBuffer, WindowStatus, WindowType};
+use super::window_config::Highlighted;
+use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
 
 #[derive(Debug, Clone)]
 pub struct TextWindow<'a> {
     area: RectArea,
-    window_type: WindowType,
+    window_type: WindowConfig,
     scroller: Scroller,
     text_buffer: TextBuffer<'a>,
 }
 
 impl<'a> TextWindow<'a> {
-    pub fn new(window_type: WindowType) -> Self {
+    pub fn new(window_type: WindowConfig) -> Self {
+        let is_editable = window_type.is_editable();
         Self {
             area: RectArea::default(),
             window_type,
             scroller: Scroller::new(),
-            text_buffer: TextBuffer::new(window_type.is_editable()),
+            text_buffer: TextBuffer::new(is_editable),
         }
     }
 
-    pub fn window_type(&self) -> WindowType {
-        self.window_type
+    pub fn window_type(&self) -> &WindowConfig {
+        &self.window_type
     }
 
     pub fn window_status(&self) -> WindowStatus {
@@ -63,8 +65,9 @@ impl<'a> TextWindow<'a> {
         // update window status if changed
         self.window_type.set_window_status(status);
         // update placeholder text
+        let placeholder_text = self.window_type.placeholder_text();
         self.text_buffer
-            .set_placeholder(self.window_type().placeholder_text());
+            .set_placeholder(placeholder_text);
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -182,9 +185,9 @@ impl<'a> TextWindow<'a> {
             .border_style(self.window_type.border_style())
             .padding(Padding::new(0, 0, 0, 0));
 
-        let description = format!("{}", self.window_type.description());
-        if !description.is_empty() {
-            block = block.title(description);
+        let title = self.window_type.title();
+        if let Some(title) = title {
+            block = block.title(title).title_style(Style::default().fg(Color::LightGreen))
         }
 
         let start_idx = self.scroller.vertical_scroll;
@@ -223,16 +226,19 @@ impl<'a> TextWindow<'a> {
         self.text_buffer.text_delete(include_cursor, count);
         self.scroll_to_cursor();
     }
+
+    pub fn update_placeholder_text(&mut self) {
+        let placeholder_text = self.window_type.placeholder_text();
+        self.text_buffer
+            .set_placeholder(placeholder_text);
+    }
 }
 
 pub trait TextWindowTrait<'a> {
     fn base(&mut self) -> &mut TextWindow<'a>;
 
     fn init(&mut self) {
-        let window_type = self.window_type();
-        self.base()
-            .text_buffer
-            .set_placeholder(window_type.placeholder_text());
+        self.base().update_placeholder_text();
     }
 
     fn current_line_type(&mut self) -> Option<LineType> {
@@ -267,8 +273,12 @@ pub trait TextWindowTrait<'a> {
         self.base().scroller.enable_auto_scroll();
     }
 
-    fn window_type(&mut self) -> WindowType {
-        self.base().window_type()
+    fn is_editable(&mut self) -> bool {
+        self.base().window_type.is_editable()
+    }
+
+    fn get_kind(&mut self) -> WindowKind {
+        self.base().window_type.kind()
     }
 
     fn window_status(&mut self) -> WindowStatus {
@@ -344,6 +354,10 @@ pub trait TextWindowTrait<'a> {
 
     fn set_status_background(&mut self) {
         self.set_window_status(WindowStatus::Normal(Highlighted::False));
+    }
+
+    fn set_window_title(&mut self, title: &str) {
+        self.base().window_type.set_title_text(title);
     }
 
     fn is_status_insert(&mut self) -> bool {

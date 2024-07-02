@@ -36,6 +36,11 @@ impl ChatSession {
         })
     }
 
+    pub fn server_name(&self) -> &str {
+        // TODO: get server name from server
+        "foobar"
+    }
+
     pub fn stop(&mut self) {
         // Stop the chat session by sending a cancel signal
         if let Some(cancel_tx) = self.cancel_tx.take() {
@@ -157,10 +162,11 @@ impl ChatSession {
     }
 
     pub fn process_response(
-        &self,
+        &mut self,
         response: Bytes,
+        start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
-        self.server.process_response(response)
+        self.server.process_response(response, start_of_stream)
     }
 
     // used in non-interactive mode
@@ -177,11 +183,12 @@ impl ChatSession {
     }
 
     async fn handle_response(
-        &self,
+        &mut self,
         mut rx: mpsc::Receiver<Bytes>,
         stop_signal: Arc<Mutex<bool>>,
     ) -> Result<(), ApplicationError> {
         let mut final_received = false;
+        let mut start_of_stream = true;
         while let Some(response) = rx.recv().await {
             // check if the session must be kept running
             if !*stop_signal.lock().await {
@@ -196,12 +203,13 @@ impl ChatSession {
                 continue;
             }
             let (response_content, is_final, _) =
-                self.process_response(response);
+                self.process_response(response, start_of_stream);
             if let Some(response_content) = response_content {
                 print!("{}", response_content);
             }
             io::stdout().flush().expect("Failed to flush stdout");
 
+            start_of_stream = false;
             if is_final {
                 final_received = true;
             }

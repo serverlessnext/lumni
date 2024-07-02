@@ -104,8 +104,9 @@ impl ServerTrait for Ollama {
     }
 
     fn process_response(
-        &self,
+        &mut self,
         response: Bytes,
+        _start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
         match OllamaCompletionResponse::extract_content(response) {
             Ok(chat) => {

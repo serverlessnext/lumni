@@ -55,6 +55,9 @@ async fn prompt_app<B: Backend>(
     // TODO: add color scheme selection via modal
     let color_scheme = ColorScheme::new(ColorSchemeType::Default);
 
+    // TODO: replace with loaded server and model
+    tab.ui.response.set_window_title("Response");
+
     loop {
         tokio::select! {
             _ = tick.tick() => {
@@ -62,8 +65,6 @@ async fn prompt_app<B: Backend>(
                     tab.draw_ui(terminal)?;
                     redraw_ui = false;
                 }
-                let mut tab_ui = &mut tab.ui;
-                let mut chat = &mut tab.chat;
 
                 // set timeout to 1ms to allow for non-blocking polling
                 if poll(Duration::from_millis(1))? {
@@ -74,31 +75,31 @@ async fn prompt_app<B: Backend>(
                                 // toggle beteen prompt and response windows
                                 current_mode = match current_mode {
                                     Some(WindowEvent::PromptWindow) => {
-                                        if tab_ui.prompt.is_status_insert() {
+                                        if tab.ui.prompt.is_status_insert() {
                                             // tab is locked to prompt window when in insert mode
                                             Some(WindowEvent::PromptWindow)
                                         } else {
-                                            tab_ui.prompt.set_status_inactive();
-                                            tab_ui.response.set_status_normal();
+                                            tab.ui.prompt.set_status_inactive();
+                                            tab.ui.response.set_status_normal();
                                             Some(WindowEvent::ResponseWindow)
                                         }
                                     }
                                     Some(WindowEvent::ResponseWindow) => {
-                                        tab_ui.response.set_status_inactive();
-                                        tab_ui.prompt.set_status_normal();
+                                        tab.ui.response.set_status_inactive();
+                                        tab.ui.prompt.set_status_normal();
                                         Some(WindowEvent::PromptWindow)
                                     }
                                     Some(WindowEvent::CommandLine(_)) => {
                                         // exit command line mode
-                                        tab_ui.command_line.text_empty();
-                                        tab_ui.command_line.set_status_inactive();
+                                        tab.ui.command_line.text_empty();
+                                        tab.ui.command_line.set_status_inactive();
 
                                         // switch to the active window,
-                                        if tab_ui.response.is_active() {
-                                            tab_ui.response.set_status_normal();
+                                        if tab.ui.response.is_active() {
+                                            tab.ui.response.set_status_normal();
                                             Some(WindowEvent::ResponseWindow)
                                         } else {
-                                            tab_ui.prompt.set_status_normal();
+                                            tab.ui.prompt.set_status_normal();
                                             Some(WindowEvent::PromptWindow)
                                         }
                                     }
@@ -109,7 +110,8 @@ async fn prompt_app<B: Backend>(
                             current_mode = if let Some(mode) = current_mode {
                                 key_event_handler.process_key(
                                     key_event,
-                                    &mut tab_ui,
+                                    &mut tab.ui,
+                                    &mut tab.chat,
                                     mode,
                                     keep_running.clone(),
                                 ).await
@@ -127,26 +129,26 @@ async fn prompt_app<B: Backend>(
                                             // prompt should end with single newline
                                             let formatted_prompt = format!("{}\n", prompt.trim_end());
 
-                                            tab_ui.response.text_append_with_insert(
+                                            tab.ui.response.text_append_with_insert(
                                                 &formatted_prompt,
                                                 //Some(PromptStyle::user()),
                                                 Some(color_scheme.get_primary_style()),
                                             );
-                                            tab_ui.response.text_append_with_insert(
+                                            tab.ui.response.text_append_with_insert(
                                                 "\n",
                                                 Some(Style::reset()),
                                             );
 
-                                            chat.message(tx.clone(), formatted_prompt).await?;
+                                            tab.chat.message(tx.clone(), formatted_prompt).await?;
                                         }
                                         PromptAction::Clear => {
-                                            tab_ui.response.text_empty();
-                                            chat.reset();
+                                            tab.ui.response.text_empty();
+                                            tab.chat.reset();
                                             trim_buffer = None;
                                         }
                                         PromptAction::Stop => {
-                                            chat.stop();
-                                            finalize_response(&mut chat, &mut tab_ui, None, &color_scheme).await?;
+                                            tab.chat.stop();
+                                            finalize_response(&mut tab.chat, &mut tab.ui, None, &color_scheme).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -154,22 +156,22 @@ async fn prompt_app<B: Backend>(
                                 }
                                 Some(WindowEvent::CommandLine(ref action)) => {
                                     // enter command line mode
-                                    if tab_ui.prompt.is_active() {
-                                        tab_ui.prompt.set_status_background();
+                                    if tab.ui.prompt.is_active() {
+                                        tab.ui.prompt.set_status_background();
                                     } else {
-                                        tab_ui.response.set_status_background();
+                                        tab.ui.response.set_status_background();
                                     }
                                     match action {
                                         CommandLineAction::Write(prefix) => {
-                                            tab_ui.command_line.set_insert_mode();
-                                            tab_ui.command_line.text_set(prefix, None);
+                                            tab.ui.command_line.set_insert_mode();
+                                            tab.ui.command_line.text_set(prefix, None);
                                         }
                                         CommandLineAction::None => {}
                                     }
                                 }
                                 Some(WindowEvent::Modal(modal_window_type)) => {
-                                    if tab_ui.needs_modal_update(modal_window_type) {
-                                        tab_ui.set_new_modal(modal_window_type);
+                                    if tab.ui.needs_modal_update(modal_window_type) {
+                                        tab.ui.set_new_modal(modal_window_type);
                                     }
                                 }
                                 _ => {}
@@ -177,7 +179,7 @@ async fn prompt_app<B: Backend>(
                         },
                         Event::Mouse(mouse_event) => {
                             // TODO: should track on which window the cursor actually is
-                            let window = &mut tab_ui.response;
+                            let window = &mut tab.ui.response;
                             match mouse_event.kind {
                                 MouseEventKind::ScrollUp => {
                                     window.scroll_up();
@@ -207,13 +209,16 @@ async fn prompt_app<B: Backend>(
                 let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
 
-                if trim_buffer.is_none() {
+                let start_of_stream = if trim_buffer.is_none() {
                     // new response stream started
                     log::debug!("New response stream started");
                     tab_ui.response.enable_auto_scroll();
-                }
+                    true
+                } else {
+                    false
+                };
 
-                let (response_content, is_final, tokens_predicted) = chat.process_response(response_bytes);
+                let (response_content, is_final, tokens_predicted) = chat.process_response(response_bytes, start_of_stream);
 
                 let trimmed_response = if let Some(text) = response_content.as_ref() {
                     text.trim_end().to_string()
@@ -237,7 +242,7 @@ async fn prompt_app<B: Backend>(
                     // e.g. for logging or metrics. These should be retrieved to ensure
                     // the stream is fully consumed and processed.
                     while let Ok(post_bytes) = rx.try_recv() {
-                        chat.process_response(post_bytes);
+                        chat.process_response(post_bytes, false);
                     }
                     finalize_response(&mut chat, &mut tab_ui, tokens_predicted, &color_scheme).await?;
                     trim_buffer = None;

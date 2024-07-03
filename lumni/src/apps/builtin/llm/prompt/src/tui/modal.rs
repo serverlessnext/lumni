@@ -6,7 +6,7 @@ use ratatui::Frame;
 use super::components::Scroller;
 use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
-use super::WindowEvent;
+use super::{WindowEvent, ChatSession};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
@@ -19,6 +19,7 @@ pub trait ModalWindowTrait {
     fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,
+        tab_chat: &mut ChatSession,
     ) -> Option<WindowEvent>;
 }
 
@@ -57,16 +58,19 @@ impl ModalWindowTrait for ModalConfigWindow {
     fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,
+        tab_chat: &mut ChatSession,
     ) -> Option<WindowEvent> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
             KeyCode::Down => self.widget.key_down(),
             KeyCode::Enter => {
                 let endpoint = self.widget.current_endpoint();
-                eprintln!("Selected endpoint: {}", endpoint);
+                tab_chat.select_endpoint(endpoint);
+                return Some(WindowEvent::PromptWindow);
             }
             _ => {} // Ignore other keys
         }
+        // stay in the modal window
         Some(WindowEvent::Modal(ModalWindowType::Config))
     }
 }

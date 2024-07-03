@@ -19,11 +19,14 @@ use url::Url;
 
 use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerTrait,
+    LLMDefinition, PromptInstruction, ServerTrait, ServerSpecTrait,
 };
 pub use crate::external as lumni;
 
+define_and_impl_server_spec!(BedrockSpec);
+
 pub struct Bedrock {
+    spec: BedrockSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
@@ -39,6 +42,9 @@ impl Bedrock {
             .set_list_models(Url::parse(bedrock_endpoint)?);
 
         Ok(Bedrock {
+            spec: BedrockSpec {
+                name: "Bedrock".to_string(),
+            },
             http_client: HttpClient::new()
                 .with_error_handler(Arc::new(AWSErrorHandler)),
             endpoints,
@@ -106,6 +112,10 @@ impl Bedrock {
 
 #[async_trait]
 impl ServerTrait for Bedrock {
+    fn get_spec(&self) -> &dyn ServerSpecTrait {
+        &self.spec
+    }
+
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,

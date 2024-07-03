@@ -11,4 +11,4 @@ pub use cursor::MoveCursor;
 pub use scroller::Scroller;
 pub use text_buffer::{LineType, TextBuffer};
 pub use text_window::{TextWindow, TextWindowTrait};
-pub use window_config::{WindowKind, WindowStatus, WindowConfig};
+pub use window_config::{WindowConfig, WindowKind, WindowStatus};

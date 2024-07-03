@@ -1,9 +1,13 @@
+// ensure spec is loaded first due to macro usage
+#[macro_use]
+mod spec;
+
 mod bedrock;
-mod openai;
 mod endpoints;
 mod llama;
 mod llm;
 mod ollama;
+mod openai;
 
 use async_trait::async_trait;
 pub use bedrock::Bedrock;
@@ -22,11 +26,13 @@ pub use super::chat::{
     ChatCompletionOptions, ChatExchange, ChatHistory, ChatMessage,
     PromptInstruction, TokenResponse,
 };
+pub use spec::ServerSpecTrait;
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
 
-pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] = ["llama", "ollama", "bedrock", "openai"];
+pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] =
+    ["llama", "ollama", "bedrock", "openai"];
 
 pub enum ModelServer {
     Llama(Llama),
@@ -53,7 +59,7 @@ impl ModelServer {
             }
             "openai" => {
                 Ok(ModelServer::OpenAI(OpenAI::new().map_err(|e| {
-                ApplicationError::ServerConfigurationError(e.to_string())
+                    ApplicationError::ServerConfigurationError(e.to_string())
                 })?))
             }
             _ => Err(ApplicationError::NotImplemented(format!(
@@ -68,6 +74,15 @@ impl ServerManager for ModelServer {}
 
 #[async_trait]
 impl ServerTrait for ModelServer {
+    fn get_spec(&self) -> &dyn ServerSpecTrait {
+        match self {
+            ModelServer::Llama(llama) => llama.get_spec(),
+            ModelServer::Ollama(ollama) => ollama.get_spec(),
+            ModelServer::Bedrock(bedrock) => bedrock.get_spec(),
+            ModelServer::OpenAI(openai) => openai.get_spec(),
+        }
+    }
+
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
@@ -101,10 +116,18 @@ impl ServerTrait for ModelServer {
         start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
         match self {
-            ModelServer::Llama(llama) => llama.process_response(response, start_of_stream),
-            ModelServer::Ollama(ollama) => ollama.process_response(response, start_of_stream),
-            ModelServer::Bedrock(bedrock) => bedrock.process_response(response, start_of_stream),
-            ModelServer::OpenAI(openai) => openai.process_response(response, start_of_stream),
+            ModelServer::Llama(llama) => {
+                llama.process_response(response, start_of_stream)
+            }
+            ModelServer::Ollama(ollama) => {
+                ollama.process_response(response, start_of_stream)
+            }
+            ModelServer::Bedrock(bedrock) => {
+                bedrock.process_response(response, start_of_stream)
+            }
+            ModelServer::OpenAI(openai) => {
+                openai.process_response(response, start_of_stream)
+            }
         }
     }
 
@@ -194,6 +217,8 @@ impl ServerTrait for ModelServer {
 
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
+    fn get_spec(&self) -> &dyn ServerSpecTrait;
+
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
@@ -263,7 +288,7 @@ pub trait ServerTrait: Send + Sync {
 }
 
 #[async_trait]
-pub trait ServerManager: ServerTrait {
+pub trait ServerManager: ServerTrait  {
     async fn setup_and_initialize(
         &mut self,
         model: LLMDefinition,
@@ -286,5 +311,9 @@ pub trait ServerManager: ServerTrait {
                 .set_system_token_length(self.token_length(instruction).await?);
         };
         self.initialize_with_model(model, prompt_instruction).await
+    }
+
+    fn server_name(&self) -> &str {
+        self.get_spec().name()
     }
 }

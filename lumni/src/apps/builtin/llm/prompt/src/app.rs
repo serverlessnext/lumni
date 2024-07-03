@@ -27,8 +27,8 @@ use super::chat::ChatSession;
 use super::server::{ModelServer, PromptInstruction, ServerTrait};
 use super::session::AppSession;
 use super::tui::{
-    ColorScheme, ColorSchemeType, CommandLineAction, KeyEventHandler,
-    PromptAction, TabUi, TextWindowTrait, WindowEvent,
+    ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
+    TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -40,7 +40,18 @@ async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app_session: AppSession<'_>,
 ) -> Result<(), ApplicationError> {
+    let defaults = app_session.get_defaults().clone();
+
+    //let default_color_scheme = app_session.get_default_color_scheme();
     let tab = app_session.get_tab_mut(0).expect("No tab found");
+
+    let color_scheme = tab
+        .color_scheme
+        .unwrap_or_else(|| defaults.get_color_scheme());
+
+    // TODO: replace with loaded server and model
+    let server_name = tab.chat.server_name();
+    tab.ui.response.set_window_title(tab.chat.server_name());
 
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
@@ -51,12 +62,6 @@ async fn prompt_app<B: Backend>(
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
-
-    // TODO: add color scheme selection via modal
-    let color_scheme = ColorScheme::new(ColorSchemeType::Default);
-
-    // TODO: replace with loaded server and model
-    tab.ui.response.set_window_title("Response");
 
     loop {
         tokio::select! {
@@ -333,8 +338,8 @@ pub async fn run_cli(
 
     let server_name = matches
         .get_one::<String>("server")
-        .cloned()
-        .unwrap_or_else(|| "ollama".to_string());
+        .map(|s| s.to_lowercase())
+        .unwrap_or_else(|| "ollama".to_lowercase());
 
     // create new (un-initialized) server from requested server name
     let server = ModelServer::from_str(&server_name)?;
@@ -520,10 +525,7 @@ async fn process_non_interactive_input(
     }
 }
 
-async fn handle_ctrl_c(
-    r: Arc<Mutex<bool>>,
-    s: Arc<Mutex<bool>>,
-) {
+async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {
     let mut count = 0;
     loop {
         signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");

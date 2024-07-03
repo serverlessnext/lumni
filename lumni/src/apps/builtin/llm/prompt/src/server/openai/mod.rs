@@ -1,7 +1,7 @@
+mod credentials;
 mod error;
 mod request;
 mod response;
-mod credentials;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -9,31 +9,32 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use credentials::OpenAICredentials;
 use error::OpenAIErrorHandler;
 use lumni::api::error::ApplicationError;
 use lumni::HttpClient;
+use request::OpenAIRequestPayload;
+use response::StreamParser;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerTrait,
+    LLMDefinition, PromptInstruction, ServerTrait, ServerSpecTrait,
 };
-use credentials::OpenAICredentials;
-use request::OpenAIRequestPayload;
-use response::StreamParser;
-
 pub use crate::external as lumni;
 
+const OPENAI_COMPLETION_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
+
+define_and_impl_server_spec!(OpenAISpec);   //, "OpenAI");
+
 pub struct OpenAI {
+    spec: OpenAISpec,
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
     stream_parser: StreamParser,
 }
-
-const OPENAI_COMPLETION_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
-
 
 impl OpenAI {
     pub fn new() -> Result<Self, Box<dyn Error>> {
@@ -41,6 +42,9 @@ impl OpenAI {
             .set_completion(Url::parse(OPENAI_COMPLETION_ENDPOINT)?);
 
         Ok(OpenAI {
+            spec: OpenAISpec {
+                name: "OpenAI".to_string(),
+            },
             http_client: HttpClient::new()
                 .with_error_handler(Arc::new(OpenAIErrorHandler)),
             endpoints,
@@ -55,12 +59,11 @@ impl OpenAI {
         exchanges: &Vec<ChatExchange>,
         system_prompt: Option<&str>,
     ) -> Result<String, serde_json::Error> {
-        let messages: Vec<ChatMessage> =
-            ChatHistory::exchanges_to_messages(
-                exchanges,
-                system_prompt,
-                &|role| self.get_role_name(role),
-            );
+        let messages: Vec<ChatMessage> = ChatHistory::exchanges_to_messages(
+            exchanges,
+            system_prompt,
+            &|role| self.get_role_name(role),
+        );
 
         let openai_request_payload = OpenAIRequestPayload {
             model: model.get_name().to_string(),
@@ -81,6 +84,10 @@ impl OpenAI {
 
 #[async_trait]
 impl ServerTrait for OpenAI {
+    fn get_spec(&self) -> &dyn ServerSpecTrait {
+        &self.spec
+    }
+
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
@@ -99,7 +106,8 @@ impl ServerTrait for OpenAI {
         response_bytes: Bytes,
         start_of_stream: bool,
     ) -> (Option<String>, bool, Option<usize>) {
-        self.stream_parser.process_chunk(response_bytes, start_of_stream)
+        self.stream_parser
+            .process_chunk(response_bytes, start_of_stream)
     }
 
     async fn completion(
@@ -122,10 +130,8 @@ impl ServerTrait for OpenAI {
         let credentials = OpenAICredentials::from_env()?;
 
         let mut headers = HashMap::new();
-        headers.insert(
-            "Content-Type".to_string(),
-            "application/json".to_string(),
-        );
+        headers
+            .insert("Content-Type".to_string(), "application/json".to_string());
         headers.insert(
             "Authorization".to_string(),
             format!("Bearer {}", credentials.get_api_key()),
@@ -146,9 +152,7 @@ impl ServerTrait for OpenAI {
     async fn list_models(
         &self,
     ) -> Result<Vec<LLMDefinition>, ApplicationError> {
-        let model = LLMDefinition::new(
-            "gpt-3.5-turbo".to_string(),
-        );
+        let model = LLMDefinition::new("gpt-3.5-turbo".to_string());
         Ok(vec![model])
     }
 }

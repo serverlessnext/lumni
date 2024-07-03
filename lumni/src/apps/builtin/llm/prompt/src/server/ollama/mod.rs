@@ -10,7 +10,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response, ChatExchange,
     ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, ServerTrait,
+    PromptInstruction, ServerTrait, ServerSpecTrait,
 };
 use crate::external as lumni;
 
@@ -19,7 +19,10 @@ pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";
 pub const DEFAULT_LIST_MODELS_ENDPOINT: &str =
     "http://localhost:11434/api/tags";
 
+define_and_impl_server_spec!(OllamaSpec);
+
 pub struct Ollama {
+    spec: OllamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
@@ -32,6 +35,9 @@ impl Ollama {
             .set_list_models(Url::parse(DEFAULT_LIST_MODELS_ENDPOINT)?);
 
         Ok(Ollama {
+            spec: OllamaSpec {
+                name: "Ollama".to_string(),
+            },
             http_client: HttpClient::new(),
             endpoints,
             model: None,
@@ -61,6 +67,10 @@ impl Ollama {
 
 #[async_trait]
 impl ServerTrait for Ollama {
+    fn get_spec(&self) -> &dyn ServerSpecTrait {
+        &self.spec
+    }
+
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,

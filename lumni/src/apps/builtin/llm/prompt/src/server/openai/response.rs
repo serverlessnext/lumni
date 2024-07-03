@@ -1,9 +1,9 @@
-use std::error::Error;
 use std::collections::HashMap;
+use std::error::Error;
+
 use bytes::Bytes;
 use serde::Deserialize;
-use serde_json::Value;
-use serde_json::Result as JsonResult;
+use serde_json::{Result as JsonResult, Value};
 
 #[derive(Debug, Deserialize)]
 pub struct OpenAIResponsePayload {
@@ -21,7 +21,9 @@ pub struct OpenAIResponsePayload {
 impl OpenAIResponsePayload {
     // TODO: does not work yet
     // OpenAI sents back split responses, which we need to concatenate first
-    pub fn extract_content(bytes: Bytes) -> Result<OpenAIResponsePayload, Box<dyn Error>> {
+    pub fn extract_content(
+        bytes: Bytes,
+    ) -> Result<OpenAIResponsePayload, Box<dyn Error>> {
         // Convert bytes to string, log the raw input
         let text = match String::from_utf8(bytes.to_vec()) {
             Ok(t) => t,
@@ -56,9 +58,6 @@ impl OpenAIResponsePayload {
         }
     }
 }
-
-
-
 
 #[derive(Debug, Deserialize)]
 pub struct Choice {
@@ -95,7 +94,11 @@ impl StreamParser {
         }
     }
 
-    pub fn process_chunk(&mut self, chunk: Bytes, start_of_stream: bool) -> (Option<String>, bool, Option<usize>) {
+    pub fn process_chunk(
+        &mut self,
+        chunk: Bytes,
+        start_of_stream: bool,
+    ) -> (Option<String>, bool, Option<usize>) {
         if start_of_stream {
             self.buffer.clear();
             self.stopped_received = false;
@@ -114,7 +117,7 @@ impl StreamParser {
             if message.starts_with("data: ") {
                 let json_str = &message[6..];
                 log::debug!("Received: {}", json_str);
-                
+
                 match self.parse_payload(json_str) {
                     Ok((content, is_stop)) => {
                         final_content.push_str(&content);
@@ -127,7 +130,11 @@ impl StreamParser {
                         if stop {
                             return (None, true, None);
                         }
-                        return (Some(format!("Failed to parse JSON: {}", e)), true, None);
+                        return (
+                            Some(format!("Failed to parse JSON: {}", e)),
+                            true,
+                            None,
+                        );
                     }
                 }
             }

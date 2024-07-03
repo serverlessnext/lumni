@@ -11,8 +11,8 @@ use super::clipboard::ClipboardProvider;
 use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
-use super::TabSession;
 use super::windows::PromptWindow;
+use super::TabSession;
 
 #[derive(Debug)]
 pub enum WindowEvent {

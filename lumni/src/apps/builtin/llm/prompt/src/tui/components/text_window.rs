@@ -1,6 +1,5 @@
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Style;
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::block::{Padding, Title};
 use ratatui::widgets::{Block, Paragraph, ScrollbarState};
@@ -66,8 +65,7 @@ impl<'a> TextWindow<'a> {
         self.window_type.set_window_status(status);
         // update placeholder text
         let placeholder_text = self.window_type.placeholder_text();
-        self.text_buffer
-            .set_placeholder(placeholder_text);
+        self.text_buffer.set_placeholder(placeholder_text);
     }
 
     fn scroll_to_cursor(&mut self) {
@@ -187,7 +185,9 @@ impl<'a> TextWindow<'a> {
 
         let title = self.window_type.title();
         if let Some(title) = title {
-            block = block.title(title).title_style(Style::default().fg(Color::LightGreen))
+            block = block
+                .title(title)
+                .title_style(Style::default().fg(Color::LightGreen))
         }
 
         let start_idx = self.scroller.vertical_scroll;
@@ -229,8 +229,7 @@ impl<'a> TextWindow<'a> {
 
     pub fn update_placeholder_text(&mut self) {
         let placeholder_text = self.window_type.placeholder_text();
-        self.text_buffer
-            .set_placeholder(placeholder_text);
+        self.text_buffer.set_placeholder(placeholder_text);
     }
 }
 

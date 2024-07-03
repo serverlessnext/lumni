@@ -2,7 +2,6 @@ use serde::Serialize;
 
 use super::ChatMessage;
 
-
 #[derive(Debug, Serialize)]
 pub struct OpenAIRequestPayload {
     pub model: String,
@@ -11,7 +10,7 @@ pub struct OpenAIRequestPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frequency_penalty: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stop: Option<Vec<String>>,  // up to 4 stop sequences
+    pub stop: Option<Vec<String>>, // up to 4 stop sequences
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

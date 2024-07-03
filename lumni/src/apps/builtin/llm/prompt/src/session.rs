@@ -4,11 +4,12 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use super::chat::ChatSession;
-use super::tui::{draw_ui, TabUi};
+use super::tui::{draw_ui, ColorScheme, ColorSchemeType, TabUi};
 
 pub struct TabSession<'a> {
     pub ui: TabUi<'a>,
     pub chat: ChatSession,
+    pub color_scheme: Option<ColorScheme>,
 }
 
 impl TabSession<'_> {
@@ -16,7 +17,11 @@ impl TabSession<'_> {
         let mut tab_ui = TabUi::new();
         tab_ui.init();
 
-        TabSession { ui: tab_ui, chat }
+        TabSession {
+            ui: tab_ui,
+            chat,
+            color_scheme: Some(ColorScheme::new(ColorSchemeType::Default)),
+        }
     }
 
     pub fn draw_ui<B: Backend>(
@@ -29,11 +34,15 @@ impl TabSession<'_> {
 
 pub struct AppSession<'a> {
     tabs: Vec<TabSession<'a>>,
+    defaults: AppDefaults,
 }
 
 impl<'a> AppSession<'a> {
     pub fn new() -> Self {
-        AppSession { tabs: Vec::new() }
+        AppSession {
+            tabs: Vec::new(),
+            defaults: AppDefaults::new(),
+        }
     }
 
     pub fn add_tab(&mut self, chat_session: ChatSession) {
@@ -42,5 +51,26 @@ impl<'a> AppSession<'a> {
 
     pub fn get_tab_mut(&mut self, index: usize) -> Option<&mut TabSession<'a>> {
         self.tabs.get_mut(index)
+    }
+
+    pub fn get_defaults(&self) -> &AppDefaults {
+        &self.defaults
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppDefaults {
+    color_scheme: ColorScheme,
+}
+
+impl AppDefaults {
+    fn new() -> Self {
+        AppDefaults {
+            color_scheme: ColorScheme::new(ColorSchemeType::Default),
+        }
+    }
+
+    pub fn get_color_scheme(&self) -> ColorScheme {
+        self.color_scheme
     }
 }

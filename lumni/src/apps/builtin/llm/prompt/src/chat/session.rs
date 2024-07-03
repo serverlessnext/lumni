@@ -37,8 +37,12 @@ impl ChatSession {
     }
 
     pub fn server_name(&self) -> &str {
-        // TODO: get server name from server
-        "foobar"
+        self.server.server_name()
+    }
+
+    pub fn select_endpoint(&mut self, endpoint: &str) {
+        //self.server.select_endpoint(endpoint);
+        log::debug!("Selected endpoint: {}", endpoint);
     }
 
     pub fn stop(&mut self) {

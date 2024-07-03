@@ -1,8 +1,8 @@
 use std::env;
 
 use lumni::api::error::ApplicationError;
-pub use crate::external as lumni;
 
+pub use crate::external as lumni;
 
 #[derive(Clone)]
 pub struct OpenAICredentials {

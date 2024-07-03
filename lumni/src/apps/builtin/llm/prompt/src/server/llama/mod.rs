@@ -13,6 +13,7 @@ use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
     ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
     PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
+    ServerSpecTrait,
 };
 use crate::external as lumni;
 
@@ -21,7 +22,10 @@ pub const DEFAULT_COMPLETION_ENDPOINT: &str =
     "http://localhost:8080/completion";
 pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
 
+define_and_impl_server_spec!(LlamaSpec);
+
 pub struct Llama {
+    spec: LlamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
@@ -35,6 +39,9 @@ impl Llama {
             .set_settings(Url::parse(DEFAULT_SETTINGS_ENDPOINT)?);
 
         Ok(Llama {
+            spec: LlamaSpec {
+                name: "Llama".to_string(),
+            },
             http_client: HttpClient::new(),
             endpoints,
             model: None,
@@ -107,6 +114,10 @@ impl Llama {
 
 #[async_trait]
 impl ServerTrait for Llama {
+    fn get_spec(&self) -> &dyn ServerSpecTrait {
+        &self.spec
+    }
+
     fn process_response(
         &mut self,
         response: Bytes,

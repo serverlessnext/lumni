@@ -3,12 +3,11 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::apps::builtin::llm::prompt::src::chat::ChatSession;
-
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{TabUi, TabSession, WindowEvent};
+use super::{TabSession, TabUi, WindowEvent};
+use crate::apps::builtin::llm::prompt::src::chat::ChatSession;
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -200,10 +199,21 @@ impl KeyEventHandler {
                     Some(WindowEvent::PromptWindow)
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
-                        // handled by modal window
-                        // TODO: pass tab_chat to modal window, so it can
-                        // apply changes to the chat session
-                        modal.handle_key_event(&mut self.key_track)
+                        let new_window_event = match modal.handle_key_event(&mut self.key_track, tab_chat) {
+                            Some(WindowEvent::Modal(next_window_type)) => {
+                                if next_window_type == window_type {
+                                    // window remains un-changed
+                                    return Some(WindowEvent::Modal(window_type));
+                                }
+                                WindowEvent::Modal(next_window_type)
+                            },
+                            Some(new_window_event) => new_window_event,
+                            None => WindowEvent::PromptWindow,    // default
+                        };
+                        // window change
+                        // close existing modal window
+                        tab_ui.clear_modal();   
+                        return Some(new_window_event);
                     } else {
                         Some(WindowEvent::Modal(window_type))
                     }

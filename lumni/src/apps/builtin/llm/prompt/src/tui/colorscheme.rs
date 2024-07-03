@@ -8,6 +8,7 @@ pub enum ColorSchemeType {
     Pastel,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ColorSet {
     pub background: Color,
     pub primary_fg: Color,
@@ -26,6 +27,7 @@ impl ColorSet {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ColorScheme {
     colors: ColorSet,
 }

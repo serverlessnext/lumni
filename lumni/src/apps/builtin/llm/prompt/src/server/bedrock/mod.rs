@@ -19,7 +19,7 @@ use url::Url;
 
 use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerTrait, ServerSpecTrait,
+    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 

@@ -343,24 +343,7 @@ pub async fn run_cli(
 
     // create new (un-initialized) server from requested server name
     let server = ModelServer::from_str(&server_name)?;
-
-    // get default model from server - if available
-    let default_model = match server.list_models().await {
-        Ok(models) => {
-            if models.is_empty() {
-                log::warn!("Received empty model list");
-                None
-            } else {
-                log::debug!("Available models: {:?}", models);
-                Some(models[0].to_owned())
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to list models: {}", e);
-            None
-        }
-    };
-
+    let default_model = server.get_default_model().await;
     // setup prompt, server and chat session
     let prompt_instruction =
         PromptInstruction::new(instruction, assistant, options)?;

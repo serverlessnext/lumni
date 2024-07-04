@@ -1,4 +1,4 @@
-
+// add debug
 pub trait ServerSpecTrait {
     fn name(&self) -> &str;
 }

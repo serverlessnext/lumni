@@ -10,7 +10,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response, ChatExchange,
     ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, ServerTrait, ServerSpecTrait,
+    PromptInstruction, ServerSpecTrait, ServerTrait,
 };
 use crate::external as lumni;
 

@@ -20,13 +20,14 @@ use url::Url;
 
 use super::{
     http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerTrait, ServerSpecTrait,
+    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
-const OPENAI_COMPLETION_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
+const OPENAI_COMPLETION_ENDPOINT: &str =
+    "https://api.openai.com/v1/chat/completions";
 
-define_and_impl_server_spec!(OpenAISpec);   //, "OpenAI");
+define_and_impl_server_spec!(OpenAISpec); //, "OpenAI");
 
 pub struct OpenAI {
     spec: OpenAISpec,

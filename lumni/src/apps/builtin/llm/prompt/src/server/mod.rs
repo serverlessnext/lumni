@@ -19,6 +19,7 @@ use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
 pub use openai::OpenAI;
+pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
@@ -26,7 +27,6 @@ pub use super::chat::{
     ChatCompletionOptions, ChatExchange, ChatHistory, ChatMessage,
     PromptInstruction, TokenResponse,
 };
-pub use spec::ServerSpecTrait;
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
 use crate::external as lumni;
@@ -247,6 +247,24 @@ pub trait ServerTrait: Send + Sync {
         }
     }
 
+    async fn get_default_model(&self) -> Option<LLMDefinition> {
+        match self.list_models().await {
+            Ok(models) => {
+                if models.is_empty() {
+                    log::warn!("Received empty model list");
+                    None
+                } else {
+                    log::debug!("Available models: {:?}", models);
+                    Some(models[0].to_owned())
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to list models: {}", e);
+                None
+            }
+        }
+    }
+
     fn process_response(
         &mut self,
         response: Bytes,
@@ -288,7 +306,7 @@ pub trait ServerTrait: Send + Sync {
 }
 
 #[async_trait]
-pub trait ServerManager: ServerTrait  {
+pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
         model: LLMDefinition,

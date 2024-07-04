@@ -18,6 +18,6 @@ pub use modal::{ModalConfigWindow, ModalWindowTrait, ModalWindowType};
 pub use ui::TabUi;
 pub use windows::{CommandLine, PromptWindow, ResponseWindow};
 
+pub use super::chat::ChatSession;
 pub use super::server::SUPPORTED_MODEL_ENDPOINTS;
 pub use super::session::TabSession;
-pub use super::chat::ChatSession;

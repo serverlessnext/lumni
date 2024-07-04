@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::widgets::Clear;
@@ -6,20 +7,21 @@ use ratatui::Frame;
 use super::components::Scroller;
 use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
-use super::{WindowEvent, ChatSession};
+use super::{ChatSession, WindowEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
     Config,
 }
 
+#[async_trait]
 pub trait ModalWindowTrait {
     fn get_type(&self) -> ModalWindowType;
     fn render_on_frame(&mut self, frame: &mut Frame, area: Rect);
-    fn handle_key_event(
-        &mut self,
-        key_event: &mut KeyTrack,
-        tab_chat: &mut ChatSession,
+    async fn handle_key_event<'a>(
+        &'a mut self,
+        key_event: &'a mut KeyTrack,
+        tab_chat: &'a mut ChatSession,
     ) -> Option<WindowEvent>;
 }
 
@@ -37,6 +39,7 @@ impl ModalConfigWindow {
     }
 }
 
+#[async_trait]
 impl ModalWindowTrait for ModalConfigWindow {
     fn get_type(&self) -> ModalWindowType {
         ModalWindowType::Config
@@ -55,17 +58,17 @@ impl ModalWindowTrait for ModalConfigWindow {
         frame.render_widget(&mut self.widget, area);
     }
 
-    fn handle_key_event(
-        &mut self,
-        key_event: &mut KeyTrack,
-        tab_chat: &mut ChatSession,
+    async fn handle_key_event<'a>(
+        &'a mut self,
+        key_event: &'a mut KeyTrack,
+        tab_chat: &'a mut ChatSession,
     ) -> Option<WindowEvent> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
             KeyCode::Down => self.widget.key_down(),
             KeyCode::Enter => {
                 let endpoint = self.widget.current_endpoint();
-                tab_chat.select_endpoint(endpoint);
+                tab_chat.select_server(endpoint).await;
                 return Some(WindowEvent::PromptWindow);
             }
             _ => {} // Ignore other keys

@@ -199,20 +199,25 @@ impl KeyEventHandler {
                     Some(WindowEvent::PromptWindow)
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
-                        let new_window_event = match modal.handle_key_event(&mut self.key_track, tab_chat) {
+                        let new_window_event = match modal
+                            .handle_key_event(&mut self.key_track, tab_chat)
+                            .await
+                        {
                             Some(WindowEvent::Modal(next_window_type)) => {
                                 if next_window_type == window_type {
                                     // window remains un-changed
-                                    return Some(WindowEvent::Modal(window_type));
+                                    return Some(WindowEvent::Modal(
+                                        window_type,
+                                    ));
                                 }
                                 WindowEvent::Modal(next_window_type)
-                            },
+                            }
                             Some(new_window_event) => new_window_event,
-                            None => WindowEvent::PromptWindow,    // default
+                            None => WindowEvent::PromptWindow, // default
                         };
                         // window change
                         // close existing modal window
-                        tab_ui.clear_modal();   
+                        tab_ui.clear_modal();
                         return Some(new_window_event);
                     } else {
                         Some(WindowEvent::Modal(window_type))

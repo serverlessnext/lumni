@@ -12,8 +12,8 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
     ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
-    PromptRole, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
-    ServerSpecTrait,
+    PromptRole, ServerSpecTrait, ServerTrait, TokenResponse,
+    DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 

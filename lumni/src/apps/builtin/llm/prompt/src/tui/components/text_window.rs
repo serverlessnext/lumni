@@ -183,8 +183,7 @@ impl<'a> TextWindow<'a> {
             .border_style(self.window_type.border_style())
             .padding(Padding::new(0, 0, 0, 0));
 
-        let title = self.window_type.title();
-        if let Some(title) = title {
+        if let Some(title) = self.window_type.title() {
             block = block
                 .title(title)
                 .title_style(Style::default().fg(Color::LightGreen))

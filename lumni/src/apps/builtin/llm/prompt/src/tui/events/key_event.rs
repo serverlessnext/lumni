@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{TabSession, TabUi, WindowEvent};
+use super::{TabUi, WindowEvent};
 use crate::apps::builtin::llm::prompt::src::chat::ChatSession;
 
 #[derive(Debug, Clone)]

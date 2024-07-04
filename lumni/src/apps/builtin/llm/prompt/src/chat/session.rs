@@ -46,7 +46,6 @@ impl ChatSession {
         &mut self,
         server_name: &str,
     ) -> Result<(), ApplicationError> {
-
         if self.server_name() != server_name {
             log::debug!("switching server: {}", server_name);
             self.stop();

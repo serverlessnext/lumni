@@ -49,10 +49,6 @@ async fn prompt_app<B: Backend>(
         .color_scheme
         .unwrap_or_else(|| defaults.get_color_scheme());
 
-    // TODO: replace with loaded server and model
-    let server_name = tab.chat.server_name();
-    tab.ui.response.set_window_title(tab.chat.server_name());
-
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
@@ -136,7 +132,6 @@ async fn prompt_app<B: Backend>(
 
                                             tab.ui.response.text_append_with_insert(
                                                 &formatted_prompt,
-                                                //Some(PromptStyle::user()),
                                                 Some(color_scheme.get_primary_style()),
                                             );
                                             tab.ui.response.text_append_with_insert(

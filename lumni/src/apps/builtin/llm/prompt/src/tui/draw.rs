@@ -62,6 +62,7 @@ pub fn draw_ui<B: Backend>(
             tab.ui.prompt.widget(&prompt_edit_area),
             prompt_edit_area,
         );
+        tab.ui.response.set_window_title(tab.chat.server_name());
         frame.render_widget(
             tab.ui.response.widget(&prompt_log_area),
             prompt_log_area,

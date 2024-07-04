@@ -4,7 +4,9 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use super::chat::ChatSession;
-use super::tui::{draw_ui, ColorScheme, ColorSchemeType, TabUi};
+use super::tui::{
+    draw_ui, ColorScheme, ColorSchemeType, TabUi, TextWindowTrait,
+};
 
 pub struct TabSession<'a> {
     pub ui: TabUi<'a>,
@@ -16,7 +18,6 @@ impl TabSession<'_> {
     pub fn new(chat: ChatSession) -> Self {
         let mut tab_ui = TabUi::new();
         tab_ui.init();
-
         TabSession {
             ui: tab_ui,
             chat,
@@ -28,6 +29,9 @@ impl TabSession<'_> {
         &mut self,
         terminal: &mut Terminal<B>,
     ) -> Result<(), io::Error> {
+        // Set the response window title to current server name
+        self.ui.response.set_window_title(self.chat.server_name());
+
         draw_ui(terminal, self)
     }
 }

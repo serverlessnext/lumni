@@ -1,6 +1,6 @@
 use ratatui::layout::Alignment;
 use ratatui::style::{Color, Style};
-use ratatui::widgets::block::{Position, Title};
+use ratatui::widgets::block::Title;
 use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

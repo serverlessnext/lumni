@@ -6,8 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{TabUi, WindowEvent};
-use crate::apps::builtin::llm::prompt::src::chat::ChatSession;
+use super::{
+    ApplicationError, ChatSession, TabUi, WindowEvent,
+};
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -162,7 +163,7 @@ impl KeyEventHandler {
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-    ) -> Option<WindowEvent> {
+    ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self
                 .key_track
@@ -175,56 +176,75 @@ impl KeyEventHandler {
 
         // try to catch Shift+Enter key press in prompt window
         match current_mode {
-            WindowEvent::CommandLine(_) => handle_command_line_event(
+            WindowEvent::CommandLine(_) => Ok(handle_command_line_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            ),
-            WindowEvent::ResponseWindow => handle_response_window_event(
+            )),
+            WindowEvent::ResponseWindow => Ok(handle_response_window_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            ),
-            WindowEvent::PromptWindow => handle_prompt_window_event(
+            )),
+            WindowEvent::PromptWindow => Ok(handle_prompt_window_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            ),
+            )),
             WindowEvent::Modal(window_type) => {
                 // get Escape key press to close modal window
                 if self.key_track.current_key().code == KeyCode::Esc
                     || self.key_track.current_key().code == KeyCode::Char('q')
                 {
                     tab_ui.clear_modal();
-                    Some(WindowEvent::PromptWindow)
+                    Ok(Some(WindowEvent::PromptWindow))
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
                         let new_window_event = match modal
                             .handle_key_event(&mut self.key_track, tab_chat)
                             .await
                         {
-                            Some(WindowEvent::Modal(next_window_type)) => {
+                            Ok(Some(WindowEvent::Modal(next_window_type))) => {
                                 if next_window_type == window_type {
                                     // window remains un-changed
-                                    return Some(WindowEvent::Modal(
+                                    return Ok(Some(WindowEvent::Modal(
                                         window_type,
-                                    ));
+                                    )));
                                 }
                                 WindowEvent::Modal(next_window_type)
                             }
-                            Some(new_window_event) => new_window_event,
-                            None => WindowEvent::PromptWindow, // default
+                            Ok(Some(new_window_event)) => new_window_event,
+                            Ok(None) => WindowEvent::PromptWindow, // default
+                            Err(modal_error) => {
+                                match modal_error {
+                                    ApplicationError::NotReady(message) => {
+                                        // pass as warning to the user
+                                        log::debug!("Not ready: {:?}", message);
+                                        tab_ui.command_line.set_alert(&message);
+                                        return Ok(Some(WindowEvent::Modal(
+                                            window_type,
+                                        )));
+                                    }
+                                    _ => {
+                                        log::error!(
+                                            "Unexpected modal error: {:?}",
+                                            modal_error
+                                        );
+                                        return Err(modal_error);
+                                    }
+                                }
+                            }
                         };
                         // window change
                         // close existing modal window
                         tab_ui.clear_modal();
-                        return Some(new_window_event);
+                        return Ok(Some(new_window_event));
                     } else {
-                        Some(WindowEvent::Modal(window_type))
+                        Ok(Some(WindowEvent::Modal(window_type)))
                     }
                 }
             }
-            _ => Some(current_mode),
+            _ => Ok(Some(current_mode)),
         }
     }
 }

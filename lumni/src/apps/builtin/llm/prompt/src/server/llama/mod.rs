@@ -100,15 +100,19 @@ impl Llama {
             })?
             .to_string();
 
-        let response =
+        let result =
             http_get_with_response(settings_endpoint, self.http_client.clone())
-                .await?;
-        Ok(
-            serde_json::from_slice::<LlamaServerSettingsResponse>(&response)
-                .map_err(|e| {
-                    ApplicationError::ServerConfigurationError(e.to_string())
-                })?,
-        )
+                .await;
+
+        match result {
+            Ok(response) => Ok(serde_json::from_slice::<
+                LlamaServerSettingsResponse,
+            >(&response)
+            .map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?),
+            Err(e) => Err(ApplicationError::NotReady(e.to_string())),
+        }
     }
 }
 

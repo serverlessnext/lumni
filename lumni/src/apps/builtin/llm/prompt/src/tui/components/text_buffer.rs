@@ -192,7 +192,7 @@ impl TextBuffer<'_> {
             text: PieceTable::new(),
             placeholder: String::new(),
             display: TextDisplay::new(0),
-            cursor: Cursor::new(0, 0, false),
+            cursor: Cursor::new(),
             code_blocks: Vec::new(),
             is_editable,
         }
@@ -227,7 +227,7 @@ impl TextBuffer<'_> {
 
     pub fn empty(&mut self) {
         self.display.clear();
-        self.cursor = Cursor::new(0, 0, self.is_editable);
+        self.cursor.reset();
         self.text.empty();
         // update display
         self.update_display_text();

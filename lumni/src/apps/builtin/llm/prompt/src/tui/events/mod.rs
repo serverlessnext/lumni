@@ -6,13 +6,15 @@ mod leader_key;
 mod text_window_event;
 
 pub use key_event::{KeyEventHandler, KeyTrack};
+use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
 use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;
-use super::TabSession;
+use super::ChatSession;
+pub use crate::external as lumni;
 
 #[derive(Debug)]
 pub enum WindowEvent {

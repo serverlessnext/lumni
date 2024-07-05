@@ -32,7 +32,13 @@ impl TabSession<'_> {
         // Set the response window title to current server name
         self.ui.response.set_window_title(self.chat.server_name());
 
-        draw_ui(terminal, self)
+        // draw the UI in the terminal
+        draw_ui(terminal, self)?;
+
+        // ensure the command line is (back) in normal mode afer drawing the UI
+        // this ensures that an alert is automatically cleared on a subsequent key press
+        self.ui.command_line.set_normal_mode();
+        Ok(())
     }
 }
 

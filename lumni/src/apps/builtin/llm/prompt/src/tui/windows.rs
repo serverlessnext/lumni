@@ -1,3 +1,5 @@
+use ratatui::style::{Color, Style};
+
 use super::components::{
     TextWindow, TextWindowTrait, WindowConfig, WindowKind, WindowStatus,
 };
@@ -42,8 +44,16 @@ impl ResponseWindow<'_> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum CommandLineMode {
+    Normal,
+    Alert,
+}
+
+#[derive(Debug)]
 pub struct CommandLine<'a> {
     base: TextWindow<'a>,
+    mode: CommandLineMode,
 }
 
 impl<'a> TextWindowTrait<'a> for CommandLine<'a> {
@@ -58,6 +68,21 @@ impl CommandLine<'_> {
         window_type.set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new(window_type),
+            mode: CommandLineMode::Normal,
+        }
+    }
+
+    pub fn set_alert(&mut self, message: &str) {
+        let style =
+            Style::new().bg(Color::Red);
+        self.text_set(&message, Some(style));
+        self.mode = CommandLineMode::Alert;
+    }
+
+    pub fn set_normal_mode(&mut self) {
+        if self.mode != CommandLineMode::Normal {
+            self.text_empty();
+            self.mode = CommandLineMode::Normal;
         }
     }
 }

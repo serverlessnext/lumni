@@ -115,7 +115,7 @@ async fn prompt_app<B: Backend>(
                                     &mut tab.chat,
                                     mode,
                                     keep_running.clone(),
-                                ).await
+                                ).await?
                             } else {
                                 None
                             };

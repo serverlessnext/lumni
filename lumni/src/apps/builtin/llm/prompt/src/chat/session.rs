@@ -6,9 +6,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::exchange::ChatExchange;
 use super::history::ChatHistory;
-use super::{
-    LLMDefinition, ModelServer, PromptInstruction, ServerManager, ServerTrait,
-};
+use super::{LLMDefinition, PromptInstruction, ServerManager};
 use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
@@ -44,21 +42,18 @@ impl ChatSession {
 
     pub async fn select_server(
         &mut self,
-        server_name: &str,
+        mut server: Box<dyn ServerManager>,
     ) -> Result<(), ApplicationError> {
-        if self.server_name() != server_name {
-            log::debug!("switching server: {}", server_name);
-            self.stop();
+        log::debug!("switching server: {}", server.server_name());
+        self.stop();
 
-            let mut server = ModelServer::from_str(server_name)?;
-            let model = server.get_default_model().await;
-            if let Some(model) = model {
-                server
-                    .setup_and_initialize(model, &mut self.prompt_instruction)
-                    .await?;
-            }
-            self.server = Box::new(server);
+        let model = server.get_default_model().await;
+        if let Some(model) = model {
+            server
+                .setup_and_initialize(model, &mut self.prompt_instruction)
+                .await?;
         }
+        self.server = server;
         Ok(())
     }
 

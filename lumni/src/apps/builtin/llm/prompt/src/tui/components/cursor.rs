@@ -26,17 +26,29 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new(col: u16, row: u16, show_cursor: bool) -> Self {
+    pub fn new() -> Self {
         Cursor {
-            col,
-            row,
-            anchor_col: col,
-            anchor_row: row,
-            show_cursor,
+            col: 0,
+            row: 0,
+            anchor_col: 0,
+            anchor_row: 0,
+            show_cursor: false,
             selection_enabled: false,
-            desired_col: col, // Initially, desired column is same as starting column
+            desired_col: 0,
             real_position: 0,
         }
+    }
+
+    pub fn reset(&mut self) {
+        // reset attributes that relate to cursor position back to defaults,
+        // (note that show_cursor is not reset, as it is a display attribute)
+        self.col = 0;
+        self.row = 0;
+        self.anchor_col = 0;
+        self.anchor_row = 0;
+        self.selection_enabled = false;
+        self.desired_col = 0;
+        self.real_position = 0;
     }
 
     pub fn real_position(&self) -> usize {

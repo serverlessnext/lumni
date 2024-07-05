@@ -7,7 +7,9 @@ use ratatui::Frame;
 use super::components::Scroller;
 use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
-use super::{ChatSession, WindowEvent};
+use super::{
+    ApplicationError, ChatSession, ModelServer, ServerTrait, WindowEvent,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
@@ -22,7 +24,7 @@ pub trait ModalWindowTrait {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-    ) -> Option<WindowEvent>;
+    ) -> Result<Option<WindowEvent>, ApplicationError>;
 }
 
 pub struct ModalConfigWindow {
@@ -62,18 +64,27 @@ impl ModalWindowTrait for ModalConfigWindow {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-    ) -> Option<WindowEvent> {
+    ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
             KeyCode::Down => self.widget.key_down(),
             KeyCode::Enter => {
-                let endpoint = self.widget.current_endpoint();
-                tab_chat.select_server(endpoint).await;
-                return Some(WindowEvent::PromptWindow);
+                let selected_server = self.widget.current_endpoint();
+                if selected_server != tab_chat.server_name() {
+                    let server = ModelServer::from_str(selected_server)?;
+                    tab_chat.select_server(Box::new(server)).await?;
+                }
+                return Ok(Some(WindowEvent::PromptWindow));
+            }
+            KeyCode::Left => {
+                let server =
+                    ModelServer::from_str(self.widget.current_endpoint())?;
+                let _models = server.list_models().await?;
+                //eprintln!("models: {:?}", models);
             }
             _ => {} // Ignore other keys
         }
         // stay in the modal window
-        Some(WindowEvent::Modal(ModalWindowType::Config))
+        Ok(Some(WindowEvent::Modal(ModalWindowType::Config)))
     }
 }

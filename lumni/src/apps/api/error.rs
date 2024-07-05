@@ -19,7 +19,6 @@ pub enum RequestError {
     QueryInvalid(String),
 }
 
-//#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ApplicationError {
     InvalidUserConfiguration(String),
@@ -33,7 +32,6 @@ pub enum ApplicationError {
     NotReady(String),
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
     Unexpected(String),

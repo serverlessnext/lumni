@@ -1,7 +1,7 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Text;
-use ratatui::widgets::block::{Padding, Title};
+use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
@@ -28,10 +28,6 @@ impl<'a> TextWindow<'a> {
             scroller: Scroller::new(),
             text_buffer: TextBuffer::new(is_editable),
         }
-    }
-
-    pub fn window_type(&self) -> &WindowConfig {
-        &self.window_type
     }
 
     pub fn window_status(&self) -> WindowStatus {

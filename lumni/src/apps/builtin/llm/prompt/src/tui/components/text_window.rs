@@ -8,7 +8,6 @@ use super::cursor::MoveCursor;
 use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
-use super::window_config::Highlighted;
 use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
 
 #[derive(Debug, Clone)]
@@ -46,12 +45,11 @@ impl<'a> TextWindow<'a> {
             WindowStatus::Insert => {
                 self.text_buffer.set_cursor_visibility(true);
             }
-            WindowStatus::Normal(highlighted) => {
-                if highlighted == Highlighted::True {
-                    self.text_buffer.set_cursor_visibility(true);
-                } else {
-                    self.text_buffer.set_cursor_visibility(false);
-                }
+            WindowStatus::Normal => {
+                self.text_buffer.set_cursor_visibility(true);
+            }
+            WindowStatus::Background => {
+                self.text_buffer.set_cursor_visibility(false);
             }
             _ => {
                 self.text_buffer.set_cursor_visibility(false);
@@ -183,6 +181,11 @@ impl<'a> TextWindow<'a> {
             block = block
                 .title(title)
                 .title_style(Style::default().fg(Color::LightGreen))
+        }
+
+        if let Some(hint) = self.window_type.hint() {
+            block = block
+                .title(hint)
         }
 
         let start_idx = self.scroller.vertical_scroll;
@@ -339,7 +342,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_status_normal(&mut self) {
-        self.set_window_status(WindowStatus::Normal(Highlighted::True));
+        self.set_window_status(WindowStatus::Normal);
     }
 
     fn set_status_visual(&mut self) {
@@ -347,7 +350,7 @@ pub trait TextWindowTrait<'a> {
     }
 
     fn set_status_background(&mut self) {
-        self.set_window_status(WindowStatus::Normal(Highlighted::False));
+        self.set_window_status(WindowStatus::Background);
     }
 
     fn set_window_title(&mut self, title: &str) {
@@ -392,13 +395,5 @@ pub trait TextWindowTrait<'a> {
 
     fn set_status_inactive(&mut self) {
         self.set_window_status(WindowStatus::InActive);
-    }
-
-    fn set_normal_mode(&mut self) {
-        self.set_status_normal();
-    }
-
-    fn set_insert_mode(&mut self) {
-        self.set_status_insert();
     }
 }

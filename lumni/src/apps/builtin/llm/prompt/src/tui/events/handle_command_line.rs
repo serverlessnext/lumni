@@ -23,20 +23,12 @@ pub fn handle_command_line_event(
             tab_ui.command_line.text_empty();
             tab_ui.command_line.set_status_inactive();
 
-            // switch to the active window
-            if tab_ui.response.is_active() {
-                tab_ui.response.set_status_normal();
-                Some(WindowEvent::ResponseWindow)
-            } else {
-                tab_ui.prompt.set_status_normal();
-                Some(WindowEvent::PromptWindow)
-            }
+            Some(tab_ui.set_response_window())
         }
         KeyCode::Enter => {
             let command = tab_ui.command_line.text_buffer().to_string();
             tab_ui.command_line.text_empty();
             tab_ui.command_line.set_status_inactive();
-
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
                     "q" => return Some(WindowEvent::Quit),

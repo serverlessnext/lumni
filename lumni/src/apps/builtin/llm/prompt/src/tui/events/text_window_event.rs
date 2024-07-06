@@ -47,11 +47,12 @@ where
                 }
             }
             KeyCode::Esc => {
-                window.set_normal_mode();
+                window.set_status_normal();
             }
             KeyCode::Tab => {
-                // same as Escape
-                window.set_normal_mode();
+                if is_insert_mode {
+                    window.text_insert_add("        ", None);
+                }
             }
             KeyCode::Right => {
                 window.move_cursor(MoveCursor::Right(1));
@@ -67,11 +68,14 @@ where
             }
             KeyCode::Enter => {
                 if window.is_editable() {
+                    if !is_insert_mode {
+                        window.set_status_insert();
+                    }
                     window.text_insert_add("\n", None);
                 }
             }
             KeyCode::Backspace => {
-                if window.is_editable() {
+                if window.is_editable() && !window.text_buffer().is_empty() {
                     window.text_delete_backspace();
                 }
             }
@@ -148,7 +152,7 @@ where
         }
         'i' => {
             if window.is_editable() {
-                window.set_insert_mode();
+                window.set_status_insert();
             } else {
                 // TODO: give feedback
             }

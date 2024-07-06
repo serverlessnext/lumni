@@ -116,7 +116,7 @@ impl ChatSession {
     pub async fn message(
         &mut self,
         tx: mpsc::Sender<Bytes>,
-        question: String,
+        question: &str,
     ) -> Result<(), ApplicationError> {
         let max_token_length = self
             .server
@@ -146,7 +146,7 @@ impl ChatSession {
 
     pub async fn initiate_new_exchange(
         &self,
-        user_question: String,
+        user_question: &str,
     ) -> Result<ChatExchange, ApplicationError> {
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
@@ -192,7 +192,7 @@ impl ChatSession {
         stop_signal: Arc<Mutex<bool>>,
     ) -> Result<(), ApplicationError> {
         let (tx, rx) = mpsc::channel(32);
-        let _ = self.message(tx, question).await;
+        let _ = self.message(tx, &question).await;
         self.handle_response(rx, stop_signal).await?;
         self.stop();
         Ok(())

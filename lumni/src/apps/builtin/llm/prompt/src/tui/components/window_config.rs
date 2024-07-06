@@ -1,20 +1,15 @@
 use ratatui::layout::Alignment;
-use ratatui::style::{Color, Style};
-use ratatui::widgets::block::Title;
+use ratatui::style::{Color, Style, Stylize};
+use ratatui::widgets::block::{Title, Position};
 use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowStatus {
-    Normal(Highlighted),
+    Normal,
+    Background,
     Insert,
     Visual,
     InActive,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Highlighted {
-    True,
-    False,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +43,23 @@ impl WindowConfig {
         }
     }
 
+    pub fn hint(&self) -> Option<Title> {
+        match self.kind {
+            WindowKind::PromptWindow => {
+                match self.status {
+                    WindowStatus::Normal | WindowStatus::Background => {
+                        Some(Title::from("press Enter to send prompt".dark_gray()).alignment(Alignment::Right).position(Position::Bottom))
+                    }
+                    WindowStatus::Insert => {
+                        Some(Title::from("press Tab or Esc to exit insert mode".dark_gray()).alignment(Alignment::Right).position(Position::Bottom))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub fn set_title_text(&mut self, title: &str) -> &Self {
         self.title = Some(title.to_string());
         self
@@ -57,10 +69,10 @@ impl WindowConfig {
         match self.kind {
             WindowKind::ResponseWindow => "",
             WindowKind::PromptWindow => match self.status {
-                WindowStatus::Normal(_) => "Press i to insert text",
-                WindowStatus::Insert => "Type text and press Enter",
+                WindowStatus::Normal | WindowStatus::Background => "Press i to enter insert mode",
                 WindowStatus::Visual => "",
                 WindowStatus::InActive => "",
+                WindowStatus::Insert => "Type text",
             },
             WindowKind::CommandLine => "Ready",
         }
@@ -85,10 +97,8 @@ impl WindowConfig {
         let light_gray = Color::Rgb(128, 128, 128);
         let light_yellow = Color::Rgb(192, 192, 96);
         match self.status {
-            WindowStatus::Normal(highlighted) => match highlighted {
-                Highlighted::True => Style::default().fg(Color::LightGreen),
-                Highlighted::False => Style::default().fg(light_gray),
-            },
+            WindowStatus::Normal => Style::default().fg(Color::LightGreen),
+            WindowStatus::Background => Style::default().fg(light_gray),
             WindowStatus::Insert => Style::default().fg(Color::LightBlue),
             WindowStatus::Visual => Style::default().fg(light_yellow),
             WindowStatus::InActive => Style::default().fg(light_gray),

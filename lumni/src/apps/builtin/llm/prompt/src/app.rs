@@ -1,6 +1,7 @@
 use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use bytes::Bytes;
 
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
@@ -25,7 +26,7 @@ use tokio::time::{interval, timeout, Duration};
 
 use super::chat::ChatSession;
 use super::server::{ModelServer, PromptInstruction, ServerTrait};
-use super::session::AppSession;
+use super::session::{TabSession, AppSession};
 use super::tui::{
     ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
     TextWindowTrait, WindowEvent,
@@ -49,10 +50,11 @@ async fn prompt_app<B: Backend>(
         .color_scheme
         .unwrap_or_else(|| defaults.get_color_scheme());
 
-    let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
+    // add types
+    let (tx, mut rx): (mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
-    let mut current_mode = Some(WindowEvent::PromptWindow);
+    let mut current_mode = Some(WindowEvent::ResponseWindow);
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
@@ -72,42 +74,6 @@ async fn prompt_app<B: Backend>(
                     let event = read()?;
                     match event {
                         Event::Key(key_event) => {
-                            if key_event.code == KeyCode::Tab {
-                                // toggle beteen prompt and response windows
-                                current_mode = match current_mode {
-                                    Some(WindowEvent::PromptWindow) => {
-                                        if tab.ui.prompt.is_status_insert() {
-                                            // tab is locked to prompt window when in insert mode
-                                            Some(WindowEvent::PromptWindow)
-                                        } else {
-                                            tab.ui.prompt.set_status_inactive();
-                                            tab.ui.response.set_status_normal();
-                                            Some(WindowEvent::ResponseWindow)
-                                        }
-                                    }
-                                    Some(WindowEvent::ResponseWindow) => {
-                                        tab.ui.response.set_status_inactive();
-                                        tab.ui.prompt.set_status_normal();
-                                        Some(WindowEvent::PromptWindow)
-                                    }
-                                    Some(WindowEvent::CommandLine(_)) => {
-                                        // exit command line mode
-                                        tab.ui.command_line.text_empty();
-                                        tab.ui.command_line.set_status_inactive();
-
-                                        // switch to the active window,
-                                        if tab.ui.response.is_active() {
-                                            tab.ui.response.set_status_normal();
-                                            Some(WindowEvent::ResponseWindow)
-                                        } else {
-                                            tab.ui.prompt.set_status_normal();
-                                            Some(WindowEvent::PromptWindow)
-                                        }
-                                    }
-                                    _ => current_mode,
-                                };
-                            }
-
                             current_mode = if let Some(mode) = current_mode {
                                 key_event_handler.process_key(
                                     key_event,
@@ -127,19 +93,7 @@ async fn prompt_app<B: Backend>(
                                 Some(WindowEvent::Prompt(prompt_action)) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            // prompt should end with single newline
-                                            let formatted_prompt = format!("{}\n", prompt.trim_end());
-
-                                            tab.ui.response.text_append_with_insert(
-                                                &formatted_prompt,
-                                                Some(color_scheme.get_primary_style()),
-                                            );
-                                            tab.ui.response.text_append_with_insert(
-                                                "\n",
-                                                Some(Style::reset()),
-                                            );
-
-                                            tab.chat.message(tx.clone(), formatted_prompt).await?;
+                                            send_prompt(tab, &prompt, &color_scheme, tx.clone()).await?;
                                         }
                                         PromptAction::Clear => {
                                             tab.ui.response.text_empty();
@@ -152,7 +106,7 @@ async fn prompt_app<B: Backend>(
                                             trim_buffer = None;
                                         }
                                     }
-                                    current_mode = Some(WindowEvent::PromptWindow);
+                                    current_mode = Some(tab.ui.set_prompt_window(false));
                                 }
                                 Some(WindowEvent::CommandLine(ref action)) => {
                                     // enter command line mode
@@ -163,7 +117,7 @@ async fn prompt_app<B: Backend>(
                                     }
                                     match action {
                                         CommandLineAction::Write(prefix) => {
-                                            tab.ui.command_line.set_insert_mode();
+                                            tab.ui.command_line.set_status_insert();
                                             tab.ui.command_line.text_set(prefix, None);
                                         }
                                         CommandLineAction::None => {}
@@ -519,4 +473,38 @@ async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {
             std::process::exit(1); // Force exit immediately
         }
     }
+}
+
+async fn send_prompt<'a>(
+    tab: &mut TabSession<'a>,
+    prompt: &str,
+    color_scheme: &ColorScheme,
+    tx: mpsc::Sender<Bytes>,
+) -> Result<(), ApplicationError> {
+    // prompt should end with single newline
+    let formatted_prompt = format!("{}\n", prompt.trim_end());
+    let result = tab.chat.message(tx.clone(), &formatted_prompt).await;
+
+    match result {
+        Ok(_) => {
+            // clear prompt
+            tab.ui.prompt.text_empty();
+            tab.ui.prompt.set_status_normal();
+            tab.ui.response.text_append_with_insert(
+                &formatted_prompt,
+                Some(color_scheme.get_primary_style()),
+            );
+            tab.ui.response.text_append_with_insert(
+                "\n",
+                Some(Style::reset()),
+            );
+
+
+        }
+        Err(e) => {
+            log::error!("Error sending message: {:?}", e);
+            tab.ui.command_line.set_alert(&e.to_string());
+        }
+    }
+    Ok(())
 }

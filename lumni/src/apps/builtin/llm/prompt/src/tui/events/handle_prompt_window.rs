@@ -14,53 +14,84 @@ pub fn handle_prompt_window_event(
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
 ) -> Option<WindowEvent> {
-    if key_track.current_key().modifiers == KeyModifiers::CONTROL {
-        // catch Ctrl + shortcut key
-        match key_track.current_key().code {
-            KeyCode::Char('c') => {
-                if tab_ui.prompt.text_buffer().is_empty() {
-                    return Some(WindowEvent::Quit);
-                } else {
-                    tab_ui.prompt.text_empty();
-                }
-            }
-            KeyCode::Char('q') => {
-                return Some(WindowEvent::Quit);
-            }
-            KeyCode::Char('a') => {
-                tab_ui.prompt.text_select_all();
-            }
-            KeyCode::Char('j') => {
-                tab_ui.prompt.text_insert_add("\n", None);
-            }
-            _ => {}
-        }
-        return Some(WindowEvent::PromptWindow);
-    } else {
-        match key_track.current_key().code {
-            KeyCode::Enter => {
-                // send prompt if not inside editing block
-                if !tab_ui.prompt.is_status_insert()
-                    || !in_editing_block(&mut tab_ui.prompt)
-                {
-                    ensure_closed_block(&mut tab_ui.prompt);
-                    let question = tab_ui.prompt.text_buffer().to_string();
-                    tab_ui.prompt.text_empty();
-                    return Some(WindowEvent::Prompt(PromptAction::Write(
-                        question,
-                    )));
-                }
-            }
-            KeyCode::Esc => {
+    match key_track.current_key().code {
+        KeyCode::Tab => {
+            if !in_editing_block(&mut tab_ui.prompt) {
                 if tab_ui.prompt.is_status_insert() {
-                    ensure_closed_block(&mut tab_ui.prompt);
+                    // change to normal prompt mode
+                    return Some(tab_ui.set_prompt_window(false));
+                } else {
+                    if tab_ui.prompt.text_buffer().is_empty() {
+                        // change to response window
+                        return Some(tab_ui.set_response_window());
+                    } else {
+                        // send prompt
+                        return Some(tab_ui.set_response_window());
+                    }
                 }
             }
-            KeyCode::Tab => {
-                // TODO: tab inside
-            }
-            _ => {}
         }
+        KeyCode::Enter => {
+            // handle enter if not in editing mode
+            if !tab_ui.prompt.is_status_insert()
+            {
+                let question = tab_ui.prompt.text_buffer().to_string();
+                return Some(WindowEvent::Prompt(PromptAction::Write(question)));
+            }
+        }
+        KeyCode::Backspace => {
+            if tab_ui.prompt.text_buffer().is_empty() {
+                return Some(tab_ui.set_prompt_window(false));
+            }
+            if !tab_ui.prompt.is_status_insert() {
+                // change to insert mode
+                tab_ui.prompt.set_status_insert();
+            }
+        }
+        KeyCode::Esc => {
+            // ensure blocks are closed if inside editing block
+            if tab_ui.prompt.is_status_insert() {
+                ensure_closed_block(&mut tab_ui.prompt);
+            }
+            return Some(tab_ui.set_prompt_window(false));
+        }
+        KeyCode::Char(key) => {
+            // catch Ctrl + shortcut key
+            if key_track.current_key().modifiers == KeyModifiers::CONTROL {
+                match key {
+                    'c' => {
+                        if tab_ui.prompt.text_buffer().is_empty() {
+                            return Some(WindowEvent::Quit);
+                        } else {
+                            tab_ui.prompt.text_empty();
+                        }
+                    }
+                    'q' => {
+                        return Some(WindowEvent::Quit);
+                    }
+                    'a' => {
+                        tab_ui.prompt.text_select_all();
+                    }
+                    'j' => {
+                        tab_ui.prompt.text_insert_add("\n", None);
+                    }
+                    _ => {}
+                }
+                return Some(WindowEvent::PromptWindow);
+            } else if !tab_ui.prompt.is_status_insert() {
+                // process regular key
+                match key {
+                    't' | 'T' => {
+                        return Some(tab_ui.set_response_window());
+                    }
+                    'i' | 'I' => {
+                        return Some(tab_ui.set_prompt_window(true));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
     }
     handle_text_window_event(key_track, &mut tab_ui.prompt, is_running)
 }

@@ -1,6 +1,6 @@
 use super::{
     CommandLine, ModalConfigWindow, ModalWindowTrait, ModalWindowType,
-    PromptWindow, ResponseWindow, TextWindowTrait,
+    PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
 };
 
 pub struct TabUi<'a> {
@@ -21,8 +21,8 @@ impl TabUi<'_> {
     }
 
     pub fn init(&mut self) {
-        self.prompt.set_normal_mode(); // initialize in normal mode
-        self.response.init(); // initialize with defaults
+        self.response.init();   //set_status_normal(); // initialize in normal mode
+        self.prompt.set_status_normal(); // initialize with defaults
         self.command_line.init(); // initialize with defaults
     }
 
@@ -37,6 +37,22 @@ impl TabUi<'_> {
             Some(modal) => new_type != modal.get_type(),
             None => true,
         }
+    }
+
+    pub fn set_response_window(&mut self) -> WindowEvent {
+        self.prompt.set_status_background();
+        self.response.set_status_normal();
+        return WindowEvent::ResponseWindow;
+    }
+
+    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowEvent {
+        self.response.set_status_background();
+        if insert_mode {
+            self.prompt.set_status_insert();
+        } else {
+            self.prompt.set_status_normal();
+        }
+        return WindowEvent::PromptWindow;
     }
 
     pub fn clear_modal(&mut self) {

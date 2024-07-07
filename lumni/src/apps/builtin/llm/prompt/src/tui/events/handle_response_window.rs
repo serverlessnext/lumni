@@ -14,7 +14,7 @@ pub fn handle_response_window_event(
 ) -> Option<WindowEvent> {
     match key_track.current_key().code {
         KeyCode::Tab => {
-           return Some(tab_ui.set_prompt_window(false));
+            return Some(tab_ui.set_prompt_window(false));
         }
         KeyCode::Char(key) => {
             // catch Ctrl + shortcut key
@@ -24,7 +24,9 @@ pub fn handle_response_window_event(
                         if tab_ui.response.text_buffer().is_empty() {
                             return Some(WindowEvent::Quit);
                         } else {
-                            return Some(WindowEvent::Prompt(PromptAction::Clear));
+                            return Some(WindowEvent::Prompt(
+                                PromptAction::Clear,
+                            ));
                         }
                     }
                     'q' => {
@@ -41,10 +43,10 @@ pub fn handle_response_window_event(
                 match key {
                     'i' | 'I' => {
                         return Some(tab_ui.set_prompt_window(true));
-                    },
+                    }
                     't' | 'T' => {
                         return Some(tab_ui.set_prompt_window(false));
-                    },
+                    }
                     _ => {}
                 }
             }

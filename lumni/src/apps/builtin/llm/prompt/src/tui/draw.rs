@@ -1,8 +1,13 @@
 use std::io;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Scrollbar, ScrollbarOrientation};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Style};
+use ratatui::text::Text;
+use ratatui::widgets::block::{Padding, Position, Title};
+use ratatui::widgets::{
+    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 use ratatui::Terminal;
 
 use super::components::TextWindowTrait;
@@ -13,12 +18,14 @@ pub fn draw_ui<B: Backend>(
     tab: &mut TabSession,
 ) -> Result<(), io::Error> {
     terminal.draw(|frame| {
-        let terminal_size = frame.size();
-        const COMMAND_LINE_HEIGHT: u16 = 3;
+        let terminal_area = frame.size();
+        const COMMAND_LINE_HEIGHT: u16 = 2;
 
-        let prompt_log_area;
-        let prompt_edit_area;
-        let prompt_log_area_scrollbar;
+        // default background for unused area
+        frame.render_widget(
+            Block::default().style(Style::default().bg(Color::Black)),
+            terminal_area,
+        );
 
         let main_window = Layout::default()
             .direction(Direction::Vertical)
@@ -26,53 +33,60 @@ pub fn draw_ui<B: Backend>(
                 Constraint::Min(0), // container for prompt_edit and prompt_log
                 Constraint::Length(COMMAND_LINE_HEIGHT), // command line
             ])
-            .split(terminal_size);
+            .split(terminal_area);
+
+        // add borders to main_window[0]
+        frame.render_widget(
+            main_widget(tab.chat.server_name(), window_hint()),
+            main_window[0],
+        );
 
         let command_line_area = main_window[1];
 
-        let window = Layout::default()
+        let tab_window = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Percentage(70), // prompt_log
                 Constraint::Percentage(30), // prompt_edit
             ])
+            .margin(1)
             .split(main_window[0]);
 
-        let log_window = Layout::default()
+        let response_window = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Min(10),   // chat history
-                Constraint::Length(2), // vertical scrollbar
+                Constraint::Min(10),   // response history
+                Constraint::Length(1), // vertical scrollbar
             ])
-            .split(window[0]);
+            .split(tab_window[0]);
 
-        let edit_window = Layout::default()
+        let prompt_window = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Min(10),   // prompt
-                Constraint::Length(2), // vertical scrollbar
+                Constraint::Length(0), // vertical scrollbar (disabled)
             ])
-            .split(window[1]);
+            .horizontal_margin(1)
+            .split(tab_window[1]);
 
-        prompt_log_area = log_window[0];
-        prompt_log_area_scrollbar = log_window[1];
-        prompt_edit_area = edit_window[0];
+        let response_text_area = response_window[0];
+        let response_scrollbar = response_window[1];
+        let prompt_text_area = prompt_window[0];
 
         frame.render_widget(
-            tab.ui.prompt.widget(&prompt_edit_area),
-            prompt_edit_area,
+            tab.ui.prompt.widget(&prompt_text_area),
+            prompt_text_area,
         );
-        tab.ui.response.set_window_title(tab.chat.server_name());
         frame.render_widget(
-            tab.ui.response.widget(&prompt_log_area),
-            prompt_log_area,
+            tab.ui.response.widget(&response_text_area),
+            response_text_area,
         );
         frame.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓")),
-            prompt_log_area_scrollbar,
+            response_scrollbar,
             &mut tab.ui.response.vertical_scroll_bar_state(),
         );
 
@@ -91,4 +105,25 @@ pub fn draw_ui<B: Backend>(
 
 fn modal_area(area: Rect) -> Rect {
     Rect::new(2, 1, area.width - 3, area.height - 4)
+}
+
+pub fn main_widget(title: &str, hint: Option<String>) -> Block<'_> {
+    let mut block = Block::default()
+        .style(Style::default().bg(Color::Black))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::LightGreen).bg(Color::Black))
+        .title(Title::from(title).alignment(Alignment::Left));
+
+    if let Some(hint) = hint {
+        let title_hint = Title::from(hint)
+            .alignment(Alignment::Right)
+            .position(Position::Top);
+        block = block.title(title_hint)
+    }
+    block
+}
+
+fn window_hint() -> Option<String> {
+    // TODO: implement window hint for main window
+    None
 }

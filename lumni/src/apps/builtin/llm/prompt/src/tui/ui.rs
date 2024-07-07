@@ -21,7 +21,7 @@ impl TabUi<'_> {
     }
 
     pub fn init(&mut self) {
-        self.response.init();   //set_status_normal(); // initialize in normal mode
+        self.response.init(); //set_status_normal(); // initialize in normal mode
         self.prompt.set_status_normal(); // initialize with defaults
         self.command_line.init(); // initialize with defaults
     }

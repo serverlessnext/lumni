@@ -1,8 +1,8 @@
 use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use bytes::Bytes;
 
+use bytes::Bytes;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -26,7 +26,7 @@ use tokio::time::{interval, timeout, Duration};
 
 use super::chat::ChatSession;
 use super::server::{ModelServer, PromptInstruction, ServerTrait};
-use super::session::{TabSession, AppSession};
+use super::session::{AppSession, TabSession};
 use super::tui::{
     ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
     TextWindowTrait, WindowEvent,
@@ -51,7 +51,8 @@ async fn prompt_app<B: Backend>(
         .unwrap_or_else(|| defaults.get_color_scheme());
 
     // add types
-    let (tx, mut rx): (mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>) = mpsc::channel(CHANNEL_QUEUE_SIZE);
+    let (tx, mut rx): (mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>) =
+        mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = Some(WindowEvent::ResponseWindow);
@@ -494,12 +495,9 @@ async fn send_prompt<'a>(
                 &formatted_prompt,
                 Some(color_scheme.get_primary_style()),
             );
-            tab.ui.response.text_append_with_insert(
-                "\n",
-                Some(Style::reset()),
-            );
-
-
+            tab.ui
+                .response
+                .text_append_with_insert("\n", Some(Style::reset()));
         }
         Err(e) => {
             log::error!("Error sending message: {:?}", e);

@@ -184,8 +184,7 @@ impl<'a> TextWindow<'a> {
         }
 
         if let Some(hint) = self.window_type.hint() {
-            block = block
-                .title(hint)
+            block = block.title(hint)
         }
 
         let start_idx = self.scroller.vertical_scroll;
@@ -351,10 +350,6 @@ pub trait TextWindowTrait<'a> {
 
     fn set_status_background(&mut self) {
         self.set_window_status(WindowStatus::Background);
-    }
-
-    fn set_window_title(&mut self, title: &str) {
-        self.base().window_type.set_title_text(title);
     }
 
     fn is_status_insert(&mut self) -> bool {

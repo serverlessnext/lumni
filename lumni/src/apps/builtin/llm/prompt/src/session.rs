@@ -29,9 +29,6 @@ impl TabSession<'_> {
         &mut self,
         terminal: &mut Terminal<B>,
     ) -> Result<(), io::Error> {
-        // Set the response window title to current server name
-        self.ui.response.set_window_title(self.chat.server_name());
-
         // draw the UI in the terminal
         draw_ui(terminal, self)?;
 

@@ -1,6 +1,6 @@
 use ratatui::layout::Alignment;
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::widgets::block::{Title, Position};
+use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,31 +45,32 @@ impl WindowConfig {
 
     pub fn hint(&self) -> Option<Title> {
         match self.kind {
-            WindowKind::PromptWindow => {
-                match self.status {
-                    WindowStatus::Normal | WindowStatus::Background => {
-                        Some(Title::from("press Enter to send prompt".dark_gray()).alignment(Alignment::Right).position(Position::Bottom))
-                    }
-                    WindowStatus::Insert => {
-                        Some(Title::from("press Tab or Esc to exit insert mode".dark_gray()).alignment(Alignment::Right).position(Position::Bottom))
-                    }
-                    _ => None,
-                }
-            }
+            WindowKind::PromptWindow => match self.status {
+                WindowStatus::Normal | WindowStatus::Background => Some(
+                    Title::from("press Enter to send prompt".dark_gray())
+                        .alignment(Alignment::Right)
+                        .position(Position::Bottom),
+                ),
+                WindowStatus::Insert => Some(
+                    Title::from(
+                        "press Tab or Esc to exit insert mode".dark_gray(),
+                    )
+                    .alignment(Alignment::Right)
+                    .position(Position::Bottom),
+                ),
+                _ => None,
+            },
             _ => None,
         }
-    }
-
-    pub fn set_title_text(&mut self, title: &str) -> &Self {
-        self.title = Some(title.to_string());
-        self
     }
 
     pub fn placeholder_text(&self) -> &str {
         match self.kind {
             WindowKind::ResponseWindow => "",
             WindowKind::PromptWindow => match self.status {
-                WindowStatus::Normal | WindowStatus::Background => "Press i to enter insert mode",
+                WindowStatus::Normal | WindowStatus::Background => {
+                    "Press i to enter insert mode"
+                }
                 WindowStatus::Visual => "",
                 WindowStatus::InActive => "",
                 WindowStatus::Insert => "Type text",
@@ -80,7 +81,7 @@ impl WindowConfig {
 
     pub fn borders(&self) -> Borders {
         match self.kind {
-            WindowKind::ResponseWindow => Borders::ALL,
+            WindowKind::ResponseWindow => Borders::NONE,
             WindowKind::PromptWindow => Borders::ALL,
             WindowKind::CommandLine => Borders::NONE,
         }
@@ -97,11 +98,21 @@ impl WindowConfig {
         let light_gray = Color::Rgb(128, 128, 128);
         let light_yellow = Color::Rgb(192, 192, 96);
         match self.status {
-            WindowStatus::Normal => Style::default().fg(Color::LightGreen),
-            WindowStatus::Background => Style::default().fg(light_gray),
-            WindowStatus::Insert => Style::default().fg(Color::LightBlue),
-            WindowStatus::Visual => Style::default().fg(light_yellow),
-            WindowStatus::InActive => Style::default().fg(light_gray),
+            WindowStatus::Normal => {
+                Style::default().fg(Color::White).bg(Color::Black)
+            }
+            WindowStatus::Background => {
+                Style::default().fg(light_gray).bg(Color::Black)
+            }
+            WindowStatus::Insert => {
+                Style::default().fg(Color::LightBlue).bg(Color::Black)
+            }
+            WindowStatus::Visual => {
+                Style::default().fg(light_yellow).bg(Color::Black)
+            }
+            WindowStatus::InActive => {
+                Style::default().fg(light_gray).bg(Color::Black)
+            }
         }
     }
 

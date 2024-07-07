@@ -801,22 +801,30 @@ impl TextBuffer<'_> {
                     let span_length = span.content.len();
                     if line_column < span_length {
                         let mut chars = span.content.chars();
-                        let before = chars.by_ref().take(line_column).collect::<String>();
+                        let before = chars
+                            .by_ref()
+                            .take(line_column)
+                            .collect::<String>();
                         let cursor_char = chars.next().unwrap_or(' '); // Safely get the cursor character or space if none
                         let after = chars.collect::<String>();
-    
+
                         if !before.is_empty() {
                             new_spans.push(Span::styled(before, span.style));
                         }
-    
-                        new_spans.push(Span::styled(cursor_char.to_string(), span.style.bg(Color::Yellow)));
-    
+
+                        new_spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            span.style.bg(Color::Yellow),
+                        ));
+
                         if !after.is_empty() {
                             new_spans.push(Span::styled(after, span.style));
                         }
-    
+
                         // Add remaining spans as is
-                        new_spans.extend(spans.iter().skip(span_offset + 1).cloned());
+                        new_spans.extend(
+                            spans.iter().skip(span_offset + 1).cloned(),
+                        );
                         break;
                     } else {
                         new_spans.push(span.clone());

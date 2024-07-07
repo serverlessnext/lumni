@@ -73,8 +73,7 @@ impl CommandLine<'_> {
     }
 
     pub fn set_alert(&mut self, message: &str) {
-        let style =
-            Style::new().bg(Color::Red);
+        let style = Style::new().bg(Color::Red);
         self.text_set(&message, Some(style));
         self.mode = CommandLineMode::Alert;
     }

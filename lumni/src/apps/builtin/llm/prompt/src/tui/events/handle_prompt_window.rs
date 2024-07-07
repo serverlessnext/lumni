@@ -33,10 +33,11 @@ pub fn handle_prompt_window_event(
         }
         KeyCode::Enter => {
             // handle enter if not in editing mode
-            if !tab_ui.prompt.is_status_insert()
-            {
+            if !tab_ui.prompt.is_status_insert() {
                 let question = tab_ui.prompt.text_buffer().to_string();
-                return Some(WindowEvent::Prompt(PromptAction::Write(question)));
+                return Some(WindowEvent::Prompt(PromptAction::Write(
+                    question,
+                )));
             }
         }
         KeyCode::Backspace => {

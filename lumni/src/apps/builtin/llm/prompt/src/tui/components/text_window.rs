@@ -166,7 +166,6 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
-
         let borders = self.window_type.borders();
         let (h_borders, v_borders) = match borders {
             Borders::ALL => (true, true),

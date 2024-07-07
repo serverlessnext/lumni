@@ -7,7 +7,7 @@ use std::pin::Pin;
 use lumni::api::error::LumniError;
 use lumni::api::handler::AppHandler;
 #[cfg(feature = "cli")]
-use lumni::api::spec::ApplicationSpec;
+use lumni::api::{env::ApplicationEnv, spec::ApplicationSpec};
 
 #[cfg(feature = "cli")]
 use super::app::run_cli;
@@ -24,12 +24,13 @@ impl AppHandler for Handler {
     fn invoke_main(
         &self,
         spec: ApplicationSpec,
+        env: ApplicationEnv,
         args: Vec<String>,
     ) -> Pin<Box<dyn Future<Output = Result<(), LumniError>>>> {
         Box::pin(async move {
             let app_name = spec.name();
             //run_cli(spec, args).await?;
-            run_cli(spec, args).await.map_err(|e| {
+            run_cli(spec, env, args).await.map_err(|e| {
                 LumniError::Application(e, Some(app_name.clone()))
             })?;
             Ok(())

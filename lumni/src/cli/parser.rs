@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-use std::env;
+use std::path::PathBuf;
+use std::{env, fs};
 
 use clap::{Arg, Command};
+use lumni::api::env::ApplicationEnv;
 use lumni::EnvironmentConfig;
 
 use super::subcommands::app::*;
@@ -39,7 +41,6 @@ pub async fn run_cli(_args: Vec<String>) {
     match matches {
         Ok(matches) => {
             let mut config = create_initial_config(&matches);
-
             match matches.subcommand() {
                 Some(("-X", matches)) => {
                     // request
@@ -63,7 +64,9 @@ pub async fn run_cli(_args: Vec<String>) {
                 }
                 Some((app_name, matches)) => {
                     // catch all other subcommands as an App
-                    handle_application(app_name, matches, &mut config).await;
+                    let mut app_env = ApplicationEnv::new();
+                    app_env.set_config_dir(get_config_dir());
+                    handle_application(app_name, app_env, matches).await;
                 }
                 None => {
                     // given the `arg_required_else_help(true)` is defined,
@@ -102,4 +105,34 @@ fn create_initial_config(matches: &clap::ArgMatches) -> EnvironmentConfig {
 
     // Create a Config instance
     EnvironmentConfig::new(config_hashmap)
+}
+
+fn get_config_dir() -> PathBuf {
+    // Check for user specified config directory in environment
+    if let Ok(custom_dir) =
+        env::var(format!("{}_CONFIG_DIR", PROGRAM_NAME.to_uppercase()))
+    {
+        return PathBuf::from(custom_dir);
+    }
+    if let Ok(custom_dir) =
+        env::var(format!("{}_CONFIG_DIR", PROGRAM_NAME.to_uppercase()))
+    {
+        let path = PathBuf::from(custom_dir);
+        fs::create_dir_all(&path)
+            .expect("Failed to create custom config directory");
+        return path;
+    }
+
+    // if no user specified config directory is found, use the default
+    let home = env::var("HOME").expect("HOME environment variable not set");
+    let base_path = PathBuf::from(home);
+
+    let mut config_path = match env::consts::OS {
+        "macos" => base_path.join("Library/Application Support"),
+        _ => base_path.join(".config"), // Linux, other Unixes
+    };
+    config_path.push(PROGRAM_NAME.to_lowercase());
+    fs::create_dir_all(&config_path)
+        .expect("Failed to create config directory");
+    config_path
 }

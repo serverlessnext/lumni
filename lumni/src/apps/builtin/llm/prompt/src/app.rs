@@ -6,14 +6,14 @@ use bytes::Bytes;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
-    poll, read, DisableMouseCapture, EnableMouseCapture, Event,
-    MouseEventKind,
+    poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
+use lumni::api::env::ApplicationEnv;
 use lumni::api::error::ApplicationError;
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::{Backend, CrosstermBackend};
@@ -274,6 +274,7 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
 
 pub async fn run_cli(
     spec: ApplicationSpec,
+    _env: ApplicationEnv,
     args: Vec<String>,
 ) -> Result<(), ApplicationError> {
     let app = parse_cli_arguments(spec);

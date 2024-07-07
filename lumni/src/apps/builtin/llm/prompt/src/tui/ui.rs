@@ -1,7 +1,6 @@
 use super::{
     CommandLine, ModalConfigWindow, ModalWindowTrait, ModalWindowType,
-    PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
-    WindowKind,
+    PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent, WindowKind,
 };
 
 pub struct TabUi<'a> {
@@ -44,7 +43,9 @@ impl TabUi<'_> {
 
     pub fn set_primary_window(&mut self, window_type: WindowKind) {
         self.primary_window = match window_type {
-            WindowKind::ResponseWindow | WindowKind::PromptWindow => window_type,
+            WindowKind::ResponseWindow | WindowKind::PromptWindow => {
+                window_type
+            }
             _ => {
                 // only ResponseWindow and PromptWindow can be primary windows
                 unreachable!("Invalid primary window type: {:?}", window_type)

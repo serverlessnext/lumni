@@ -4,9 +4,7 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use super::chat::ChatSession;
-use super::tui::{
-    draw_ui, ColorScheme, ColorSchemeType, TabUi,
-};
+use super::tui::{draw_ui, ColorScheme, ColorSchemeType, TabUi};
 
 pub struct TabSession<'a> {
     pub ui: TabUi<'a>,

@@ -1,3 +1,6 @@
+use std::fs;
+
+use lumni::api::env::ApplicationEnv;
 use lumni::api::spec::ApplicationSpec;
 use lumni::api::{find_builtin_app, get_app_handler, get_available_apps};
 use lumni::EnvironmentConfig;
@@ -16,8 +19,8 @@ pub async fn handle_apps(
 
 pub async fn handle_application(
     app: &str, // can be either app_name or app_uri
+    mut app_env: ApplicationEnv,
     matches: &clap::ArgMatches,
-    _config: &mut EnvironmentConfig,
 ) {
     let uri_pattern = Regex::new(r"^[-a-z]+::[-a-z0-9]+::[-a-z0-9]+$").unwrap();
 
@@ -41,7 +44,6 @@ pub async fn handle_application(
                 .map(String::from)
                 .collect::<Vec<String>>();
             app_arguments.extend(extra_arguments);
-
             let app_spec = match serde_yaml::from_str::<ApplicationSpec>(
                 app_handler.load_specification(),
             ) {
@@ -51,8 +53,21 @@ pub async fn handle_application(
                     panic!("Failed to load specification.");
                 }
             };
-            let app_run =
-                app_handler.invoke_main(app_spec, app_arguments).await;
+
+            if let Some(config_dir) = app_env.get_config_dir() {
+                // create an apps/<app_name> subdirectory for the app's configuration
+                let mut app_config_dir = config_dir.to_path_buf();
+                app_config_dir.push("apps");
+                app_config_dir.push(app_spec.name().to_lowercase());
+                // ensure the directory exists
+                fs::create_dir_all(&app_config_dir)
+                    .expect("Failed to create app config directory");
+                app_env.set_config_dir(app_config_dir);
+            }
+
+            let app_run = app_handler
+                .invoke_main(app_spec, app_env, app_arguments)
+                .await;
             match app_run {
                 Ok(_) => {} // app ran successfully
                 Err(e) => {

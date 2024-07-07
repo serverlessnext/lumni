@@ -3,6 +3,7 @@ use std::pin::Pin;
 
 use futures::channel::mpsc;
 
+use super::env::ApplicationEnv;
 use super::error::LumniError;
 use super::invoke::Request;
 use super::spec::ApplicationSpec;
@@ -29,6 +30,7 @@ pub trait AppHandler: Send + Sync + 'static {
     fn invoke_main(
         &self,
         _spec: ApplicationSpec,
+        _env: ApplicationEnv,
         _args: Vec<String>,
     ) -> Pin<Box<dyn Future<Output = Result<(), LumniError>>>> {
         let package_name = self.package_name();

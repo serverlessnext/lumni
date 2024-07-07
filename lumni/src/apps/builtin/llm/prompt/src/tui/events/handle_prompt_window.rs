@@ -3,13 +3,12 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
-use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
-
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
     LineType, PromptAction, PromptWindow, TabUi, TextWindowTrait, WindowEvent,
 };
+use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
 
 pub fn handle_prompt_window_event(
     tab_ui: &mut TabUi,

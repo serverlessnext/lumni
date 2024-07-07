@@ -10,8 +10,7 @@ use ratatui::widgets::{
 };
 use ratatui::Terminal;
 
-use super::{TextWindowTrait, WindowKind};
-use super::TabSession;
+use super::{TabSession, TextWindowTrait, WindowKind};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -45,11 +44,12 @@ pub fn draw_ui<B: Backend>(
 
         // first element is response text, second is prompt editor
         // editor: min 3 lines + 2 to account for border
-        let tab_window_constraints = if tab.ui.primary_window == WindowKind::ResponseWindow {
-            [Constraint::Percentage(80), Constraint::Min(5)]
-        } else {
-            [Constraint::Percentage(20), Constraint::Min(5)]
-        };
+        let tab_window_constraints =
+            if tab.ui.primary_window == WindowKind::ResponseWindow {
+                [Constraint::Percentage(80), Constraint::Min(5)]
+            } else {
+                [Constraint::Percentage(20), Constraint::Min(5)]
+            };
 
         let tab_window = Layout::default()
             .direction(Direction::Vertical)

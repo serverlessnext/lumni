@@ -431,8 +431,8 @@ impl TextBuffer<'_> {
                     ),
                 );
 
-                if text_width < window_width {
-                    // add 2 to account for left and right padding
+                // add 2 to account for left and right space padding
+                if text_width.saturating_add(2) < window_width {
                     let spaces_needed =
                         window_width.saturating_sub(text_width + 2);
                     let spaces = " ".repeat(spaces_needed);

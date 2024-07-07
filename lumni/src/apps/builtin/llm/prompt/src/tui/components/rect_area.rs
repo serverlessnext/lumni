@@ -26,15 +26,15 @@ impl RectArea {
         self.height
     }
 
-    pub fn update(&mut self, rect: &Rect) -> bool {
+    pub fn update(&mut self, rect: &Rect, h_borders: bool, v_borders: bool) -> bool {
         // adjust widget area for borders
         // return true if updated, else false
         let previous = *self; // copy current state
 
         self.x = rect.x;
         self.y = rect.y;
-        self.width = rect.width.saturating_sub(2);
-        self.height = rect.height.saturating_sub(2);
+        self.width = rect.width.saturating_sub(if h_borders { 2 } else { 0 });
+        self.height = rect.height.saturating_sub(if v_borders { 2 } else { 0 });
 
         if *self != previous {
             true

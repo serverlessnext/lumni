@@ -9,7 +9,7 @@ mod widgets;
 mod windows;
 
 pub use colorscheme::{ColorScheme, ColorSchemeType};
-pub use components::TextWindowTrait;
+pub use components::{TextWindowTrait, WindowKind};
 pub use draw::draw_ui;
 pub use events::{
     CommandLineAction, KeyEventHandler, PromptAction, WindowEvent,

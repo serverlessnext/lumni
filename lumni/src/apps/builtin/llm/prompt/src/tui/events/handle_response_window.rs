@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
-use super::{PromptAction, TabUi, TextWindowTrait, WindowEvent};
+use super::{PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind};
 
 pub fn handle_response_window_event(
     tab_ui: &mut TabUi,
@@ -46,6 +46,12 @@ pub fn handle_response_window_event(
                     }
                     't' | 'T' => {
                         return Some(tab_ui.set_prompt_window(false));
+                    }
+                    '+' => {
+                        tab_ui.set_primary_window(WindowKind::ResponseWindow);
+                    }
+                    '-' => {
+                        tab_ui.set_primary_window(WindowKind::PromptWindow);
                     }
                     _ => {}
                 }

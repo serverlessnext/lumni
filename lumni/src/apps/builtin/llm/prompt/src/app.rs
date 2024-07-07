@@ -6,7 +6,7 @@ use bytes::Bytes;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{
-    poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode,
+    poll, read, DisableMouseCapture, EnableMouseCapture, Event,
     MouseEventKind,
 };
 use crossterm::execute;
@@ -29,7 +29,7 @@ use super::server::{ModelServer, PromptInstruction, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
     ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
-    TextWindowTrait, WindowEvent,
+    TextWindowTrait, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -495,6 +495,7 @@ async fn send_prompt<'a>(
                 &formatted_prompt,
                 Some(color_scheme.get_primary_style()),
             );
+            tab.ui.set_primary_window(WindowKind::ResponseWindow);
             tab.ui
                 .response
                 .text_append_with_insert("\n", Some(Style::reset()));

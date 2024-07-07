@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyModifiers};
 
+use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
+
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
@@ -87,6 +89,12 @@ pub fn handle_prompt_window_event(
                     }
                     'i' | 'I' => {
                         return Some(tab_ui.set_prompt_window(true));
+                    }
+                    '+' => {
+                        tab_ui.set_primary_window(WindowKind::PromptWindow);
+                    }
+                    '-' => {
+                        tab_ui.set_primary_window(WindowKind::ResponseWindow);
                     }
                     _ => {}
                 }

@@ -1,12 +1,14 @@
 use super::{
     CommandLine, ModalConfigWindow, ModalWindowTrait, ModalWindowType,
     PromptWindow, ResponseWindow, TextWindowTrait, WindowEvent,
+    WindowKind,
 };
 
 pub struct TabUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
+    pub primary_window: WindowKind,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
 }
 
@@ -16,6 +18,7 @@ impl TabUi<'_> {
             prompt: PromptWindow::new(),
             response: ResponseWindow::new(),
             command_line: CommandLine::new(),
+            primary_window: WindowKind::ResponseWindow,
             modal: None,
         }
     }
@@ -37,6 +40,16 @@ impl TabUi<'_> {
             Some(modal) => new_type != modal.get_type(),
             None => true,
         }
+    }
+
+    pub fn set_primary_window(&mut self, window_type: WindowKind) {
+        self.primary_window = match window_type {
+            WindowKind::ResponseWindow | WindowKind::PromptWindow => window_type,
+            _ => {
+                // only ResponseWindow and PromptWindow can be primary windows
+                unreachable!("Invalid primary window type: {:?}", window_type)
+            }
+        };
     }
 
     pub fn set_response_window(&mut self) -> WindowEvent {

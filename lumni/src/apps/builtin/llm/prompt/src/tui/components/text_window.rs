@@ -2,7 +2,7 @@ use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Text;
 use ratatui::widgets::block::Padding;
-use ratatui::widgets::{Block, Paragraph, ScrollbarState};
+use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
 use super::rect_area::RectArea;
@@ -166,7 +166,17 @@ impl<'a> TextWindow<'a> {
     }
 
     pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
-        if self.area.update(area) == true {
+
+        let borders = self.window_type.borders();
+        let (h_borders, v_borders) = match borders {
+            Borders::ALL => (true, true),
+            Borders::NONE => (false, false),
+            _ => {
+                unimplemented!("Unsupported border type: {:?}", borders);
+            }
+        };
+
+        if self.area.update(area, h_borders, v_borders) == true {
             // re-fit text to updated display
             self.text_buffer.set_width(self.area.width() as usize);
             self.text_buffer.update_display_text();

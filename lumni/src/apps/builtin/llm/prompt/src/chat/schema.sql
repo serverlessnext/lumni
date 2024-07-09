@@ -27,8 +27,10 @@ CREATE TABLE exchanges (
     completion_tokens INTEGER,
     prompt_tokens INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    previous_exchange_id INTEGER,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (model_id) REFERENCES models(model_id)
+    FOREIGN KEY (previous_exchange_id) REFERENCES exchanges(id)
 );
 
 CREATE TABLE messages (

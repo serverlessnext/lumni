@@ -94,7 +94,7 @@ impl ChatCompletionOptions {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RolePrefix {
     user: String,
     assistant: String,
@@ -121,7 +121,7 @@ impl RolePrefix {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PromptOptions {
     n_ctx: Option<usize>,
     #[serde(default)]

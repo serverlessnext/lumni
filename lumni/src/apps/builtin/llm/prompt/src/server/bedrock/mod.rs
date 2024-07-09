@@ -18,8 +18,8 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
+    http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
+    ServerSpecTrait, ServerTrait, PromptRole,
 };
 pub use crate::external as lumni;
 
@@ -55,22 +55,32 @@ impl Bedrock {
     fn completion_api_payload(
         &self,
         _model: &LLMDefinition,
-        exchanges: &Vec<ChatExchange>,
-        system_prompt: Option<&str>,
+        chat_messages: &Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
-        // Convert ChatExchange to list of ChatMessages
-        let chat_messages: Vec<ChatMessage> =
-            ChatHistory::exchanges_to_messages(
-                exchanges,
-                None, // dont add system prompt for Bedrock, this is added in the system field
-                &|role| self.get_role_name(role),
-            );
+        // Check if the first message is a system prompt
+        let system_prompt = match chat_messages.first() {
+            Some(chat_message) => {
+                if chat_message.role == PromptRole::System {
+                    Some(chat_message.content.clone())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+        // skip system prompt if it exists
+        let skip = if system_prompt.is_some() {
+            1
+        } else {
+            0
+        };
 
         // Convert ChatMessages to Messages for BedrockRequestPayload
         let messages: Vec<Message> = chat_messages
             .iter()
+            .skip(skip)
             .map(|chat_message| Message {
-                role: chat_message.role.clone(),
+                role: self.get_role_name(&chat_message.role).to_string(),
                 content: vec![Content {
                     text: Some(chat_message.content.clone()),
                     image: None,
@@ -82,7 +92,7 @@ impl Bedrock {
             })
             .collect();
 
-        // Cconvert system_prompt to a system message for BedrockRequestPayload
+        // Convert system_prompt to a system message for BedrockRequestPayload
         let system = if let Some(prompt) = system_prompt {
             Some(vec![SystemMessage {
                 text: prompt.to_string(),
@@ -152,13 +162,12 @@ impl ServerTrait for Bedrock {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
-        prompt_instruction: &PromptInstruction,
+        messages: &Vec<ChatMessage>,
+        _prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let model = self.get_selected_model()?;
-        let system_prompt = prompt_instruction.get_instruction();
 
         let resource = HttpClient::percent_encode_with_exclusion(
             &format!("/model/{}/converse-stream", model.get_name()),
@@ -168,7 +177,7 @@ impl ServerTrait for Bedrock {
         let full_url = format!("{}{}", completion_endpoint, resource);
 
         let data_payload = self
-            .completion_api_payload(model, exchanges, Some(system_prompt))
+            .completion_api_payload(model, messages)
             .map_err(|e| {
                 ApplicationError::InvalidUserConfiguration(e.to_string())
             })?;

@@ -8,9 +8,9 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_get_with_response, http_post, http_post_with_response, ChatExchange,
-    ChatHistory, ChatMessage, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, ServerSpecTrait, ServerTrait,
+    http_get_with_response, http_post, http_post_with_response, ChatMessage,
+    Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerSpecTrait,
+    ServerTrait,
 };
 use crate::external as lumni;
 
@@ -47,14 +47,15 @@ impl Ollama {
     fn completion_api_payload(
         &self,
         model: &LLMDefinition,
-        exchanges: &Vec<ChatExchange>,
-        system_prompt: Option<&str>,
+        chat_messages: &Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
-        let messages = ChatHistory::exchanges_to_messages(
-            exchanges,
-            system_prompt,
-            &|role| self.get_role_name(role),
-        );
+        let messages: Vec<OllamaChatMessage> = chat_messages
+            .iter()
+            .map(|m| OllamaChatMessage {
+                role: self.get_role_name(&m.role).to_string(),
+                content: m.content.to_string(),
+            })
+            .collect();
 
         let payload = ServerPayload {
             model: model.get_name(),
@@ -130,16 +131,14 @@ impl ServerTrait for Ollama {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
-        prompt_instruction: &PromptInstruction,
+        messages: &Vec<ChatMessage>,
+        _prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let model = self.get_selected_model()?;
-        let system_prompt = prompt_instruction.get_instruction();
-
         let data_payload =
-            self.completion_api_payload(model, exchanges, Some(system_prompt));
+            self.completion_api_payload(model, messages);
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
         if let Ok(payload) = data_payload {
@@ -200,9 +199,15 @@ impl ServerTrait for Ollama {
 }
 
 #[derive(Serialize)]
+struct OllamaChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Serialize)]
 struct ServerPayload<'a> {
     model: &'a str,
-    messages: &'a Vec<ChatMessage>,
+    messages: &'a Vec<OllamaChatMessage>,
     // TODO: reformat and pass options to ollama
     //#[serde(flatten)]
     //    options: &'a ChatCompletionOptions,

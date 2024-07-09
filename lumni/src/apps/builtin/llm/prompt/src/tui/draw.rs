@@ -3,10 +3,9 @@ use std::io;
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::text::Text;
-use ratatui::widgets::block::{Padding, Position, Title};
+use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{
-    Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Block, Borders, Scrollbar, ScrollbarOrientation,
 };
 use ratatui::Terminal;
 

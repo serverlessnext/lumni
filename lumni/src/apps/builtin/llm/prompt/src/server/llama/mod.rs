@@ -10,10 +10,9 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_get_with_response, http_post, ChatCompletionOptions, ChatExchange,
-    ChatHistory, Endpoints, HttpClient, LLMDefinition, PromptInstruction,
-    PromptRole, ServerSpecTrait, ServerTrait, TokenResponse,
-    DEFAULT_CONTEXT_SIZE,
+    http_get_with_response, http_post, ChatCompletionOptions, ChatMessage,
+    Endpoints, HttpClient, LLMDefinition, PromptInstruction, PromptRole,
+    ServerSpecTrait, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 
@@ -76,7 +75,6 @@ impl Llama {
     fn completion_api_payload(
         &self,
         prompt: String,
-        _exchanges: &Vec<ChatExchange>,
         prompt_instruction: &PromptInstruction,
     ) -> Result<String, serde_json::Error> {
         let payload = LlamaServerPayload {
@@ -137,15 +135,21 @@ impl ServerTrait for Llama {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
+        messages: &Vec<ChatMessage>,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let model = self.get_selected_model()?;
-        let prompt = ChatHistory::exchanges_to_string(model, exchanges);
+        let formatter = model.get_formatter();
+        let prompt = messages
+            .into_iter()
+            .map(|m| formatter.fmt_prompt_message(&m.role, &m.content))
+            .collect::<Vec<String>>()
+            .join("\n");
+
         let data_payload =
-            self.completion_api_payload(prompt, exchanges, prompt_instruction);
+            self.completion_api_payload(prompt, prompt_instruction);
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 

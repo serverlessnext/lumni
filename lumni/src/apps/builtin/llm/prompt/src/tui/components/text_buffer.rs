@@ -183,18 +183,16 @@ pub struct TextBuffer<'a> {
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     cursor: Cursor,
     code_blocks: Vec<CodeBlock>, // code blocks
-    is_editable: bool,
 }
 
 impl TextBuffer<'_> {
-    pub fn new(is_editable: bool) -> Self {
+    pub fn new() -> Self {
         Self {
             text: PieceTable::new(),
             placeholder: String::new(),
             display: TextDisplay::new(0),
             cursor: Cursor::new(),
             code_blocks: Vec::new(),
-            is_editable,
         }
     }
 

@@ -4,9 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::exchange::ChatExchange;
-use super::history::ChatHistory;
-use super::{LLMDefinition, PromptInstruction, ServerManager};
+use super::{LLMDefinition, PromptInstruction, PromptRole, ServerManager};
 use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
@@ -70,46 +68,27 @@ impl ChatSession {
     }
 
     pub fn update_last_exchange(&mut self, answer: &str) {
-        self.prompt_instruction.update_last_exchange(answer);
+        self.prompt_instruction.append_last_response(answer);
     }
 
     pub async fn finalize_last_exchange(
         &mut self,
         _tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
-        // extract the last exchange, trim and tokenize it
-        let token_length = if let Some(last_exchange) =
-            self.prompt_instruction.get_last_exchange_mut()
-        {
-            // Strip off trailing whitespaces or newlines from the last exchange
-            let trimmed_answer = last_exchange.get_answer().trim().to_string();
-            last_exchange.set_answer(trimmed_answer);
+        let last_answer = self.prompt_instruction.get_last_response();
 
-            let temp_vec = vec![&*last_exchange];
-            let model = self.server.get_selected_model()?;
-
-            let last_prompt_text =
-                ChatHistory::exchanges_to_string(model, temp_vec);
-
-            if let Some(response) =
-                self.server.tokenizer(&last_prompt_text).await?
+        if let Some(last_answer) = last_answer {
+            let trimmed_answer = last_answer.trim();
+            let tokens_predicted = if let Some(response) =
+                self.server.tokenizer(trimmed_answer).await?
             {
                 Some(response.get_tokens().len())
             } else {
                 None
-            }
-        } else {
-            None
-        };
-
-        if let Some(token_length) = token_length {
-            if let Some(last_exchange) =
-                self.prompt_instruction.get_last_exchange_mut()
-            {
-                last_exchange.set_token_length(token_length);
-            }
+            };
+            self.prompt_instruction
+                .put_last_response(trimmed_answer, tokens_predicted);
         }
-
         Ok(())
     }
 
@@ -122,12 +101,12 @@ impl ChatSession {
             .server
             .get_context_size(&mut self.prompt_instruction)
             .await?;
-        let new_exchange = self.initiate_new_exchange(question).await?;
-        let n_keep = self.prompt_instruction.get_n_keep();
-        let exchanges = self.prompt_instruction.new_prompt(
-            new_exchange,
+        let (user_question, token_length) =
+            self.initiate_new_exchange(question).await?;
+        let messages = self.prompt_instruction.subsequent_exchange(
+            &user_question,
+            token_length,
             max_token_length,
-            n_keep,
         );
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
@@ -135,7 +114,7 @@ impl ChatSession {
 
         self.server
             .completion(
-                &exchanges,
+                &messages,
                 &self.prompt_instruction,
                 Some(tx),
                 Some(cancel_rx),
@@ -147,7 +126,7 @@ impl ChatSession {
     pub async fn initiate_new_exchange(
         &self,
         user_question: &str,
-    ) -> Result<ChatExchange, ApplicationError> {
+    ) -> Result<(String, Option<usize>), ApplicationError> {
         let user_question = user_question.trim();
         let user_question = if user_question.is_empty() {
             "continue".to_string()
@@ -161,20 +140,18 @@ impl ChatSession {
             }
         };
 
-        let mut new_exchange = ChatExchange::new(user_question, "".to_string());
-        let temp_vec = vec![&new_exchange];
-
         let model = self.server.get_selected_model()?;
-
+        let formatter = model.get_formatter();
         let last_prompt_text =
-            ChatHistory::exchanges_to_string(model, temp_vec);
-
-        if let Some(token_response) =
+            formatter.fmt_prompt_message(&PromptRole::User, &user_question);
+        let token_length = if let Some(token_response) =
             self.server.tokenizer(&last_prompt_text).await?
         {
-            new_exchange.set_token_length(token_response.get_tokens().len());
-        }
-        Ok(new_exchange)
+            Some(token_response.get_tokens().len())
+        } else {
+            None
+        };
+        Ok((user_question, token_length))
     }
 
     pub fn process_response(

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use super::generic::Generic;
 use super::llama3::Llama3;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PromptRole {
     User,
     Assistant,
@@ -59,7 +61,7 @@ impl ModelFormatterTrait for ModelFormatter {
 
     fn fmt_prompt_message(
         &self,
-        prompt_role: PromptRole,
+        prompt_role: &PromptRole,
         message: &str,
     ) -> String {
         match self.model {
@@ -85,7 +87,7 @@ pub trait ModelFormatterTrait: Send + Sync {
         }
     }
 
-    fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
+    fn get_role_prefix(&self, prompt_role: &PromptRole) -> &str {
         match prompt_role {
             PromptRole::User => "### User: ",
             PromptRole::Assistant => "### Assistant: ",
@@ -95,7 +97,7 @@ pub trait ModelFormatterTrait: Send + Sync {
 
     fn fmt_prompt_message(
         &self,
-        prompt_role: PromptRole,
+        prompt_role: &PromptRole,
         message: &str,
     ) -> String {
         let prompt_message = match prompt_role {

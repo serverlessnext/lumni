@@ -24,8 +24,7 @@ use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response,
-    ChatCompletionOptions, ChatExchange, ChatHistory, ChatMessage,
-    PromptInstruction, TokenResponse,
+    ChatCompletionOptions, ChatMessage, PromptInstruction, TokenResponse,
 };
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
@@ -165,7 +164,7 @@ impl ServerTrait for ModelServer {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
+        messages: &Vec<ChatMessage>,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -173,22 +172,22 @@ impl ServerTrait for ModelServer {
         match self {
             ModelServer::Llama(llama) => {
                 llama
-                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .completion(messages, prompt_instruction, tx, cancel_rx)
                     .await
             }
             ModelServer::Ollama(ollama) => {
                 ollama
-                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .completion(messages, prompt_instruction, tx, cancel_rx)
                     .await
             }
             ModelServer::Bedrock(bedrock) => {
                 bedrock
-                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .completion(messages, prompt_instruction, tx, cancel_rx)
                     .await
             }
             ModelServer::OpenAI(openai) => {
                 openai
-                    .completion(exchanges, prompt_instruction, tx, cancel_rx)
+                    .completion(messages, prompt_instruction, tx, cancel_rx)
                     .await
             }
         }
@@ -227,7 +226,7 @@ pub trait ServerTrait: Send + Sync {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
+        messages: &Vec<ChatMessage>,
         prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
@@ -296,7 +295,7 @@ pub trait ServerTrait: Send + Sync {
         Ok(DEFAULT_CONTEXT_SIZE)
     }
 
-    fn get_role_name(&self, prompt_role: PromptRole) -> &'static str {
+    fn get_role_name(&self, prompt_role: &PromptRole) -> &'static str {
         match prompt_role {
             PromptRole::User => "user",
             PromptRole::Assistant => "assistant",

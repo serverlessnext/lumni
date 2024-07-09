@@ -1,15 +1,11 @@
 use std::error::Error;
-
-mod exchange;
-mod history;
 mod instruction;
 mod options;
 mod prompt;
+mod schema;
 mod send;
 mod session;
 
-pub use exchange::ChatExchange;
-pub use history::{ChatHistory, ChatMessage};
 pub use instruction::PromptInstruction;
 pub use options::{ChatCompletionOptions, PromptOptions};
 use prompt::Prompt;
@@ -42,4 +38,10 @@ impl TokenResponse {
     pub fn get_tokens(&self) -> &Vec<usize> {
         &self.tokens
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub role: PromptRole,
+    pub content: String,
 }

@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::exchange::ChatExchange;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Prompt {
     name: String,
@@ -26,4 +24,11 @@ impl Prompt {
     pub fn exchanges(&self) -> Option<&Vec<ChatExchange>> {
         self.exchanges.as_ref()
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatExchange {
+    pub question: String,
+    pub answer: String,
+    pub token_length: Option<usize>,
 }

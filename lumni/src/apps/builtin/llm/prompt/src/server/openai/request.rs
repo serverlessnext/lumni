@@ -1,11 +1,9 @@
 use serde::Serialize;
 
-use super::ChatMessage;
-
 #[derive(Debug, Serialize)]
 pub struct OpenAIRequestPayload {
     pub model: String,
-    pub messages: Vec<ChatMessage>,
+    pub messages: Vec<OpenAIChatMessage>,
     pub stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frequency_penalty: Option<f64>,
@@ -29,4 +27,10 @@ impl OpenAIRequestPayload {
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenAIChatMessage {
+    pub role: String,
+    pub content: String,
 }

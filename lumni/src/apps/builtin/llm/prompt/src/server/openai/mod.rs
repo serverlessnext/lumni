@@ -13,14 +13,14 @@ use credentials::OpenAICredentials;
 use error::OpenAIErrorHandler;
 use lumni::api::error::ApplicationError;
 use lumni::HttpClient;
-use request::OpenAIRequestPayload;
+use request::{OpenAIChatMessage, OpenAIRequestPayload};
 use response::StreamParser;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatExchange, ChatHistory, ChatMessage, Endpoints,
-    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
+    http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
+    ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -57,14 +57,15 @@ impl OpenAI {
     fn completion_api_payload(
         &self,
         model: &LLMDefinition,
-        exchanges: &Vec<ChatExchange>,
-        system_prompt: Option<&str>,
+        chat_messages: Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
-        let messages: Vec<ChatMessage> = ChatHistory::exchanges_to_messages(
-            exchanges,
-            system_prompt,
-            &|role| self.get_role_name(role),
-        );
+        let messages: Vec<OpenAIChatMessage> = chat_messages
+            .iter()
+            .map(|m| OpenAIChatMessage {
+                role: self.get_role_name(&m.role).to_string(),
+                content: m.content.to_string(),
+            })
+            .collect();
 
         let openai_request_payload = OpenAIRequestPayload {
             model: model.get_name().to_string(),
@@ -113,17 +114,19 @@ impl ServerTrait for OpenAI {
 
     async fn completion(
         &self,
-        exchanges: &Vec<ChatExchange>,
-        prompt_instruction: &PromptInstruction,
+        messages: &Vec<ChatMessage>,
+        _prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let model = self.get_selected_model()?;
-        let system_prompt = prompt_instruction.get_instruction();
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let data_payload = self
-            .completion_api_payload(model, exchanges, Some(system_prompt))
+            .completion_api_payload(
+                model,
+                messages.clone(),
+            )
             .map_err(|e| {
                 ApplicationError::InvalidUserConfiguration(e.to_string())
             })?;

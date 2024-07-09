@@ -32,7 +32,7 @@ impl ModelFormatterTrait for Llama3 {
         if let Some(instruction) = instruction {
             return format!(
                 "<|begin_of_text|>{}",
-                self.fmt_prompt_message(PromptRole::System, instruction)
+                self.fmt_prompt_message(&PromptRole::System, instruction)
             )
             .to_string();
         } else {
@@ -42,7 +42,7 @@ impl ModelFormatterTrait for Llama3 {
 
     fn fmt_prompt_message(
         &self,
-        prompt_role: PromptRole,
+        prompt_role: &PromptRole,
         message: &str,
     ) -> String {
         let role_handle = match prompt_role {

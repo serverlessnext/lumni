@@ -20,12 +20,11 @@ pub struct TextWindow<'a> {
 
 impl<'a> TextWindow<'a> {
     pub fn new(window_type: WindowConfig) -> Self {
-        let is_editable = window_type.is_editable();
         Self {
             area: RectArea::default(),
             window_type,
             scroller: Scroller::new(),
-            text_buffer: TextBuffer::new(is_editable),
+            text_buffer: TextBuffer::new(),
         }
     }
 

@@ -13,6 +13,7 @@ CREATE TABLE conversations (
     schema_version INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (fork_exchange_id) REFERENCES exchanges(id)
 );
@@ -28,6 +29,7 @@ CREATE TABLE exchanges (
     prompt_tokens INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     previous_exchange_id INTEGER,
+    is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (model_id) REFERENCES models(model_id)
     FOREIGN KEY (previous_exchange_id) REFERENCES exchanges(id)
@@ -43,6 +45,7 @@ CREATE TABLE messages (
     has_attachments BOOLEAN NOT NULL DEFAULT FALSE,
     token_length INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (exchange_id) REFERENCES exchanges(id)
 );
@@ -57,6 +60,7 @@ CREATE TABLE attachments (
     file_type TEXT NOT NULL,
     metadata TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (message_id) REFERENCES messages(id),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (exchange_id) REFERENCES exchanges(id),

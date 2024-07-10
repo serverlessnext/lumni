@@ -34,11 +34,12 @@ pub struct Conversation {
     pub id: ConversationId,
     pub name: String,
     pub metadata: serde_json::Value,
-    pub parent_conversation_id: ConversationId,
-    pub fork_exchange_id: ExchangeId,
+    pub parent_conversation_id: Option<ConversationId>,
+    pub fork_exchange_id: Option<ExchangeId>,
     pub schema_version: i32,
     pub created_at: i64,
     pub updated_at: i64,
+    pub is_deleted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,13 +47,14 @@ pub struct Exchange {
     pub id: ExchangeId,
     pub conversation_id: ConversationId,
     pub model_id: ModelId,
-    pub system_prompt: String,
-    pub completion_options: serde_json::Value,
-    pub prompt_options: serde_json::Value,
-    pub completion_tokens: i32,
-    pub prompt_tokens: i32,
+    pub system_prompt: Option<String>,
+    pub completion_options: Option<serde_json::Value>,
+    pub prompt_options: Option<serde_json::Value>,
+    pub completion_tokens: Option<i32>,
+    pub prompt_tokens: Option<i32>,
     pub created_at: i64,
     pub previous_exchange_id: Option<ExchangeId>,
+    pub is_deleted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,8 +66,9 @@ pub struct Message {
     pub message_type: String,
     pub content: String,
     pub has_attachments: bool,
-    pub token_length: i32,
+    pub token_length: Option<i32>,
     pub created_at: i64,
+    pub is_deleted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,25 +83,11 @@ pub struct Attachment {
     pub message_id: MessageId,
     pub conversation_id: ConversationId,
     pub exchange_id: ExchangeId,
-    pub data: AttachmentData,
+    pub data: AttachmentData,   // file_uri or file_data
     pub file_type: String,
-    pub metadata: serde_json::Value,
+    pub metadata: Option<serde_json::Value>,
     pub created_at: i64,
-}
-
-impl Conversation {
-    pub fn new(name: &str) -> Self {
-        Conversation {
-            id: ConversationId(0), // You might want to generate a unique ID here
-            name: name.to_string(),
-            metadata: serde_json::Value::Null,
-            parent_conversation_id: ConversationId(0),
-            fork_exchange_id: ExchangeId(0),
-            schema_version: 1,
-            created_at: 0, // not using timestamps for now, stick with 0 for now
-            updated_at: 0, // not using timestamps for now, stick with 0 for now
-        }
-    }
+    pub is_deleted: bool,
 }
 
 #[derive(Debug)]
@@ -150,11 +139,17 @@ impl InMemoryDatabase {
         parent_id: Option<ConversationId>,
     ) -> ConversationId {
         let new_id = self.new_conversation_id();
-        let mut conversation = Conversation::new(name);
-        conversation.id = new_id;
-        if let Some(parent) = parent_id {
-            conversation.parent_conversation_id = parent;
-        }
+        let conversation = Conversation {
+            id: new_id,
+            name: name.to_string(),
+            metadata: serde_json::Value::Null,
+            parent_conversation_id: parent_id, 
+            fork_exchange_id: None,
+            schema_version: 1,
+            created_at: 0, // not using timestamps for now, stick with 0 for now
+            updated_at: 0, // not using timestamps for now, stick with 0 for now
+            is_deleted: false,
+        };
         self.add_conversation(conversation);
         new_id
     }
@@ -165,6 +160,7 @@ impl InMemoryDatabase {
 
     pub fn add_conversation(&mut self, conversation: Conversation) {
         self.conversations.insert(conversation.id, conversation);
+        // TODO: push to DB
     }
 
     pub fn add_exchange(&mut self, exchange: Exchange) {
@@ -197,9 +193,7 @@ impl InMemoryDatabase {
     ) {
         if let Some(message) = self.messages.get_mut(&message_id) {
             message.content = new_content.to_string();
-            if let Some(token_length) = new_token_length {
-                message.token_length = token_length;
-            }
+            message.token_length = new_token_length;
         }
     }
 

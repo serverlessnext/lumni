@@ -132,15 +132,14 @@ impl PromptInstruction {
             id: db_lock.new_exchange_id(),
             conversation_id: self.current_conversation_id,
             model_id: ModelId(0),
-            system_prompt: self.system_prompt.instruction.clone(),
-            completion_options: serde_json::to_value(&self.completion_options)
-                .unwrap_or_default(),
-            prompt_options: serde_json::to_value(&self.prompt_options)
-                .unwrap_or_default(),
-            completion_tokens: 0,
-            prompt_tokens: 0,
+            system_prompt: Some(self.system_prompt.instruction.clone()),
+            completion_options: serde_json::to_value(&self.completion_options).ok(),
+            prompt_options: serde_json::to_value(&self.prompt_options).ok(),
+            completion_tokens: None,
+            prompt_tokens: None,
             created_at: 0,
             previous_exchange_id: None,
+            is_deleted: false,
         }
     }
 
@@ -168,10 +167,11 @@ impl PromptInstruction {
                 system_prompt: last.system_prompt.clone(), // copy from previous exchange
                 completion_options: last.completion_options.clone(), // copy from previous exchange
                 prompt_options: last.prompt_options.clone(), // copy from previous exchange
-                completion_tokens: 0,
-                prompt_tokens: 0,
+                completion_tokens: None,
+                prompt_tokens: None,
                 created_at: 0,
                 previous_exchange_id: Some(last.id),
+                is_deleted: false,
             }
         } else {
             // create first exchange
@@ -184,8 +184,9 @@ impl PromptInstruction {
                 message_type: "text".to_string(),
                 content: self.system_prompt.get_instruction().to_string(),
                 has_attachments: false,
-                token_length: self.system_prompt.get_token_length().unwrap_or(0) as i32,
+                token_length: self.system_prompt.get_token_length().map(|len| len as i32),
                 created_at: 0,
+                is_deleted: false,
             };
             db_lock.add_message(system_message);
             exchange
@@ -199,8 +200,9 @@ impl PromptInstruction {
             message_type: "text".to_string(),
             content: question.to_string(),
             has_attachments: false,
-            token_length: token_length.unwrap_or(0) as i32,
+            token_length: token_length.map(|len| len as i32),
             created_at: 0,
+            is_deleted: false,
         };
 
         db_lock.add_exchange(exchange);
@@ -219,12 +221,19 @@ impl PromptInstruction {
             for msg in
                 db_lock.get_exchange_messages(exchange.id).into_iter().rev()
             {
+                let msg_token_length = if let Some(len) = msg.token_length {
+                    len as usize
+                } else {
+                    // token counting is effective disabled if token_length is None
+                    0   
+                };
+
                 if msg.role == PromptRole::System {
                     continue; // system prompt is included separately
                 }
-                if total_tokens + msg.token_length as usize <= max_token_length
+                if total_tokens + msg_token_length <= max_token_length
                 {
-                    total_tokens += msg.token_length as usize;
+                    total_tokens += msg_token_length;
                     messages.push(ChatMessage {
                         role: msg.role,
                         content: msg.content.clone(),
@@ -334,8 +343,9 @@ impl PromptInstruction {
                 message_type: "text".to_string(),
                 content: system_prompt,
                 has_attachments: false,
-                token_length: 0, // TODO: compute token length
+                token_length: None,
                 created_at: 0,
+                is_deleted: false,
             };
             db_lock.add_message(system_message);
 
@@ -348,8 +358,9 @@ impl PromptInstruction {
                     message_type: "text".to_string(),
                     content: loaded_exchange.question.clone(),
                     has_attachments: false,
-                    token_length: 0, // Implement proper token counting
+                    token_length: None,
                     created_at: 0,   // Use proper timestamp
+                    is_deleted: false,
                 };
                 let assistant_message = Message {
                     id: db_lock.new_message_id(),
@@ -359,8 +370,9 @@ impl PromptInstruction {
                     message_type: "text".to_string(),
                     content: loaded_exchange.answer.clone(),
                     has_attachments: false,
-                    token_length: 0, // Implement proper token counting
+                    token_length: None,
                     created_at: 0,   // Use proper timestamp
+                    is_deleted: false,
                 };
                 db_lock.add_message(user_message);
                 db_lock.add_message(assistant_message);
@@ -422,8 +434,11 @@ impl ExchangeHandler {
                         message_type: "text".to_string(),
                         content: answer.to_string(),
                         has_attachments: false,
-                        token_length: answer.len() as i32, // Simplified token count
+                        // TODO: need to implement model based counting
+                        // simplified (in-accurate, but better than keeping it at 0) version
+                        token_length: Some(answer.len() as i32),
                         created_at: 0, // You might want to use a proper timestamp here
+                        is_deleted: false,
                     };
                     db_lock.add_message(new_message);
                 }

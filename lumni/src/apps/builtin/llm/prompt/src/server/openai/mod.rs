@@ -123,10 +123,7 @@ impl ServerTrait for OpenAI {
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let data_payload = self
-            .completion_api_payload(
-                model,
-                messages.clone(),
-            )
+            .completion_api_payload(model, messages.clone())
             .map_err(|e| {
                 ApplicationError::InvalidUserConfiguration(e.to_string())
             })?;

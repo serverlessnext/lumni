@@ -274,13 +274,16 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
 
 pub async fn run_cli(
     spec: ApplicationSpec,
-    _env: ApplicationEnv,
+    env: ApplicationEnv,
     args: Vec<String>,
 ) -> Result<(), ApplicationError> {
     let app = parse_cli_arguments(spec);
     let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
         e.exit();
     });
+
+    let config_dir =
+        env.get_config_dir().expect("Config directory not defined");
 
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
@@ -305,7 +308,7 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let mut app_session = AppSession::new();
+            let mut app_session = AppSession::new(config_dir)?;
             app_session.add_tab(chat_session);
             interactive_mode(app_session).await
         }

@@ -1,11 +1,12 @@
 use std::error::Error;
+mod db;
 mod instruction;
 mod options;
 mod prompt;
-mod schema;
 mod send;
 mod session;
 
+pub use db::DatabaseConnector;
 pub use instruction::PromptInstruction;
 pub use options::{ChatCompletionOptions, PromptOptions};
 use prompt::Prompt;

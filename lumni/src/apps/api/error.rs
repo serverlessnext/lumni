@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rusqlite::Error as SqliteError;
+
 // export the http client error via api::error
 pub use crate::http::client::HttpClientError;
 
@@ -28,6 +30,7 @@ pub enum ApplicationError {
     ServerConfigurationError(String),
     HttpClientError(HttpClientError),
     IoError(std::io::Error),
+    DatabaseError(String),
     NotImplemented(String),
     NotReady(String),
 }
@@ -109,6 +112,9 @@ impl fmt::Display for ApplicationError {
                 write!(f, "HttpClientError: {}", e)
             }
             ApplicationError::IoError(e) => write!(f, "IoError: {}", e),
+            ApplicationError::DatabaseError(s) => {
+                write!(f, "DatabaseError: {}", s)
+            }
             ApplicationError::NotImplemented(s) => {
                 write!(f, "NotImplemented: {}", s)
             }
@@ -128,5 +134,14 @@ impl From<HttpClientError> for ApplicationError {
 impl From<std::io::Error> for ApplicationError {
     fn from(error: std::io::Error) -> Self {
         ApplicationError::IoError(error)
+    }
+}
+
+impl From<SqliteError> for ApplicationError {
+    fn from(error: SqliteError) -> Self {
+        ApplicationError::DatabaseError(format!(
+            "Database operation failed: {}",
+            error
+        ))
     }
 }

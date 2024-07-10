@@ -12,6 +12,17 @@ pub enum PromptRole {
     System,
 }
 
+impl PromptRole {
+    pub fn to_string(&self) -> String {
+        match self {
+            PromptRole::User => "user",
+            PromptRole::Assistant => "assistant",
+            PromptRole::System => "system",
+        }
+        .to_string()
+    }
+}
+
 #[derive(Clone, Debug)]
 enum PromptModel {
     Generic(Generic),

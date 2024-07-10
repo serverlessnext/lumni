@@ -4,9 +4,7 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::block::{Position, Title};
-use ratatui::widgets::{
-    Block, Borders, Scrollbar, ScrollbarOrientation,
-};
+use ratatui::widgets::{Block, Borders, Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 
 use super::{TabSession, TextWindowTrait, WindowKind};

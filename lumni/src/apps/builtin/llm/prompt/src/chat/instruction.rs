@@ -2,10 +2,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use lumni::api::error::ApplicationError;
 
+use super::db::{ConversationId, Exchange, InMemoryDatabase, Message, ModelId};
 use super::prompt::Prompt;
-use super::schema::{
-    ConversationId, Exchange, InMemoryDatabase, Message, ModelId,
-};
 use super::{
     ChatCompletionOptions, ChatMessage, PromptOptions, PromptRole,
     DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
@@ -133,7 +131,8 @@ impl PromptInstruction {
             conversation_id: self.current_conversation_id,
             model_id: ModelId(0),
             system_prompt: Some(self.system_prompt.instruction.clone()),
-            completion_options: serde_json::to_value(&self.completion_options).ok(),
+            completion_options: serde_json::to_value(&self.completion_options)
+                .ok(),
             prompt_options: serde_json::to_value(&self.prompt_options).ok(),
             completion_tokens: None,
             prompt_tokens: None,
@@ -184,7 +183,10 @@ impl PromptInstruction {
                 message_type: "text".to_string(),
                 content: self.system_prompt.get_instruction().to_string(),
                 has_attachments: false,
-                token_length: self.system_prompt.get_token_length().map(|len| len as i32),
+                token_length: self
+                    .system_prompt
+                    .get_token_length()
+                    .map(|len| len as i32),
                 created_at: 0,
                 is_deleted: false,
             };
@@ -225,14 +227,13 @@ impl PromptInstruction {
                     len as usize
                 } else {
                     // token counting is effective disabled if token_length is None
-                    0   
+                    0
                 };
 
                 if msg.role == PromptRole::System {
                     continue; // system prompt is included separately
                 }
-                if total_tokens + msg_token_length <= max_token_length
-                {
+                if total_tokens + msg_token_length <= max_token_length {
                     total_tokens += msg_token_length;
                     messages.push(ChatMessage {
                         role: msg.role,
@@ -359,7 +360,7 @@ impl PromptInstruction {
                     content: loaded_exchange.question.clone(),
                     has_attachments: false,
                     token_length: None,
-                    created_at: 0,   // Use proper timestamp
+                    created_at: 0, // Use proper timestamp
                     is_deleted: false,
                 };
                 let assistant_message = Message {
@@ -371,7 +372,7 @@ impl PromptInstruction {
                     content: loaded_exchange.answer.clone(),
                     has_attachments: false,
                     token_length: None,
-                    created_at: 0,   // Use proper timestamp
+                    created_at: 0, // Use proper timestamp
                     is_deleted: false,
                 };
                 db_lock.add_message(user_message);

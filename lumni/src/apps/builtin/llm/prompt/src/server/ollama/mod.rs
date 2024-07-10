@@ -137,8 +137,7 @@ impl ServerTrait for Ollama {
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let model = self.get_selected_model()?;
-        let data_payload =
-            self.completion_api_payload(model, messages);
+        let data_payload = self.completion_api_payload(model, messages);
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
         if let Ok(payload) = data_payload {

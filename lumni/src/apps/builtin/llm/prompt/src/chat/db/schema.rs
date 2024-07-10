@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use rusqlite;
 use serde::{Deserialize, Serialize};
 
 use super::PromptRole;
@@ -83,7 +82,7 @@ pub struct Attachment {
     pub message_id: MessageId,
     pub conversation_id: ConversationId,
     pub exchange_id: ExchangeId,
-    pub data: AttachmentData,   // file_uri or file_data
+    pub data: AttachmentData, // file_uri or file_data
     pub file_type: String,
     pub metadata: Option<serde_json::Value>,
     pub created_at: i64,
@@ -143,7 +142,7 @@ impl InMemoryDatabase {
             id: new_id,
             name: name.to_string(),
             metadata: serde_json::Value::Null,
-            parent_conversation_id: parent_id, 
+            parent_conversation_id: parent_id,
             fork_exchange_id: None,
             schema_version: 1,
             created_at: 0, // not using timestamps for now, stick with 0 for now
@@ -180,7 +179,9 @@ impl InMemoryDatabase {
     }
 
     pub fn update_message(&mut self, updated_message: Message) {
-        if let Some(existing_message) = self.messages.get_mut(&updated_message.id) {
+        if let Some(existing_message) =
+            self.messages.get_mut(&updated_message.id)
+        {
             *existing_message = updated_message;
         }
     }
@@ -271,56 +272,5 @@ impl InMemoryDatabase {
                     .collect()
             })
             .unwrap_or_default()
-    }
-}
-
-pub struct Database {
-    in_memory: Arc<Mutex<InMemoryDatabase>>,
-    sqlite_conn: Arc<Mutex<rusqlite::Connection>>,
-}
-
-impl Database {
-    pub fn new(sqlite_path: &str) -> rusqlite::Result<Self> {
-        let sqlite_conn = rusqlite::Connection::open(sqlite_path)?;
-        Ok(Database {
-            in_memory: Arc::new(Mutex::new(InMemoryDatabase::new())),
-            sqlite_conn: Arc::new(Mutex::new(sqlite_conn)),
-        })
-    }
-
-    pub fn save_in_background(&self) {
-        let in_memory = Arc::clone(&self.in_memory);
-        let sqlite_conn = Arc::clone(&self.sqlite_conn);
-
-        thread::spawn(move || {
-            let data = in_memory.lock().unwrap();
-            let conn = sqlite_conn.lock().unwrap();
-            // saving to SQLite here
-        });
-    }
-
-    pub fn add_model(&self, model: Model) {
-        let mut data = self.in_memory.lock().unwrap();
-        data.add_model(model);
-    }
-
-    pub fn add_conversation(&self, conversation: Conversation) {
-        let mut data = self.in_memory.lock().unwrap();
-        data.add_conversation(conversation);
-    }
-
-    pub fn add_exchange(&self, exchange: Exchange) {
-        let mut data = self.in_memory.lock().unwrap();
-        data.add_exchange(exchange);
-    }
-
-    pub fn add_message(&self, message: Message) {
-        let mut data = self.in_memory.lock().unwrap();
-        data.add_message(message);
-    }
-
-    pub fn add_attachment(&self, attachment: Attachment) {
-        let mut data = self.in_memory.lock().unwrap();
-        data.add_attachment(attachment);
     }
 }

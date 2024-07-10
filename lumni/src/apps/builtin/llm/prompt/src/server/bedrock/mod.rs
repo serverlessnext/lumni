@@ -19,7 +19,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
-    ServerSpecTrait, ServerTrait, PromptRole,
+    PromptRole, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -69,11 +69,7 @@ impl Bedrock {
             None => None,
         };
         // skip system prompt if it exists
-        let skip = if system_prompt.is_some() {
-            1
-        } else {
-            0
-        };
+        let skip = if system_prompt.is_some() { 1 } else { 0 };
 
         // Convert ChatMessages to Messages for BedrockRequestPayload
         let messages: Vec<Message> = chat_messages
@@ -176,9 +172,8 @@ impl ServerTrait for Bedrock {
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let full_url = format!("{}{}", completion_endpoint, resource);
 
-        let data_payload = self
-            .completion_api_payload(model, messages)
-            .map_err(|e| {
+        let data_payload =
+            self.completion_api_payload(model, messages).map_err(|e| {
                 ApplicationError::InvalidUserConfiguration(e.to_string())
             })?;
 

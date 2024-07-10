@@ -1,3 +1,11 @@
+
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE models (
     model_id INTEGER PRIMARY KEY AUTOINCREMENT,
     model_name TEXT NOT NULL,
@@ -76,4 +84,3 @@ CREATE INDEX idx_model_id ON exchanges(model_id);
 CREATE INDEX idx_conversation_created_at ON exchanges(conversation_id, created_at);
 CREATE INDEX idx_attachment_message ON attachments(message_id);
 
-PRAGMA foreign_keys = ON;

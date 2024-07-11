@@ -3,14 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use rusqlite::{
-    params, Connection, Error as SqliteError, Result as SqliteResult,
-};
-use serde::{Deserialize, Serialize};
-
-use super::schema::{
-    Attachment, AttachmentData, Conversation, Exchange, Message,
-};
+use rusqlite::{params, Error as SqliteError, Result as SqliteResult};
 
 pub struct DatabaseConnector {
     connection: rusqlite::Connection,
@@ -46,7 +39,7 @@ impl DatabaseConnector {
 
             match stmt {
                 Ok(ref mut stmt) => {
-                    let result: Result<Vec<(String, String)>, rusqlite::Error> =
+                    let result: Result<Vec<(String, String)>, SqliteError> =
                         stmt.query_map([], |row| {
                             Ok((row.get(0)?, row.get(1)?))
                         })?
@@ -136,14 +129,13 @@ impl DatabaseConnector {
         queue.push_back(sql);
     }
 
-    pub fn process_queue(&mut self) -> Result<(), rusqlite::Error> {
+    pub fn process_queue(&mut self) -> Result<(), SqliteError> {
+        // Lock the queue and start a transaction for items in the queue
         let mut queue = self.operation_queue.lock().unwrap();
         let tx = self.connection.transaction()?;
-
         while let Some(sql) = queue.pop_front() {
             tx.execute(&sql, [])?;
         }
-
         tx.commit()?;
         Ok(())
     }

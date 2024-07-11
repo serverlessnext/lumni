@@ -6,7 +6,7 @@ mod prompt;
 mod send;
 mod session;
 
-pub use db::DatabaseConnector;
+pub use db::ConversationDatabase;
 pub use instruction::PromptInstruction;
 pub use options::{ChatCompletionOptions, PromptOptions};
 use prompt::Prompt;

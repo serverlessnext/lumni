@@ -4,7 +4,10 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::{LLMDefinition, PromptInstruction, PromptRole, ServerManager};
+use super::{
+    ConversationDatabase, LLMDefinition, PromptInstruction, PromptRole,
+    ServerManager,
+};
 use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
@@ -62,20 +65,25 @@ impl ChatSession {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, db: &ConversationDatabase) {
         self.stop();
-        self.prompt_instruction.reset_history();
+        self.prompt_instruction.reset_history(db);
     }
 
-    pub fn update_last_exchange(&mut self, answer: &str) {
-        self.prompt_instruction.append_last_response(answer);
+    pub fn update_last_exchange(
+        &mut self,
+        db: &ConversationDatabase,
+        answer: &str,
+    ) {
+        self.prompt_instruction.append_last_response(answer, db);
     }
 
     pub async fn finalize_last_exchange(
         &mut self,
+        db: &ConversationDatabase,
         _tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
-        let last_answer = self.prompt_instruction.get_last_response();
+        let last_answer = self.prompt_instruction.get_last_response(db);
 
         if let Some(last_answer) = last_answer {
             let trimmed_answer = last_answer.trim();
@@ -86,8 +94,11 @@ impl ChatSession {
             } else {
                 None
             };
-            self.prompt_instruction
-                .put_last_response(trimmed_answer, tokens_predicted);
+            self.prompt_instruction.put_last_response(
+                trimmed_answer,
+                tokens_predicted,
+                db,
+            );
         }
         Ok(())
     }
@@ -95,6 +106,7 @@ impl ChatSession {
     pub async fn message(
         &mut self,
         tx: mpsc::Sender<Bytes>,
+        db: &ConversationDatabase,
         question: &str,
     ) -> Result<(), ApplicationError> {
         let max_token_length = self
@@ -107,6 +119,7 @@ impl ChatSession {
             &user_question,
             token_length,
             max_token_length,
+            db,
         );
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
@@ -165,11 +178,12 @@ impl ChatSession {
     // used in non-interactive mode
     pub async fn process_prompt(
         &mut self,
+        db: &ConversationDatabase,
         question: String,
         stop_signal: Arc<Mutex<bool>>,
     ) -> Result<(), ApplicationError> {
         let (tx, rx) = mpsc::channel(32);
-        let _ = self.message(tx, &question).await;
+        let _ = self.message(tx, db, &question).await;
         self.handle_response(rx, stop_signal).await?;
         self.stop();
         Ok(())

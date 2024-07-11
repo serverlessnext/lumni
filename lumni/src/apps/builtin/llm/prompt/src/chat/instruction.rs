@@ -1,8 +1,11 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::MutexGuard;
 
 use lumni::api::error::ApplicationError;
 
-use super::db::{ConversationId, Exchange, InMemoryDatabase, Message, ModelId};
+use super::db::{
+    ConversationDatabase, ConversationId, Exchange, InMemoryDatabase, Message,
+    ModelId,
+};
 use super::prompt::Prompt;
 use super::{
     ChatCompletionOptions, ChatMessage, PromptOptions, PromptRole,
@@ -15,7 +18,6 @@ pub struct PromptInstruction {
     prompt_options: PromptOptions, // TODO: get from db
     system_prompt: SystemPrompt,
     prompt_template: Option<String>,
-    pub db: Arc<Mutex<InMemoryDatabase>>,
     current_conversation_id: ConversationId,
 }
 
@@ -32,7 +34,6 @@ impl Default for PromptInstruction {
             prompt_options: PromptOptions::default(),
             system_prompt: SystemPrompt::default(),
             prompt_template: None,
-            db: Arc::new(Mutex::new(InMemoryDatabase::new())),
             current_conversation_id: ConversationId(0),
         }
     }
@@ -43,6 +44,7 @@ impl PromptInstruction {
         instruction: Option<String>,
         assistant: Option<String>,
         options: Option<&String>,
+        db_conn: &ConversationDatabase,
     ) -> Result<Self, ApplicationError> {
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
@@ -67,6 +69,7 @@ impl PromptInstruction {
             prompt_instruction.preload_from_assistant(
                 assistant,
                 instruction, // add user-instruction with assistant
+                db_conn,
             )?;
         } else if let Some(instruction) = instruction {
             prompt_instruction.set_system_prompt(instruction);
@@ -74,37 +77,45 @@ impl PromptInstruction {
 
         // Create a new Conversation in the database
         let conversation_id = {
-            let mut db_lock = prompt_instruction.db.lock().unwrap();
-            db_lock.new_conversation("New Conversation", None)
+            let mut db_lock = db_conn.cache.lock().unwrap();
+            db_lock.new_conversation("New Conversation", &db_conn.store, None)
         };
         prompt_instruction.current_conversation_id = conversation_id;
 
         Ok(prompt_instruction)
     }
 
-    pub fn reset_history(&mut self) {
+    pub fn reset_history(&mut self, db_conn: &ConversationDatabase) {
         // Create a new Conversation in the database
         let new_conversation_id = {
-            let mut db_lock = self.db.lock().unwrap();
+            let mut db_lock = db_conn.cache.lock().unwrap();
             db_lock.new_conversation(
                 "New Conversation",
+                &db_conn.store,
                 Some(self.current_conversation_id),
             )
         };
         self.current_conversation_id = new_conversation_id;
     }
 
-    pub fn append_last_response(&mut self, answer: &str) {
+    pub fn append_last_response(
+        &mut self,
+        answer: &str,
+        db_conn: &ConversationDatabase,
+    ) {
         ExchangeHandler::append_response(
-            &mut self.db.lock().unwrap(),
+            &mut db_conn.cache.lock().unwrap(),
             self.current_conversation_id,
             answer,
         );
     }
 
-    pub fn get_last_response(&self) -> Option<String> {
+    pub fn get_last_response(
+        &self,
+        db_conn: &ConversationDatabase,
+    ) -> Option<String> {
         ExchangeHandler::get_last_response(
-            &self.db.lock().unwrap(),
+            &db_conn.cache.lock().unwrap(),
             self.current_conversation_id,
         )
     }
@@ -113,9 +124,10 @@ impl PromptInstruction {
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
+        db_conn: &ConversationDatabase,
     ) {
         ExchangeHandler::put_last_response(
-            &mut self.db.lock().unwrap(),
+            &mut db_conn.cache.lock().unwrap(),
             self.current_conversation_id,
             answer,
             tokens_predicted,
@@ -147,8 +159,9 @@ impl PromptInstruction {
         question: &str,
         token_length: Option<usize>,
         max_token_length: usize,
+        db_conn: &ConversationDatabase,
     ) -> Vec<ChatMessage> {
-        let mut db_lock = self.db.lock().unwrap();
+        let mut db_lock = db_conn.cache.lock().unwrap();
 
         // token budget for the system prompt
         let system_prompt_token_length = self.get_n_keep().unwrap_or(0);
@@ -309,6 +322,7 @@ impl PromptInstruction {
         &mut self,
         assistant: String,
         user_instruction: Option<String>,
+        db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
         let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)
             .map_err(|e| {
@@ -332,7 +346,7 @@ impl PromptInstruction {
         self.set_system_prompt(system_prompt.clone());
 
         if let Some(exchanges) = prompt.exchanges() {
-            let mut db_lock = self.db.lock().unwrap();
+            let mut db_lock = db_conn.cache.lock().unwrap();
 
             // Create a new exchange with the system prompt
             let exchange = self.first_exchange(&mut db_lock);

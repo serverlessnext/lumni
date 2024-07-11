@@ -24,7 +24,7 @@ use tokio::signal;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
-use super::chat::ChatSession;
+use super::chat::{ChatSession, ConversationDatabase};
 use super::server::{ModelServer, PromptInstruction, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
@@ -40,6 +40,7 @@ const CHANNEL_QUEUE_SIZE: usize = 32;
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app_session: AppSession<'_>,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let defaults = app_session.get_defaults().clone();
 
@@ -94,16 +95,16 @@ async fn prompt_app<B: Backend>(
                                 Some(WindowEvent::Prompt(prompt_action)) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            send_prompt(tab, &prompt, &color_scheme, tx.clone()).await?;
+                                            send_prompt(tab, &db_conn, &prompt, &color_scheme, tx.clone()).await?;
                                         }
                                         PromptAction::Clear => {
                                             tab.ui.response.text_empty();
-                                            tab.chat.reset();
+                                            tab.chat.reset(&db_conn);
                                             trim_buffer = None;
                                         }
                                         PromptAction::Stop => {
                                             tab.chat.stop();
-                                            finalize_response(&mut tab.chat, &mut tab.ui, None, &color_scheme).await?;
+                                            finalize_response(&mut tab.chat, &mut tab.ui, &db_conn, None, &color_scheme).await?;
                                             trim_buffer = None;
                                         }
                                     }
@@ -187,7 +188,7 @@ async fn prompt_app<B: Backend>(
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response);
 
                 if !display_content.is_empty() {
-                    chat.update_last_exchange(&display_content);
+                    chat.update_last_exchange(&db_conn, &display_content);
                     tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()));
                 }
 
@@ -199,7 +200,7 @@ async fn prompt_app<B: Backend>(
                     while let Ok(post_bytes) = rx.try_recv() {
                         chat.process_response(post_bytes, false);
                     }
-                    finalize_response(&mut chat, &mut tab_ui, tokens_predicted, &color_scheme).await?;
+                    finalize_response(&mut chat, &mut tab_ui, &db_conn, tokens_predicted, &color_scheme).await?;
                     trim_buffer = None;
                } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
@@ -221,6 +222,7 @@ async fn prompt_app<B: Backend>(
 async fn finalize_response(
     chat: &mut ChatSession,
     tab_ui: &mut TabUi<'_>,
+    db_conn: &ConversationDatabase,
     tokens_predicted: Option<usize>,
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
@@ -236,7 +238,8 @@ async fn finalize_response(
         .response
         .text_append_with_insert("\n", Some(Style::reset()));
     // trim exchange + update token length
-    chat.finalize_last_exchange(tokens_predicted).await?;
+    chat.finalize_last_exchange(db_conn, tokens_predicted)
+        .await?;
     Ok(())
 }
 
@@ -298,9 +301,13 @@ pub async fn run_cli(
     // create new (un-initialized) server from requested server name
     let server = ModelServer::from_str(&server_name)?;
     let default_model = server.get_default_model().await;
+
+    let sqlite_file = config_dir.join("chat.db");
+    let db_conn = ConversationDatabase::new(&sqlite_file)?;
+
     // setup prompt, server and chat session
     let prompt_instruction =
-        PromptInstruction::new(instruction, assistant, options)?;
+        PromptInstruction::new(instruction, assistant, options, &db_conn)?;
     let chat_session =
         ChatSession::new(Box::new(server), prompt_instruction, default_model)
             .await?;
@@ -308,20 +315,21 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let mut app_session = AppSession::new(config_dir)?;
+            let mut app_session = AppSession::new()?;
             app_session.add_tab(chat_session);
-            interactive_mode(app_session).await
+            interactive_mode(app_session, db_conn).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
-            process_non_interactive_input(chat_session).await
+            process_non_interactive_input(chat_session, db_conn).await
         }
     }
 }
 
 async fn interactive_mode(
     app_session: AppSession<'_>,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
@@ -352,7 +360,7 @@ async fn interactive_mode(
     };
 
     // Run the application logic and capture the result
-    let result = prompt_app(&mut terminal, app_session).await;
+    let result = prompt_app(&mut terminal, app_session, db_conn).await;
 
     // Regardless of the result, perform cleanup
     let _ = disable_raw_mode();
@@ -367,6 +375,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();
@@ -400,7 +409,7 @@ async fn process_non_interactive_input(
         // Process the prompt
         let process_handle = tokio::spawn(async move {
             let mut chat = chat_clone.lock().await;
-            chat.process_prompt(input, running.clone()).await
+            chat.process_prompt(&db_conn, input, running.clone()).await
         });
 
         // Wait for the process to complete or for a shutdown signal
@@ -482,13 +491,17 @@ async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {
 
 async fn send_prompt<'a>(
     tab: &mut TabSession<'a>,
+    db_conn: &ConversationDatabase,
     prompt: &str,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
     let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = tab.chat.message(tx.clone(), &formatted_prompt).await;
+    let result = tab
+        .chat
+        .message(tx.clone(), db_conn, &formatted_prompt)
+        .await;
 
     match result {
         Ok(_) => {

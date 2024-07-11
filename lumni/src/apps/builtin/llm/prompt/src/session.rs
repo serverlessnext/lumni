@@ -1,28 +1,22 @@
 use std::io;
-use std::path::PathBuf;
 
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
 use ratatui::Terminal;
 
-use super::chat::{ChatSession, DatabaseConnector};
+use super::chat::ChatSession;
 use super::tui::{draw_ui, ColorScheme, ColorSchemeType, TabUi};
 pub use crate::external as lumni;
 
 pub struct AppSession<'a> {
     tabs: Vec<TabSession<'a>>,
-    db: DatabaseConnector,
     defaults: AppDefaults,
 }
 
 impl<'a> AppSession<'a> {
-    pub fn new(config_dir: &PathBuf) -> Result<Self, ApplicationError> {
-        let sqlite_file = config_dir.join("chat.db");
-        let db = DatabaseConnector::new(&sqlite_file)?;
-
+    pub fn new() -> Result<Self, ApplicationError> {
         Ok(AppSession {
             tabs: Vec::new(),
-            db,
             defaults: AppDefaults::new(),
         })
     }

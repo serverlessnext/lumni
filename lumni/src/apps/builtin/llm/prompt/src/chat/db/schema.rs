@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use serde::{Deserialize, Serialize};
 
+use super::store::ConversationDatabaseStore;
 use super::PromptRole;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -135,6 +135,7 @@ impl InMemoryDatabase {
     pub fn new_conversation(
         &mut self,
         name: &str,
+        db_store: &Arc<Mutex<ConversationDatabaseStore>>,
         parent_id: Option<ConversationId>,
     ) -> ConversationId {
         let new_id = self.new_conversation_id();
@@ -149,7 +150,7 @@ impl InMemoryDatabase {
             updated_at: 0, // not using timestamps for now, stick with 0 for now
             is_deleted: false,
         };
-        self.add_conversation(conversation);
+        self.add_conversation(db_store, conversation);
         new_id
     }
 
@@ -157,9 +158,17 @@ impl InMemoryDatabase {
         self.models.insert(model.model_id, model);
     }
 
-    pub fn add_conversation(&mut self, conversation: Conversation) {
+    pub fn add_conversation(
+        &mut self,
+        db_store: &Arc<Mutex<ConversationDatabaseStore>>,
+        conversation: Conversation,
+    ) {
+        let mut store_lock = db_store.lock().unwrap();
+        store_lock.store_new_conversation(&conversation);
+        let result = store_lock.commit_queued_operations();
+        eprintln!("Commit result: {:?}", result);
+
         self.conversations.insert(conversation.id, conversation);
-        // TODO: push to DB
     }
 
     pub fn add_exchange(&mut self, exchange: Exchange) {

@@ -173,9 +173,6 @@ impl ConversationDatabaseStore {
             );
             self.db.queue_operation(attachment_sql);
         }
-
-        // Commit the transaction
-        //self.db.queue_operation("COMMIT;".to_string());
     }
 
     pub fn commit_queued_operations(&mut self) -> Result<(), SqliteError> {

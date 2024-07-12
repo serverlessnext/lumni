@@ -127,7 +127,7 @@ impl PromptInstruction {
         db_conn: &ConversationDatabase,
     ) {
         ExchangeHandler::put_last_response(
-            &mut db_conn.cache.lock().unwrap(),
+            db_conn,
             self.current_conversation_id,
             answer,
             tokens_predicted,
@@ -483,11 +483,13 @@ impl ExchangeHandler {
     }
 
     pub fn put_last_response(
-        db_lock: &mut MutexGuard<InMemoryDatabase>,
+        db_conn: &ConversationDatabase,
         current_conversation_id: ConversationId,
         answer: &str,
         tokens_predicted: Option<usize>,
     ) {
+        let db_lock = &mut db_conn.cache.lock().unwrap();
+
         let (message_id, is_assistant) = if let Some(last_exchange) =
             db_lock.get_last_exchange(current_conversation_id)
         {
@@ -510,6 +512,7 @@ impl ExchangeHandler {
         if let (Some(id), true) = (message_id, is_assistant) {
             let token_length = tokens_predicted.map(|t| t as i32);
             db_lock.update_message_by_id(id, answer, token_length);
+            db_lock.finalize_last_exchange(&db_conn.store, current_conversation_id);
         }
     }
 }

@@ -258,6 +258,35 @@ impl InMemoryDatabase {
             .unwrap_or_default()
     }
 
+    pub fn finalize_last_exchange(
+        &mut self,
+        db_store: &Arc<Mutex<ConversationDatabaseStore>>,
+        conversation_id: ConversationId,
+    ) {
+        let exchange = self.get_last_exchange(conversation_id);
+        if let Some(exchange) = exchange {
+            let messages = self.get_exchange_messages(exchange.id);
+            let attachments = messages
+                .iter()
+                .flat_map(|message| {
+                    self.get_message_attachments(message.id)
+                })
+                .collect::<Vec<_>>();
+
+            // Convert Vec<&Message> to Vec<Message> and Vec<&Attachment> to Vec<Attachment>
+            let owned_messages: Vec<Message> = messages.into_iter().cloned().collect();
+            let owned_attachments: Vec<Attachment> = attachments.into_iter().cloned().collect();
+
+            eprintln!("Owned messages: {:?}", owned_messages);
+
+            let mut db_lock_store = db_store.lock().unwrap();
+            db_lock_store.store_finalized_exchange(&exchange, &owned_messages, &owned_attachments);
+            let result = db_lock_store.commit_queued_operations();
+            eprintln!("Commit result: {:?}", result);
+        }
+
+    }
+
     pub fn get_last_message_of_exchange(
         &self,
         exchange_id: ExchangeId,

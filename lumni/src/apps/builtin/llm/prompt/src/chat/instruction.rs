@@ -77,8 +77,6 @@ impl PromptInstruction {
 
         // Create a new Conversation in the database
         let conversation_id = {
-            //let mut db_lock = db_conn.cache.lock().unwrap();
-            //db_lock.new_conversation("New Conversation", &db_conn.store, None)
             db_conn.new_conversation("New Conversation", None)?
         };
         prompt_instruction.current_conversation_id = conversation_id;
@@ -211,7 +209,6 @@ impl PromptInstruction {
         let system_prompt_token_length = self.get_n_keep().unwrap_or(0);
 
         // add the partial exchange (question) to the conversation
-        //let last_exchange = store.get_last_exchange(self.current_conversation_id)?;
         let mut cache = db_conn.cache.lock().unwrap();
         let exchange = self.subsequent_exchange(&mut cache);
 
@@ -259,7 +256,6 @@ impl PromptInstruction {
                     break;
                 }
             }
-
             if total_tokens >= max_token_length {
                 break;
             }

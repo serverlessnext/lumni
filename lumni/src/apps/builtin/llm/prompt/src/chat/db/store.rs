@@ -4,8 +4,8 @@ use rusqlite::Error as SqliteError;
 
 use super::connector::DatabaseConnector;
 use super::schema::{
-    Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Exchange, ExchangeId, Message, MessageId,
+    Attachment, AttachmentData, Conversation, ConversationId,
+    Exchange, Message,
 };
 
 pub struct ConversationDatabaseStore {
@@ -52,57 +52,12 @@ impl ConversationDatabaseStore {
         })
     }
 
-    pub fn store_new_exchange(
-        &mut self,
-        exchange: &Exchange,
-    ) -> Result<ExchangeId, SqliteError> {
-        let exchange_sql = format!(
-            "INSERT INTO exchanges (conversation_id, model_id, system_prompt, \
-             completion_options, prompt_options, completion_tokens, \
-             prompt_tokens, created_at, previous_exchange_id, is_deleted)
-            VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
-            exchange.conversation_id.0,
-            exchange.model_id.0,
-            exchange.system_prompt.as_ref().map_or(
-                "NULL".to_string(),
-                |s| format!("'{}'", s.replace("'", "''"))
-            ),
-            exchange.completion_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!("'{}'", v.to_string().replace("'", "''"))
-            ),
-            exchange.prompt_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!("'{}'", v.to_string().replace("'", "''"))
-            ),
-            exchange
-                .completion_tokens
-                .map_or("NULL".to_string(), |t| t.to_string()),
-            exchange
-                .prompt_tokens
-                .map_or("NULL".to_string(), |t| t.to_string()),
-            exchange.created_at,
-            exchange
-                .previous_exchange_id
-                .map_or("NULL".to_string(), |id| id.0.to_string()),
-            exchange.is_deleted
-        );
-
-        self.db.queue_operation(exchange_sql);
-
-        self.db.process_queue_with_result(|tx| {
-            let id = tx.last_insert_rowid();
-            Ok(ExchangeId(id))
-        })
-    }
-
     pub fn store_finalized_exchange(
         &mut self,
         exchange: &Exchange,
         messages: &[Message],
         attachments: &[Attachment],
     ) -> Result<(), SqliteError> {
-        // Start a transaction
         // Insert the exchange
         let exchange_sql = format!(
             "INSERT INTO exchanges (conversation_id, model_id, system_prompt, 

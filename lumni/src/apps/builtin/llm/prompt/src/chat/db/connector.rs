@@ -1,9 +1,8 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
-use rusqlite::{params, Error as SqliteError, Result as SqliteResult};
+use rusqlite::{params, Error as SqliteError, Transaction};
 
 pub struct DatabaseConnector {
     connection: rusqlite::Connection,
@@ -138,5 +137,29 @@ impl DatabaseConnector {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    pub fn process_queue_with_result<T>(
+        &mut self,
+        result_handler: impl FnOnce(&Transaction) -> Result<T, SqliteError>,
+    ) -> Result<T, SqliteError> {
+        let mut queue = self.operation_queue.lock().unwrap();
+        let tx = self.connection.transaction()?;
+
+        while let Some(sql) = queue.pop_front() {
+            eprintln!("Executing SQL {}", sql);
+            if sql.trim().to_lowercase().starts_with("select") {
+                // For SELECT statements, use query
+                tx.query_row(&sql, [], |_| Ok(()))?;
+            } else {
+                // For other statements (INSERT, UPDATE, DELETE), use execute
+                tx.execute(&sql, [])?;
+            }
+        }
+        eprintln!("Committing transaction");
+        let result = result_handler(&tx)?;
+
+        tx.commit()?;
+        Ok(result)
     }
 }

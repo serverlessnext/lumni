@@ -115,7 +115,7 @@ impl ChatSession {
             .await?;
         let (user_question, token_length) =
             self.initiate_new_exchange(question).await?;
-        let messages = self.prompt_instruction.subsequent_exchange(
+        let messages = self.prompt_instruction.new_exchange(
             &user_question,
             token_length,
             max_token_length,

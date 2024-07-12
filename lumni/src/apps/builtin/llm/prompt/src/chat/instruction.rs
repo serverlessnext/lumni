@@ -3,8 +3,8 @@ use std::sync::MutexGuard;
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationDatabase, ConversationId, Exchange, InMemoryDatabase, Message,
-    ModelId,
+    ConversationDatabase, ConversationId, Exchange, ExchangeId,
+    ConversationCache, Message, ModelId,
 };
 use super::prompt::Prompt;
 use super::{
@@ -77,25 +77,23 @@ impl PromptInstruction {
 
         // Create a new Conversation in the database
         let conversation_id = {
-            let mut db_lock = db_conn.cache.lock().unwrap();
-            db_lock.new_conversation("New Conversation", &db_conn.store, None)
+            //let mut db_lock = db_conn.cache.lock().unwrap();
+            //db_lock.new_conversation("New Conversation", &db_conn.store, None)
+            db_conn.new_conversation("New Conversation", None)?
         };
         prompt_instruction.current_conversation_id = conversation_id;
 
         Ok(prompt_instruction)
     }
 
-    pub fn reset_history(&mut self, db_conn: &ConversationDatabase) {
-        // Create a new Conversation in the database
-        let new_conversation_id = {
-            let mut db_lock = db_conn.cache.lock().unwrap();
-            db_lock.new_conversation(
-                "New Conversation",
-                &db_conn.store,
-                Some(self.current_conversation_id),
-            )
-        };
-        self.current_conversation_id = new_conversation_id;
+    pub fn reset_history(
+        &mut self,
+        db_conn: &ConversationDatabase,
+    ) -> Result<(), ApplicationError> {
+        // reset by creating a new conversation
+        self.current_conversation_id =
+            db_conn.new_conversation("New Conversation", None)?;
+        Ok(())
     }
 
     pub fn append_last_response(
@@ -114,10 +112,7 @@ impl PromptInstruction {
         &self,
         db_conn: &ConversationDatabase,
     ) -> Option<String> {
-        ExchangeHandler::get_last_response(
-            &db_conn.cache.lock().unwrap(),
-            self.current_conversation_id,
-        )
+        ExchangeHandler::get_last_response(&db_conn.cache.lock().unwrap())
     }
 
     pub fn put_last_response(
@@ -126,20 +121,19 @@ impl PromptInstruction {
         tokens_predicted: Option<usize>,
         db_conn: &ConversationDatabase,
     ) {
-        ExchangeHandler::put_last_response(
+        let exchange = ExchangeHandler::put_last_response(
             db_conn,
-            self.current_conversation_id,
             answer,
             tokens_predicted,
         );
+        if let Some(exchange) = exchange {
+            let _result = db_conn.finalize_exchange(&exchange);
+        }
     }
 
-    fn first_exchange(
-        &self,
-        db_lock: &mut MutexGuard<'_, InMemoryDatabase>,
-    ) -> Exchange {
+    fn first_exchange(&self) -> Exchange {
         Exchange {
-            id: db_lock.new_exchange_id(),
+            id: ExchangeId(0),
             conversation_id: self.current_conversation_id,
             model_id: ModelId(0),
             system_prompt: Some(self.system_prompt.instruction.clone()),
@@ -156,29 +150,16 @@ impl PromptInstruction {
 
     pub fn subsequent_exchange(
         &mut self,
-        question: &str,
-        token_length: Option<usize>,
-        max_token_length: usize,
-        db_conn: &ConversationDatabase,
-    ) -> Vec<ChatMessage> {
-        let mut db_lock = db_conn.cache.lock().unwrap();
-
-        // token budget for the system prompt
-        let system_prompt_token_length = self.get_n_keep().unwrap_or(0);
-
-        // add the partial exchange (question) to the conversation
-        let last_exchange =
-            db_lock.get_last_exchange(self.current_conversation_id);
-
-        let exchange = if let Some(last) = last_exchange {
-            // add exchange based on the last one
+        cache: &mut MutexGuard<ConversationCache>,
+    ) -> Exchange {
+        if let Some(last) = cache.get_last_exchange() {
             Exchange {
-                id: db_lock.new_exchange_id(),
+                id: cache.new_exchange_id(),
                 conversation_id: self.current_conversation_id,
                 model_id: last.model_id,
-                system_prompt: last.system_prompt.clone(), // copy from previous exchange
-                completion_options: last.completion_options.clone(), // copy from previous exchange
-                prompt_options: last.prompt_options.clone(), // copy from previous exchange
+                system_prompt: last.system_prompt.clone(),
+                completion_options: last.completion_options.clone(),
+                prompt_options: last.prompt_options.clone(),
                 completion_tokens: None,
                 prompt_tokens: None,
                 created_at: 0,
@@ -187,9 +168,10 @@ impl PromptInstruction {
             }
         } else {
             // create first exchange
-            let exchange = self.first_exchange(&mut db_lock);
+            let exchange = self.first_exchange();
+            // add system prompt
             let system_message = Message {
-                id: db_lock.new_message_id(),
+                id: cache.new_message_id(),
                 conversation_id: self.current_conversation_id,
                 exchange_id: exchange.id,
                 role: PromptRole::System,
@@ -203,12 +185,38 @@ impl PromptInstruction {
                 created_at: 0,
                 is_deleted: false,
             };
-            db_lock.add_message(system_message);
-            exchange
-        };
+            // add first exchange including system prompt message
+            cache.add_message(system_message);
+            cache.add_exchange(exchange.clone());
+
+            // return subsequent exchange
+            Exchange {
+                id: cache.new_exchange_id(),
+                prompt_tokens: None,
+                completion_tokens: None,
+                previous_exchange_id: Some(exchange.id),
+                ..exchange
+            }
+        }
+    }
+
+    pub fn new_exchange(
+        &mut self,
+        question: &str,
+        token_length: Option<usize>,
+        max_token_length: usize,
+        db_conn: &ConversationDatabase,
+    ) -> Vec<ChatMessage> {
+        // token budget for the system prompt
+        let system_prompt_token_length = self.get_n_keep().unwrap_or(0);
+
+        // add the partial exchange (question) to the conversation
+        //let last_exchange = store.get_last_exchange(self.current_conversation_id)?;
+        let mut cache = db_conn.cache.lock().unwrap();
+        let exchange = self.subsequent_exchange(&mut cache);
 
         let user_message = Message {
-            id: db_lock.new_message_id(),
+            id: cache.new_message_id(),
             conversation_id: self.current_conversation_id,
             exchange_id: exchange.id,
             role: PromptRole::User,
@@ -219,13 +227,11 @@ impl PromptInstruction {
             created_at: 0,
             is_deleted: false,
         };
+        cache.add_exchange(exchange);
+        // new prompt only has user message, answer is not yet generated
+        cache.add_message(user_message);
 
-        db_lock.add_exchange(exchange);
-        // new_prompt only has user question, answer is added later
-        db_lock.add_message(user_message);
-
-        let current_exchanges =
-            db_lock.get_conversation_exchanges(self.current_conversation_id);
+        let current_exchanges = cache.get_exchanges();
 
         // Collect messages while respecting token limits
         let mut messages: Vec<ChatMessage> = Vec::new();
@@ -234,14 +240,10 @@ impl PromptInstruction {
         // Add messages from most recent to oldest, respecting token limit
         for exchange in current_exchanges.into_iter().rev() {
             for msg in
-                db_lock.get_exchange_messages(exchange.id).into_iter().rev()
+                cache.get_exchange_messages(exchange.id).into_iter().rev()
             {
-                let msg_token_length = if let Some(len) = msg.token_length {
-                    len as usize
-                } else {
-                    // token counting is effective disabled if token_length is None
-                    0
-                };
+                let msg_token_length =
+                    msg.token_length.map(|len| len as usize).unwrap_or(0);
 
                 if msg.role == PromptRole::System {
                     continue; // system prompt is included separately
@@ -262,12 +264,14 @@ impl PromptInstruction {
                 break;
             }
         }
+
         // ensure the system prompt is always included
         // after reverse, the system prompt will be at the beginning
         messages.push(ChatMessage {
             role: PromptRole::System,
             content: self.system_prompt.get_instruction().to_string(),
         });
+
         // Reverse the messages to maintain chronological order
         messages.reverse();
         messages
@@ -346,12 +350,12 @@ impl PromptInstruction {
         self.set_system_prompt(system_prompt.clone());
 
         if let Some(exchanges) = prompt.exchanges() {
-            let mut db_lock = db_conn.cache.lock().unwrap();
+            let mut cache = db_conn.cache.lock().unwrap();
 
             // Create a new exchange with the system prompt
-            let exchange = self.first_exchange(&mut db_lock);
+            let exchange = self.first_exchange();
             let system_message = Message {
-                id: db_lock.new_message_id(),
+                id: cache.new_message_id(),
                 conversation_id: self.current_conversation_id,
                 exchange_id: exchange.id,
                 role: PromptRole::System,
@@ -362,11 +366,14 @@ impl PromptInstruction {
                 created_at: 0,
                 is_deleted: false,
             };
-            db_lock.add_message(system_message);
+            cache.add_message(system_message);
+            cache.add_exchange(exchange);
 
             for loaded_exchange in exchanges.iter() {
+                let exchange = self.subsequent_exchange(&mut cache);
+
                 let user_message = Message {
-                    id: db_lock.new_message_id(),
+                    id: cache.new_message_id(),
                     conversation_id: self.current_conversation_id,
                     exchange_id: exchange.id,
                     role: PromptRole::User,
@@ -378,7 +385,7 @@ impl PromptInstruction {
                     is_deleted: false,
                 };
                 let assistant_message = Message {
-                    id: db_lock.new_message_id(),
+                    id: cache.new_message_id(),
                     conversation_id: self.current_conversation_id,
                     exchange_id: exchange.id,
                     role: PromptRole::Assistant,
@@ -389,8 +396,9 @@ impl PromptInstruction {
                     created_at: 0, // Use proper timestamp
                     is_deleted: false,
                 };
-                db_lock.add_message(user_message);
-                db_lock.add_message(assistant_message);
+                cache.add_message(user_message);
+                cache.add_message(assistant_message);
+                cache.add_exchange(exchange);
             }
         }
 
@@ -422,27 +430,27 @@ pub struct ExchangeHandler;
 
 impl ExchangeHandler {
     pub fn append_response(
-        db_lock: &mut MutexGuard<InMemoryDatabase>,
+        cache: &mut MutexGuard<ConversationCache>,
         current_conversation_id: ConversationId,
         answer: &str,
     ) {
-        let last_exchange = db_lock.get_last_exchange(current_conversation_id);
+        let last_exchange = cache.get_last_exchange();
 
         if let Some(exchange) = last_exchange {
             let last_message =
-                db_lock.get_last_message_of_exchange(exchange.id).cloned();
+                cache.get_last_message_of_exchange(exchange.id).cloned();
 
             match last_message {
                 Some(msg) if msg.role == PromptRole::Assistant => {
                     // If the last message is from Assistant, append to it
                     let new_content =
                         format!("{}{}", msg.content, answer).to_string();
-                    db_lock.update_message_by_id(msg.id, &new_content, None);
+                    cache.update_message_by_id(msg.id, &new_content, None);
                 }
                 _ => {
                     // If the last message is from User or there's no message, create a new Assistant message
                     let new_message = Message {
-                        id: db_lock.new_message_id(),
+                        id: cache.new_message_id(),
                         conversation_id: current_conversation_id,
                         exchange_id: exchange.id,
                         role: PromptRole::Assistant,
@@ -455,7 +463,7 @@ impl ExchangeHandler {
                         created_at: 0, // You might want to use a proper timestamp here
                         is_deleted: false,
                     };
-                    db_lock.add_message(new_message);
+                    cache.add_message(new_message);
                 }
             }
         } else {
@@ -465,11 +473,10 @@ impl ExchangeHandler {
     }
 
     pub fn get_last_response(
-        db_lock: &MutexGuard<InMemoryDatabase>,
-        current_conversation_id: ConversationId,
+        db_lock: &MutexGuard<ConversationCache>,
     ) -> Option<String> {
         db_lock
-            .get_last_exchange(current_conversation_id)
+            .get_last_exchange()
             .and_then(|last_exchange| {
                 db_lock.get_last_message_of_exchange(last_exchange.id)
             })
@@ -484,35 +491,33 @@ impl ExchangeHandler {
 
     pub fn put_last_response(
         db_conn: &ConversationDatabase,
-        current_conversation_id: ConversationId,
         answer: &str,
         tokens_predicted: Option<usize>,
-    ) {
-        let db_lock = &mut db_conn.cache.lock().unwrap();
+    ) -> Option<Exchange> {
+        // Capture the necessary message and exchange IDs in a separate scope
+        let (message_id, exchange) = {
+            let cache = db_conn.cache.lock().unwrap();
+            let last_exchange = cache.get_last_exchange()?;
+            let last_message =
+                cache.get_last_message_of_exchange(last_exchange.id)?;
 
-        let (message_id, is_assistant) = if let Some(last_exchange) =
-            db_lock.get_last_exchange(current_conversation_id)
-        {
-            if let Some(last_message) =
-                db_lock.get_last_message_of_exchange(last_exchange.id)
-            {
-                // Check the role directly here and only pass on the ID if it's an assistant's message
-                (
-                    Some(last_message.id),
-                    last_message.role == PromptRole::Assistant,
-                )
+            // Check if the last message was from an assistant, and capture IDs
+            if last_message.role == PromptRole::Assistant {
+                (Some(last_message.id), Some(last_exchange.clone()))
             } else {
-                (None, false)
+                (None, None)
             }
-        } else {
-            (None, false)
         };
 
-        // Perform the update if the message is from an assistant
-        if let (Some(id), true) = (message_id, is_assistant) {
+        // Only proceed if we have valid IDs
+        if let (Some(message_id), Some(exchange)) = (message_id, exchange) {
+            // Perform the update in a separate cache lock scope
             let token_length = tokens_predicted.map(|t| t as i32);
-            db_lock.update_message_by_id(id, answer, token_length);
-            db_lock.finalize_last_exchange(&db_conn.store, current_conversation_id);
+            let mut cache = db_conn.cache.lock().unwrap();
+            cache.update_message_by_id(message_id, answer, token_length);
+            Some(exchange)
+        } else {
+            None
         }
     }
 }

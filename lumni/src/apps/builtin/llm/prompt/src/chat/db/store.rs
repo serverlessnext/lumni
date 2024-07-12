@@ -4,7 +4,8 @@ use rusqlite::Error as SqliteError;
 
 use super::connector::DatabaseConnector;
 use super::schema::{
-    Attachment, AttachmentData, Conversation, Exchange, Message,
+    Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
+    Exchange, ExchangeId, Message, MessageId,
 };
 
 pub struct ConversationDatabaseStore {
@@ -18,13 +19,15 @@ impl ConversationDatabaseStore {
         })
     }
 
-    pub fn store_new_conversation(&self, conversation: &Conversation) {
+    pub fn store_new_conversation(
+        &mut self,
+        conversation: &Conversation,
+    ) -> Result<ConversationId, SqliteError> {
         let conversation_sql = format!(
-            "INSERT INTO conversations (id, name, metadata, \
+            "INSERT INTO conversations (name, metadata, \
              parent_conversation_id, fork_exchange_id, schema_version, \
              created_at, updated_at, is_deleted)
-            VALUES ({}, '{}', {}, {}, {}, {}, {}, {}, {});",
-            conversation.id.0,
+            VALUES ('{}', {}, {}, {}, {}, {}, {}, {});",
             conversation.name.replace("'", "''"),
             serde_json::to_string(&conversation.metadata)
                 .map(|s| format!("'{}'", s.replace("'", "''")))
@@ -40,37 +43,72 @@ impl ConversationDatabaseStore {
             conversation.updated_at,
             conversation.is_deleted
         );
+
         self.db.queue_operation(conversation_sql);
 
-        // Commit the transaction
-        eprintln!("Committing conversation");
+        self.db.process_queue_with_result(|tx| {
+            let id = tx.last_insert_rowid();
+            Ok(ConversationId(id))
+        })
+    }
+
+    pub fn store_new_exchange(
+        &mut self,
+        exchange: &Exchange,
+    ) -> Result<ExchangeId, SqliteError> {
+        let exchange_sql = format!(
+            "INSERT INTO exchanges (conversation_id, model_id, system_prompt, \
+             completion_options, prompt_options, completion_tokens, \
+             prompt_tokens, created_at, previous_exchange_id, is_deleted)
+            VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
+            exchange.conversation_id.0,
+            exchange.model_id.0,
+            exchange.system_prompt.as_ref().map_or(
+                "NULL".to_string(),
+                |s| format!("'{}'", s.replace("'", "''"))
+            ),
+            exchange.completion_options.as_ref().map_or(
+                "NULL".to_string(),
+                |v| format!("'{}'", v.to_string().replace("'", "''"))
+            ),
+            exchange.prompt_options.as_ref().map_or(
+                "NULL".to_string(),
+                |v| format!("'{}'", v.to_string().replace("'", "''"))
+            ),
+            exchange
+                .completion_tokens
+                .map_or("NULL".to_string(), |t| t.to_string()),
+            exchange
+                .prompt_tokens
+                .map_or("NULL".to_string(), |t| t.to_string()),
+            exchange.created_at,
+            exchange
+                .previous_exchange_id
+                .map_or("NULL".to_string(), |id| id.0.to_string()),
+            exchange.is_deleted
+        );
+
+        self.db.queue_operation(exchange_sql);
+
+        self.db.process_queue_with_result(|tx| {
+            let id = tx.last_insert_rowid();
+            Ok(ExchangeId(id))
+        })
     }
 
     pub fn store_finalized_exchange(
-        &self,
+        &mut self,
         exchange: &Exchange,
         messages: &[Message],
         attachments: &[Attachment],
-    ) {
-        // Upsert the exchange
+    ) -> Result<(), SqliteError> {
+        // Start a transaction
+        // Insert the exchange
         let exchange_sql = format!(
-            "INSERT INTO exchanges (id, conversation_id, model_id, \
-             system_prompt, completion_options, prompt_options, \
-             completion_tokens, prompt_tokens, created_at, \
-             previous_exchange_id, is_deleted)
-            VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
-            ON CONFLICT(id) DO UPDATE SET
-            conversation_id = excluded.conversation_id,
-            model_id = excluded.model_id,
-            system_prompt = excluded.system_prompt,
-            completion_options = excluded.completion_options,
-            prompt_options = excluded.prompt_options,
-            completion_tokens = excluded.completion_tokens,
-            prompt_tokens = excluded.prompt_tokens,
-            created_at = excluded.created_at,
-            previous_exchange_id = excluded.previous_exchange_id,
-            is_deleted = excluded.is_deleted;",
-            exchange.id.0,
+            "INSERT INTO exchanges (conversation_id, model_id, system_prompt, 
+             completion_options, prompt_options, completion_tokens, 
+             prompt_tokens, created_at, previous_exchange_id, is_deleted)
+            VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
             exchange.conversation_id.0,
             exchange.model_id.0,
             exchange.system_prompt.as_ref().map_or(
@@ -99,24 +137,13 @@ impl ConversationDatabaseStore {
         );
         self.db.queue_operation(exchange_sql);
 
-        // Upsert messages
+        // Insert messages
         for message in messages {
             let message_sql = format!(
-                "INSERT INTO messages (id, conversation_id, exchange_id, \
-                 role, message_type, content, has_attachments, token_length, \
+                "INSERT INTO messages (conversation_id, exchange_id, role, 
+                 message_type, content, has_attachments, token_length, 
                  created_at, is_deleted)
-                VALUES ({}, {}, {}, '{}', '{}', '{}', {}, {}, {}, {})
-                ON CONFLICT(id) DO UPDATE SET
-                conversation_id = excluded.conversation_id,
-                exchange_id = excluded.exchange_id,
-                role = excluded.role,
-                message_type = excluded.message_type,
-                content = excluded.content,
-                has_attachments = excluded.has_attachments,
-                token_length = excluded.token_length,
-                created_at = excluded.created_at,
-                is_deleted = excluded.is_deleted;",
-                message.id.0,
+                VALUES ({}, {}, '{}', '{}', '{}', {}, {}, {}, {});",
                 message.conversation_id.0,
                 message.exchange_id.0,
                 message.role.to_string(),
@@ -132,24 +159,13 @@ impl ConversationDatabaseStore {
             self.db.queue_operation(message_sql);
         }
 
-        // Upsert attachments
+        // Insert attachments
         for attachment in attachments {
             let attachment_sql = format!(
-                "INSERT INTO attachments (attachment_id, message_id, \
-                 conversation_id, exchange_id, file_uri, file_data, \
-                 file_type, metadata, created_at, is_deleted)
-                VALUES ({}, {}, {}, {}, {}, {}, '{}', {}, {}, {})
-                ON CONFLICT(attachment_id) DO UPDATE SET
-                message_id = excluded.message_id,
-                conversation_id = excluded.conversation_id,
-                exchange_id = excluded.exchange_id,
-                file_uri = excluded.file_uri,
-                file_data = excluded.file_data,
-                file_type = excluded.file_type,
-                metadata = excluded.metadata,
-                created_at = excluded.created_at,
-                is_deleted = excluded.is_deleted;",
-                attachment.attachment_id.0,
+                "INSERT INTO attachments (message_id, conversation_id, 
+                 exchange_id, file_uri, file_data, file_type, metadata, 
+                 created_at, is_deleted)
+                VALUES ({}, {}, {}, {}, {}, '{}', {}, {}, {});",
                 attachment.message_id.0,
                 attachment.conversation_id.0,
                 attachment.exchange_id.0,
@@ -173,9 +189,16 @@ impl ConversationDatabaseStore {
             );
             self.db.queue_operation(attachment_sql);
         }
+
+        // Commit the transaction
+        self.commit_queued_operations()?;
+
+        Ok(())
     }
 
-    pub fn commit_queued_operations(&mut self) -> Result<(), SqliteError> {
-        self.db.process_queue()
+    fn commit_queued_operations(&mut self) -> Result<(), SqliteError> {
+        let result = self.db.process_queue()?;
+        eprintln!("Commit Result: {:?}", result);
+        Ok(result)
     }
 }

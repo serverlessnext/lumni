@@ -277,17 +277,6 @@ pub trait ServerTrait: Send + Sync {
         Ok(None)
     }
 
-    async fn token_length(
-        &self,
-        _content: &str,
-    ) -> Result<Option<usize>, ApplicationError> {
-        if let Some(token_response) = self.tokenizer(_content).await? {
-            Ok(Some(token_response.get_tokens().len()))
-        } else {
-            Ok(None)
-        }
-    }
-
     async fn get_context_size(
         &self,
         _prompt_instruction: &mut PromptInstruction,
@@ -313,9 +302,7 @@ pub trait ServerManager: ServerTrait {
     ) -> Result<(), ApplicationError> {
         log::debug!("Initializing server with model: {:?}", model);
         // update completion options from the model, i.e. stop tokens
-        prompt_instruction
-            .get_completion_options_mut()
-            .update_from_model(&model);
+        prompt_instruction.set_model(&model);
 
         // TODO: not fully implement yet
         // requires both model and server to be ready, and then run
@@ -324,8 +311,13 @@ pub trait ServerManager: ServerTrait {
         if instruction.is_empty() {
             prompt_instruction.set_system_token_length(Some(0));
         } else {
+            let token_length = if let Some(token_response) = self.tokenizer(instruction).await? {
+                Some(token_response.get_tokens().len())
+            } else {
+                None
+            };
             prompt_instruction
-                .set_system_token_length(self.token_length(instruction).await?);
+                .set_system_token_length(token_length);
         };
         self.initialize_with_model(model, prompt_instruction).await
     }

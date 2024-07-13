@@ -1,20 +1,22 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationCache, ConversationDatabase, ConversationId, Exchange,
+    ConversationCache, ConversationDatabase, Exchange,
     ExchangeId, Message, ModelId,
 };
 use super::prompt::Prompt;
 use super::{
-    ChatCompletionOptions, ChatMessage, PromptOptions, PromptRole,
-    DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
+    ChatCompletionOptions, ChatMessage, LLMDefinition,
+    PromptOptions, PromptRole,
+    DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS
 };
 pub use crate::external as lumni;
+
 
 pub struct PromptInstruction {
     cache: ConversationCache,
     completion_options: ChatCompletionOptions,
-    prompt_options: PromptOptions, // TODO: get from db
+    prompt_options: PromptOptions,
     system_prompt: SystemPrompt,
     prompt_template: Option<String>,
 }
@@ -47,10 +49,10 @@ impl PromptInstruction {
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
             prompt_instruction
-                .get_prompt_options_mut()
+                .prompt_options
                 .update_from_json(json_str);
             prompt_instruction
-                .get_completion_options_mut()
+                .completion_options
                 .update_from_json(json_str);
         }
 
@@ -261,36 +263,31 @@ impl PromptInstruction {
     }
 
     pub fn get_completion_options(&self) -> &ChatCompletionOptions {
-        // no need to change this yet
         &self.completion_options
     }
 
-    pub fn get_completion_options_mut(&mut self) -> &mut ChatCompletionOptions {
-        // no need to change this yet
-        &mut self.completion_options
+    pub fn set_model(&mut self, model: &LLMDefinition) {
+        self.completion_options.update_from_model(model);
     }
 
-    pub fn get_prompt_options(&self) -> &PromptOptions {
-        // no need to change this yet
-        &self.prompt_options
+    pub fn get_role_prefix(&self, role: PromptRole) -> &str {
+        self.prompt_options.get_role_prefix(role)
     }
 
-    pub fn get_prompt_options_mut(&mut self) -> &mut PromptOptions {
-        // no need to change this yet
-        &mut self.prompt_options
+    pub fn get_context_size(&self) -> Option<usize> {
+        self.prompt_options.get_context_size()
+    }
+
+    pub fn set_context_size(&mut self, context_size: usize) {
+        self.prompt_options.set_context_size(context_size);
     }
 
     pub fn get_n_keep(&self) -> Option<usize> {
-        // no need to change this yet
         self.completion_options.get_n_keep()
     }
 
-    pub fn set_system_prompt(&mut self, instruction: String) {
+    fn set_system_prompt(&mut self, instruction: String) {
         self.system_prompt = SystemPrompt::new(instruction);
-    }
-
-    pub fn get_system_token_length(&self) -> Option<usize> {
-        self.system_prompt.get_token_length()
     }
 
     pub fn set_system_token_length(&mut self, token_length: Option<usize>) {
@@ -473,7 +470,6 @@ impl ExchangeHandler {
     ) -> Option<Exchange> {
         // Capture the necessary message and exchange IDs in a separate scope
         let (message_id, exchange) = {
-            //let cache = db_conn.cache.lock().unwrap();
             let last_exchange = cache.get_last_exchange()?;
             let last_message =
                 cache.get_last_message_of_exchange(last_exchange.id)?;
@@ -490,7 +486,6 @@ impl ExchangeHandler {
         if let (Some(message_id), Some(exchange)) = (message_id, exchange) {
             // Perform the update in a separate cache lock scope
             let token_length = tokens_predicted.map(|t| t as i32);
-            //let mut cache = db_conn.cache.lock().unwrap();
             cache.update_message_by_id(message_id, answer, token_length);
             Some(exchange)
         } else {

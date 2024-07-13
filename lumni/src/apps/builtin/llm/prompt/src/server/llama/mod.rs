@@ -56,11 +56,9 @@ impl Llama {
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),
             prompt_instruction
-                .get_prompt_options()
                 .get_role_prefix(PromptRole::User)
                 .to_string(),
             prompt_instruction
-                .get_prompt_options()
                 .get_role_prefix(PromptRole::Assistant)
                 .to_string(),
         );
@@ -213,7 +211,7 @@ impl ServerTrait for Llama {
         prompt_instruction: &mut PromptInstruction,
     ) -> Result<usize, ApplicationError> {
         let context_size =
-            prompt_instruction.get_prompt_options().get_context_size();
+            prompt_instruction.get_context_size();
         match context_size {
             Some(size) => Ok(size), // Return the context size if it's already set
             None => {
@@ -222,9 +220,7 @@ impl ServerTrait for Llama {
                     Ok(props) => props.get_n_ctx(),
                     Err(_) => DEFAULT_CONTEXT_SIZE,
                 };
-                prompt_instruction
-                    .get_prompt_options_mut()
-                    .set_context_size(context_size);
+                prompt_instruction.set_context_size(context_size);
                 Ok(context_size)
             }
         }

@@ -174,14 +174,19 @@ async fn prompt_app<B: Backend>(
                     false
                 };
 
-                let (response_content, is_final, tokens_predicted) = chat.process_response(response_bytes, start_of_stream);
+                let response = chat.process_response(response_bytes, start_of_stream);
 
-                let trimmed_response = if let Some(text) = response_content.as_ref() {
-                    text.trim_end().to_string()
-                } else {
-                    "".to_string()
+                let trimmed_response = match response {
+                    Some(ref response) => {
+                        let trimmed_response = response.get_content().trim_end().to_string();
+                        log::debug!("Trimmed response: {:?}", trimmed_response);
+                        trimmed_response
+                    }
+                    None => {
+                        log::debug!("No response content");
+                        "".to_string()
+                    }
                 };
-                log::debug!("Trimmed response: {:?}", trimmed_response);
 
                 // display content should contain previous trimmed parts,
                 // with a trimmed version of the new response content
@@ -192,7 +197,8 @@ async fn prompt_app<B: Backend>(
                     tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()));
                 }
 
-                if is_final {
+                // response is final is is_final is true or response is None
+                if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
                     log::debug!("Final response received");
                     // some servers may still send events after final chat exchange
                     // e.g. for logging or metrics. These should be retrieved to ensure
@@ -200,12 +206,23 @@ async fn prompt_app<B: Backend>(
                     while let Ok(post_bytes) = rx.try_recv() {
                         chat.process_response(post_bytes, false);
                     }
-                    finalize_response(&mut chat, &mut tab_ui, &db_conn, tokens_predicted, &color_scheme).await?;
+                    finalize_response(
+                        &mut chat,
+                        &mut tab_ui,
+                        &db_conn,
+                        response.as_ref().and_then(|r| r.get_total_tokens()),
+                        &color_scheme
+                    ).await?;
                     trim_buffer = None;
                } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
-                    if let Some(text) = response_content {
+                    let text = match response {
+                        Some(response) => response.get_content(),
+                        None => "".to_string(),
+                    };
+
+                    if !text.is_empty() {
                         let trailing_whitespace_start = trimmed_response.len();
                         trim_buffer = Some(text[trailing_whitespace_start..].to_string());
                     } else {

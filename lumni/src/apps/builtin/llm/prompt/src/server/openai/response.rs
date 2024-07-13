@@ -4,6 +4,8 @@ use bytes::Bytes;
 use serde::Deserialize;
 use serde_json::{Result as JsonResult, Value};
 
+use crate::apps::builtin::llm::prompt::src::server::StreamResponse;
+
 #[derive(Debug, Deserialize)]
 pub struct OpenAIResponsePayload {
     pub id: String,
@@ -56,12 +58,12 @@ impl StreamParser {
         &mut self,
         chunk: Bytes,
         start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
+    ) -> Option<StreamResponse> {
         if start_of_stream {
             self.buffer.clear();
             self.stopped_received = false;
         } else if self.stopped_received {
-            return (None, true, None);
+            return None;
         }
 
         let chunk_str = String::from_utf8_lossy(&chunk);
@@ -86,13 +88,13 @@ impl StreamParser {
                     }
                     Err(e) => {
                         if stop {
-                            return (None, true, None);
+                            return None;
                         }
-                        return (
-                            Some(format!("Failed to parse JSON: {}", e)),
-                            true,
+                        return Some(StreamResponse::new_with_content(
+                            format!("Failed to parse JSON: {}", e),
                             None,
-                        );
+                            true,
+                        ));
                     }
                 }
             }
@@ -100,9 +102,9 @@ impl StreamParser {
         }
 
         if final_content.is_empty() && !stop {
-            (None, false, None)
+            Some(StreamResponse::new())
         } else {
-            (Some(final_content), stop, None)
+            Some(StreamResponse::new_with_content(final_content, None, stop))
         }
     }
 

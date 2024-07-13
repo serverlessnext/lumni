@@ -12,7 +12,8 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatMessage,
     Endpoints, HttpClient, LLMDefinition, PromptInstruction, PromptRole,
-    ServerSpecTrait, ServerTrait, TokenResponse, DEFAULT_CONTEXT_SIZE,
+    ServerSpecTrait, ServerTrait, StreamResponse, TokenResponse,
+    DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 
@@ -122,12 +123,18 @@ impl ServerTrait for Llama {
         &mut self,
         response: Bytes,
         _start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
+    ) -> Option<StreamResponse> {
         match LlamaCompletionResponse::extract_content(response) {
-            Ok(chat) => (Some(chat.content), chat.stop, chat.tokens_predicted),
-            Err(e) => {
-                (Some(format!("Failed to parse JSON: {}", e)), true, None)
-            }
+            Ok(chat) => Some(StreamResponse::new_with_content(
+                chat.content,
+                chat.tokens_predicted,
+                chat.stop,
+            )),
+            Err(e) => Some(StreamResponse::new_with_content(
+                format!("Failed to parse JSON: {}", e),
+                None,
+                true,
+            )),
         }
     }
 
@@ -210,8 +217,7 @@ impl ServerTrait for Llama {
         &self,
         prompt_instruction: &mut PromptInstruction,
     ) -> Result<usize, ApplicationError> {
-        let context_size =
-            prompt_instruction.get_context_size();
+        let context_size = prompt_instruction.get_context_size();
         match context_size {
             Some(size) => Ok(size), // Return the context size if it's already set
             None => {

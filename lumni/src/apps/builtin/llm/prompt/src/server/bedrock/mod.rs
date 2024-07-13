@@ -19,7 +19,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
-    PromptRole, ServerSpecTrait, ServerTrait,
+    PromptRole, ServerSpecTrait, ServerTrait, StreamResponse,
 };
 pub use crate::external as lumni;
 
@@ -137,22 +137,51 @@ impl ServerTrait for Bedrock {
 
     fn process_response(
         &mut self,
-        response_bytes: Bytes,
+        mut response_bytes: Bytes,
         _start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
-        match EventStreamMessage::from_bytes(response_bytes) {
-            Ok(event) => {
-                let event_type = event
-                    .headers
-                    .get(":event-type")
-                    .cloned()
-                    .unwrap_or_default();
-                process_event_payload(event_type, event.payload)
+    ) -> Option<StreamResponse> {
+        let mut stream_response = StreamResponse::default();
+        let mut has_content = false;
+
+        while !response_bytes.is_empty() {
+            match EventStreamMessage::from_bytes(response_bytes) {
+                Ok((event, remaining)) => {
+                    let event_type = event
+                        .headers
+                        .get(":event-type")
+                        .cloned()
+                        .unwrap_or_default();
+                    let (response_content, is_final, tokens_predicted) =
+                        process_event_payload(event_type, event.payload);
+
+                    if let Some(content) = response_content {
+                        stream_response.append(content, tokens_predicted);
+                        has_content = true;
+                    }
+                    if is_final {
+                        stream_response.set_final();
+                    }
+
+                    // response can have more than 1 event message
+                    response_bytes = if let Some(remaining) = remaining {
+                        remaining
+                    } else {
+                        break;
+                    };
+                }
+                Err(e) => {
+                    eprintln!("Error: {:?}", e);
+                    log::error!("Failed to parse EventStreamMessage: {}", e);
+                    stream_response.is_final = true;
+                    break;
+                }
             }
-            Err(e) => {
-                log::error!("Failed to parse EventStreamMessage: {}", e);
-                (None, true, None)
-            }
+        }
+
+        if has_content {
+            Some(stream_response)
+        } else {
+            None
         }
     }
 
@@ -233,7 +262,9 @@ fn process_event_payload(
         "messageStart" | "contentBlockStart" => {}
         "contentBlockStop" | "messageStop" => stop = true,
         "metadata" => {
+            eprintln!("Meta={:?}", payload);
             if let Some(json) = parse_payload(payload) {
+                eprintln!("Metadata: {:?}", json);
                 if let Some(usage) = json["usage"].as_object() {
                     log::debug!("Usage: {:?}", usage);
                 }
@@ -254,6 +285,7 @@ fn process_event_payload(
             log::warn!("Unhandled event type: {}", event_type);
         }
     }
+    eprintln!("Stop={:?}", stop);
     (None, stop, None)
 }
 

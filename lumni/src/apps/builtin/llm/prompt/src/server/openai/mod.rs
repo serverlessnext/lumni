@@ -20,7 +20,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
-    ServerSpecTrait, ServerTrait,
+    ServerSpecTrait, ServerTrait, StreamResponse,
 };
 pub use crate::external as lumni;
 
@@ -107,7 +107,7 @@ impl ServerTrait for OpenAI {
         &mut self,
         response_bytes: Bytes,
         start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
+    ) -> Option<StreamResponse> {
         self.stream_parser
             .process_chunk(response_bytes, start_of_stream)
     }

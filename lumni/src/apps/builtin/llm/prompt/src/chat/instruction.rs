@@ -1,17 +1,15 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationCache, ConversationDatabase, Exchange,
-    ExchangeId, Message, ModelId,
+    ConversationCache, ConversationDatabase, Exchange, ExchangeId, Message,
+    ModelId,
 };
 use super::prompt::Prompt;
 use super::{
-    ChatCompletionOptions, ChatMessage, LLMDefinition,
-    PromptOptions, PromptRole,
-    DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS
+    ChatCompletionOptions, ChatMessage, LLMDefinition, PromptOptions,
+    PromptRole, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
 };
 pub use crate::external as lumni;
-
 
 pub struct PromptInstruction {
     cache: ConversationCache,
@@ -48,9 +46,7 @@ impl PromptInstruction {
     ) -> Result<Self, ApplicationError> {
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
-            prompt_instruction
-                .prompt_options
-                .update_from_json(json_str);
+            prompt_instruction.prompt_options.update_from_json(json_str);
             prompt_instruction
                 .completion_options
                 .update_from_json(json_str);
@@ -77,7 +73,9 @@ impl PromptInstruction {
         // Create a new Conversation in the database
         let conversation_id =
             { db_conn.new_conversation("New Conversation", None)? };
-        prompt_instruction.cache.set_conversation_id(conversation_id);
+        prompt_instruction
+            .cache
+            .set_conversation_id(conversation_id);
 
         Ok(prompt_instruction)
     }
@@ -94,10 +92,7 @@ impl PromptInstruction {
     }
 
     pub fn append_last_response(&mut self, answer: &str) {
-        ExchangeHandler::append_response(
-            &mut self.cache,
-            answer,
-        );
+        ExchangeHandler::append_response(&mut self.cache, answer);
     }
 
     pub fn get_last_response(&mut self) -> Option<String> {
@@ -348,11 +343,13 @@ impl PromptInstruction {
 
             for loaded_exchange in exchanges.iter() {
                 let exchange = self.subsequent_exchange();
+                let exchange_id = exchange.id;
+                self.cache.add_exchange(exchange);
 
                 let user_message = Message {
                     id: self.cache.new_message_id(),
                     conversation_id: self.cache.get_conversation_id(),
-                    exchange_id: exchange.id,
+                    exchange_id,
                     role: PromptRole::User,
                     message_type: "text".to_string(),
                     content: loaded_exchange.question.clone(),
@@ -361,10 +358,12 @@ impl PromptInstruction {
                     created_at: 0, // Use proper timestamp
                     is_deleted: false,
                 };
+                self.cache.add_message(user_message);
+
                 let assistant_message = Message {
                     id: self.cache.new_message_id(),
                     conversation_id: self.cache.get_conversation_id(),
-                    exchange_id: exchange.id,
+                    exchange_id,
                     role: PromptRole::Assistant,
                     message_type: "text".to_string(),
                     content: loaded_exchange.answer.clone(),
@@ -373,9 +372,7 @@ impl PromptInstruction {
                     created_at: 0, // Use proper timestamp
                     is_deleted: false,
                 };
-                self.cache.add_message(user_message);
                 self.cache.add_message(assistant_message);
-                self.cache.add_exchange(exchange);
             }
         }
 
@@ -406,10 +403,7 @@ fn build_system_prompt(
 pub struct ExchangeHandler;
 
 impl ExchangeHandler {
-    pub fn append_response(
-        cache: &mut ConversationCache,
-        answer: &str,
-    ) {
+    pub fn append_response(cache: &mut ConversationCache, answer: &str) {
         let last_exchange = cache.get_last_exchange();
 
         if let Some(exchange) = last_exchange {

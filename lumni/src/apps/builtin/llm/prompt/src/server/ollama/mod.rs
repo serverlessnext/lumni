@@ -10,7 +10,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response, ChatMessage,
     Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerSpecTrait,
-    ServerTrait,
+    ServerTrait, StreamResponse,
 };
 use crate::external as lumni;
 
@@ -118,13 +118,21 @@ impl ServerTrait for Ollama {
         &mut self,
         response: Bytes,
         _start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
+    ) -> Option<StreamResponse> {
         match OllamaCompletionResponse::extract_content(response) {
             Ok(chat) => {
-                (Some(chat.message.content), chat.done, chat.eval_count)
+                Some(StreamResponse::new_with_content(
+                    chat.message.content,
+                    chat.eval_count,
+                    chat.done,
+                ))
             }
             Err(e) => {
-                (Some(format!("Failed to parse JSON: {}", e)), true, None)
+                Some(StreamResponse::new_with_content(
+                    format!("Failed to parse JSON: {}", e),
+                    None,
+                    true,
+                ))
             }
         }
     }

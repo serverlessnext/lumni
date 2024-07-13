@@ -8,6 +8,7 @@ mod llama;
 mod llm;
 mod ollama;
 mod openai;
+mod response;
 
 use async_trait::async_trait;
 pub use bedrock::Bedrock;
@@ -19,6 +20,7 @@ use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
 pub use openai::OpenAI;
+pub use response::StreamResponse;
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
@@ -113,7 +115,7 @@ impl ServerTrait for ModelServer {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>) {
+    ) -> Option<StreamResponse> {
         match self {
             ModelServer::Llama(llama) => {
                 llama.process_response(response, start_of_stream)
@@ -268,7 +270,7 @@ pub trait ServerTrait: Send + Sync {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> (Option<String>, bool, Option<usize>);
+    ) -> Option<StreamResponse>;
 
     async fn tokenizer(
         &self,
@@ -311,13 +313,14 @@ pub trait ServerManager: ServerTrait {
         if instruction.is_empty() {
             prompt_instruction.set_system_token_length(Some(0));
         } else {
-            let token_length = if let Some(token_response) = self.tokenizer(instruction).await? {
+            let token_length = if let Some(token_response) =
+                self.tokenizer(instruction).await?
+            {
                 Some(token_response.get_tokens().len())
             } else {
                 None
             };
-            prompt_instruction
-                .set_system_token_length(token_length);
+            prompt_instruction.set_system_token_length(token_length);
         };
         self.initialize_with_model(model, prompt_instruction).await
     }

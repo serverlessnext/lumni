@@ -10,9 +10,11 @@ pub struct EventStreamMessage {
 }
 
 impl EventStreamMessage {
-    pub fn from_bytes(mut buffer: Bytes) -> Result<Self, &'static str> {
+    pub fn from_bytes(
+        mut buffer: Bytes,
+    ) -> Result<(Self, Option<Bytes>), &'static str> {
         // Parse a single message from an EventStream buffer. This works similar as to what is described in the AWS documentation for the Amazon Transcribe Streaming API:
-
+        //eprintln!("Raw buffer: {:?}", buffer);
         if buffer.remaining() < 16 {
             // Minimum size of a message
             return Err("Buffer too short");
@@ -59,18 +61,30 @@ impl EventStreamMessage {
         if buffer.remaining() < 4 {
             return Err("Message CRC missing after payload");
         }
-
         let message_crc = buffer.get_u32();
-        if message_crc == calculate_crc32(&message_excluding_final_crc) {
-            Ok(EventStreamMessage {
-                headers,
-                payload: Some(payload),
-            })
+
+        let remaining_bytes = if buffer.has_remaining() {
+            Some(buffer)
         } else {
-            Ok(EventStreamMessage {
-                headers,
-                payload: None,
-            })
+            None
+        };
+
+        if message_crc == calculate_crc32(&message_excluding_final_crc) {
+            Ok((
+                EventStreamMessage {
+                    headers,
+                    payload: Some(payload),
+                },
+                remaining_bytes,
+            ))
+        } else {
+            Ok((
+                EventStreamMessage {
+                    headers,
+                    payload: None,
+                },
+                remaining_bytes,
+            ))
         }
     }
 }

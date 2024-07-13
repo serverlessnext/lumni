@@ -4,8 +4,7 @@ use rusqlite::Error as SqliteError;
 
 use super::connector::DatabaseConnector;
 use super::schema::{
-    Attachment, AttachmentData, Conversation, ConversationId,
-    Exchange, Message,
+    Attachment, AttachmentData, Conversation, ConversationId, Exchange, Message,
 };
 
 pub struct ConversationDatabaseStore {

@@ -95,7 +95,7 @@ async fn prompt_app<B: Backend>(
                                 Some(WindowEvent::Prompt(prompt_action)) => {
                                     match prompt_action {
                                         PromptAction::Write(prompt) => {
-                                            send_prompt(tab, &db_conn, &prompt, &color_scheme, tx.clone()).await?;
+                                            send_prompt(tab, &prompt, &color_scheme, tx.clone()).await?;
                                         }
                                         PromptAction::Clear => {
                                             tab.ui.response.text_empty();
@@ -188,7 +188,7 @@ async fn prompt_app<B: Backend>(
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response);
 
                 if !display_content.is_empty() {
-                    chat.update_last_exchange(&db_conn, &display_content);
+                    chat.update_last_exchange(&display_content);
                     tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()));
                 }
 
@@ -375,7 +375,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
-    db_conn: ConversationDatabase,
+    _db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();
@@ -409,7 +409,7 @@ async fn process_non_interactive_input(
         // Process the prompt
         let process_handle = tokio::spawn(async move {
             let mut chat = chat_clone.lock().await;
-            chat.process_prompt(&db_conn, input, running.clone()).await
+            chat.process_prompt(input, running.clone()).await
         });
 
         // Wait for the process to complete or for a shutdown signal
@@ -491,17 +491,13 @@ async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {
 
 async fn send_prompt<'a>(
     tab: &mut TabSession<'a>,
-    db_conn: &ConversationDatabase,
     prompt: &str,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
     let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = tab
-        .chat
-        .message(tx.clone(), db_conn, &formatted_prompt)
-        .await;
+    let result = tab.chat.message(tx.clone(), &formatted_prompt).await;
 
     match result {
         Ok(_) => {

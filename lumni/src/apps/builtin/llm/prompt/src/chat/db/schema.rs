@@ -89,6 +89,7 @@ pub struct Attachment {
 
 #[derive(Debug)]
 pub struct ConversationCache {
+    conversation_id: ConversationId,
     models: HashMap<ModelId, Model>,
     exchanges: Vec<Exchange>,
     messages: HashMap<MessageId, Message>,
@@ -100,6 +101,7 @@ pub struct ConversationCache {
 impl ConversationCache {
     pub fn new() -> Self {
         ConversationCache {
+            conversation_id: ConversationId(0),
             models: HashMap::new(),
             exchanges: Vec::new(),
             messages: HashMap::new(),
@@ -107,6 +109,14 @@ impl ConversationCache {
             exchange_messages: HashMap::new(),
             message_attachments: HashMap::new(),
         }
+    }
+
+    pub fn get_conversation_id(&self) -> ConversationId {
+        self.conversation_id
+    }
+
+    pub fn set_conversation_id(&mut self, conversation_id: ConversationId) {
+        self.conversation_id = conversation_id;
     }
 
     pub fn new_exchange_id(&self) -> ExchangeId {

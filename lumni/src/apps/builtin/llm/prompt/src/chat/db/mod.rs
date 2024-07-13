@@ -8,8 +8,8 @@ mod schema;
 mod store;
 
 pub use schema::{
-    Attachment, Conversation, ConversationId, Exchange,
-    ExchangeId, ConversationCache, Message, ModelId,
+    Attachment, Conversation, ConversationCache, ConversationId, Exchange,
+    ExchangeId, Message, ModelId,
 };
 pub use store::ConversationDatabaseStore;
 
@@ -17,7 +17,6 @@ pub use super::PromptRole;
 
 pub struct ConversationDatabase {
     pub store: Arc<Mutex<ConversationDatabaseStore>>,
-    pub cache: Arc<Mutex<ConversationCache>>,
 }
 
 impl ConversationDatabase {
@@ -26,7 +25,6 @@ impl ConversationDatabase {
             store: Arc::new(Mutex::new(ConversationDatabaseStore::new(
                 sqlite_file,
             )?)),
-            cache: Arc::new(Mutex::new(ConversationCache::new())),
         })
     }
 
@@ -54,8 +52,8 @@ impl ConversationDatabase {
     pub fn finalize_exchange(
         &self,
         exchange: &Exchange,
+        cache: &ConversationCache,
     ) -> Result<(), SqliteError> {
-        let cache = self.cache.lock().unwrap();
         let messages = cache.get_exchange_messages(exchange.id);
         let attachments = messages
             .iter()

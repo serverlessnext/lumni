@@ -2,15 +2,15 @@ use std::error::Error;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_get_with_response, http_post, http_post_with_response, ChatMessage,
+    http_get_with_response, http_post, http_post_with_response,
+    ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
     Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerSpecTrait,
-    ServerTrait, StreamResponse,
+    ServerTrait,
 };
 use crate::external as lumni;
 
@@ -118,22 +118,13 @@ impl ServerTrait for Ollama {
         &mut self,
         response: Bytes,
         _start_of_stream: bool,
-    ) -> Option<StreamResponse> {
+    ) -> Option<CompletionResponse> {
         match OllamaCompletionResponse::extract_content(response) {
-            Ok(chat) => {
-                Some(StreamResponse::new_with_content(
-                    chat.message.content,
-                    chat.eval_count,
-                    chat.done,
-                ))
-            }
-            Err(e) => {
-                Some(StreamResponse::new_with_content(
-                    format!("Failed to parse JSON: {}", e),
-                    None,
-                    true,
-                ))
-            }
+            Ok(completion_response) => Some(completion_response),
+            Err(e) => Some(CompletionResponse::new_final(
+                format!("Failed to parse JSON: {}", e),
+                None,
+            )),
         }
     }
 
@@ -296,7 +287,9 @@ struct OllamaCompletionResponse {
     created_at: String,
     message: OllamaResponseMessage,
     done: bool,
-    eval_count: Option<usize>,
+    total_duration: Option<u64>, // total duration in nanoseconds
+    prompt_eval_count: Option<usize>, // tokens used in prompt
+    eval_count: Option<usize>,   // tokens used in completion
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -308,15 +301,30 @@ struct OllamaResponseMessage {
 impl OllamaCompletionResponse {
     pub fn extract_content(
         bytes: Bytes,
-    ) -> Result<OllamaCompletionResponse, Box<dyn Error>> {
-        let text = String::from_utf8(bytes.to_vec())?;
+    ) -> Result<CompletionResponse, Box<dyn Error>> {
+        let json_text = String::from_utf8(bytes.to_vec())?;
+        let response: OllamaCompletionResponse =
+            serde_json::from_str(&json_text)?;
 
-        // remove 'data: ' prefix if present
-        let json_text = if let Some(json_text) = text.strip_prefix("data: ") {
-            json_text
+        let content = response.message.content.clone();
+
+        if response.done {
+            let last_token_received_at = 0; // TODO: implement this
+            Ok(CompletionResponse::new_final(
+                content,
+                Some(CompletionStats {
+                    last_token_received_at,
+                    total_duration: response
+                        .total_duration
+                        .filter(|&d| d > 0)
+                        .map(|d| (d / 1_000_000) as usize),
+                    tokens_in_prompt: response.prompt_eval_count,
+                    tokens_predicted: response.eval_count,
+                    ..Default::default()
+                }),
+            ))
         } else {
-            &text
-        };
-        Ok(serde_json::from_str(json_text)?) // Deserialize the JSON text
+            Ok(CompletionResponse::new_content(content))
+        }
     }
 }

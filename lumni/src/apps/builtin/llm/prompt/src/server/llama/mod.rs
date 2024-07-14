@@ -11,8 +11,8 @@ use url::Url;
 
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatMessage,
-    Endpoints, HttpClient, LLMDefinition, PromptInstruction, PromptRole,
-    ServerSpecTrait, ServerTrait, StreamResponse, TokenResponse,
+    CompletionResponse, CompletionStats, Endpoints, HttpClient, LLMDefinition,
+    PromptInstruction, PromptRole, ServerSpecTrait, ServerTrait, TokenResponse,
     DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
@@ -123,17 +123,12 @@ impl ServerTrait for Llama {
         &mut self,
         response: Bytes,
         _start_of_stream: bool,
-    ) -> Option<StreamResponse> {
+    ) -> Option<CompletionResponse> {
         match LlamaCompletionResponse::extract_content(response) {
-            Ok(chat) => Some(StreamResponse::new_with_content(
-                chat.content,
-                chat.tokens_predicted,
-                chat.stop,
-            )),
-            Err(e) => Some(StreamResponse::new_with_content(
+            Ok(completion_response) => Some(completion_response),
+            Err(e) => Some(CompletionResponse::new_final(
                 format!("Failed to parse JSON: {}", e),
                 None,
-                true,
             )),
         }
     }
@@ -326,21 +321,32 @@ impl LlamaServerSettingsResponse {
 struct LlamaCompletionResponse {
     content: String,
     stop: bool,
-    tokens_predicted: Option<usize>,
+    tokens_evaluated: Option<usize>, // tokens used in prompt
+    tokens_predicted: Option<usize>, // tokens used in completion
 }
 
 impl LlamaCompletionResponse {
     pub fn extract_content(
         bytes: Bytes,
-    ) -> Result<LlamaCompletionResponse, Box<dyn Error>> {
+    ) -> Result<CompletionResponse, Box<dyn Error>> {
         let text = String::from_utf8(bytes.to_vec())?;
+        let json_text = text.strip_prefix("data: ").unwrap_or(&text);
+        let response: LlamaCompletionResponse =
+            serde_json::from_str(json_text)?;
 
-        // remove 'data: ' prefix if present
-        let json_text = if let Some(json_text) = text.strip_prefix("data: ") {
-            json_text
+        if response.stop {
+            let last_token_received_at = 0; // TODO: implement this
+            Ok(CompletionResponse::new_final(
+                response.content,
+                Some(CompletionStats {
+                    last_token_received_at,
+                    tokens_evaluated: response.tokens_evaluated,
+                    tokens_predicted: response.tokens_predicted,
+                    ..Default::default()
+                }),
+            ))
         } else {
-            &text
-        };
-        Ok(serde_json::from_str(json_text)?) // Deserialize the JSON text
+            Ok(CompletionResponse::new_content(response.content))
+        }
     }
 }

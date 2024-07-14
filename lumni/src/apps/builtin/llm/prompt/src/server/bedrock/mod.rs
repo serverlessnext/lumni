@@ -18,8 +18,8 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
-    PromptRole, ServerSpecTrait, ServerTrait, StreamResponse,
+    http_post, ChatMessage, CompletionResponse, CompletionStats, Endpoints,
+    LLMDefinition, PromptInstruction, PromptRole, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -139,9 +139,11 @@ impl ServerTrait for Bedrock {
         &mut self,
         mut response_bytes: Bytes,
         _start_of_stream: bool,
-    ) -> Option<StreamResponse> {
-        let mut stream_response = StreamResponse::default();
+    ) -> Option<CompletionResponse> {
         let mut has_content = false;
+        let mut completion_response = CompletionResponse::new();
+        let mut tokens_predicted = None;
+        let mut tokens_in_prompt = None;
 
         while !response_bytes.is_empty() {
             match EventStreamMessage::from_bytes(response_bytes) {
@@ -151,35 +153,49 @@ impl ServerTrait for Bedrock {
                         .get(":event-type")
                         .cloned()
                         .unwrap_or_default();
-                    let (response_content, is_final, tokens_predicted) =
-                        process_event_payload(event_type, event.payload);
+                    let (
+                        response_content,
+                        is_final,
+                        tokens_pred,
+                        tokens_prompt,
+                    ) = process_event_payload(event_type, event.payload);
 
                     if let Some(content) = response_content {
-                        stream_response.append(content, tokens_predicted);
+                        completion_response.append(content);
                         has_content = true;
                     }
                     if is_final {
-                        stream_response.set_final();
+                        completion_response.set_final();
+                    }
+                    if let Some(t) = tokens_pred {
+                        tokens_predicted = Some(t);
+                    }
+                    if let Some(t) = tokens_prompt {
+                        tokens_in_prompt = Some(t);
                     }
 
-                    // response can have more than 1 event message
-                    response_bytes = if let Some(remaining) = remaining {
-                        remaining
-                    } else {
-                        break;
-                    };
+                    response_bytes = remaining.unwrap_or_default();
                 }
                 Err(e) => {
-                    eprintln!("Error: {:?}", e);
                     log::error!("Failed to parse EventStreamMessage: {}", e);
-                    stream_response.is_final = true;
+                    completion_response.set_final();
                     break;
                 }
             }
         }
 
-        if has_content {
-            Some(stream_response)
+        if tokens_predicted.is_some() || completion_response.is_final {
+            // tokens predicted is given, so can assume final token is received
+            let last_token_received_at = 0; // TODO: Implement this
+            completion_response.stats = Some(CompletionStats {
+                last_token_received_at,
+                tokens_predicted,
+                tokens_in_prompt,
+                ..CompletionStats::default()
+            });
+            Some(completion_response)
+        } else if has_content {
+            Some(completion_response)
         } else {
             None
         }
@@ -254,19 +270,26 @@ impl ServerTrait for Bedrock {
 fn process_event_payload(
     event_type: String,
     payload: Option<Bytes>,
-) -> (Option<String>, bool, Option<usize>) {
-    let mut stop = false;
-
+) -> (Option<String>, bool, Option<usize>, Option<usize>) {
+    let mut tokens_predicted = None;
+    let mut tokens_in_prompt = None;
     log::debug!("EventType: {:?}", event_type);
     match event_type.as_str() {
-        "messageStart" | "contentBlockStart" => {}
-        "contentBlockStop" | "messageStop" => stop = true,
+        "messageStart" | "contentBlockStart" => {
+            return (Some("".to_string()), false, None, None);
+        }
+        "contentBlockStop" | "messageStop" => {}
         "metadata" => {
-            eprintln!("Meta={:?}", payload);
             if let Some(json) = parse_payload(payload) {
-                eprintln!("Metadata: {:?}", json);
                 if let Some(usage) = json["usage"].as_object() {
                     log::debug!("Usage: {:?}", usage);
+                    if let Some(output_tokens) = usage["outputTokens"].as_u64()
+                    {
+                        tokens_predicted = Some(output_tokens as usize);
+                    }
+                    if let Some(input_tokens) = usage["inputTokens"].as_u64() {
+                        tokens_in_prompt = Some(input_tokens as usize);
+                    }
                 }
                 if let Some(metrics) = json["metrics"].as_object() {
                     log::debug!("Metrics: {:?}", metrics);
@@ -277,7 +300,9 @@ fn process_event_payload(
             if let Some(json) = parse_payload(payload) {
                 if let Some(text) = json["delta"]["text"].as_str() {
                     log::debug!("Text received: {:?}", text);
-                    return (Some(text.to_string()), false, None);
+                    return (Some(text.to_string()), false, None, None);
+                } else {
+                    return (Some("".to_string()), false, None, None);
                 }
             }
         }
@@ -285,8 +310,9 @@ fn process_event_payload(
             log::warn!("Unhandled event type: {}", event_type);
         }
     }
-    eprintln!("Stop={:?}", stop);
-    (None, stop, None)
+
+    // unhandled event is considered as final
+    (None, true, tokens_predicted, tokens_in_prompt)
 }
 
 fn parse_payload(payload: Option<Bytes>) -> Option<Value> {

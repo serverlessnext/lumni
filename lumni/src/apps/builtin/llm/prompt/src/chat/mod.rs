@@ -16,7 +16,7 @@ pub use session::ChatSession;
 
 pub use super::defaults::*;
 pub use super::model::PromptRole;
-pub use super::server::{LLMDefinition, ServerManager, StreamResponse};
+pub use super::server::{CompletionResponse, LLMDefinition, ServerManager};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

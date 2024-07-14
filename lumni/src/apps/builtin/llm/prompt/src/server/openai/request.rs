@@ -1,6 +1,11 @@
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
+pub struct StreamOptions {
+    pub include_usage: bool,
+}
+
+#[derive(Debug, Serialize)]
 pub struct OpenAIRequestPayload {
     pub model: String,
     pub messages: Vec<OpenAIChatMessage>,
@@ -21,6 +26,8 @@ pub struct OpenAIRequestPayload {
     pub logprobs: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub best_of: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_options: Option<StreamOptions>,
 }
 
 impl OpenAIRequestPayload {

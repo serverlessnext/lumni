@@ -5,8 +5,8 @@ use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::{
-    ConversationDatabase, LLMDefinition, PromptInstruction, PromptRole,
-    ServerManager, StreamResponse,
+    CompletionResponse, ConversationDatabase, LLMDefinition, PromptInstruction,
+    PromptRole, ServerManager,
 };
 use crate::api::error::ApplicationError;
 
@@ -165,7 +165,7 @@ impl ChatSession {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> Option<StreamResponse> {
+    ) -> Option<CompletionResponse> {
         self.server.process_response(response, start_of_stream)
     }
 
@@ -210,7 +210,7 @@ impl ChatSession {
                     io::stdout().flush().expect("Failed to flush stdout");
                     response.is_final
                 }
-                None => true,   // stop if no response
+                None => true, // stop if no response
             };
 
             start_of_stream = false;

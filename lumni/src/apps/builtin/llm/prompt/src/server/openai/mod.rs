@@ -13,14 +13,14 @@ use credentials::OpenAICredentials;
 use error::OpenAIErrorHandler;
 use lumni::api::error::ApplicationError;
 use lumni::HttpClient;
-use request::{OpenAIChatMessage, OpenAIRequestPayload};
+use request::{OpenAIChatMessage, OpenAIRequestPayload, StreamOptions};
 use response::StreamParser;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatMessage, Endpoints, LLMDefinition, PromptInstruction,
-    ServerSpecTrait, ServerTrait, StreamResponse,
+    http_post, ChatMessage, CompletionResponse, CompletionStats, Endpoints,
+    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -71,6 +71,9 @@ impl OpenAI {
             model: model.get_name().to_string(),
             messages,
             stream: true,
+            stream_options: Some(StreamOptions {
+                include_usage: true,
+            }),
             frequency_penalty: None,
             stop: None,
             temperature: Some(0.7),
@@ -107,7 +110,7 @@ impl ServerTrait for OpenAI {
         &mut self,
         response_bytes: Bytes,
         start_of_stream: bool,
-    ) -> Option<StreamResponse> {
+    ) -> Option<CompletionResponse> {
         self.stream_parser
             .process_chunk(response_bytes, start_of_stream)
     }

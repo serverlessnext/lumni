@@ -199,21 +199,34 @@ async fn prompt_app<B: Backend>(
 
                 // response is final is is_final is true or response is None
                 if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
-                    log::debug!("Final response received");
-                    // some servers may still send events after final chat exchange
-                    // e.g. for logging or metrics. These should be retrieved to ensure
-                    // the stream is fully consumed and processed.
-                    while let Ok(post_bytes) = rx.try_recv() {
-                        chat.process_response(post_bytes, false);
+                log::debug!("Final response received");
+                let mut final_stats = response.and_then(|r| r.stats);
+
+                // Process post-response messages
+                while let Ok(post_bytes) = rx.try_recv() {
+                    log::debug!("Received post-response message");
+                    if let Some(post_response) = chat.process_response(post_bytes, false) {
+                        if let Some(post_stats) = post_response.stats {
+                            // Merge stats
+                            final_stats = Some(match final_stats {
+                                Some(mut stats) => {
+                                    stats.merge(&post_stats);
+                                    stats
+                                }
+                                None => post_stats,
+                            });
+                        }
                     }
-                    finalize_response(
-                        &mut chat,
-                        &mut tab_ui,
-                        &db_conn,
-                        response.as_ref().and_then(|r| r.get_total_tokens()),
-                        &color_scheme
-                    ).await?;
-                    trim_buffer = None;
+                }
+
+                finalize_response(
+                    &mut chat,
+                    &mut tab_ui,
+                    &db_conn,
+                    final_stats.as_ref().and_then(|s| s.tokens_predicted),
+                    &color_scheme
+                ).await?;
+                trim_buffer = None;
                } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running

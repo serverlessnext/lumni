@@ -20,7 +20,7 @@ use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
 pub use openai::OpenAI;
-pub use response::StreamResponse;
+pub use response::{CompletionResponse, CompletionStats};
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
@@ -115,7 +115,7 @@ impl ServerTrait for ModelServer {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> Option<StreamResponse> {
+    ) -> Option<CompletionResponse> {
         match self {
             ModelServer::Llama(llama) => {
                 llama.process_response(response, start_of_stream)
@@ -270,7 +270,7 @@ pub trait ServerTrait: Send + Sync {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> Option<StreamResponse>;
+    ) -> Option<CompletionResponse>;
 
     async fn tokenizer(
         &self,

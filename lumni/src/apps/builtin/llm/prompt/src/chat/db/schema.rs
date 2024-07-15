@@ -33,7 +33,7 @@ pub struct Conversation {
     pub metadata: serde_json::Value,
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_exchange_id: Option<ExchangeId>,
-    pub schema_version: i32,
+    pub schema_version: i64,
     pub created_at: i64,
     pub updated_at: i64,
     pub is_deleted: bool,
@@ -47,8 +47,8 @@ pub struct Exchange {
     pub system_prompt: Option<String>,
     pub completion_options: Option<serde_json::Value>,
     pub prompt_options: Option<serde_json::Value>,
-    pub completion_tokens: Option<i32>,
-    pub prompt_tokens: Option<i32>,
+    pub completion_tokens: Option<i64>,
+    pub prompt_tokens: Option<i64>,
     pub created_at: i64,
     pub previous_exchange_id: Option<ExchangeId>,
     pub is_deleted: bool,
@@ -63,7 +63,7 @@ pub struct Message {
     pub message_type: String,
     pub content: String,
     pub has_attachments: bool,
-    pub token_length: Option<i32>,
+    pub token_length: Option<i64>,
     pub created_at: i64,
     pub is_deleted: bool,
 }
@@ -155,11 +155,21 @@ impl ConversationCache {
         &mut self,
         message_id: MessageId,
         new_content: &str,
-        new_token_length: Option<i32>,
+        new_token_length: Option<i64>,
     ) {
         if let Some(message) = self.messages.get_mut(&message_id) {
             message.content = new_content.to_string();
             message.token_length = new_token_length;
+        }
+    }
+
+    pub fn update_message_token_length(
+        &mut self,
+        message_id: MessageId,
+        new_token_length: i64,
+    ) {
+        if let Some(message) = self.messages.get_mut(&message_id) {
+            message.token_length = Some(new_token_length);
         }
     }
 

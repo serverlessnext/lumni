@@ -15,7 +15,7 @@ pub struct PromptInstruction {
     cache: ConversationCache,
     completion_options: ChatCompletionOptions,
     prompt_options: PromptOptions,
-    system_prompt: SystemPrompt,
+    system_prompt: String,
     prompt_template: Option<String>,
 }
 
@@ -31,7 +31,7 @@ impl Default for PromptInstruction {
             cache: ConversationCache::new(),
             completion_options,
             prompt_options: PromptOptions::default(),
-            system_prompt: SystemPrompt::default(),
+            system_prompt: "".to_string(),
             prompt_template: None,
         }
     }
@@ -120,7 +120,7 @@ impl PromptInstruction {
             id: ExchangeId(0),
             conversation_id: self.cache.get_conversation_id(),
             model_id: ModelId(0),
-            system_prompt: Some(self.system_prompt.instruction.clone()),
+            system_prompt: Some(self.system_prompt.clone()),
             completion_options: serde_json::to_value(&self.completion_options)
                 .ok(),
             prompt_options: serde_json::to_value(&self.prompt_options).ok(),
@@ -157,12 +157,9 @@ impl PromptInstruction {
                 exchange_id: exchange.id,
                 role: PromptRole::System,
                 message_type: "text".to_string(),
-                content: self.system_prompt.get_instruction().to_string(),
+                content: self.system_prompt.clone(),
                 has_attachments: false,
-                token_length: self
-                    .system_prompt
-                    .get_token_length()
-                    .map(|len| len as i32),
+                token_length: Some(simple_token_estimator(&self.system_prompt, None)),
                 created_at: 0,
                 is_deleted: false,
             };
@@ -184,7 +181,6 @@ impl PromptInstruction {
     pub fn new_exchange(
         &mut self,
         question: &str,
-        token_length: Option<usize>,
         max_token_length: usize,
     ) -> Vec<ChatMessage> {
         // token budget for the system prompt
@@ -201,7 +197,7 @@ impl PromptInstruction {
             message_type: "text".to_string(),
             content: question.to_string(),
             has_attachments: false,
-            token_length: token_length.map(|len| len as i32),
+            token_length: None,
             created_at: 0,
             is_deleted: false,
         };
@@ -249,7 +245,7 @@ impl PromptInstruction {
         // after reverse, the system prompt will be at the beginning
         messages.push(ChatMessage {
             role: PromptRole::System,
-            content: self.system_prompt.get_instruction().to_string(),
+            content: self.system_prompt.to_string(),
         });
 
         // Reverse the messages to maintain chronological order
@@ -282,11 +278,7 @@ impl PromptInstruction {
     }
 
     fn set_system_prompt(&mut self, instruction: String) {
-        self.system_prompt = SystemPrompt::new(instruction);
-    }
-
-    pub fn set_system_token_length(&mut self, token_length: Option<usize>) {
-        self.system_prompt.set_token_length(token_length);
+        self.system_prompt = instruction;
     }
 
     pub fn get_prompt_template(&self) -> Option<&str> {
@@ -294,7 +286,7 @@ impl PromptInstruction {
     }
 
     pub fn get_instruction(&self) -> &str {
-        self.system_prompt.get_instruction()
+        &self.system_prompt
     }
 
     pub fn preload_from_assistant(
@@ -427,9 +419,7 @@ impl ExchangeHandler {
                         message_type: "text".to_string(),
                         content: answer.to_string(),
                         has_attachments: false,
-                        // TODO: need to implement model based counting
-                        // simplified (in-accurate, but better than keeping it at 0) version
-                        token_length: Some(answer.len() as i32),
+                        token_length: None,
                         created_at: 0, // You might want to use a proper timestamp here
                         is_deleted: false,
                     };
@@ -462,61 +452,58 @@ impl ExchangeHandler {
         answer: &str,
         tokens_predicted: Option<usize>,
     ) -> Option<Exchange> {
-        // Capture the necessary message and exchange IDs in a separate scope
-        let (message_id, exchange) = {
+        // Gather all necessary information
+        let exchange_data = {
             let last_exchange = cache.get_last_exchange()?;
-            let last_message =
-                cache.get_last_message_of_exchange(last_exchange.id)?;
-
-            // Check if the last message was from an assistant, and capture IDs
-            if last_message.role == PromptRole::Assistant {
-                (Some(last_message.id), Some(last_exchange.clone()))
-            } else {
-                (None, None)
-            }
+            let messages = cache.get_exchange_messages(last_exchange.id);
+            let user_message = messages.iter().find(|m| m.role == PromptRole::User)?;
+            let assistant_message = messages.iter().find(|m| m.role == PromptRole::Assistant)?;
+        
+            (
+                last_exchange.clone(),
+                assistant_message.id,
+                user_message.id,
+                user_message.content.clone(),
+            )
         };
-
-        // Only proceed if we have valid IDs
-        if let (Some(message_id), Some(exchange)) = (message_id, exchange) {
-            // Perform the update in a separate cache lock scope
-            let token_length = tokens_predicted.map(|t| t as i32);
-            cache.update_message_by_id(message_id, answer, token_length);
-            Some(exchange)
-        } else {
-            None
+    
+        let (exchange, assistant_message_id, user_message_id, user_content) = exchange_data;
+    
+        // Calculate user token length
+        let user_token_length = tokens_predicted.map(|tokens| {
+            let chars_per_token = calculate_chars_per_token(answer, tokens);
+            simple_token_estimator(&user_content, Some(chars_per_token))
+        });
+    
+        // Perform all updates in a single mutable borrow
+        {
+            if let Some(tokens) = tokens_predicted {
+                // Update assistant's message
+                cache.update_message_by_id(assistant_message_id, answer, Some(tokens as i64));
+            
+                // Update user's message token length
+                if let Some(length) = user_token_length {
+                    cache.update_message_token_length(user_message_id, length);
+                }
+            } else {
+                // If no tokens_predicted, just update the content without changing token length
+                cache.update_message_by_id(assistant_message_id, answer, None);
+            }
         }
+    
+        Some(exchange)
     }
+
 }
 
-struct SystemPrompt {
-    instruction: String,
-    token_length: Option<usize>,
+fn simple_token_estimator(input: &str, chars_per_token: Option<f32>) -> i64 {
+    // Simple but fast token estimator based on character count
+    let chars_per_token = chars_per_token.unwrap_or(4.0);
+    let chars_count = input.chars().count() as f32;
+    (chars_count / chars_per_token).ceil() as i64
 }
 
-impl SystemPrompt {
-    fn default() -> Self {
-        SystemPrompt {
-            instruction: "".to_string(),
-            token_length: Some(0),
-        }
-    }
-
-    fn new(instruction: String) -> Self {
-        SystemPrompt {
-            instruction,
-            token_length: None,
-        }
-    }
-
-    fn get_instruction(&self) -> &str {
-        &self.instruction
-    }
-
-    fn get_token_length(&self) -> Option<usize> {
-        self.token_length
-    }
-
-    fn set_token_length(&mut self, token_length: Option<usize>) {
-        self.token_length = token_length;
-    }
+fn calculate_chars_per_token(answer: &str, tokens_predicted: usize) -> f32 {
+    let char_count = answer.chars().count() as f32;
+    char_count / tokens_predicted as f32
 }

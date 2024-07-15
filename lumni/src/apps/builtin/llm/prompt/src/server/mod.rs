@@ -26,7 +26,7 @@ use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response,
-    ChatCompletionOptions, ChatMessage, PromptInstruction, TokenResponse,
+    ChatCompletionOptions, ChatMessage, PromptInstruction,
 };
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
@@ -152,18 +152,6 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    async fn tokenizer(
-        &self,
-        content: &str,
-    ) -> Result<Option<TokenResponse>, ApplicationError> {
-        match self {
-            ModelServer::Llama(llama) => llama.tokenizer(content).await,
-            ModelServer::Ollama(ollama) => ollama.tokenizer(content).await,
-            ModelServer::Bedrock(bedrock) => bedrock.tokenizer(content).await,
-            ModelServer::OpenAI(openai) => openai.tokenizer(content).await,
-        }
-    }
-
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
@@ -272,13 +260,6 @@ pub trait ServerTrait: Send + Sync {
         start_of_stream: bool,
     ) -> Option<CompletionResponse>;
 
-    async fn tokenizer(
-        &self,
-        _content: &str,
-    ) -> Result<Option<TokenResponse>, ApplicationError> {
-        Ok(None)
-    }
-
     async fn get_context_size(
         &self,
         _prompt_instruction: &mut PromptInstruction,
@@ -305,23 +286,6 @@ pub trait ServerManager: ServerTrait {
         log::debug!("Initializing server with model: {:?}", model);
         // update completion options from the model, i.e. stop tokens
         prompt_instruction.set_model(&model);
-
-        // TODO: not fully implement yet
-        // requires both model and server to be ready, and then run
-        // in correct order
-        let instruction = prompt_instruction.get_instruction();
-        if instruction.is_empty() {
-            prompt_instruction.set_system_token_length(Some(0));
-        } else {
-            let token_length = if let Some(token_response) =
-                self.tokenizer(instruction).await?
-            {
-                Some(token_response.get_tokens().len())
-            } else {
-                None
-            };
-            prompt_instruction.set_system_token_length(token_length);
-        };
         self.initialize_with_model(model, prompt_instruction).await
     }
 

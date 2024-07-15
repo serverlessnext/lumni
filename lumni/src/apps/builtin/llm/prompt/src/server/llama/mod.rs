@@ -1,23 +1,20 @@
-use std::collections::HashMap;
 use std::error::Error;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
     http_get_with_response, http_post, ChatCompletionOptions, ChatMessage,
     CompletionResponse, CompletionStats, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, PromptRole, ServerSpecTrait, ServerTrait, TokenResponse,
+    PromptInstruction, PromptRole, ServerSpecTrait, ServerTrait,
     DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 
-pub const DEFAULT_TOKENIZER_ENDPOINT: &str = "http://localhost:8080/tokenize";
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
     "http://localhost:8080/completion";
 pub const DEFAULT_SETTINGS_ENDPOINT: &str = "http://localhost:8080/props";
@@ -35,7 +32,6 @@ impl Llama {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         let endpoints = Endpoints::new()
             .set_completion(Url::parse(DEFAULT_COMPLETION_ENDPOINT)?)
-            .set_tokenizer(Url::parse(DEFAULT_TOKENIZER_ENDPOINT)?)
             .set_settings(Url::parse(DEFAULT_SETTINGS_ENDPOINT)?);
 
         Ok(Llama {
@@ -224,42 +220,6 @@ impl ServerTrait for Llama {
                 prompt_instruction.set_context_size(context_size);
                 Ok(context_size)
             }
-        }
-    }
-
-    async fn tokenizer(
-        &self,
-        content: &str,
-    ) -> Result<Option<TokenResponse>, ApplicationError> {
-        if let Some(endpoint) = self.endpoints.get_tokenizer() {
-            let body_content = serde_json::to_string(
-                &json!({ "content": content }),
-            )
-            .map_err(|e| {
-                ApplicationError::ServerConfigurationError(e.to_string())
-            })?;
-            let body = Bytes::copy_from_slice(body_content.as_bytes());
-
-            let url = endpoint.to_string();
-            let mut headers = HashMap::new();
-            headers.insert(
-                "Content-Type".to_string(),
-                "application/json".to_string(),
-            );
-
-            let http_response = &self
-                .http_client
-                .post(&url, Some(&headers), None, Some(&body), None, None)
-                .await
-                .map_err(|e| ApplicationError::HttpClientError(e))?;
-
-            let response =
-                http_response.json::<TokenResponse>().map_err(|e| {
-                    ApplicationError::ServerConfigurationError(e.to_string())
-                })?;
-            Ok(Some(response))
-        } else {
-            Ok(None)
         }
     }
 }

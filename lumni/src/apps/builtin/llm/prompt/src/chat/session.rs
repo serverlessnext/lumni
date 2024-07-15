@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::{
     CompletionResponse, ConversationDatabase, LLMDefinition, PromptInstruction,
-    PromptRole, ServerManager,
+    ServerManager,
 };
 use crate::api::error::ApplicationError;
 
@@ -77,19 +77,11 @@ impl ChatSession {
     pub async fn finalize_last_exchange(
         &mut self,
         db: &ConversationDatabase,
-        _tokens_predicted: Option<usize>,
+        tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
         let last_answer = self.prompt_instruction.get_last_response();
-
         if let Some(last_answer) = last_answer {
             let trimmed_answer = last_answer.trim();
-            let tokens_predicted = if let Some(response) =
-                self.server.tokenizer(trimmed_answer).await?
-            {
-                Some(response.get_tokens().len())
-            } else {
-                None
-            };
             self.prompt_instruction.put_last_response(
                 trimmed_answer,
                 tokens_predicted,
@@ -108,11 +100,10 @@ impl ChatSession {
             .server
             .get_context_size(&mut self.prompt_instruction)
             .await?;
-        let (user_question, token_length) =
+        let user_question =
             self.initiate_new_exchange(question).await?;
         let messages = self.prompt_instruction.new_exchange(
             &user_question,
-            token_length,
             max_token_length,
         );
 
@@ -133,9 +124,9 @@ impl ChatSession {
     pub async fn initiate_new_exchange(
         &self,
         user_question: &str,
-    ) -> Result<(String, Option<usize>), ApplicationError> {
+    ) -> Result<String, ApplicationError> {
         let user_question = user_question.trim();
-        let user_question = if user_question.is_empty() {
+        Ok(if user_question.is_empty() {
             "continue".to_string()
         } else {
             if let Some(prompt_template) =
@@ -145,20 +136,7 @@ impl ChatSession {
             } else {
                 user_question.to_string()
             }
-        };
-
-        let model = self.server.get_selected_model()?;
-        let formatter = model.get_formatter();
-        let last_prompt_text =
-            formatter.fmt_prompt_message(&PromptRole::User, &user_question);
-        let token_length = if let Some(token_response) =
-            self.server.tokenizer(&last_prompt_text).await?
-        {
-            Some(token_response.get_tokens().len())
-        } else {
-            None
-        };
-        Ok((user_question, token_length))
+        })
     }
 
     pub fn process_response(

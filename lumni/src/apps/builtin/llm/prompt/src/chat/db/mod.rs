@@ -45,7 +45,7 @@ impl ConversationDatabase {
             updated_at: 0,
             is_deleted: false,
         };
-        let conversation_id = store.store_new_conversation(&conversation)?;
+        let conversation_id = store.put_new_conversation(&conversation)?;
         Ok(conversation_id)
     }
 
@@ -64,11 +64,22 @@ impl ConversationDatabase {
         let owned_attachments: Vec<Attachment> =
             attachments.into_iter().cloned().collect();
         let mut store = self.store.lock().unwrap();
-        store.store_finalized_exchange(
+        store.put_finalized_exchange(
             exchange,
             &owned_messages,
             &owned_attachments,
         )?;
         Ok(())
+    }
+
+    pub fn get_recent_conversations_with_last_exchange_and_messages(
+        &self,
+        limit: usize,
+    ) -> Result<
+        Vec<(Conversation, Option<(Exchange, Vec<Message>)>)>,
+        SqliteError,
+    > {
+        let mut store = self.store.lock().unwrap();
+        store.get_recent_conversations_with_last_exchange_and_messages(limit)
     }
 }

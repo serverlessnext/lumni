@@ -281,6 +281,18 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         .version(version)
         .about("CLI for prompt interaction")
         .arg_required_else_help(false)
+        .subcommand(
+            Command::new("db")
+                .about("Query the conversation database")
+                .arg(
+                    Arg::new("recent")
+                        .long("recent")
+                        .short('r')
+                        .help("Get recent conversations")
+                        .num_args(0..=1)
+                        .default_value("20"),
+                ),
+        )
         .arg(
             Arg::new("system")
                 .long("system")
@@ -317,6 +329,19 @@ pub async fn run_cli(
 
     let config_dir =
         env.get_config_dir().expect("Config directory not defined");
+    let sqlite_file = config_dir.join("chat.db");
+    let db_conn = ConversationDatabase::new(&sqlite_file)?;
+
+    if let Some(db_matches) = matches.subcommand_matches("db") {
+        if db_matches.contains_id("recent") {
+            let limit: usize = db_matches
+                .get_one::<String>("recent")
+                .unwrap()
+                .parse()
+                .unwrap_or(20);
+            return query_recent_conversations(&db_conn, limit).await;
+        }
+    }
 
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
@@ -331,9 +356,6 @@ pub async fn run_cli(
     // create new (un-initialized) server from requested server name
     let server = ModelServer::from_str(&server_name)?;
     let default_model = server.get_default_model().await;
-
-    let sqlite_file = config_dir.join("chat.db");
-    let db_conn = ConversationDatabase::new(&sqlite_file)?;
 
     // setup prompt, server and chat session
     let prompt_instruction =
@@ -548,5 +570,37 @@ async fn send_prompt<'a>(
             tab.ui.command_line.set_alert(&e.to_string());
         }
     }
+    Ok(())
+}
+
+async fn query_recent_conversations(
+    db_conn: &ConversationDatabase,
+    limit: usize,
+) -> Result<(), ApplicationError> {
+    let recent_conversations = db_conn
+        .get_recent_conversations_with_last_exchange_and_messages(limit)?;
+
+    for (conversation, last_exchange_with_messages) in recent_conversations {
+        println!(
+            "Conversation: {} (ID: {})",
+            conversation.name, conversation.id.0
+        );
+        println!("Updated at: {}", conversation.updated_at);
+
+        if let Some((exchange, messages)) = last_exchange_with_messages {
+            println!("Last exchange: {}", exchange.created_at);
+            println!("Model: {:?}", exchange.model_id);
+            println!("Messages:");
+            for message in messages {
+                println!("  Role: {}", message.role);
+                println!("  Content: {}", message.content);
+                println!("  ---");
+            }
+        } else {
+            println!("No exchanges yet");
+        }
+        println!("===============================");
+    }
+
     Ok(())
 }

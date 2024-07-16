@@ -1,5 +1,8 @@
+use std::fmt::Display;
+
 use async_trait::async_trait;
 use regex::Regex;
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ValueRef};
 use serde::{Deserialize, Serialize};
 
 use super::generic::Generic;
@@ -20,6 +23,23 @@ impl PromptRole {
             PromptRole::System => "system",
         }
         .to_string()
+    }
+}
+
+impl Display for PromptRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl FromSql for PromptRole {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "user" => Ok(PromptRole::User),
+            "assistant" => Ok(PromptRole::Assistant),
+            "system" => Ok(PromptRole::System),
+            _ => Err(FromSqlError::InvalidType.into()),
+        }
     }
 }
 

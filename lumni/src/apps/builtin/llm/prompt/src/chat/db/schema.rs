@@ -47,8 +47,6 @@ pub struct Exchange {
     pub system_prompt: Option<String>,
     pub completion_options: Option<serde_json::Value>,
     pub prompt_options: Option<serde_json::Value>,
-    pub completion_tokens: Option<i64>,
-    pub prompt_tokens: Option<i64>,
     pub created_at: i64,
     pub previous_exchange_id: Option<ExchangeId>,
     pub is_deleted: bool,

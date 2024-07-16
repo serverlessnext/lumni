@@ -100,12 +100,10 @@ impl ChatSession {
             .server
             .get_context_size(&mut self.prompt_instruction)
             .await?;
-        let user_question =
-            self.initiate_new_exchange(question).await?;
-        let messages = self.prompt_instruction.new_exchange(
-            &user_question,
-            max_token_length,
-        );
+        let user_question = self.initiate_new_exchange(question).await?;
+        let messages = self
+            .prompt_instruction
+            .new_exchange(&user_question, max_token_length);
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel

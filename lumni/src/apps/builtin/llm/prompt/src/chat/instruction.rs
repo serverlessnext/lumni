@@ -124,8 +124,6 @@ impl PromptInstruction {
             completion_options: serde_json::to_value(&self.completion_options)
                 .ok(),
             prompt_options: serde_json::to_value(&self.prompt_options).ok(),
-            completion_tokens: None,
-            prompt_tokens: None,
             created_at: 0,
             previous_exchange_id: None,
             is_deleted: false,
@@ -141,8 +139,6 @@ impl PromptInstruction {
                 system_prompt: last.system_prompt.clone(),
                 completion_options: last.completion_options.clone(),
                 prompt_options: last.prompt_options.clone(),
-                completion_tokens: None,
-                prompt_tokens: None,
                 created_at: 0,
                 previous_exchange_id: Some(last.id),
                 is_deleted: false,
@@ -159,7 +155,10 @@ impl PromptInstruction {
                 message_type: "text".to_string(),
                 content: self.system_prompt.clone(),
                 has_attachments: false,
-                token_length: Some(simple_token_estimator(&self.system_prompt, None)),
+                token_length: Some(simple_token_estimator(
+                    &self.system_prompt,
+                    None,
+                )),
                 created_at: 0,
                 is_deleted: false,
             };
@@ -170,8 +169,6 @@ impl PromptInstruction {
             // return subsequent exchange
             Exchange {
                 id: self.cache.new_exchange_id(),
-                prompt_tokens: None,
-                completion_tokens: None,
                 previous_exchange_id: Some(exchange.id),
                 ..exchange
             }
@@ -456,9 +453,11 @@ impl ExchangeHandler {
         let exchange_data = {
             let last_exchange = cache.get_last_exchange()?;
             let messages = cache.get_exchange_messages(last_exchange.id);
-            let user_message = messages.iter().find(|m| m.role == PromptRole::User)?;
-            let assistant_message = messages.iter().find(|m| m.role == PromptRole::Assistant)?;
-        
+            let user_message =
+                messages.iter().find(|m| m.role == PromptRole::User)?;
+            let assistant_message =
+                messages.iter().find(|m| m.role == PromptRole::Assistant)?;
+
             (
                 last_exchange.clone(),
                 assistant_message.id,
@@ -466,21 +465,26 @@ impl ExchangeHandler {
                 user_message.content.clone(),
             )
         };
-    
-        let (exchange, assistant_message_id, user_message_id, user_content) = exchange_data;
-    
+
+        let (exchange, assistant_message_id, user_message_id, user_content) =
+            exchange_data;
+
         // Calculate user token length
         let user_token_length = tokens_predicted.map(|tokens| {
             let chars_per_token = calculate_chars_per_token(answer, tokens);
             simple_token_estimator(&user_content, Some(chars_per_token))
         });
-    
+
         // Perform all updates in a single mutable borrow
         {
             if let Some(tokens) = tokens_predicted {
                 // Update assistant's message
-                cache.update_message_by_id(assistant_message_id, answer, Some(tokens as i64));
-            
+                cache.update_message_by_id(
+                    assistant_message_id,
+                    answer,
+                    Some(tokens as i64),
+                );
+
                 // Update user's message token length
                 if let Some(length) = user_token_length {
                     cache.update_message_token_length(user_message_id, length);
@@ -490,10 +494,9 @@ impl ExchangeHandler {
                 cache.update_message_by_id(assistant_message_id, answer, None);
             }
         }
-    
+
         Some(exchange)
     }
-
 }
 
 fn simple_token_estimator(input: &str, chars_per_token: Option<f32>) -> i64 {

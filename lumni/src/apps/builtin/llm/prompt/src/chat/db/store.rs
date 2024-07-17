@@ -25,7 +25,6 @@ impl ConversationDatabaseStore {
         name: &str,
         parent_id: Option<ConversationId>,
         completion_options: Option<serde_json::Value>,
-        prompt_options: Option<serde_json::Value>,
     ) -> Result<ConversationId, SqliteError> {
         let conversation = Conversation {
             id: ConversationId(-1), // Temporary ID
@@ -35,7 +34,6 @@ impl ConversationDatabaseStore {
             parent_conversation_id: parent_id,
             fork_exchange_id: None,
             completion_options,
-            prompt_options,
             schema_version: 1,
             created_at: 0,
             updated_at: 0,
@@ -74,10 +72,10 @@ impl ConversationDatabaseStore {
             "INSERT INTO conversations (
                 name, metadata, model_id, parent_conversation_id, \
              fork_exchange_id, 
-                completion_options, prompt_options, schema_version, 
+                completion_options, schema_version, 
                 created_at, updated_at, is_deleted
             )
-            VALUES ('{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
+            VALUES ('{}', {}, {}, {}, {}, {}, {}, {}, {}, {});",
             conversation.name.replace("'", "''"),
             serde_json::to_string(&conversation.metadata)
                 .map(|s| format!("'{}'", s.replace("'", "''")))
@@ -90,13 +88,6 @@ impl ConversationDatabaseStore {
                 .fork_exchange_id
                 .map_or("NULL".to_string(), |id| id.0.to_string()),
             conversation.completion_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!(
-                    "'{}'",
-                    serde_json::to_string(v).unwrap().replace("'", "''")
-                )
-            ),
-            conversation.prompt_options.as_ref().map_or(
                 "NULL".to_string(),
                 |v| format!(
                     "'{}'",
@@ -282,26 +273,23 @@ impl ConversationDatabaseStore {
                     completion_options: row
                         .get::<_, Option<String>>(6)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    prompt_options: row
-                        .get::<_, Option<String>>(7)?
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    schema_version: row.get(8)?,
-                    created_at: row.get(9)?,
-                    updated_at: row.get(10)?,
-                    is_deleted: row.get(11)?,
+                    schema_version: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    is_deleted: row.get(10)?,
                 };
 
-                let message = if !row.get::<_, Option<i64>>(14)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(14)?),
+                        id: MessageId(row.get(13)?),
                         conversation_id: conversation.id,
                         exchange_id: ExchangeId(row.get(0)?),
-                        role: row.get(15)?,
-                        message_type: row.get(16)?,
-                        content: row.get(17)?,
-                        has_attachments: row.get(18)?,
-                        token_length: row.get(19)?,
-                        created_at: row.get(20)?,
+                        role: row.get(14)?,
+                        message_type: row.get(15)?,
+                        content: row.get(16)?,
+                        has_attachments: row.get(17)?,
+                        token_length: row.get(18)?,
+                        created_at: row.get(19)?,
                         is_deleted: false,
                     })
                 } else {
@@ -335,7 +323,7 @@ impl ConversationDatabaseStore {
         let query = format!(
             "SELECT id, name, metadata, model_id, parent_conversation_id, \
              fork_exchange_id, 
-             completion_options, prompt_options, schema_version, 
+             completion_options, schema_version, 
              created_at, updated_at, is_deleted
              FROM conversations
              WHERE is_deleted = FALSE
@@ -363,13 +351,10 @@ impl ConversationDatabaseStore {
                     completion_options: row
                         .get::<_, Option<String>>(6)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    prompt_options: row
-                        .get::<_, Option<String>>(7)?
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    schema_version: row.get(8)?,
-                    created_at: row.get(9)?,
-                    updated_at: row.get(10)?,
-                    is_deleted: row.get(11)?,
+                    schema_version: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    is_deleted: row.get(10)?,
                 })
             })?;
 

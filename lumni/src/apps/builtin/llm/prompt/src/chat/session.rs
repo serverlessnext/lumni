@@ -96,10 +96,7 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: &str,
     ) -> Result<(), ApplicationError> {
-        let max_token_length = self
-            .server
-            .get_context_size(&mut self.prompt_instruction)
-            .await?;
+        let max_token_length = self.server.get_max_context_size().await?;
         let user_question = self.initiate_new_exchange(question).await?;
         let messages = self
             .prompt_instruction

@@ -3,20 +3,19 @@ use std::collections::HashMap;
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    self, ConversationCache, ConversationDatabaseStore, ConversationId,
-    Exchange, ExchangeId, Message,
+    ConversationCache, ConversationDatabaseStore, ConversationId, Exchange,
+    ExchangeId, Message,
 };
 use super::prompt::Prompt;
 use super::{
-    ChatCompletionOptions, ChatMessage, LLMDefinition, PromptOptions,
-    PromptRole, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
+    ChatCompletionOptions, ChatMessage, PromptRole,
+    DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE, PERSONAS,
 };
 pub use crate::external as lumni;
 
 pub struct PromptInstruction {
     cache: ConversationCache,
     completion_options: ChatCompletionOptions,
-    prompt_options: PromptOptions,
     prompt_template: Option<String>,
 }
 
@@ -31,7 +30,6 @@ impl Default for PromptInstruction {
         PromptInstruction {
             cache: ConversationCache::new(),
             completion_options,
-            prompt_options: PromptOptions::default(),
             prompt_template: None,
         }
     }
@@ -45,8 +43,9 @@ impl PromptInstruction {
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
         let mut prompt_instruction = PromptInstruction::default();
+        //let mut prompt_options = PromptOptions::default();
         if let Some(json_str) = options {
-            prompt_instruction.prompt_options.update_from_json(json_str);
+            //prompt_options.update_from_json(json_str);
             prompt_instruction
                 .completion_options
                 .update_from_json(json_str);
@@ -68,7 +67,7 @@ impl PromptInstruction {
                 None,
                 serde_json::to_value(&prompt_instruction.completion_options)
                     .ok(),
-                serde_json::to_value(&prompt_instruction.prompt_options).ok(),
+                //serde_json::to_value(&prompt_options).ok(),
             )?
         };
         prompt_instruction
@@ -152,7 +151,7 @@ impl PromptInstruction {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
         let current_conversation_id =
-            db_conn.new_conversation("New Conversation", None, None, None)?;
+            db_conn.new_conversation("New Conversation", None, None)?;
         self.cache.set_conversation_id(current_conversation_id);
         Ok(())
     }
@@ -231,9 +230,6 @@ impl PromptInstruction {
         question: &str,
         max_token_length: usize,
     ) -> Vec<ChatMessage> {
-        // token budget for the system prompt
-        let system_prompt_token_length = self.get_n_keep().unwrap_or(0);
-
         // add the partial exchange (question) to the conversation
         let exchange = self.subsequent_exchange();
 
@@ -257,7 +253,7 @@ impl PromptInstruction {
 
         // Collect messages while respecting token limits
         let mut messages: Vec<ChatMessage> = Vec::new();
-        let mut total_tokens = system_prompt_token_length;
+        let mut total_tokens = 0;
 
         let mut system_message: Option<ChatMessage> = None;
 
@@ -273,11 +269,14 @@ impl PromptInstruction {
                     msg.token_length.map(|len| len as usize).unwrap_or(0);
 
                 if msg.role == PromptRole::System {
+                    // store system_prompt for later insertion at the beginning
                     system_message = Some(ChatMessage {
                         role: msg.role,
                         content: msg.content.clone(),
                     });
-                    continue; // system prompt is included separately
+                    // system prompt is always included
+                    total_tokens += msg_token_length;
+                    continue;
                 }
                 if total_tokens + msg_token_length <= max_token_length {
                     total_tokens += msg_token_length;
@@ -307,26 +306,6 @@ impl PromptInstruction {
 
     pub fn get_completion_options(&self) -> &ChatCompletionOptions {
         &self.completion_options
-    }
-
-    pub fn set_model(&mut self, model: &LLMDefinition) {
-        self.completion_options.update_from_model(model);
-    }
-
-    pub fn get_role_prefix(&self, role: PromptRole) -> &str {
-        self.prompt_options.get_role_prefix(role)
-    }
-
-    pub fn get_context_size(&self) -> Option<usize> {
-        self.prompt_options.get_context_size()
-    }
-
-    pub fn set_context_size(&mut self, context_size: usize) {
-        self.prompt_options.set_context_size(context_size);
-    }
-
-    pub fn get_n_keep(&self) -> Option<usize> {
-        self.completion_options.get_n_keep()
     }
 
     pub fn get_prompt_template(&self) -> Option<&str> {

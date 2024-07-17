@@ -132,23 +132,14 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    async fn get_context_size(
-        &self,
-        prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, ApplicationError> {
+    async fn get_max_context_size(&self) -> Result<usize, ApplicationError> {
         match self {
-            ModelServer::Llama(llama) => {
-                llama.get_context_size(prompt_instruction).await
-            }
-            ModelServer::Ollama(ollama) => {
-                ollama.get_context_size(prompt_instruction).await
-            }
+            ModelServer::Llama(llama) => llama.get_max_context_size().await,
+            ModelServer::Ollama(ollama) => ollama.get_max_context_size().await,
             ModelServer::Bedrock(bedrock) => {
-                bedrock.get_context_size(prompt_instruction).await
+                bedrock.get_max_context_size().await
             }
-            ModelServer::OpenAI(openai) => {
-                openai.get_context_size(prompt_instruction).await
-            }
+            ModelServer::OpenAI(openai) => openai.get_max_context_size().await,
         }
     }
 
@@ -260,10 +251,7 @@ pub trait ServerTrait: Send + Sync {
         start_of_stream: bool,
     ) -> Option<CompletionResponse>;
 
-    async fn get_context_size(
-        &self,
-        _prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, ApplicationError> {
+    async fn get_max_context_size(&self) -> Result<usize, ApplicationError> {
         Ok(DEFAULT_CONTEXT_SIZE)
     }
 
@@ -285,7 +273,8 @@ pub trait ServerManager: ServerTrait {
     ) -> Result<(), ApplicationError> {
         log::debug!("Initializing server with model: {:?}", model);
         // update completion options from the model, i.e. stop tokens
-        prompt_instruction.set_model(&model);
+        // TODO: prompt_intruction should be re-initialized with the model
+        //prompt_instruction.set_model(&model);
         self.initialize_with_model(model, prompt_instruction).await
     }
 

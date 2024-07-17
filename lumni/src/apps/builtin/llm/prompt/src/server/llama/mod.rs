@@ -54,12 +54,8 @@ impl Llama {
 
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),
-            prompt_instruction
-                .get_role_prefix(PromptRole::User)
-                .to_string(),
-            prompt_instruction
-                .get_role_prefix(PromptRole::Assistant)
-                .to_string(),
+            format!("### {}", PromptRole::User.to_string()),
+            format!("### {}", PromptRole::Assistant.to_string()),
         );
         let payload = LlamaServerPayload {
             prompt: "",
@@ -206,23 +202,12 @@ impl ServerTrait for Llama {
         self.model.as_ref()
     }
 
-    async fn get_context_size(
-        &self,
-        prompt_instruction: &mut PromptInstruction,
-    ) -> Result<usize, ApplicationError> {
-        let context_size = prompt_instruction.get_context_size();
-        match context_size {
-            Some(size) => Ok(size), // Return the context size if it's already set
-            None => {
-                // fetch the context size, and store it in the prompt options
-                let context_size = match self.get_props().await {
-                    Ok(props) => props.get_n_ctx(),
-                    Err(_) => DEFAULT_CONTEXT_SIZE,
-                };
-                prompt_instruction.set_context_size(context_size);
-                Ok(context_size)
-            }
-        }
+    async fn get_max_context_size(&self) -> Result<usize, ApplicationError> {
+        let context_size = match self.get_props().await {
+            Ok(props) => props.get_n_ctx(),
+            Err(_) => DEFAULT_CONTEXT_SIZE,
+        };
+        Ok(context_size)
     }
 }
 

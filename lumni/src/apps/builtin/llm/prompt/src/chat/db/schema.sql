@@ -20,7 +20,6 @@ CREATE TABLE conversations (
     parent_conversation_id INTEGER,
     fork_exchange_id INTEGER,
     completion_options TEXT, -- JSON string
-    prompt_options TEXT, -- JSON string
     schema_version INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

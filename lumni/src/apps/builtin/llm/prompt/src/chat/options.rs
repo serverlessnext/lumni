@@ -111,16 +111,6 @@ impl Default for RolePrefix {
     }
 }
 
-impl RolePrefix {
-    fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
-        match prompt_role {
-            PromptRole::User => &self.user,
-            PromptRole::Assistant => &self.assistant,
-            PromptRole::System => &self.system,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PromptOptions {
     n_ctx: Option<usize>,
@@ -153,14 +143,5 @@ impl PromptOptions {
 
     pub fn get_context_size(&self) -> Option<usize> {
         self.n_ctx
-    }
-
-    pub fn set_context_size(&mut self, context_size: usize) -> &mut Self {
-        self.n_ctx = Some(context_size);
-        self
-    }
-
-    pub fn get_role_prefix(&self, prompt_role: PromptRole) -> &str {
-        self.role_prefix.get_role_prefix(prompt_role)
     }
 }

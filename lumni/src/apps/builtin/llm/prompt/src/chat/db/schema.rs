@@ -35,7 +35,6 @@ pub struct Conversation {
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_exchange_id: Option<ExchangeId>,
     pub completion_options: Option<serde_json::Value>,
-    pub prompt_options: Option<serde_json::Value>,
     pub schema_version: i64,
     pub created_at: i64,
     pub updated_at: i64,

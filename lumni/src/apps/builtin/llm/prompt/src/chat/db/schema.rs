@@ -31,8 +31,11 @@ pub struct Conversation {
     pub id: ConversationId,
     pub name: String,
     pub metadata: serde_json::Value,
+    pub model_id: ModelId,
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_exchange_id: Option<ExchangeId>,
+    pub completion_options: Option<serde_json::Value>,
+    pub prompt_options: Option<serde_json::Value>,
     pub schema_version: i64,
     pub created_at: i64,
     pub updated_at: i64,
@@ -43,10 +46,6 @@ pub struct Conversation {
 pub struct Exchange {
     pub id: ExchangeId,
     pub conversation_id: ConversationId,
-    pub model_id: ModelId,
-    pub system_prompt: Option<String>,
-    pub completion_options: Option<serde_json::Value>,
-    pub prompt_options: Option<serde_json::Value>,
     pub created_at: i64,
     pub previous_exchange_id: Option<ExchangeId>,
     pub is_deleted: bool,
@@ -222,5 +221,15 @@ impl ConversationCache {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub fn get_system_prompt(&self) -> Option<String> {
+        // system prompt is always set in the first exchange
+        self.get_exchanges().first().and_then(|exchange| {
+            self.get_exchange_messages(exchange.id)
+                .iter()
+                .find(|message| message.role == PromptRole::System)
+                .map(|message| message.content.clone())
+        })
     }
 }

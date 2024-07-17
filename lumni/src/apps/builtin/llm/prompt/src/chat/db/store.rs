@@ -6,7 +6,7 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 use super::connector::DatabaseConnector;
 use super::schema::{
     Attachment, AttachmentData, Conversation, ConversationCache,
-    ConversationId, Exchange, ExchangeId, Message, MessageId,
+    ConversationId, Exchange, ExchangeId, Message, MessageId, ModelId,
 };
 
 pub struct ConversationDatabaseStore {
@@ -24,13 +24,18 @@ impl ConversationDatabaseStore {
         &self,
         name: &str,
         parent_id: Option<ConversationId>,
+        completion_options: Option<serde_json::Value>,
+        prompt_options: Option<serde_json::Value>,
     ) -> Result<ConversationId, SqliteError> {
         let conversation = Conversation {
             id: ConversationId(-1), // Temporary ID
             name: name.to_string(),
             metadata: serde_json::Value::Null,
+            model_id: ModelId(0),
             parent_conversation_id: parent_id,
             fork_exchange_id: None,
+            completion_options,
+            prompt_options,
             schema_version: 1,
             created_at: 0,
             updated_at: 0,
@@ -66,25 +71,44 @@ impl ConversationDatabaseStore {
         conversation: &Conversation,
     ) -> Result<ConversationId, SqliteError> {
         let conversation_sql = format!(
-            "INSERT INTO conversations (name, metadata, \
-             parent_conversation_id, fork_exchange_id, schema_version, \
-             created_at, updated_at, is_deleted)
-            VALUES ('{}', {}, {}, {}, {}, {}, {}, {});",
+            "INSERT INTO conversations (
+                name, metadata, model_id, parent_conversation_id, \
+             fork_exchange_id, 
+                completion_options, prompt_options, schema_version, 
+                created_at, updated_at, is_deleted
+            )
+            VALUES ('{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
             conversation.name.replace("'", "''"),
             serde_json::to_string(&conversation.metadata)
                 .map(|s| format!("'{}'", s.replace("'", "''")))
                 .unwrap_or_else(|_| "NULL".to_string()),
+            conversation.model_id.0,
             conversation
                 .parent_conversation_id
                 .map_or("NULL".to_string(), |id| id.0.to_string()),
             conversation
                 .fork_exchange_id
                 .map_or("NULL".to_string(), |id| id.0.to_string()),
+            conversation.completion_options.as_ref().map_or(
+                "NULL".to_string(),
+                |v| format!(
+                    "'{}'",
+                    serde_json::to_string(v).unwrap().replace("'", "''")
+                )
+            ),
+            conversation.prompt_options.as_ref().map_or(
+                "NULL".to_string(),
+                |v| format!(
+                    "'{}'",
+                    serde_json::to_string(v).unwrap().replace("'", "''")
+                )
+            ),
             conversation.schema_version,
             conversation.created_at,
             conversation.updated_at,
             conversation.is_deleted
         );
+
         let mut db = self.db.lock().unwrap();
         db.queue_operation(conversation_sql);
         db.process_queue_with_result(|tx| {
@@ -123,24 +147,10 @@ impl ConversationDatabaseStore {
 
         // Insert the exchange (without token-related fields)
         let exchange_sql = format!(
-            "INSERT INTO exchanges (conversation_id, model_id, system_prompt, 
-         completion_options, prompt_options, created_at, previous_exchange_id, \
-             is_deleted, is_latest)
-        VALUES ({}, {}, {}, {}, {}, {}, {}, {}, TRUE);",
+            "INSERT INTO exchanges (conversation_id, created_at, \
+             previous_exchange_id, is_deleted, is_latest)
+        VALUES ({}, {}, {}, {}, TRUE);",
             exchange.conversation_id.0,
-            exchange.model_id.0,
-            exchange.system_prompt.as_ref().map_or(
-                "NULL".to_string(),
-                |s| format!("'{}'", s.replace("'", "''"))
-            ),
-            exchange.completion_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!("'{}'", v.to_string().replace("'", "''"))
-            ),
-            exchange.prompt_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!("'{}'", v.to_string().replace("'", "''"))
-            ),
             exchange.created_at,
             last_exchange_id.map_or("NULL".to_string(), |id| id.to_string()),
             exchange.is_deleted
@@ -226,94 +236,6 @@ impl ConversationDatabaseStore {
         db.process_queue()?;
         Ok(())
     }
-
-    pub fn fetch_recent_conversations(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<(Conversation, Option<Vec<Message>>)>, SqliteError> {
-        let query = format!(
-            "SELECT c.*, m.id as message_id, m.role, m.message_type, \
-             m.content, m.has_attachments, m.token_length, m.created_at as \
-             message_created_at
-             FROM conversations c
-             LEFT JOIN exchanges e ON c.id = e.conversation_id AND e.is_latest \
-             = TRUE
-             LEFT JOIN messages m ON e.id = m.exchange_id
-             WHERE c.is_deleted = FALSE
-             ORDER BY c.updated_at DESC, m.created_at ASC
-             LIMIT {}",
-            limit
-        );
-
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            let mut stmt = tx.prepare(&query)?;
-            let rows = stmt.query_map([], |row| {
-                let conversation = Conversation {
-                    id: ConversationId(row.get(0)?),
-                    name: row.get(1)?,
-                    metadata: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    parent_conversation_id: row.get(3).map(ConversationId).ok(),
-                    fork_exchange_id: row.get(4).map(ExchangeId).ok(),
-                    schema_version: row.get(5)?,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                    is_deleted: row.get(10)?,
-                };
-
-                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
-                    Some(Message {
-                        id: MessageId(row.get(11)?),
-                        conversation_id: conversation.id,
-                        exchange_id: ExchangeId(row.get(0)?), // Using conversation_id as exchange_id
-                        role: row.get(12)?,
-                        message_type: row.get(13)?,
-                        content: row.get(14)?,
-                        has_attachments: row.get(15)?,
-                        token_length: row.get(16)?,
-                        created_at: row.get(17)?,
-                        is_deleted: false,
-                    })
-                } else {
-                    None
-                };
-
-                Ok((conversation, message))
-            })?;
-
-            let mut result = Vec::new();
-            let mut current_conversation: Option<Conversation> = None;
-            let mut current_messages = Vec::new();
-
-            for row in rows {
-                let (conversation, message) = row?;
-
-                if current_conversation
-                    .as_ref()
-                    .map_or(true, |c| c.id != conversation.id)
-                {
-                    if let Some(conv) = current_conversation.take() {
-                        result.push((
-                            conv,
-                            Some(std::mem::take(&mut current_messages)),
-                        ));
-                    }
-                    current_conversation = Some(conversation);
-                }
-
-                if let Some(msg) = message {
-                    current_messages.push(msg);
-                }
-            }
-
-            if let Some(conv) = current_conversation.take() {
-                result.push((conv, Some(current_messages)));
-            }
-
-            Ok(result)
-        })
-    }
 }
 
 impl ConversationDatabaseStore {
@@ -354,25 +276,32 @@ impl ConversationDatabaseStore {
                     name: row.get(1)?,
                     metadata: serde_json::from_str(&row.get::<_, String>(2)?)
                         .unwrap_or_default(),
-                    parent_conversation_id: row.get(3).map(ConversationId).ok(),
-                    fork_exchange_id: row.get(4).map(ExchangeId).ok(),
-                    schema_version: row.get(5)?,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                    is_deleted: row.get(10)?,
+                    model_id: ModelId(row.get(3)?),
+                    parent_conversation_id: row.get(4).map(ConversationId).ok(),
+                    fork_exchange_id: row.get(5).map(ExchangeId).ok(),
+                    completion_options: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    prompt_options: row
+                        .get::<_, Option<String>>(7)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    schema_version: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    is_deleted: row.get(11)?,
                 };
 
-                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(14)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(11)?),
+                        id: MessageId(row.get(14)?),
                         conversation_id: conversation.id,
                         exchange_id: ExchangeId(row.get(0)?),
-                        role: row.get(12)?,
-                        message_type: row.get(13)?,
-                        content: row.get(14)?,
-                        has_attachments: row.get(15)?,
-                        token_length: row.get(16)?,
-                        created_at: row.get(17)?,
+                        role: row.get(15)?,
+                        message_type: row.get(16)?,
+                        content: row.get(17)?,
+                        has_attachments: row.get(18)?,
+                        token_length: row.get(19)?,
+                        created_at: row.get(20)?,
                         is_deleted: false,
                     })
                 } else {
@@ -398,12 +327,16 @@ impl ConversationDatabaseStore {
             Ok(conversation.map(|c| (c, messages)))
         })
     }
+
     pub fn fetch_conversation_list(
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
         let query = format!(
-            "SELECT id, name, updated_at
+            "SELECT id, name, metadata, model_id, parent_conversation_id, \
+             fork_exchange_id, 
+             completion_options, prompt_options, schema_version, 
+             created_at, updated_at, is_deleted
              FROM conversations
              WHERE is_deleted = FALSE
              ORDER BY updated_at DESC
@@ -418,14 +351,25 @@ impl ConversationDatabaseStore {
                 Ok(Conversation {
                     id: ConversationId(row.get(0)?),
                     name: row.get(1)?,
-                    updated_at: row.get(2)?,
-                    // Set other fields to default values or None
-                    metadata: serde_json::Value::Null,
-                    parent_conversation_id: None,
-                    fork_exchange_id: None,
-                    schema_version: 1,
-                    created_at: 0,
-                    is_deleted: false,
+                    metadata: serde_json::from_str(&row.get::<_, String>(2)?)
+                        .unwrap_or_default(),
+                    model_id: ModelId(row.get(3)?),
+                    parent_conversation_id: row
+                        .get::<_, Option<i64>>(4)?
+                        .map(ConversationId),
+                    fork_exchange_id: row
+                        .get::<_, Option<i64>>(5)?
+                        .map(ExchangeId),
+                    completion_options: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    prompt_options: row
+                        .get::<_, Option<String>>(7)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    schema_version: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    is_deleted: row.get(11)?,
                 })
             })?;
 

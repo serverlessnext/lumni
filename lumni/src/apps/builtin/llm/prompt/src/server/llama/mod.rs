@@ -48,7 +48,9 @@ impl Llama {
         &self,
         prompt_instruction: &PromptInstruction,
     ) -> Option<String> {
-        let instruction = prompt_instruction.get_instruction();
+        let instruction = prompt_instruction
+            .get_instruction()
+            .unwrap_or("".to_string());
 
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),

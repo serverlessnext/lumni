@@ -16,8 +16,11 @@ CREATE TABLE conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     metadata TEXT, -- JSON string including description and other metadata
+    model_id INTEGER NOT NULL,
     parent_conversation_id INTEGER,
     fork_exchange_id INTEGER,
+    completion_options TEXT, -- JSON string
+    prompt_options TEXT, -- JSON string
     schema_version INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -26,21 +29,17 @@ CREATE TABLE conversations (
     is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (fork_exchange_id) REFERENCES exchanges(id)
+    FOREIGN KEY (model_id) REFERENCES models(model_id)
 );
 
 CREATE TABLE exchanges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id INTEGER NOT NULL,
-    model_id INTEGER NOT NULL,
-    system_prompt TEXT,
-    completion_options TEXT, -- JSON string
-    prompt_options TEXT, -- JSON string
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     previous_exchange_id INTEGER,
     is_deleted BOOLEAN DEFAULT FALSE,
     is_latest BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-    FOREIGN KEY (model_id) REFERENCES models(model_id)
     FOREIGN KEY (previous_exchange_id) REFERENCES exchanges(id)
 );
 
@@ -83,7 +82,6 @@ CREATE INDEX idx_parent_conversation ON conversations(parent_conversation_id);
 CREATE INDEX idx_exchange_conversation_latest ON exchanges(conversation_id, is_latest);
 CREATE INDEX idx_exchange_created_at ON exchanges(created_at);
 CREATE INDEX idx_fork_exchange ON conversations(fork_exchange_id);
-CREATE INDEX idx_model_id ON exchanges(model_id);
+CREATE INDEX idx_conversation_model_id ON conversations(model_id);  
 CREATE INDEX idx_conversation_created_at ON exchanges(conversation_id, created_at);
 CREATE INDEX idx_attachment_message ON attachments(message_id);
-

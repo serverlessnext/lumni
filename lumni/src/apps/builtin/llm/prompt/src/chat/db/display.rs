@@ -1,8 +1,6 @@
 use lumni::api::error::ApplicationError;
 
-use super::schema::{
-    Conversation, ConversationId, Message,
-};
+use super::schema::{Conversation, ConversationId, Message};
 use super::ConversationDatabaseStore;
 pub use crate::external as lumni;
 
@@ -39,9 +37,10 @@ impl ConversationDatabaseStore {
         id: &str,
     ) -> Result<(), ApplicationError> {
         let conversation_id = ConversationId(id.parse().map_err(|_| {
-            ApplicationError::NotFound(
-                format!("Conversation {id} not found in database"),
-        )})?);
+            ApplicationError::NotFound(format!(
+                "Conversation {id} not found in database"
+            ))
+        })?);
 
         if let Some((conversation, messages)) =
             self.fetch_conversation(Some(conversation_id), None)?

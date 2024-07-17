@@ -27,6 +27,8 @@ pub enum ApplicationError {
     Unexpected(String),
     Runtime(String),
     InvalidCredentials(String),
+    InvalidInput(String),
+    NotFound(String),
     ServerConfigurationError(String),
     HttpClientError(HttpClientError),
     IoError(std::io::Error),
@@ -105,6 +107,10 @@ impl fmt::Display for ApplicationError {
             ApplicationError::InvalidCredentials(s) => {
                 write!(f, "InvalidCredentials: {}", s)
             }
+            ApplicationError::InvalidInput(s) => {
+                write!(f, "InvalidInput: {}", s)
+            }
+            ApplicationError::NotFound(s) => write!(f, "NotFound: {}", s),
             ApplicationError::ServerConfigurationError(s) => {
                 write!(f, "ServerConfigurationError: {}", s)
             }

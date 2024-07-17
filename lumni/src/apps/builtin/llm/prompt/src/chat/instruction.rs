@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationCache, ConversationDatabase, Exchange, ExchangeId, Message,
-    ModelId,
+    ConversationCache, ConversationDatabaseStore, Exchange, ExchangeId,
+    Message, ModelId, ConversationId,
 };
 use super::prompt::Prompt;
 use super::{
@@ -42,7 +43,7 @@ impl PromptInstruction {
         instruction: Option<String>,
         assistant: Option<String>,
         options: Option<&String>,
-        db_conn: &ConversationDatabase,
+        db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
         let mut prompt_instruction = PromptInstruction::default();
         if let Some(json_str) = options {
@@ -80,9 +81,10 @@ impl PromptInstruction {
         Ok(prompt_instruction)
     }
 
+
     pub fn reset_history(
         &mut self,
-        db_conn: &ConversationDatabase,
+        db_conn: &ConversationDatabaseStore,
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         let current_conversation_id =
@@ -103,7 +105,7 @@ impl PromptInstruction {
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
-        db_conn: &ConversationDatabase,
+        db_conn: &ConversationDatabaseStore,
     ) {
         let exchange = ExchangeHandler::put_last_response(
             &mut self.cache,

@@ -24,7 +24,7 @@ use tokio::signal;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
-use super::chat::{ChatSession, ConversationDatabase};
+use super::chat::{ChatSession, ConversationDatabaseStore};
 use super::server::{ModelServer, PromptInstruction, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
@@ -40,7 +40,7 @@ const CHANNEL_QUEUE_SIZE: usize = 32;
 async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app_session: AppSession<'_>,
-    db_conn: ConversationDatabase,
+    db_conn: ConversationDatabaseStore,
 ) -> Result<(), ApplicationError> {
     let defaults = app_session.get_defaults().clone();
 
@@ -252,7 +252,7 @@ async fn prompt_app<B: Backend>(
 async fn finalize_response(
     chat: &mut ChatSession,
     tab_ui: &mut TabUi<'_>,
-    db_conn: &ConversationDatabase,
+    db_conn: &ConversationDatabaseStore,
     tokens_predicted: Option<usize>,
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
@@ -285,12 +285,19 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
             Command::new("db")
                 .about("Query the conversation database")
                 .arg(
-                    Arg::new("recent")
-                        .long("recent")
-                        .short('r')
-                        .help("Get recent conversations")
+                    Arg::new("list")
+                        .long("list")
+                        .short('l')
+                        .help("List recent conversations")
                         .num_args(0..=1)
-                        .default_value("20"),
+                        .value_name("LIMIT"),
+                )
+                .arg(
+                    Arg::new("id")
+                        .long("id")
+                        .short('i')
+                        .help("Fetch a specific conversation by ID")
+                        .num_args(1),
                 ),
         )
         .arg(
@@ -330,19 +337,21 @@ pub async fn run_cli(
     let config_dir =
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
-    let db_conn = ConversationDatabase::new(&sqlite_file)?;
+    let db_conn = ConversationDatabaseStore::new(&sqlite_file)?;
 
     if let Some(db_matches) = matches.subcommand_matches("db") {
-        if db_matches.contains_id("recent") {
-            let limit: usize = db_matches
-                .get_one::<String>("recent")
-                .unwrap()
-                .parse()
-                .unwrap_or(20);
-            return query_recent_conversations(&db_conn, limit).await;
+        if db_matches.contains_id("list") {
+            let limit = match db_matches.get_one::<String>("list") {
+                Some(value) => value.parse().unwrap_or(20),
+                None => 20, // Default value when --list is used without a value
+            };
+            return db_conn.print_conversation_list(limit).await;
+        } else if let Some(id_value) = db_matches.get_one::<String>("id") {
+            return db_conn.print_conversation_by_id(id_value).await;
+        } else {
+            return db_conn.print_last_conversation().await;
         }
     }
-
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
     let assistant = matches.get_one::<String>("assistant").cloned();
@@ -381,7 +390,7 @@ pub async fn run_cli(
 
 async fn interactive_mode(
     app_session: AppSession<'_>,
-    db_conn: ConversationDatabase,
+    db_conn: ConversationDatabaseStore,
 ) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
@@ -427,7 +436,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
-    _db_conn: ConversationDatabase,
+    _db_conn: ConversationDatabaseStore,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();
@@ -570,37 +579,5 @@ async fn send_prompt<'a>(
             tab.ui.command_line.set_alert(&e.to_string());
         }
     }
-    Ok(())
-}
-
-async fn query_recent_conversations(
-    db_conn: &ConversationDatabase,
-    limit: usize,
-) -> Result<(), ApplicationError> {
-    let recent_conversations = db_conn
-        .get_recent_conversations_with_last_exchange_and_messages(limit)?;
-
-    for (conversation, last_exchange_with_messages) in recent_conversations {
-        println!(
-            "Conversation: {} (ID: {})",
-            conversation.name, conversation.id.0
-        );
-        println!("Updated at: {}", conversation.updated_at);
-
-        if let Some((exchange, messages)) = last_exchange_with_messages {
-            println!("Last exchange: {}", exchange.created_at);
-            println!("Model: {:?}", exchange.model_id);
-            println!("Messages:");
-            for message in messages {
-                println!("  Role: {}", message.role);
-                println!("  Content: {}", message.content);
-                println!("  ---");
-            }
-        } else {
-            println!("No exchanges yet");
-        }
-        println!("===============================");
-    }
-
     Ok(())
 }

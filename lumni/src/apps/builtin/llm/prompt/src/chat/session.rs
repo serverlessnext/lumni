@@ -5,8 +5,8 @@ use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::{
-    CompletionResponse, ConversationDatabase, LLMDefinition, PromptInstruction,
-    ServerManager,
+    CompletionResponse, ConversationDatabaseStore, LLMDefinition,
+    PromptInstruction, ServerManager,
 };
 use crate::api::error::ApplicationError;
 
@@ -65,7 +65,7 @@ impl ChatSession {
         }
     }
 
-    pub fn reset(&mut self, db: &ConversationDatabase) {
+    pub fn reset(&mut self, db: &ConversationDatabaseStore) {
         self.stop();
         _ = self.prompt_instruction.reset_history(db);
     }
@@ -76,7 +76,7 @@ impl ChatSession {
 
     pub async fn finalize_last_exchange(
         &mut self,
-        db: &ConversationDatabase,
+        db: &ConversationDatabaseStore,
         tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
         let last_answer = self.prompt_instruction.get_last_response();

@@ -1,26 +1,68 @@
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
 use super::schema::{
-    Attachment, AttachmentData, Conversation, ConversationId, Exchange,
-    ExchangeId, Message, MessageId, ModelId,
+    Attachment, AttachmentData, Conversation, ConversationCache,
+    ConversationId, Exchange, ExchangeId, Message, MessageId,
 };
 
 pub struct ConversationDatabaseStore {
-    db: DatabaseConnector,
+    db: Arc<Mutex<DatabaseConnector>>,
 }
 
 impl ConversationDatabaseStore {
     pub fn new(sqlite_file: &PathBuf) -> Result<Self, SqliteError> {
         Ok(Self {
-            db: DatabaseConnector::new(sqlite_file)?,
+            db: Arc::new(Mutex::new(DatabaseConnector::new(sqlite_file)?)),
         })
     }
 
+    pub fn new_conversation(
+        &self,
+        name: &str,
+        parent_id: Option<ConversationId>,
+    ) -> Result<ConversationId, SqliteError> {
+        let conversation = Conversation {
+            id: ConversationId(-1), // Temporary ID
+            name: name.to_string(),
+            metadata: serde_json::Value::Null,
+            parent_conversation_id: parent_id,
+            fork_exchange_id: None,
+            schema_version: 1,
+            created_at: 0,
+            updated_at: 0,
+            is_deleted: false,
+        };
+        self.put_new_conversation(&conversation)
+    }
+
+    pub fn finalize_exchange(
+        &self,
+        exchange: &Exchange,
+        cache: &ConversationCache,
+    ) -> Result<(), SqliteError> {
+        let messages = cache.get_exchange_messages(exchange.id);
+        let attachments = messages
+            .iter()
+            .flat_map(|message| cache.get_message_attachments(message.id))
+            .collect::<Vec<_>>();
+        let owned_messages: Vec<Message> =
+            messages.into_iter().cloned().collect();
+        let owned_attachments: Vec<Attachment> =
+            attachments.into_iter().cloned().collect();
+        self.put_finalized_exchange(
+            exchange,
+            &owned_messages,
+            &owned_attachments,
+        )?;
+        Ok(())
+    }
+
     pub fn put_new_conversation(
-        &mut self,
+        &self,
         conversation: &Conversation,
     ) -> Result<ConversationId, SqliteError> {
         let conversation_sql = format!(
@@ -43,24 +85,24 @@ impl ConversationDatabaseStore {
             conversation.updated_at,
             conversation.is_deleted
         );
-
-        self.db.queue_operation(conversation_sql);
-
-        self.db.process_queue_with_result(|tx| {
+        let mut db = self.db.lock().unwrap();
+        db.queue_operation(conversation_sql);
+        db.process_queue_with_result(|tx| {
             let id = tx.last_insert_rowid();
             Ok(ConversationId(id))
         })
     }
 
     pub fn put_finalized_exchange(
-        &mut self,
+        &self,
         exchange: &Exchange,
         messages: &[Message],
         attachments: &[Attachment],
     ) -> Result<(), SqliteError> {
+        let mut db = self.db.lock().unwrap();
         // Update the previous exchange to set is_latest to false
         let last_exchange_id: Option<i64> =
-            self.db.process_queue_with_result(|tx| {
+            db.process_queue_with_result(|tx| {
                 tx.query_row(
                     "SELECT id FROM exchanges WHERE conversation_id = ? AND \
                      is_latest = TRUE LIMIT 1",
@@ -76,7 +118,7 @@ impl ConversationDatabaseStore {
                 "UPDATE exchanges SET is_latest = FALSE WHERE id = {};",
                 prev_id
             );
-            self.db.queue_operation(update_prev_sql);
+            db.queue_operation(update_prev_sql);
         }
 
         // Insert the exchange (without token-related fields)
@@ -103,10 +145,10 @@ impl ConversationDatabaseStore {
             last_exchange_id.map_or("NULL".to_string(), |id| id.to_string()),
             exchange.is_deleted
         );
-        self.db.queue_operation(exchange_sql);
+        db.queue_operation(exchange_sql);
 
         // Get the actual exchange_id from the database
-        let exchange_id = self.db.process_queue_with_result(|tx| {
+        let exchange_id = db.process_queue_with_result(|tx| {
             Ok(ExchangeId(tx.last_insert_rowid()))
         })?;
 
@@ -130,7 +172,7 @@ impl ConversationDatabaseStore {
                 message.created_at,
                 message.is_deleted
             );
-            self.db.queue_operation(message_sql);
+            db.queue_operation(message_sql);
 
             // Sum up token lengths
             if let Some(token_length) = message.token_length {
@@ -166,7 +208,7 @@ impl ConversationDatabaseStore {
                 attachment.created_at,
                 attachment.is_deleted
             );
-            self.db.queue_operation(attachment_sql);
+            db.queue_operation(attachment_sql);
         }
 
         // Update conversation
@@ -178,23 +220,19 @@ impl ConversationDatabaseStore {
         WHERE id = {};",
             exchange.created_at, total_tokens, exchange.conversation_id.0
         );
-        self.db.queue_operation(update_conversation_sql);
+        db.queue_operation(update_conversation_sql);
 
         // Commit the transaction
-        self.commit_queued_operations()?;
-
+        db.process_queue()?;
         Ok(())
     }
 
-    pub fn get_recent_conversations_with_last_exchange_and_messages(
-        &mut self,
+    pub fn fetch_recent_conversations(
+        &self,
         limit: usize,
-    ) -> Result<
-        Vec<(Conversation, Option<(Exchange, Vec<Message>)>)>,
-        SqliteError,
-    > {
+    ) -> Result<Vec<(Conversation, Option<Vec<Message>>)>, SqliteError> {
         let query = format!(
-            "SELECT c.*, e.*, m.id as message_id, m.role, m.message_type, \
+            "SELECT c.*, m.id as message_id, m.role, m.message_type, \
              m.content, m.has_attachments, m.token_length, m.created_at as \
              message_created_at
              FROM conversations c
@@ -207,7 +245,8 @@ impl ConversationDatabaseStore {
             limit
         );
 
-        self.db.process_queue_with_result(|tx| {
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
             let mut stmt = tx.prepare(&query)?;
             let rows = stmt.query_map([], |row| {
                 let conversation = Conversation {
@@ -223,55 +262,32 @@ impl ConversationDatabaseStore {
                     is_deleted: row.get(10)?,
                 };
 
-                let exchange = if !row.get::<_, Option<i64>>(11)?.is_none() {
-                    Some(Exchange {
-                        id: ExchangeId(row.get(11)?),
-                        conversation_id: ConversationId(row.get(12)?),
-                        model_id: ModelId(row.get(13)?),
-                        system_prompt: row.get(14)?,
-                        completion_options: row
-                            .get::<_, Option<String>>(15)?
-                            .map(|s| {
-                                serde_json::from_str(&s).unwrap_or_default()
-                            }),
-                        prompt_options: row.get::<_, Option<String>>(16)?.map(
-                            |s| serde_json::from_str(&s).unwrap_or_default(),
-                        ),
-                        created_at: row.get(17)?,
-                        previous_exchange_id: row.get(18).map(ExchangeId).ok(),
-                        is_deleted: row.get(19)?,
-                    })
-                } else {
-                    None
-                };
-
-                let message = if !row.get::<_, Option<i64>>(21)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(21)?),
+                        id: MessageId(row.get(11)?),
                         conversation_id: conversation.id,
-                        exchange_id: exchange.as_ref().unwrap().id,
-                        role: row.get(22)?,
-                        message_type: row.get(23)?,
-                        content: row.get(24)?,
-                        has_attachments: row.get(25)?,
-                        token_length: row.get(26)?,
-                        created_at: row.get(27)?,
+                        exchange_id: ExchangeId(row.get(0)?), // Using conversation_id as exchange_id
+                        role: row.get(12)?,
+                        message_type: row.get(13)?,
+                        content: row.get(14)?,
+                        has_attachments: row.get(15)?,
+                        token_length: row.get(16)?,
+                        created_at: row.get(17)?,
                         is_deleted: false,
                     })
                 } else {
                     None
                 };
 
-                Ok((conversation, exchange, message))
+                Ok((conversation, message))
             })?;
 
             let mut result = Vec::new();
             let mut current_conversation: Option<Conversation> = None;
-            let mut current_exchange: Option<Exchange> = None;
             let mut current_messages = Vec::new();
 
             for row in rows {
-                let (conversation, exchange, message) = row?;
+                let (conversation, message) = row?;
 
                 if current_conversation
                     .as_ref()
@@ -280,13 +296,10 @@ impl ConversationDatabaseStore {
                     if let Some(conv) = current_conversation.take() {
                         result.push((
                             conv,
-                            current_exchange.take().map(|e| {
-                                (e, std::mem::take(&mut current_messages))
-                            }),
+                            Some(std::mem::take(&mut current_messages)),
                         ));
                     }
                     current_conversation = Some(conversation);
-                    current_exchange = exchange;
                 }
 
                 if let Some(msg) = message {
@@ -295,19 +308,128 @@ impl ConversationDatabaseStore {
             }
 
             if let Some(conv) = current_conversation.take() {
-                result.push((
-                    conv,
-                    current_exchange.take().map(|e| (e, current_messages)),
-                ));
+                result.push((conv, Some(current_messages)));
             }
 
             Ok(result)
         })
     }
+}
 
-    fn commit_queued_operations(&mut self) -> Result<(), SqliteError> {
-        let result = self.db.process_queue()?;
-        eprintln!("Commit Result: {:?}", result);
-        Ok(result)
+impl ConversationDatabaseStore {
+    pub fn fetch_conversation(
+        &self,
+        conversation_id: Option<ConversationId>,
+        limit: Option<usize>,
+    ) -> Result<Option<(Conversation, Vec<Message>)>, SqliteError> {
+        let query = format!(
+            "WITH target_conversation AS (
+                SELECT id
+                FROM conversations
+                WHERE is_deleted = FALSE
+                {}
+                ORDER BY updated_at DESC
+                LIMIT 1
+            )
+            SELECT c.*, m.id as message_id, m.role, m.message_type, 
+            m.content, m.has_attachments, m.token_length, m.created_at as \
+             message_created_at
+            FROM target_conversation tc
+            JOIN conversations c ON c.id = tc.id
+            LEFT JOIN exchanges e ON c.id = e.conversation_id
+            LEFT JOIN messages m ON e.id = m.exchange_id
+            ORDER BY e.created_at DESC, m.created_at ASC
+            {}",
+            conversation_id
+                .map_or(String::new(), |id| format!("AND id = {}", id.0)),
+            limit.map_or(String::new(), |l| format!("LIMIT {}", l))
+        );
+
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(&query)?;
+            let rows = stmt.query_map([], |row| {
+                let conversation = Conversation {
+                    id: ConversationId(row.get(0)?),
+                    name: row.get(1)?,
+                    metadata: serde_json::from_str(&row.get::<_, String>(2)?)
+                        .unwrap_or_default(),
+                    parent_conversation_id: row.get(3).map(ConversationId).ok(),
+                    fork_exchange_id: row.get(4).map(ExchangeId).ok(),
+                    schema_version: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                    is_deleted: row.get(10)?,
+                };
+
+                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
+                    Some(Message {
+                        id: MessageId(row.get(11)?),
+                        conversation_id: conversation.id,
+                        exchange_id: ExchangeId(row.get(0)?),
+                        role: row.get(12)?,
+                        message_type: row.get(13)?,
+                        content: row.get(14)?,
+                        has_attachments: row.get(15)?,
+                        token_length: row.get(16)?,
+                        created_at: row.get(17)?,
+                        is_deleted: false,
+                    })
+                } else {
+                    None
+                };
+
+                Ok((conversation, message))
+            })?;
+
+            let mut conversation = None;
+            let mut messages = Vec::new();
+
+            for row in rows {
+                let (conv, message) = row?;
+                if conversation.is_none() {
+                    conversation = Some(conv);
+                }
+                if let Some(msg) = message {
+                    messages.push(msg);
+                }
+            }
+
+            Ok(conversation.map(|c| (c, messages)))
+        })
+    }
+    pub fn fetch_conversation_list(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<Conversation>, SqliteError> {
+        let query = format!(
+            "SELECT id, name, updated_at
+             FROM conversations
+             WHERE is_deleted = FALSE
+             ORDER BY updated_at DESC
+             LIMIT {}",
+            limit
+        );
+
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(&query)?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Conversation {
+                    id: ConversationId(row.get(0)?),
+                    name: row.get(1)?,
+                    updated_at: row.get(2)?,
+                    // Set other fields to default values or None
+                    metadata: serde_json::Value::Null,
+                    parent_conversation_id: None,
+                    fork_exchange_id: None,
+                    schema_version: 1,
+                    created_at: 0,
+                    is_deleted: false,
+                })
+            })?;
+
+            rows.collect()
+        })
     }
 }

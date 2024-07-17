@@ -12,7 +12,6 @@ use super::{
     Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerSpecTrait,
     ServerTrait,
 };
-use crate::external as lumni;
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
 pub const DEFAULT_SHOW_ENDPOINT: &str = "http://localhost:11434/api/show";

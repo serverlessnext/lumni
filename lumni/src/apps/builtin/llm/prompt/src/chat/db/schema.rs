@@ -11,9 +11,6 @@ pub struct ModelId(pub i64);
 pub struct ConversationId(pub i64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ExchangeId(pub i64);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MessageId(pub i64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -33,7 +30,7 @@ pub struct Conversation {
     pub metadata: serde_json::Value,
     pub model_id: ModelId,
     pub parent_conversation_id: Option<ConversationId>,
-    pub fork_exchange_id: Option<ExchangeId>,
+    pub fork_message_id: Option<MessageId>, // New field
     pub completion_options: Option<serde_json::Value>,
     pub schema_version: i64,
     pub created_at: i64,
@@ -42,24 +39,15 @@ pub struct Conversation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Exchange {
-    pub id: ExchangeId,
-    pub conversation_id: ConversationId,
-    pub created_at: i64,
-    pub previous_exchange_id: Option<ExchangeId>,
-    pub is_deleted: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub id: MessageId,
     pub conversation_id: ConversationId,
-    pub exchange_id: ExchangeId,
     pub role: PromptRole,
     pub message_type: String,
     pub content: String,
     pub has_attachments: bool,
     pub token_length: Option<i64>,
+    pub previous_message_id: Option<MessageId>,
     pub created_at: i64,
     pub is_deleted: bool,
 }
@@ -75,7 +63,6 @@ pub struct Attachment {
     pub attachment_id: AttachmentId,
     pub message_id: MessageId,
     pub conversation_id: ConversationId,
-    pub exchange_id: ExchangeId,
     pub data: AttachmentData, // file_uri or file_data
     pub file_type: String,
     pub metadata: Option<serde_json::Value>,
@@ -87,10 +74,8 @@ pub struct Attachment {
 pub struct ConversationCache {
     conversation_id: ConversationId,
     models: HashMap<ModelId, Model>,
-    exchanges: Vec<Exchange>,
-    messages: HashMap<MessageId, Message>,
+    messages: Vec<Message>, // messages have to be ordered
     attachments: HashMap<AttachmentId, Attachment>,
-    exchange_messages: HashMap<ExchangeId, Vec<MessageId>>,
     message_attachments: HashMap<MessageId, Vec<AttachmentId>>,
 }
 
@@ -99,10 +84,8 @@ impl ConversationCache {
         ConversationCache {
             conversation_id: ConversationId(0),
             models: HashMap::new(),
-            exchanges: Vec::new(),
-            messages: HashMap::new(),
+            messages: Vec::new(),
             attachments: HashMap::new(),
-            exchange_messages: HashMap::new(),
             message_attachments: HashMap::new(),
         }
     }
@@ -113,10 +96,6 @@ impl ConversationCache {
 
     pub fn set_conversation_id(&mut self, conversation_id: ConversationId) {
         self.conversation_id = conversation_id;
-    }
-
-    pub fn new_exchange_id(&self) -> ExchangeId {
-        ExchangeId(self.exchanges.len() as i64)
     }
 
     pub fn new_message_id(&self) -> MessageId {
@@ -131,20 +110,24 @@ impl ConversationCache {
         self.models.insert(model.model_id, model);
     }
 
-    pub fn add_exchange(&mut self, exchange: Exchange) {
-        self.exchanges.push(exchange);
-    }
-
-    pub fn get_exchanges(&self) -> Vec<&Exchange> {
-        self.exchanges.iter().collect()
-    }
-
     pub fn add_message(&mut self, message: Message) {
-        self.exchange_messages
-            .entry(message.exchange_id)
-            .or_default()
-            .push(message.id);
-        self.messages.insert(message.id, message);
+        self.messages.push(message);
+    }
+
+    pub fn get_last_message(&self) -> Option<&Message> {
+        self.messages.last()
+    }
+
+    pub fn get_last_message_id(&self) -> Option<MessageId> {
+        self.get_last_message().map(|m| m.id)
+    }
+
+    pub fn get_message_by_id(&self, message_id: MessageId) -> Option<&Message> {
+        self.messages.iter().find(|m| m.id == message_id)
+    }
+
+    pub fn get_conversation_messages(&self) -> Vec<&Message> {
+        self.messages.iter().collect()
     }
 
     pub fn update_message_by_id(
@@ -153,7 +136,9 @@ impl ConversationCache {
         new_content: &str,
         new_token_length: Option<i64>,
     ) {
-        if let Some(message) = self.messages.get_mut(&message_id) {
+        if let Some(message) =
+            self.messages.iter_mut().find(|m| m.id == message_id)
+        {
             message.content = new_content.to_string();
             message.token_length = new_token_length;
         }
@@ -161,10 +146,12 @@ impl ConversationCache {
 
     pub fn update_message_token_length(
         &mut self,
-        message_id: MessageId,
+        message_id: &MessageId,
         new_token_length: i64,
     ) {
-        if let Some(message) = self.messages.get_mut(&message_id) {
+        if let Some(message) =
+            self.messages.iter_mut().find(|m| m.id == *message_id)
+        {
             message.token_length = Some(new_token_length);
         }
     }
@@ -176,35 +163,6 @@ impl ConversationCache {
             .push(attachment.attachment_id);
         self.attachments
             .insert(attachment.attachment_id, attachment);
-    }
-
-    pub fn get_last_exchange(&self) -> Option<&Exchange> {
-        self.exchanges.last()
-    }
-
-    pub fn get_exchange_messages(
-        &self,
-        exchange_id: ExchangeId,
-    ) -> Vec<&Message> {
-        self.exchange_messages
-            .get(&exchange_id)
-            .map(|message_ids| {
-                message_ids
-                    .iter()
-                    .filter_map(|id| self.messages.get(id))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    pub fn get_last_message_of_exchange(
-        &self,
-        exchange_id: ExchangeId,
-    ) -> Option<&Message> {
-        self.exchange_messages
-            .get(&exchange_id)
-            .and_then(|messages| messages.last())
-            .and_then(|last_message_id| self.messages.get(last_message_id))
     }
 
     pub fn get_message_attachments(
@@ -223,12 +181,10 @@ impl ConversationCache {
     }
 
     pub fn get_system_prompt(&self) -> Option<String> {
-        // system prompt is always set in the first exchange
-        self.get_exchanges().first().and_then(|exchange| {
-            self.get_exchange_messages(exchange.id)
-                .iter()
-                .find(|message| message.role == PromptRole::System)
-                .map(|message| message.content.clone())
-        })
+        // system prompt is the first message in the conversation
+        self.messages
+            .first()
+            .filter(|m| m.role == PromptRole::System)
+            .map(|m| m.content.clone())
     }
 }

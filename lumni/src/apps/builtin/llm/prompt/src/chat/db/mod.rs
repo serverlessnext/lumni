@@ -4,7 +4,8 @@ mod schema;
 mod store;
 
 pub use schema::{
-    ConversationCache, ConversationId, Exchange, ExchangeId, Message, ModelId,
+    ConversationCache, ConversationId, Message,
+    MessageId, ModelId,
 };
 pub use store::ConversationDatabaseStore;
 

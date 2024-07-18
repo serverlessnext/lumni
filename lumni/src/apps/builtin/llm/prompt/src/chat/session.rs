@@ -82,7 +82,7 @@ impl ChatSession {
         let last_answer = self.prompt_instruction.get_last_response();
         if let Some(last_answer) = last_answer {
             let trimmed_answer = last_answer.trim();
-            self.prompt_instruction.put_last_response(
+            _ = self.prompt_instruction.put_last_response(
                 trimmed_answer,
                 tokens_predicted,
                 db,
@@ -100,7 +100,7 @@ impl ChatSession {
         let user_question = self.initiate_new_exchange(question).await?;
         let messages = self
             .prompt_instruction
-            .new_exchange(&user_question, max_token_length);
+            .new_question(&user_question, max_token_length);
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel

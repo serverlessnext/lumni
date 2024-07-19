@@ -66,7 +66,7 @@ impl TabUi<'_> {
         } else {
             self.prompt.set_status_normal();
         }
-        return WindowEvent::PromptWindow;
+        return WindowEvent::PromptWindow(None);
     }
 
     pub fn clear_modal(&mut self) {

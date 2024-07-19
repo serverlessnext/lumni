@@ -77,7 +77,7 @@ impl ModalWindowTrait for ModalConfigWindow {
                     let server = ModelServer::from_str(selected_server)?;
                     return tab_chat.change_server(Box::new(server), reader).await;
                 }
-                return Ok(Some(WindowEvent::PromptWindow));
+                return Ok(Some(WindowEvent::PromptWindow(None)));
             }
             KeyCode::Left => {
                 let server =

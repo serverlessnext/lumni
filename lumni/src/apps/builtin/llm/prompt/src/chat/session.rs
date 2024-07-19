@@ -7,10 +7,9 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use super::db::ConversationId;
 use super::{
     CompletionResponse, ConversationDatabaseStore, ConversationReader,
-    LLMDefinition, PromptInstruction, ServerManager,
+    LLMDefinition, PromptInstruction, ServerManager, WindowEvent, ConversationEvent,
 };
 use crate::api::error::ApplicationError;
-use crate::apps::builtin::llm::prompt::src::tui::WindowEvent;
 
 pub struct ChatSession {
     server: Box<dyn ServerManager>,
@@ -56,7 +55,10 @@ impl ChatSession {
         // add new events to handle server / conversation change
         // if conversation_id changes, return new conversation_id as
         // well to create a new ConversationReader
-        Ok(Some(WindowEvent::PromptWindow))
+        let new_conversation_id = self.get_conversation_id();
+        Ok(Some(WindowEvent::PromptWindow(Some(ConversationEvent::New(
+            new_conversation_id,
+        )))))
     }
 
     pub fn stop(&mut self) {

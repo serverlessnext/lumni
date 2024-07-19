@@ -48,7 +48,7 @@ pub fn handle_command_line_event(
                     _ => {} // command not recognized
                 }
             }
-            Some(WindowEvent::PromptWindow)
+            Some(WindowEvent::PromptWindow(None))
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window

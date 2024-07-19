@@ -13,15 +13,15 @@ use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;
-use super::{ChatSession, ConversationReader};
+use super::{ChatSession, ConversationReader, ConversationId};
 pub use crate::external as lumni;
 
 #[derive(Debug)]
 pub enum WindowEvent {
     Quit,
-    PromptWindow,
+    PromptWindow(Option<ConversationEvent>),
     ResponseWindow,
-    CommandLine(CommandLineAction),
+    CommandLine(Option<CommandLineAction>),
     Prompt(PromptAction),
     Modal(ModalWindowType),
 }
@@ -35,6 +35,10 @@ pub enum PromptAction {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandLineAction {
-    None,
     Write(String),
+}
+
+#[derive(Debug)]
+pub enum ConversationEvent {
+    New(ConversationId),
 }

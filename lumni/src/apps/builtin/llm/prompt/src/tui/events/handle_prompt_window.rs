@@ -79,7 +79,7 @@ pub fn handle_prompt_window_event(
                     }
                     _ => {}
                 }
-                return Some(WindowEvent::PromptWindow);
+                return Some(WindowEvent::PromptWindow(None));
             } else if !tab_ui.prompt.is_status_insert() {
                 // process regular key
                 match key {

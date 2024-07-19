@@ -187,7 +187,7 @@ impl KeyEventHandler {
                 &mut self.key_track,
                 is_running,
             )),
-            WindowEvent::PromptWindow => Ok(handle_prompt_window_event(
+            WindowEvent::PromptWindow(_) => Ok(handle_prompt_window_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
@@ -198,7 +198,7 @@ impl KeyEventHandler {
                     || self.key_track.current_key().code == KeyCode::Char('q')
                 {
                     tab_ui.clear_modal();
-                    Ok(Some(WindowEvent::PromptWindow))
+                    Ok(Some(WindowEvent::PromptWindow(None)))
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
                         let new_window_event = match modal
@@ -219,7 +219,7 @@ impl KeyEventHandler {
                                 WindowEvent::Modal(next_window_type)
                             }
                             Ok(Some(new_window_event)) => new_window_event,
-                            Ok(None) => WindowEvent::PromptWindow, // default
+                            Ok(None) => WindowEvent::PromptWindow(None), // default
                             Err(modal_error) => {
                                 match modal_error {
                                     ApplicationError::NotReady(message) => {

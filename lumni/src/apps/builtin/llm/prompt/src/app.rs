@@ -44,7 +44,6 @@ async fn prompt_app<B: Backend>(
     mut app_session: AppSession<'_>,
     db_conn: ConversationDatabaseStore,
 ) -> Result<(), ApplicationError> {
-    //let defalt_color_scheme = app_session.get_default_color_scheme();
     let tab = app_session.get_tab_mut(0).expect("No tab found");
     let color_scheme = tab.color_scheme;
 
@@ -120,16 +119,25 @@ async fn prompt_app<B: Backend>(
                                         tab.ui.response.set_status_background();
                                     }
                                     match action {
-                                        CommandLineAction::Write(prefix) => {
+                                        Some(CommandLineAction::Write(prefix)) => {
                                             tab.ui.command_line.set_status_insert();
                                             tab.ui.command_line.text_set(prefix, None);
                                         }
-                                        CommandLineAction::None => {}
+                                        None => {}
                                     }
                                 }
                                 Some(WindowEvent::Modal(modal_window_type)) => {
                                     if tab.ui.needs_modal_update(modal_window_type) {
                                         tab.ui.set_new_modal(modal_window_type);
+                                    }
+                                }
+                                Some(WindowEvent::PromptWindow(ref event)) => {
+                                    match event {
+                                        None => {},
+                                        Some(converation_event) => {
+                                            // TODO: if conversation_id changes, update reader
+                                            eprintln!("Conversation event: {:?}", converation_event);
+                                        }
                                     }
                                 }
                                 _ => {}

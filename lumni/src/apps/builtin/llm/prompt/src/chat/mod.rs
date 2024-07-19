@@ -6,7 +6,7 @@ mod prompt;
 mod send;
 mod session;
 
-pub use db::{ConversationDatabaseStore, ConversationReader};
+pub use db::{ConversationDatabaseStore, ConversationReader, ConversationId};
 pub use instruction::PromptInstruction;
 pub use options::ChatCompletionOptions;
 use prompt::Prompt;
@@ -16,6 +16,7 @@ pub use session::ChatSession;
 pub use super::defaults::*;
 pub use super::model::PromptRole;
 pub use super::server::{CompletionResponse, LLMDefinition, ServerManager};
+pub use super::tui::{WindowEvent, ConversationEvent};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

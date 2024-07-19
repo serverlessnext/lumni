@@ -6,9 +6,9 @@ mod prompt;
 mod send;
 mod session;
 
-pub use db::ConversationDatabaseStore;
+pub use db::{ConversationDatabaseStore, ConversationReader};
 pub use instruction::PromptInstruction;
-pub use options::{ChatCompletionOptions, PromptOptions};
+pub use options::ChatCompletionOptions;
 use prompt::Prompt;
 pub use send::{http_get_with_response, http_post, http_post_with_response};
 pub use session::ChatSession;

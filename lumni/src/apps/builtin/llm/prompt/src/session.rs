@@ -10,14 +10,14 @@ pub use crate::external as lumni;
 
 pub struct AppSession<'a> {
     tabs: Vec<TabSession<'a>>,
-    defaults: AppDefaults,
+    _defaults: AppDefaults,
 }
 
 impl<'a> AppSession<'a> {
     pub fn new() -> Result<Self, ApplicationError> {
         Ok(AppSession {
             tabs: Vec::new(),
-            defaults: AppDefaults::new(),
+            _defaults: AppDefaults::new(),
         })
     }
 
@@ -29,8 +29,8 @@ impl<'a> AppSession<'a> {
         self.tabs.get_mut(index)
     }
 
-    pub fn get_defaults(&self) -> &AppDefaults {
-        &self.defaults
+    pub fn _get_defaults(&self) -> &AppDefaults {
+        &self._defaults
     }
 }
 
@@ -53,17 +53,17 @@ impl AppDefaults {
 pub struct TabSession<'a> {
     pub ui: TabUi<'a>,
     pub chat: ChatSession,
-    pub color_scheme: Option<ColorScheme>,
+    pub color_scheme: ColorScheme,
 }
 
 impl TabSession<'_> {
-    pub fn new(chat: ChatSession) -> Self {
+    fn new(chat: ChatSession) -> Self {
         let mut tab_ui = TabUi::new();
         tab_ui.init();
         TabSession {
             ui: tab_ui,
             chat,
-            color_scheme: Some(ColorScheme::new(ColorSchemeType::Default)),
+            color_scheme: ColorScheme::new(ColorSchemeType::Default),
         }
     }
 

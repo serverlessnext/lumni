@@ -151,3 +151,9 @@ impl From<SqliteError> for ApplicationError {
         ))
     }
 }
+
+impl From<serde_json::Error> for ApplicationError {
+    fn from(error: serde_json::Error) -> Self {
+        ApplicationError::InvalidInput(format!("Invalid JSON: {}", error))
+    }
+}

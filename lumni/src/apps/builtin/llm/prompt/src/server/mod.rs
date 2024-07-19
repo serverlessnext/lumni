@@ -25,8 +25,8 @@ pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
-    http_get_with_response, http_post, http_post_with_response,
-    ChatCompletionOptions, ChatMessage, PromptInstruction,
+    http_get_with_response, http_post, http_post_with_response, ChatMessage,
+    ConversationReader, PromptInstruction,
 };
 pub use super::defaults::*;
 pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
@@ -87,26 +87,20 @@ impl ServerTrait for ModelServer {
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
-        prompt_instruction: &PromptInstruction,
+        reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
-                llama.initialize_with_model(model, prompt_instruction).await
+                llama.initialize_with_model(model, reader).await
             }
             ModelServer::Ollama(ollama) => {
-                ollama
-                    .initialize_with_model(model, prompt_instruction)
-                    .await
+                ollama.initialize_with_model(model, reader).await
             }
             ModelServer::Bedrock(bedrock) => {
-                bedrock
-                    .initialize_with_model(model, prompt_instruction)
-                    .await
+                bedrock.initialize_with_model(model, reader).await
             }
             ModelServer::OpenAI(openai) => {
-                openai
-                    .initialize_with_model(model, prompt_instruction)
-                    .await
+                openai.initialize_with_model(model, reader).await
             }
         }
     }
@@ -146,30 +140,21 @@ impl ServerTrait for ModelServer {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
-        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
-                llama
-                    .completion(messages, prompt_instruction, tx, cancel_rx)
-                    .await
+                llama.completion(messages, tx, cancel_rx).await
             }
             ModelServer::Ollama(ollama) => {
-                ollama
-                    .completion(messages, prompt_instruction, tx, cancel_rx)
-                    .await
+                ollama.completion(messages, tx, cancel_rx).await
             }
             ModelServer::Bedrock(bedrock) => {
-                bedrock
-                    .completion(messages, prompt_instruction, tx, cancel_rx)
-                    .await
+                bedrock.completion(messages, tx, cancel_rx).await
             }
             ModelServer::OpenAI(openai) => {
-                openai
-                    .completion(messages, prompt_instruction, tx, cancel_rx)
-                    .await
+                openai.completion(messages, tx, cancel_rx).await
             }
         }
     }
@@ -202,13 +187,12 @@ pub trait ServerTrait: Send + Sync {
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
-        prompt_instruction: &PromptInstruction,
+        reader: &ConversationReader,
     ) -> Result<(), ApplicationError>;
 
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
-        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError>;
@@ -269,13 +253,13 @@ pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
         model: LLMDefinition,
-        prompt_instruction: &mut PromptInstruction,
+        reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         log::debug!("Initializing server with model: {:?}", model);
         // update completion options from the model, i.e. stop tokens
         // TODO: prompt_intruction should be re-initialized with the model
         //prompt_instruction.set_model(&model);
-        self.initialize_with_model(model, prompt_instruction).await
+        self.initialize_with_model(model, reader).await
     }
 
     fn server_name(&self) -> &str {

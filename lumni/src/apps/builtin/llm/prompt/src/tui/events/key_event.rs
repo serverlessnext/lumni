@@ -6,7 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
-use super::{ApplicationError, ChatSession, TabUi, WindowEvent};
+use super::{
+    ApplicationError, ChatSession, ConversationReader, TabUi, WindowEvent,
+};
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -161,6 +163,7 @@ impl KeyEventHandler {
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
+        reader: &ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self
@@ -199,7 +202,11 @@ impl KeyEventHandler {
                 } else {
                     if let Some(modal) = tab_ui.modal.as_mut() {
                         let new_window_event = match modal
-                            .handle_key_event(&mut self.key_track, tab_chat)
+                            .handle_key_event(
+                                &mut self.key_track,
+                                tab_chat,
+                                reader,
+                            )
                             .await
                         {
                             Ok(Some(WindowEvent::Modal(next_window_type))) => {

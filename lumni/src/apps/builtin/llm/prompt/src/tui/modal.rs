@@ -8,7 +8,8 @@ use super::components::Scroller;
 use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
 use super::{
-    ApplicationError, ChatSession, ModelServer, ServerTrait, WindowEvent,
+    ApplicationError, ChatSession, ConversationReader, ModelServer,
+    ServerTrait, WindowEvent,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -24,6 +25,7 @@ pub trait ModalWindowTrait {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
+        reader: &ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError>;
 }
 
@@ -64,6 +66,7 @@ impl ModalWindowTrait for ModalConfigWindow {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
+        reader: &ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
@@ -72,7 +75,7 @@ impl ModalWindowTrait for ModalConfigWindow {
                 let selected_server = self.widget.current_endpoint();
                 if selected_server != tab_chat.server_name() {
                     let server = ModelServer::from_str(selected_server)?;
-                    tab_chat.select_server(Box::new(server)).await?;
+                    return tab_chat.change_server(Box::new(server), reader).await;
                 }
                 return Ok(Some(WindowEvent::PromptWindow));
             }

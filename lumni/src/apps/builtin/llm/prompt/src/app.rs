@@ -25,7 +25,9 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
 use super::chat::{ChatSession, ConversationDatabaseStore};
-use super::server::{ModelServer, PromptInstruction, ServerTrait};
+use super::server::{
+    ModelServer, PromptInstruction, ServerManager, ServerTrait,
+};
 use super::session::{AppSession, TabSession};
 use super::tui::{
     ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
@@ -42,14 +44,9 @@ async fn prompt_app<B: Backend>(
     mut app_session: AppSession<'_>,
     db_conn: ConversationDatabaseStore,
 ) -> Result<(), ApplicationError> {
-    let defaults = app_session.get_defaults().clone();
-
-    //let default_color_scheme = app_session.get_default_color_scheme();
+    //let defalt_color_scheme = app_session.get_default_color_scheme();
     let tab = app_session.get_tab_mut(0).expect("No tab found");
-
-    let color_scheme = tab
-        .color_scheme
-        .unwrap_or_else(|| defaults.get_color_scheme());
+    let color_scheme = tab.color_scheme;
 
     // add types
     let (tx, mut rx): (mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>) =
@@ -59,6 +56,10 @@ async fn prompt_app<B: Backend>(
     let mut current_mode = Some(WindowEvent::ResponseWindow);
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
+
+    // TODO: reader should be updated when conversation_id changes
+    let conversation_id = tab.chat.get_conversation_id();
+    let mut reader = db_conn.get_conversation_reader(conversation_id);
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
@@ -83,6 +84,7 @@ async fn prompt_app<B: Backend>(
                                     &mut tab.chat,
                                     mode,
                                     keep_running.clone(),
+                                    &reader,
                                 ).await?
                             } else {
                                 None
@@ -363,15 +365,21 @@ pub async fn run_cli(
         .unwrap_or_else(|| "ollama".to_lowercase());
 
     // create new (un-initialized) server from requested server name
-    let server = ModelServer::from_str(&server_name)?;
+    let mut server = ModelServer::from_str(&server_name)?;
     let default_model = server.get_default_model().await;
 
     // setup prompt, server and chat session
     let prompt_instruction =
         PromptInstruction::new(instruction, assistant, options, &db_conn)?;
+    let conversation_id = prompt_instruction.get_conversation_id();
+
+    if let Some(model) = default_model {
+        let reader = db_conn.get_conversation_reader(conversation_id);
+        server.setup_and_initialize(model, &reader).await?;
+    }
+
     let chat_session =
-        ChatSession::new(Box::new(server), prompt_instruction, default_model)
-            .await?;
+        ChatSession::new(Box::new(server), prompt_instruction).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

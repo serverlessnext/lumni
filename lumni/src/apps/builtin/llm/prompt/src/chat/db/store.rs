@@ -4,9 +4,10 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
+use super::reader::ConversationReader;
 use super::schema::{
-    Attachment, AttachmentData, Conversation,
-    ConversationId, Message, MessageId, ModelId,
+    Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
+    Message, MessageId, ModelId,
 };
 
 pub struct ConversationDatabaseStore {
@@ -18,6 +19,13 @@ impl ConversationDatabaseStore {
         Ok(Self {
             db: Arc::new(Mutex::new(DatabaseConnector::new(sqlite_file)?)),
         })
+    }
+
+    pub fn get_conversation_reader(
+        &self,
+        conversation_id: ConversationId,
+    ) -> ConversationReader {
+        ConversationReader::new(conversation_id, &self.db)
     }
 
     pub fn new_conversation(
@@ -211,19 +219,6 @@ impl ConversationDatabaseStore {
             Ok(new_message_ids)
         })
     }
-    pub fn get_conversation_stats(
-        &self,
-        conversation_id: ConversationId,
-    ) -> Result<(i64, i64), SqliteError> {
-        let query = "SELECT message_count, total_tokens FROM conversations \
-                     WHERE id = ?";
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            tx.query_row(query, params![conversation_id.0], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
-        })
-    }
 }
 
 impl ConversationDatabaseStore {
@@ -354,6 +349,37 @@ impl ConversationDatabaseStore {
                 })
             })?;
 
+            rows.collect()
+        })
+    }
+
+    pub fn fetch_message_attachments(
+        &self,
+        message_id: MessageId,
+    ) -> Result<Vec<Attachment>, SqliteError> {
+        let query = "SELECT * FROM attachments WHERE message_id = ? AND \
+                     is_deleted = FALSE";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(query)?;
+            let rows = stmt.query_map(params![message_id.0], |row| {
+                Ok(Attachment {
+                    attachment_id: AttachmentId(row.get(0)?),
+                    message_id: MessageId(row.get(1)?),
+                    conversation_id: ConversationId(row.get(2)?),
+                    data: if let Some(uri) = row.get::<_, Option<String>>(3)? {
+                        AttachmentData::Uri(uri)
+                    } else {
+                        AttachmentData::Data(row.get(4)?)
+                    },
+                    file_type: row.get(5)?,
+                    metadata: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    created_at: row.get(7)?,
+                    is_deleted: row.get(8)?,
+                })
+            })?;
             rows.collect()
         })
     }

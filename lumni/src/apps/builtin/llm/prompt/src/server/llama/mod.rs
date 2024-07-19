@@ -8,10 +8,9 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_get_with_response, http_post, ChatCompletionOptions, ChatMessage,
-    CompletionResponse, CompletionStats, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, PromptRole, ServerSpecTrait, ServerTrait,
-    DEFAULT_CONTEXT_SIZE,
+    http_get_with_response, http_post, ChatMessage, CompletionResponse,
+    CompletionStats, ConversationReader, Endpoints, HttpClient, LLMDefinition,
+    PromptRole, ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 
@@ -26,6 +25,7 @@ pub struct Llama {
     http_client: HttpClient,
     endpoints: Endpoints,
     model: Option<LLMDefinition>,
+    completion_options: Option<serde_json::Value>,
 }
 
 impl Llama {
@@ -41,17 +41,23 @@ impl Llama {
             http_client: HttpClient::new(),
             endpoints,
             model: None,
+            completion_options: None,
         })
     }
 
-    fn system_prompt_payload(
-        &self,
-        prompt_instruction: &PromptInstruction,
-    ) -> Option<String> {
-        let instruction = prompt_instruction
-            .get_instruction()
-            .unwrap_or("".to_string());
+    fn set_completion_options(
+        &mut self,
+        reader: &ConversationReader,
+    ) -> Result<(), ApplicationError> {
+        let options = reader
+            .get_completion_options()
+            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+        // TODO: should map generic options to Llama-specific options
+        self.completion_options = Some(options);
+        Ok(())
+    }
 
+    fn system_prompt_payload(&self, instruction: String) -> Option<String> {
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),
             format!("### {}", PromptRole::User.to_string()),
@@ -60,7 +66,7 @@ impl Llama {
         let payload = LlamaServerPayload {
             prompt: "",
             system_prompt: Some(&system_prompt),
-            options: &prompt_instruction.get_completion_options(),
+            options: self.completion_options.clone().unwrap_or_default(),
         };
         payload.serialize()
     }
@@ -68,12 +74,11 @@ impl Llama {
     fn completion_api_payload(
         &self,
         prompt: String,
-        prompt_instruction: &PromptInstruction,
     ) -> Result<String, serde_json::Error> {
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,
-            options: prompt_instruction.get_completion_options(),
+            options: self.completion_options.clone().unwrap_or_default(),
         };
         serde_json::to_string(&payload)
     }
@@ -130,7 +135,6 @@ impl ServerTrait for Llama {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
-        prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
@@ -142,8 +146,7 @@ impl ServerTrait for Llama {
             .collect::<Vec<String>>()
             .join("\n");
 
-        let data_payload =
-            self.completion_api_payload(prompt, prompt_instruction);
+        let data_payload = self.completion_api_payload(prompt);
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
@@ -174,13 +177,13 @@ impl ServerTrait for Llama {
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
-        prompt_instruction: &PromptInstruction,
+        reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         self.model = Some(model);
-
         // Send the system prompt to the completion endpoint at initialization
-        let system_prompt_payload =
-            self.system_prompt_payload(prompt_instruction);
+        self.set_completion_options(reader)?;
+        let system_prompt = reader.get_system_prompt()?.unwrap_or_default();
+        let system_prompt_payload = self.system_prompt_payload(system_prompt);
         if let Some(payload) = system_prompt_payload {
             let completion_endpoint =
                 self.endpoints.get_completion_endpoint()?;
@@ -217,7 +220,7 @@ struct LlamaServerPayload<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     system_prompt: Option<&'a LlamaServerSystemPrompt>,
     #[serde(flatten)]
-    options: &'a ChatCompletionOptions,
+    options: serde_json::Value,
 }
 
 impl LlamaServerPayload<'_> {

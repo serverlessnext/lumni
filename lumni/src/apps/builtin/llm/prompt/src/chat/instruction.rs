@@ -1,37 +1,16 @@
-
 use lumni::api::error::ApplicationError;
 
 use super::db::{
     ConversationCache, ConversationDatabaseStore, ConversationId,
-    Message, MessageId,
+    ConversationReader, Message, MessageId,
 };
 use super::prompt::Prompt;
-use super::{
-    ChatCompletionOptions, ChatMessage, PromptRole, DEFAULT_N_PREDICT,
-    DEFAULT_TEMPERATURE, PERSONAS,
-};
+use super::{ChatCompletionOptions, ChatMessage, PromptRole, PERSONAS};
 pub use crate::external as lumni;
 
 pub struct PromptInstruction {
     cache: ConversationCache,
-    completion_options: ChatCompletionOptions,
     prompt_template: Option<String>,
-}
-
-impl Default for PromptInstruction {
-    fn default() -> Self {
-        let completion_options = ChatCompletionOptions::default()
-            .set_temperature(DEFAULT_TEMPERATURE)
-            .set_n_predict(DEFAULT_N_PREDICT)
-            .set_cache_prompt(true)
-            .set_stream(true);
-
-        PromptInstruction {
-            cache: ConversationCache::new(),
-            completion_options,
-            prompt_template: None,
-        }
-    }
 }
 
 impl PromptInstruction {
@@ -41,30 +20,35 @@ impl PromptInstruction {
         options: Option<&String>,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        let mut prompt_instruction = PromptInstruction::default();
-        if let Some(json_str) = options {
-            prompt_instruction
-                .completion_options
-                .update_from_json(json_str);
-        }
-
         // If both instruction and assistant are None, use the default assistant
         let assistant = if instruction.is_none() && assistant.is_none() {
             Some("Default".to_string())
         } else {
             assistant
         };
-
+        let completion_options = match options {
+            Some(opts) => {
+                let mut options = ChatCompletionOptions::default();
+                options.update_from_json(opts)?;
+                serde_json::to_value(options)?
+            }
+            None => serde_json::to_value(ChatCompletionOptions::default())?,
+        };
         // Create a new Conversation in the database
         let conversation_id = {
             db_conn.new_conversation(
                 "New Conversation",
-                None,
-                None, // No fork_message_id for a new conversation
-                serde_json::to_value(&prompt_instruction.completion_options)
-                    .ok(),
+                None, // parent_id, None for new conversation
+                None, // fork_message_id, None for new conversation
+                Some(completion_options),
             )?
         };
+
+        let mut prompt_instruction = PromptInstruction {
+            cache: ConversationCache::new(),
+            prompt_template: None,
+        };
+
         prompt_instruction
             .cache
             .set_conversation_id(conversation_id);
@@ -80,6 +64,10 @@ impl PromptInstruction {
         }
 
         Ok(prompt_instruction)
+    }
+
+    pub fn get_conversation_id(&self) -> ConversationId {
+        self.cache.get_conversation_id()
     }
 
     fn add_system_message(
@@ -130,6 +118,11 @@ impl PromptInstruction {
 
         // Add messages to the cache
         for message in messages {
+            // Fetch and add attachments for each message
+            let attachments = db_conn.fetch_message_attachments(message.id)?;
+            for attachment in attachments {
+                self.cache.add_attachment(attachment);
+            }
             self.cache.add_message(message);
         }
 
@@ -333,16 +326,9 @@ impl PromptInstruction {
         messages.reverse();
         messages
     }
-    pub fn get_completion_options(&self) -> &ChatCompletionOptions {
-        &self.completion_options
-    }
 
     pub fn get_prompt_template(&self) -> Option<&str> {
         self.prompt_template.as_deref()
-    }
-
-    pub fn get_instruction(&self) -> Option<String> {
-        self.cache.get_system_prompt()
     }
 
     pub fn preload_from_assistant(
@@ -380,8 +366,7 @@ impl PromptInstruction {
             let current_timestamp = 0;
 
             for loaded_exchange in exchanges.iter() {
-                let previous_message_id =
-                    self.cache.get_last_message_id();
+                let previous_message_id = self.cache.get_last_message_id();
 
                 let user_message = Message {
                     id: self.cache.new_message_id(),

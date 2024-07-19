@@ -19,8 +19,8 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatMessage, CompletionResponse, CompletionStats, Endpoints,
-    LLMDefinition, PromptInstruction, ServerSpecTrait, ServerTrait,
+    http_post, ChatMessage, CompletionResponse, CompletionStats,
+    ConversationReader, Endpoints, LLMDefinition, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -96,7 +96,7 @@ impl ServerTrait for OpenAI {
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
-        _prompt_instruction: &PromptInstruction,
+        _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         self.model = Some(model);
         Ok(())
@@ -118,7 +118,6 @@ impl ServerTrait for OpenAI {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
-        _prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {

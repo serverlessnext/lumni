@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{LLMDefinition, PromptRole};
+use super::{LLMDefinition, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
@@ -25,37 +25,33 @@ pub struct ChatCompletionOptions {
 impl Default for ChatCompletionOptions {
     fn default() -> Self {
         ChatCompletionOptions {
-            temperature: None,
+            temperature: Some(DEFAULT_TEMPERATURE),
             top_k: None,
             top_p: None,
             n_keep: None,
-            n_predict: None,
-            cache_prompt: None,
+            n_predict: Some(DEFAULT_N_PREDICT),
+            cache_prompt: Some(true),
             stop: None,
-            stream: None,
+            stream: Some(true),
         }
     }
 }
 
 impl ChatCompletionOptions {
-    pub fn update_from_json(&mut self, json: &str) {
-        if let Ok(user_options) =
-            serde_json::from_str::<ChatCompletionOptions>(json)
-        {
-            self.temperature = user_options.temperature.or(self.temperature);
-            self.top_k = user_options.top_k.or(self.top_k);
-            self.top_p = user_options.top_p.or(self.top_p);
-            self.n_keep = user_options.n_keep.or(self.n_keep);
-            self.n_predict = user_options.n_predict.or(self.n_predict);
-            self.cache_prompt = user_options.cache_prompt.or(self.cache_prompt);
-            self.stop = user_options.stop.or_else(|| self.stop.clone());
-            self.stream = user_options.stream.or(self.stream);
-        } else {
-            log::warn!(
-                "Failed to parse server chat options from JSON: {}",
-                json
-            );
-        }
+    pub fn update_from_json(
+        &mut self,
+        json: &str,
+    ) -> Result<(), serde_json::Error> {
+        let user_options = serde_json::from_str::<ChatCompletionOptions>(json)?;
+        self.temperature = user_options.temperature.or(self.temperature);
+        self.top_k = user_options.top_k.or(self.top_k);
+        self.top_p = user_options.top_p.or(self.top_p);
+        self.n_keep = user_options.n_keep.or(self.n_keep);
+        self.n_predict = user_options.n_predict.or(self.n_predict);
+        self.cache_prompt = user_options.cache_prompt.or(self.cache_prompt);
+        self.stop = user_options.stop.or_else(|| self.stop.clone());
+        self.stream = user_options.stream.or(self.stream);
+        Ok(())
     }
 
     pub fn update_from_model(&mut self, model: &LLMDefinition) {
@@ -91,57 +87,5 @@ impl ChatCompletionOptions {
     pub fn set_stream(mut self, stream: bool) -> Self {
         self.stream = Some(stream);
         self
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RolePrefix {
-    user: String,
-    assistant: String,
-    system: String,
-}
-
-impl Default for RolePrefix {
-    fn default() -> Self {
-        RolePrefix {
-            user: "### User: ".to_string(),
-            assistant: "### Assistant: ".to_string(),
-            system: "".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PromptOptions {
-    n_ctx: Option<usize>,
-    #[serde(default)]
-    role_prefix: RolePrefix,
-}
-
-impl Default for PromptOptions {
-    fn default() -> Self {
-        PromptOptions {
-            n_ctx: None,
-            role_prefix: RolePrefix::default(),
-        }
-    }
-}
-
-impl PromptOptions {
-    pub fn update_from_json(&mut self, json: &str) {
-        if let Ok(user_options) = serde_json::from_str::<PromptOptions>(json) {
-            self.n_ctx = user_options.n_ctx.or(self.n_ctx);
-            self.role_prefix = user_options.role_prefix;
-        } else {
-            eprintln!("Error: {}", json);
-            log::warn!(
-                "Failed to parse client chat options from JSON: {}",
-                json
-            );
-        }
-    }
-
-    pub fn get_context_size(&self) -> Option<usize> {
-        self.n_ctx
     }
 }

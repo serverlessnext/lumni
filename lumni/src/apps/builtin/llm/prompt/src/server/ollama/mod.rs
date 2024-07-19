@@ -9,8 +9,8 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response,
     ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
-    Endpoints, HttpClient, LLMDefinition, PromptInstruction, ServerSpecTrait,
-    ServerTrait,
+    ConversationReader, Endpoints, HttpClient, LLMDefinition,
+    PromptInstruction, ServerSpecTrait, ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
@@ -74,7 +74,7 @@ impl ServerTrait for Ollama {
     async fn initialize_with_model(
         &mut self,
         model: LLMDefinition,
-        _prompt_instruction: &PromptInstruction,
+        _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         let payload = OllamaShowPayload {
             name: model.get_name(),
@@ -130,7 +130,6 @@ impl ServerTrait for Ollama {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
-        _prompt_instruction: &PromptInstruction,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {

@@ -13,7 +13,7 @@ use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;
-use super::ChatSession;
+use super::{ChatSession, ConversationReader};
 pub use crate::external as lumni;
 
 #[derive(Debug)]

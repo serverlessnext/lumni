@@ -4,11 +4,13 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
+use super::db::ConversationId;
 use super::{
-    CompletionResponse, ConversationDatabaseStore, LLMDefinition,
-    PromptInstruction, ServerManager,
+    CompletionResponse, ConversationDatabaseStore, ConversationReader,
+    LLMDefinition, PromptInstruction, ServerManager,
 };
 use crate::api::error::ApplicationError;
+use crate::apps::builtin::llm::prompt::src::tui::WindowEvent;
 
 pub struct ChatSession {
     server: Box<dyn ServerManager>,
@@ -18,18 +20,9 @@ pub struct ChatSession {
 
 impl ChatSession {
     pub async fn new(
-        mut server: Box<dyn ServerManager>,
-        mut prompt_instruction: PromptInstruction,
-        model: Option<LLMDefinition>,
+        server: Box<dyn ServerManager>,
+        prompt_instruction: PromptInstruction,
     ) -> Result<Self, ApplicationError> {
-        // initialize server directly if a model is available
-        // otherwise, must be done from the terminal window
-        if let Some(model) = model {
-            server
-                .setup_and_initialize(model, &mut prompt_instruction)
-                .await?;
-        }
-
         Ok(ChatSession {
             server,
             prompt_instruction,
@@ -41,21 +34,29 @@ impl ChatSession {
         self.server.server_name()
     }
 
-    pub async fn select_server(
+    pub fn get_conversation_id(&self) -> ConversationId {
+        self.prompt_instruction.get_conversation_id()
+    }
+
+    pub async fn change_server(
         &mut self,
         mut server: Box<dyn ServerManager>,
-    ) -> Result<(), ApplicationError> {
+        reader: &ConversationReader<'_>,
+    ) -> Result<Option<WindowEvent>, ApplicationError> {
         log::debug!("switching server: {}", server.server_name());
         self.stop();
 
+        // TODO: update prompt instruction with new server / conversation
         let model = server.get_default_model().await;
         if let Some(model) = model {
-            server
-                .setup_and_initialize(model, &mut self.prompt_instruction)
-                .await?;
+            server.setup_and_initialize(model, &reader).await?;
         }
         self.server = server;
-        Ok(())
+        // TODO:
+        // add new events to handle server / conversation change
+        // if conversation_id changes, return new conversation_id as
+        // well to create a new ConversationReader
+        Ok(Some(WindowEvent::PromptWindow))
     }
 
     pub fn stop(&mut self) {
@@ -106,12 +107,7 @@ impl ChatSession {
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
         self.server
-            .completion(
-                &messages,
-                &self.prompt_instruction,
-                Some(tx),
-                Some(cancel_rx),
-            )
+            .completion(&messages, Some(tx), Some(cancel_rx))
             .await?;
         Ok(())
     }

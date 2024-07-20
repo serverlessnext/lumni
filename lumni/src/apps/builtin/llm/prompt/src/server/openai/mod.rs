@@ -33,7 +33,6 @@ pub struct OpenAI {
     spec: OpenAISpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<ModelSpec>,
     stream_parser: StreamParser,
 }
 
@@ -49,7 +48,6 @@ impl OpenAI {
             http_client: HttpClient::new()
                 .with_error_handler(Arc::new(OpenAIErrorHandler)),
             endpoints,
-            model: None,
             stream_parser: StreamParser::new(),
         })
     }
@@ -95,15 +93,9 @@ impl ServerTrait for OpenAI {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
         _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        self.model = Some(model);
         Ok(())
-    }
-
-    fn get_model(&self) -> Option<&ModelSpec> {
-        self.model.as_ref()
     }
 
     fn process_response(
@@ -118,10 +110,10 @@ impl ServerTrait for OpenAI {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_selected_model()?;
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let data_payload = self

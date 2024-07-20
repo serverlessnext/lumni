@@ -17,7 +17,7 @@ pub struct ConversationCache {
 impl ConversationCache {
     pub fn new() -> Self {
         ConversationCache {
-            conversation_id: ConversationId(0),
+            conversation_id: ConversationId(-1),
             models: HashMap::new(),
             messages: Vec::new(),
             attachments: HashMap::new(),

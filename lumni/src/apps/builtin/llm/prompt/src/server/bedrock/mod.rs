@@ -30,7 +30,6 @@ pub struct Bedrock {
     spec: BedrockSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<ModelSpec>,
 }
 
 impl Bedrock {
@@ -49,7 +48,6 @@ impl Bedrock {
             http_client: HttpClient::new()
                 .with_error_handler(Arc::new(AWSErrorHandler)),
             endpoints,
-            model: None,
         })
     }
 
@@ -125,15 +123,9 @@ impl ServerTrait for Bedrock {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
         _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        self.model = Some(model);
         Ok(())
-    }
-
-    fn get_model(&self) -> Option<&ModelSpec> {
-        self.model.as_ref()
     }
 
     fn process_response(
@@ -205,11 +197,10 @@ impl ServerTrait for Bedrock {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_selected_model()?;
-
         let resource = HttpClient::percent_encode_with_exclusion(
             &format!("/model/{}.{}/converse-stream", model.get_model_provider(), model.get_model_name()),
             Some(&[b'/', b'.', b'-']),

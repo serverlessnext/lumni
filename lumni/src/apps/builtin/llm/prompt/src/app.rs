@@ -30,8 +30,7 @@ use super::server::{
 };
 use super::session::{AppSession, TabSession};
 use super::tui::{
-    ColorScheme, CommandLineAction, KeyEventHandler, PromptAction, TabUi,
-    TextWindowTrait, WindowEvent, WindowKind,
+    ColorScheme, CommandLineAction, ConversationReader, KeyEventHandler, PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind
 };
 pub use crate::external as lumni;
 
@@ -57,8 +56,11 @@ async fn prompt_app<B: Backend>(
     let mut redraw_ui = true;
 
     // TODO: reader should be updated when conversation_id changes
-    let conversation_id = tab.chat.get_conversation_id();
-    let mut reader = db_conn.get_conversation_reader(conversation_id);
+    let mut reader: Option<ConversationReader> = if let Some(conversation_id) = tab.chat.get_conversation_id() {
+        Some(db_conn.get_conversation_reader(conversation_id))
+    } else {
+        None
+    };
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
@@ -83,7 +85,7 @@ async fn prompt_app<B: Backend>(
                                     &mut tab.chat,
                                     mode,
                                     keep_running.clone(),
-                                    &reader,
+                                    reader.as_ref(),
                                 ).await?
                             } else {
                                 None
@@ -378,12 +380,12 @@ pub async fn run_cli(
 
     // setup prompt, server and chat session
     let prompt_instruction =
-        PromptInstruction::new(instruction, assistant, options, &db_conn)?;
+        PromptInstruction::new(default_model, instruction, assistant, options, &db_conn)?;
     let conversation_id = prompt_instruction.get_conversation_id();
 
-    if let Some(model) = default_model {
+    if let Some(conversation_id) = conversation_id {
         let reader = db_conn.get_conversation_reader(conversation_id);
-        server.setup_and_initialize(model, &reader).await?;
+        server.setup_and_initialize(&reader).await?;
     }
 
     let chat_session =

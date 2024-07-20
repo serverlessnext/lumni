@@ -163,7 +163,7 @@ impl KeyEventHandler {
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-        reader: &ConversationReader<'_>,
+        reader: Option<&ConversationReader<'_>>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self

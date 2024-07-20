@@ -24,7 +24,6 @@ pub struct Ollama {
     spec: OllamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<ModelSpec>,
 }
 
 impl Ollama {
@@ -39,7 +38,6 @@ impl Ollama {
             },
             http_client: HttpClient::new(),
             endpoints,
-            model: None,
         })
     }
 
@@ -73,11 +71,12 @@ impl ServerTrait for Ollama {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
-        _reader: &ConversationReader,
+        reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
+        let identifier = reader.get_model_identifier()?;
+        let model_name = identifier.get_model_name().to_string();
         let payload = OllamaShowPayload {
-            name: model.get_model_name(),
+            name: &model_name,
         }
         .serialize()
         .ok_or_else(|| {
@@ -98,19 +97,14 @@ impl ServerTrait for Ollama {
             if OllamaShowResponse::extract_content(&response).is_err() {
                 let error_message = format!(
                     "Failed to get model information for: {}",
-                    model.get_model_name()
+                    model_name,
                 );
                 return Err(ApplicationError::ServerConfigurationError(
                     error_message,
                 ));
             }
         }
-        self.model = Some(model);
         Ok(())
-    }
-
-    fn get_model(&self) -> Option<&ModelSpec> {
-        self.model.as_ref()
     }
 
     fn process_response(
@@ -130,10 +124,10 @@ impl ServerTrait for Ollama {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_selected_model()?;
         let data_payload = self.completion_api_payload(model, messages);
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
@@ -193,7 +187,6 @@ impl ServerTrait for Ollama {
                 Ok(model_spec)
             })
             .collect();
-        eprintln!("models: {:?}", models);
         models
     }
 }

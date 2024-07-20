@@ -9,7 +9,7 @@ pub mod conversation;
 mod session;
 
 pub use db::{ConversationDatabaseStore, ConversationReader};
-pub use conversation::{ConversationId, ModelSpec};
+pub use conversation::{ConversationId, ModelIdentifier, ModelSpec};
 pub use instruction::PromptInstruction;
 pub use options::ChatCompletionOptions;
 use prompt::Prompt;

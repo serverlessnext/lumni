@@ -33,32 +33,36 @@ impl ChatSession {
         self.server.server_name()
     }
 
-    pub fn get_conversation_id(&self) -> ConversationId {
+    pub fn get_conversation_id(&self) -> Option<ConversationId> {
         self.prompt_instruction.get_conversation_id()
     }
 
     pub async fn change_server(
         &mut self,
         mut server: Box<dyn ServerManager>,
-        reader: &ConversationReader<'_>,
+        reader: Option<&ConversationReader<'_>>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         log::debug!("switching server: {}", server.server_name());
         self.stop();
 
         // TODO: update prompt instruction with new server / conversation
-        let model = server.get_default_model().await;
-        if let Some(model) = model {
-            server.setup_and_initialize(model, &reader).await?;
+        //let model = server.get_default_model().await;
+        if let Some(reader) = reader {
+            //self.prompt_instruction.set_conversation_id(reader.get_conversation_id());
+            server.setup_and_initialize(reader).await?;
         }
         self.server = server;
         // TODO:
         // add new events to handle server / conversation change
         // if conversation_id changes, return new conversation_id as
         // well to create a new ConversationReader
-        let new_conversation_id = self.get_conversation_id();
-        Ok(Some(WindowEvent::PromptWindow(Some(ConversationEvent::New(
-            new_conversation_id,
-        )))))
+        if let Some(new_conversation_id) = self.get_conversation_id() {
+            return Ok(Some(WindowEvent::PromptWindow(Some(ConversationEvent::New(
+                new_conversation_id,
+            )))));
+        } else {
+            return Ok(Some(WindowEvent::PromptWindow(None)));
+        }
     }
 
     pub fn stop(&mut self) {
@@ -99,6 +103,12 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: &str,
     ) -> Result<(), ApplicationError> {
+        let model = if let Some(model) = self.prompt_instruction.get_model().cloned() {
+            model
+        } else {
+            return Err(ApplicationError::NotReady("Model not available".to_string()));
+        };
+
         let max_token_length = self.server.get_max_context_size().await?;
         let user_question = self.initiate_new_exchange(question).await?;
         let messages = self
@@ -109,7 +119,7 @@ impl ChatSession {
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
         self.server
-            .completion(&messages, Some(tx), Some(cancel_rx))
+            .completion(&messages, &model, Some(tx), Some(cancel_rx))
             .await?;
         Ok(())
     }

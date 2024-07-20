@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::conversation::ConversationId;
+use super::conversation::{ConversationId, ModelIdentifier};
 
 pub struct ConversationReader<'a> {
     conversation_id: ConversationId,
@@ -23,6 +23,29 @@ impl<'a> ConversationReader<'a> {
 }
 
 impl<'a> ConversationReader<'a> {
+    pub fn get_model_identifier(&self) -> Result<ModelIdentifier, SqliteError> {
+        let query = "
+            SELECT m.identifier
+            FROM conversations c
+            JOIN models m ON c.model_identifier = m.identifier
+            WHERE c.id = ?
+        ";
+
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, params![self.conversation_id.0], |row| {
+                let identifier: String = row.get(0)?;
+                ModelIdentifier::new(&identifier).map_err(|e| {
+                    SqliteError::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })
+            })
+        })
+    }
+
     pub fn get_completion_options(
         &self,
     ) -> Result<serde_json::Value, SqliteError> {

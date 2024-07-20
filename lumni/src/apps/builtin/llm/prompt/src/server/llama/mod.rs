@@ -28,7 +28,6 @@ pub struct Llama {
     spec: LlamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<ModelSpec>,
     formatter: Option<Box<dyn ModelFormatterTrait>>,
     completion_options: Option<serde_json::Value>,
 }
@@ -45,7 +44,6 @@ impl Llama {
             },
             http_client: HttpClient::new(),
             endpoints,
-            model: None,
             formatter: None,
             completion_options: None,
         })
@@ -141,10 +139,10 @@ impl ServerTrait for Llama {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        _model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-
         let formatter = self.formatter.as_ref().ok_or_else(|| {
             ApplicationError::NotReady("Formatter not initialized".to_string())
         })?;
@@ -155,9 +153,7 @@ impl ServerTrait for Llama {
             .collect::<Vec<String>>()
             .join("\n");
 
-        eprintln!("LamaPrompt: {}", prompt);
         let data_payload = self.completion_api_payload(prompt);
-
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
         if let Ok(payload) = data_payload {
@@ -189,11 +185,10 @@ impl ServerTrait for Llama {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        let model_name = model.get_model_name().to_string();
-        self.model = Some(model);
+        let identifier = reader.get_model_identifier()?;
+        let model_name = identifier.get_model_name().to_string();
         // Send the system prompt to the completion endpoint at initialization
         self.set_completion_options(reader)?;
         let system_prompt = reader.get_system_prompt()?.unwrap_or_default();
@@ -216,10 +211,6 @@ impl ServerTrait for Llama {
             .await;
         }
         Ok(())
-    }
-
-    fn get_model(&self) -> Option<&ModelSpec> {
-        self.model.as_ref()
     }
 
     async fn get_max_context_size(&self) -> Result<usize, ApplicationError> {

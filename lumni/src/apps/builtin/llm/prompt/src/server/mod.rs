@@ -27,8 +27,7 @@ pub use super::chat::{
     ConversationReader, PromptInstruction,
 };
 pub use super::defaults::*;
-pub use super::chat::ModelSpec;
-pub use super::chat::PromptRole;
+pub use super::chat::{ModelIdentifier, ModelSpec, PromptRole};
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] =
@@ -94,22 +93,20 @@ impl ServerTrait for ModelServer {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        eprintln!("initialize_with_model");
         match self {
             ModelServer::Llama(llama) => {
-                llama.initialize_with_model(model, reader).await
+                llama.initialize_with_model(reader).await
             }
             ModelServer::Ollama(ollama) => {
-                ollama.initialize_with_model(model, reader).await
+                ollama.initialize_with_model(reader).await
             }
             ModelServer::Bedrock(bedrock) => {
-                bedrock.initialize_with_model(model, reader).await
+                bedrock.initialize_with_model(reader).await
             }
             ModelServer::OpenAI(openai) => {
-                openai.initialize_with_model(model, reader).await
+                openai.initialize_with_model(reader).await
             }
         }
     }
@@ -149,21 +146,22 @@ impl ServerTrait for ModelServer {
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
-                llama.completion(messages, tx, cancel_rx).await
+                llama.completion(messages, model, tx, cancel_rx).await
             }
             ModelServer::Ollama(ollama) => {
-                ollama.completion(messages, tx, cancel_rx).await
+                ollama.completion(messages, model, tx, cancel_rx).await
             }
             ModelServer::Bedrock(bedrock) => {
-                bedrock.completion(messages, tx, cancel_rx).await
+                bedrock.completion(messages, model, tx, cancel_rx).await
             }
             ModelServer::OpenAI(openai) => {
-                openai.completion(messages, tx, cancel_rx).await
+                openai.completion(messages, model, tx, cancel_rx).await
             }
         }
     }
@@ -178,15 +176,6 @@ impl ServerTrait for ModelServer {
             ModelServer::OpenAI(openai) => openai.list_models().await,
         }
     }
-
-    fn get_model(&self) -> Option<&ModelSpec> {
-        match self {
-            ModelServer::Llama(llama) => llama.get_model(),
-            ModelServer::Ollama(ollama) => ollama.get_model(),
-            ModelServer::Bedrock(bedrock) => bedrock.get_model(),
-            ModelServer::OpenAI(openai) => openai.get_model(),
-        }
-    }
 }
 
 #[async_trait]
@@ -195,30 +184,19 @@ pub trait ServerTrait: Send + Sync {
 
     async fn initialize_with_model(
         &mut self,
-        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError>;
 
     async fn completion(
         &self,
         messages: &Vec<ChatMessage>,
+        model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError>;
 
     async fn list_models(&self)
         -> Result<Vec<ModelSpec>, ApplicationError>;
-
-    fn get_model(&self) -> Option<&ModelSpec>;
-
-    fn get_selected_model(&self) -> Result<&ModelSpec, ApplicationError> {
-        match self.get_model() {
-            Some(m) => Ok(m),
-            None => {
-                Err(ApplicationError::NotReady("No model selected".to_string()))
-            }
-        }
-    }
 
     async fn get_default_model(&self) -> Option<ModelSpec> {
         match self.list_models().await {
@@ -261,14 +239,12 @@ pub trait ServerTrait: Send + Sync {
 pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
-        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        log::debug!("Initializing server with model: {:?}", model);
         // update completion options from the model, i.e. stop tokens
         // TODO: prompt_intruction should be re-initialized with the model
         //prompt_instruction.set_model(&model);
-        self.initialize_with_model(model, reader).await
+        self.initialize_with_model(reader).await
     }
 
     fn server_name(&self) -> &str {

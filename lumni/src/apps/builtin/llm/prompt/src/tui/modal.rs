@@ -25,7 +25,7 @@ pub trait ModalWindowTrait {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: &ConversationReader<'_>,
+        reader: Option<&ConversationReader<'_>>,
     ) -> Result<Option<WindowEvent>, ApplicationError>;
 }
 
@@ -66,7 +66,7 @@ impl ModalWindowTrait for ModalConfigWindow {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: &ConversationReader<'_>,
+        reader: Option<&ConversationReader<'_>>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),

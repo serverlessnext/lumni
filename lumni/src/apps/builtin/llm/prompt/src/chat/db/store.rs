@@ -34,7 +34,7 @@ impl ConversationDatabaseStore {
         parent_id: Option<ConversationId>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
-        model: ModelSpec,
+        model: &ModelSpec,
         model_server: ModelServerName,
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();
@@ -65,7 +65,7 @@ impl ConversationDatabaseStore {
                 id: ConversationId(-1), // Temporary ID
                 name: name.to_string(),
                 info: serde_json::Value::Null,
-                model_identifier: model.identifier,
+                model_identifier: model.identifier.clone(),
                 model_server,
                 parent_conversation_id: parent_id,
                 fork_message_id,
@@ -100,6 +100,7 @@ impl ConversationDatabaseStore {
             Ok(ConversationId(id))
         })
     }
+
     pub fn put_new_message(
         &self,
         message: &Message,

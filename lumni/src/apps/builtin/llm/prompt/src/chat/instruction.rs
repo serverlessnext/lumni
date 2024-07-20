@@ -2,8 +2,8 @@ use lumni::api::error::ApplicationError;
 
 use super::db::ConversationDatabaseStore;
 use super::conversation::{
-    ConversationCache, ConversationId,
-    Message, MessageId, ModelSpec, ModelIdentifier, ModelServerName,
+    ConversationCache, ConversationId, Message, MessageId,
+    ModelServerName, ModelSpec
 };
 use super::prompt::Prompt;
 use super::{ChatCompletionOptions, ChatMessage, PromptRole, PERSONAS};
@@ -11,11 +11,14 @@ pub use crate::external as lumni;
 
 pub struct PromptInstruction {
     cache: ConversationCache,
+    model: Option<ModelSpec>,
     prompt_template: Option<String>,
+    conversation_id: Option<ConversationId>,
 }
 
 impl PromptInstruction {
     pub fn new(
+        model: Option<ModelSpec>,
         instruction: Option<String>,
         assistant: Option<String>,
         options: Option<&String>,
@@ -36,27 +39,34 @@ impl PromptInstruction {
             None => serde_json::to_value(ChatCompletionOptions::default())?,
         };
 
-        // Create a new Conversation in the database
-        let model = ModelSpec::new_with_validation("foo-provider::bar-model")?;
-        let conversation_id = {
-            db_conn.new_conversation(
-                "New Conversation",
-                None, // parent_id, None for new conversation
-                None, // fork_message_id, None for new conversation
-                Some(completion_options),   // completion_options
-                model,
-                ModelServerName("ollama".to_string()),
-            )?
+        let conversation_id = if let Some(ref model) = &model {
+            // Create a new Conversation in the database
+            Some({
+                db_conn.new_conversation(
+                    "New Conversation",
+                    None, // parent_id, None for new conversation
+                    None, // fork_message_id, None for new conversation
+                    Some(completion_options),   // completion_options
+                    model,
+                    ModelServerName("ollama".to_string()),
+                )?
+            })
+        } else {
+            None
         };
 
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
+            model,
             prompt_template: None,
+            conversation_id,
         };
 
-        prompt_instruction
-            .cache
-            .set_conversation_id(conversation_id);
+        if let Some(conversation_id) = prompt_instruction.conversation_id {
+            prompt_instruction
+                .cache
+                .set_conversation_id(conversation_id);
+        }
 
         if let Some(assistant) = assistant {
             prompt_instruction.preload_from_assistant(
@@ -71,8 +81,12 @@ impl PromptInstruction {
         Ok(prompt_instruction)
     }
 
-    pub fn get_conversation_id(&self) -> ConversationId {
-        self.cache.get_conversation_id()
+    pub fn get_model(&self) -> Option<&ModelSpec> {
+        self.model.as_ref()
+    }
+
+    pub fn get_conversation_id(&self) -> Option<ConversationId> {
+        self.conversation_id
     }
 
     fn add_system_message(
@@ -140,17 +154,18 @@ impl PromptInstruction {
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
-        let model = ModelSpec::new_with_validation("foo-provider::bar-model")?;
-        let current_conversation_id =
-            db_conn.new_conversation(
-                "New Conversation",
-                None,
-                None,
-                None,
-                model,
-                ModelServerName("ollama".to_string()),
-            )?;
-        self.cache.set_conversation_id(current_conversation_id);
+        if let Some(ref model) = &self.model {
+            let current_conversation_id =
+                db_conn.new_conversation(
+                    "New Conversation",
+                    None,
+                    None,
+                    None,
+                    model,
+                    ModelServerName("ollama".to_string()),
+                )?;
+            self.cache.set_conversation_id(current_conversation_id);
+        };
         Ok(())
     }
 

@@ -4,8 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use super::PromptRole;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ModelId(pub i64);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModelIdentifier(pub String);
+
+impl ModelIdentifier {
+    pub fn new(provider: &str, name: &str) -> Self {
+        ModelIdentifier(format!("{}::{}", provider, name))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModelServerName(pub String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ConversationId(pub i64);
@@ -16,23 +25,38 @@ pub struct MessageId(pub i64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttachmentId(pub i64);
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Model {
-    pub model_id: ModelId,
-    pub model_name: String,
-    pub model_service: String,
+    pub identifier: ModelIdentifier,
+    pub info: Option<serde_json::Value>,
+    pub config: Option<serde_json::Value>,
+    pub context_window_size: Option<i64>,
+    pub input_token_limit: Option<i64>,
+}
+
+impl Model {
+    pub fn new(identifier: ModelIdentifier) -> Self {
+        Model {
+            identifier,
+            info: None,
+            config: None,
+            context_window_size: None,
+            input_token_limit: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: ConversationId,
     pub name: String,
-    pub metadata: serde_json::Value,
-    pub model_id: ModelId,
+    pub info: serde_json::Value,
+    pub model_identifier: ModelIdentifier,
+    pub model_server: ModelServerName,
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_message_id: Option<MessageId>, // New field
     pub completion_options: Option<serde_json::Value>,
-    pub schema_version: i64,
     pub created_at: i64,
     pub updated_at: i64,
     pub is_deleted: bool,
@@ -73,7 +97,7 @@ pub struct Attachment {
 #[derive(Debug)]
 pub struct ConversationCache {
     conversation_id: ConversationId,
-    models: HashMap<ModelId, Model>,
+    models: HashMap<ModelIdentifier, Model>,
     messages: Vec<Message>, // messages have to be ordered
     attachments: HashMap<AttachmentId, Attachment>,
     message_attachments: HashMap<MessageId, Vec<AttachmentId>>,
@@ -107,7 +131,7 @@ impl ConversationCache {
     }
 
     pub fn add_model(&mut self, model: Model) {
-        self.models.insert(model.model_id, model);
+        self.models.insert(model.identifier.clone(), model);
     }
 
     pub fn add_message(&mut self, message: Message) {

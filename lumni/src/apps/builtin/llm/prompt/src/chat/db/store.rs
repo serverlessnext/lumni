@@ -7,7 +7,7 @@ use super::connector::DatabaseConnector;
 use super::reader::ConversationReader;
 use super::schema::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, ModelId,
+    Message, MessageId, Model, ModelIdentifier, ModelServerName,
 };
 
 pub struct ConversationDatabaseStore {
@@ -34,67 +34,72 @@ impl ConversationDatabaseStore {
         parent_id: Option<ConversationId>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
+        model: Model,
+        model_server: ModelServerName,
     ) -> Result<ConversationId, SqliteError> {
-        let conversation = Conversation {
-            id: ConversationId(-1), // Temporary ID
-            name: name.to_string(),
-            metadata: serde_json::Value::Null,
-            model_id: ModelId(0),
-            parent_conversation_id: parent_id,
-            fork_message_id,
-            completion_options,
-            schema_version: 1,
-            created_at: 0,
-            updated_at: 0,
-            is_deleted: false,
-        };
-        self.put_new_conversation(&conversation)
-    }
-
-    pub fn put_new_conversation(
-        &self,
-        conversation: &Conversation,
-    ) -> Result<ConversationId, SqliteError> {
-        let conversation_sql = format!(
-            "INSERT INTO conversations (
-                name, metadata, model_id, parent_conversation_id, \
-             fork_message_id, 
-                completion_options, schema_version, 
-                created_at, updated_at, message_count, total_tokens, is_deleted
-            )
-            VALUES ('{}', {}, {}, {}, {}, {}, {}, {}, {}, 0, 0, {});",
-            conversation.name.replace("'", "''"),
-            serde_json::to_string(&conversation.metadata)
-                .map(|s| format!("'{}'", s.replace("'", "''")))
-                .unwrap_or_else(|_| "NULL".to_string()),
-            conversation.model_id.0,
-            conversation
-                .parent_conversation_id
-                .map_or("NULL".to_string(), |id| id.0.to_string()),
-            conversation
-                .fork_message_id
-                .map_or("NULL".to_string(), |id| id.0.to_string()),
-            conversation.completion_options.as_ref().map_or(
-                "NULL".to_string(),
-                |v| format!(
-                    "'{}'",
-                    serde_json::to_string(v).unwrap().replace("'", "''")
-                )
-            ),
-            conversation.schema_version,
-            conversation.created_at,
-            conversation.updated_at,
-            conversation.is_deleted
-        );
-
         let mut db = self.db.lock().unwrap();
-        db.queue_operation(conversation_sql);
         db.process_queue_with_result(|tx| {
+            // First, ensure the model exists
+            let exists: bool = tx.query_row(
+                "SELECT 1 FROM models WHERE identifier = ?",
+                params![model.identifier.0],
+                |_| Ok(true),
+            ).optional()?.unwrap_or(false);
+
+            if !exists {
+                tx.execute(
+                    "INSERT INTO models (identifier, info, config, context_window_size, input_token_limit)
+                    VALUES (?, ?, ?, ?, ?)",
+                    params![
+                        model.identifier.0,
+                        model.info.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
+                        model.config.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
+                        model.context_window_size,
+                        model.input_token_limit,
+                    ],
+                )?;
+            }
+
+            // Now, create the conversation
+            let conversation = Conversation {
+                id: ConversationId(-1), // Temporary ID
+                name: name.to_string(),
+                info: serde_json::Value::Null,
+                model_identifier: model.identifier,
+                model_server,
+                parent_conversation_id: parent_id,
+                fork_message_id,
+                completion_options,
+                created_at: 0,
+                updated_at: 0,
+                is_deleted: false,
+            };
+
+            tx.execute(
+                "INSERT INTO conversations (
+                    name, info, model_identifier, model_server, parent_conversation_id, 
+                    fork_message_id, completion_options, created_at, updated_at, 
+                    message_count, total_tokens, is_deleted
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+                params![
+                    conversation.name,
+                    serde_json::to_string(&conversation.info).unwrap_or_default(),
+                    conversation.model_identifier.0,
+                    conversation.model_server.0,
+                    conversation.parent_conversation_id.map(|id| id.0),
+                    conversation.fork_message_id.map(|id| id.0),
+                    conversation.completion_options.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
+                    conversation.created_at,
+                    conversation.updated_at,
+                    conversation.is_deleted,
+                ],
+            )?;
+
             let id = tx.last_insert_rowid();
             Ok(ConversationId(id))
         })
     }
-
     pub fn put_new_message(
         &self,
         message: &Message,
@@ -105,8 +110,7 @@ impl ConversationDatabaseStore {
             // Get the last message ID for this conversation
             let last_message_id: Option<i64> = tx
                 .query_row(
-                    "SELECT id FROM messages WHERE conversation_id = ? ORDER \
-                     BY id DESC LIMIT 1",
+                    "SELECT id FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1",
                     params![message.conversation_id.0],
                     |row| row.get(0),
                 )
@@ -168,8 +172,7 @@ impl ConversationDatabaseStore {
             let mut new_message_ids = Vec::with_capacity(messages.len());
             let mut last_message_id: Option<i64> = tx
                 .query_row(
-                    "SELECT id FROM messages WHERE conversation_id = ? ORDER \
-                     BY id DESC LIMIT 1",
+                    "SELECT id FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1",
                     params![conversation_id],
                     |row| row.get(0),
                 )
@@ -237,8 +240,8 @@ impl ConversationDatabaseStore {
                 LIMIT 1
             )
             SELECT c.*, m.id as message_id, m.role, m.message_type, 
-            m.content, m.has_attachments, m.token_length, \
-             m.previous_message_id, m.created_at as message_created_at
+            m.content, m.has_attachments, m.token_length, 
+            m.previous_message_id, m.created_at as message_created_at
             FROM target_conversation tc
             JOIN conversations c ON c.id = tc.id
             LEFT JOIN messages m ON c.id = m.conversation_id
@@ -256,37 +259,34 @@ impl ConversationDatabaseStore {
                 let conversation = Conversation {
                     id: ConversationId(row.get(0)?),
                     name: row.get(1)?,
-                    metadata: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    model_id: ModelId(row.get(3)?),
-                    parent_conversation_id: row.get(4).map(ConversationId).ok(),
-                    fork_message_id: row.get(5).map(MessageId).ok(),
-                    completion_options: row
-                        .get::<_, Option<String>>(6)?
+                    info: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or_default(),
+                    model_identifier: ModelIdentifier(row.get(3)?),
+                    model_server: ModelServerName(row.get(4)?),
+                    parent_conversation_id: row.get(5).map(ConversationId).ok(),
+                    fork_message_id: row.get(6).map(MessageId).ok(),
+                    completion_options: row.get::<_, Option<String>>(7)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    schema_version: row.get(7)?,
                     created_at: row.get(8)?,
                     updated_at: row.get(9)?,
                     is_deleted: row.get::<_, i64>(10)? != 0,
                 };
 
-                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(13)?),
+                        id: MessageId(row.get(11)?),
                         conversation_id: conversation.id,
-                        role: row.get(14)?,
-                        message_type: row.get(15)?,
-                        content: row.get(16)?,
-                        has_attachments: row.get::<_, i64>(17)? != 0,
-                        token_length: row.get(18)?,
-                        previous_message_id: row.get(19).map(MessageId).ok(),
-                        created_at: row.get(20)?,
+                        role: row.get(12)?,
+                        message_type: row.get(13)?,
+                        content: row.get(14)?,
+                        has_attachments: row.get::<_, i64>(15)? != 0,
+                        token_length: row.get(16)?,
+                        previous_message_id: row.get(17).map(MessageId).ok(),
+                        created_at: row.get(18)?,
                         is_deleted: false,
                     })
                 } else {
                     None
                 };
-                eprintln!("Message: {:?}", message);
 
                 Ok((conversation, message))
             })?;
@@ -313,8 +313,8 @@ impl ConversationDatabaseStore {
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
         let query = format!(
-            "SELECT id, name, metadata, model_id, parent_conversation_id, 
-             fork_message_id, completion_options, schema_version, 
+            "SELECT id, name, info, model_identifier, model_server, 
+             parent_conversation_id, fork_message_id, completion_options, 
              created_at, updated_at, is_deleted
              FROM conversations
              WHERE is_deleted = FALSE
@@ -330,19 +330,13 @@ impl ConversationDatabaseStore {
                 Ok(Conversation {
                     id: ConversationId(row.get(0)?),
                     name: row.get(1)?,
-                    metadata: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    model_id: ModelId(row.get(3)?),
-                    parent_conversation_id: row
-                        .get::<_, Option<i64>>(4)?
-                        .map(ConversationId),
-                    fork_message_id: row
-                        .get::<_, Option<i64>>(5)?
-                        .map(MessageId),
-                    completion_options: row
-                        .get::<_, Option<String>>(6)?
+                    info: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or_default(),
+                    model_identifier: ModelIdentifier(row.get(3)?),
+                    model_server: ModelServerName(row.get(4)?),
+                    parent_conversation_id: row.get::<_, Option<i64>>(5)?.map(ConversationId),
+                    fork_message_id: row.get::<_, Option<i64>>(6)?.map(MessageId),
+                    completion_options: row.get::<_, Option<String>>(7)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    schema_version: row.get(7)?,
                     created_at: row.get(8)?,
                     updated_at: row.get(9)?,
                     is_deleted: row.get(10)?,
@@ -352,7 +346,6 @@ impl ConversationDatabaseStore {
             rows.collect()
         })
     }
-
     pub fn fetch_message_attachments(
         &self,
         message_id: MessageId,

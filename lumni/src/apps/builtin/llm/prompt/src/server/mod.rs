@@ -69,6 +69,15 @@ impl ModelServer {
             ))),
         }
     }
+
+    pub fn to_string(&self) -> &str {
+        match self {
+            ModelServer::Llama(_) => "llama",
+            ModelServer::Ollama(_) => "ollama",
+            ModelServer::Bedrock(_) => "bedrock",
+            ModelServer::OpenAI(_) => "openai",
+        }
+    }
 }
 
 impl ServerManager for ModelServer {}

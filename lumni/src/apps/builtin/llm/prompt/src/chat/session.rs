@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use super::db::ConversationId;
 use super::{
     CompletionResponse, ConversationDatabaseStore, ConversationReader,
-    LLMDefinition, PromptInstruction, ServerManager, WindowEvent, ConversationEvent,
+    PromptInstruction, ServerManager, WindowEvent, ConversationEvent,
 };
 use crate::api::error::ApplicationError;
 

@@ -7,27 +7,29 @@ CREATE TABLE metadata (
 );
 
 CREATE TABLE models (
-    model_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    model_name TEXT NOT NULL,
-    model_service TEXT NOT NULL UNIQUE
+    identifier TEXT PRIMARY KEY,
+    info TEXT, -- JSON string
+    config TEXT, -- JSON string
+    context_window_size INTEGER,
+    input_token_limit INTEGER
 );
 
 CREATE TABLE conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
-    metadata TEXT, -- JSON string including description and other metadata
-    model_id INTEGER NOT NULL,
+    info TEXT, -- JSON string including description and other metadata
+    completion_options TEXT, -- JSON string
+    model_identifier TEXT NOT NULL,
+    model_server TEXT NOT NULL,
     parent_conversation_id INTEGER,
     fork_message_id INTEGER,
-    completion_options TEXT, -- JSON string
-    schema_version INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     message_count INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
-    FOREIGN KEY (model_id) REFERENCES models(model_id),
+    FOREIGN KEY (model_identifier) REFERENCES models(identifier),
     FOREIGN KEY (fork_message_id) REFERENCES messages(id)
 );
 
@@ -61,9 +63,8 @@ CREATE TABLE attachments (
     CHECK ((file_uri IS NULL) != (file_data IS NULL))
 );
 
-CREATE INDEX idx_model_service ON models(model_service);
 CREATE INDEX idx_parent_conversation ON conversations(parent_conversation_id);
-CREATE INDEX idx_conversation_model_id ON conversations(model_id);  
+CREATE INDEX idx_conversation_model_identifier ON conversations(model_identifier);  
 CREATE INDEX idx_attachment_message ON attachments(message_id);
 CREATE INDEX idx_conversation_is_deleted_updated ON conversations(is_deleted, updated_at);
 CREATE INDEX idx_message_conversation_created ON messages(conversation_id, created_at);

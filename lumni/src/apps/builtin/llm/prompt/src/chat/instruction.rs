@@ -2,7 +2,7 @@ use lumni::api::error::ApplicationError;
 
 use super::db::{
     ConversationCache, ConversationDatabaseStore, ConversationId,
-    ConversationReader, Message, MessageId,
+    Message, MessageId, Model, ModelIdentifier, ModelServerName,
 };
 use super::prompt::Prompt;
 use super::{ChatCompletionOptions, ChatMessage, PromptRole, PERSONAS};
@@ -35,12 +35,18 @@ impl PromptInstruction {
             None => serde_json::to_value(ChatCompletionOptions::default())?,
         };
         // Create a new Conversation in the database
+        let model = Model::new(
+            ModelIdentifier::new("foo-provider", "bar-model"),
+        );
+
         let conversation_id = {
             db_conn.new_conversation(
                 "New Conversation",
                 None, // parent_id, None for new conversation
                 None, // fork_message_id, None for new conversation
-                Some(completion_options),
+                Some(completion_options),   // completion_options
+                model,
+                ModelServerName("ollama".to_string()),
             )?
         };
 
@@ -135,8 +141,19 @@ impl PromptInstruction {
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
+        let model = Model::new(
+            ModelIdentifier::new("foo-provider", "bar-model"),
+        );
+
         let current_conversation_id =
-            db_conn.new_conversation("New Conversation", None, None, None)?;
+            db_conn.new_conversation(
+                "New Conversation",
+                None,
+                None,
+                None,
+                model,
+                ModelServerName("ollama".to_string()),
+            )?;
         self.cache.set_conversation_id(current_conversation_id);
         Ok(())
     }

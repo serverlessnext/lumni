@@ -10,7 +10,7 @@ use super::{
     http_get_with_response, http_post, http_post_with_response,
     ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
     ConversationReader, Endpoints, HttpClient, LLMDefinition,
-    PromptInstruction, ServerSpecTrait, ServerTrait,
+    ServerSpecTrait, ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";

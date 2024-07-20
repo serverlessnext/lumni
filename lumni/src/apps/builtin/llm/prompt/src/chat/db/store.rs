@@ -39,7 +39,7 @@ impl ConversationDatabaseStore {
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();
         db.process_queue_with_result(|tx| {
-            // First, ensure the model exists
+            // Ensure the model exists
             let exists: bool = tx.query_row(
                 "SELECT 1 FROM models WHERE identifier = ?",
                 params![model.identifier.0],
@@ -60,7 +60,7 @@ impl ConversationDatabaseStore {
                 )?;
             }
 
-            // Now, create the conversation
+            // Create the conversation
             let conversation = Conversation {
                 id: ConversationId(-1), // Temporary ID
                 name: name.to_string(),
@@ -271,17 +271,17 @@ impl ConversationDatabaseStore {
                     is_deleted: row.get::<_, i64>(10)? != 0,
                 };
 
-                let message = if !row.get::<_, Option<i64>>(11)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(11)?),
+                        id: MessageId(row.get(13)?),
                         conversation_id: conversation.id,
-                        role: row.get(12)?,
-                        message_type: row.get(13)?,
-                        content: row.get(14)?,
-                        has_attachments: row.get::<_, i64>(15)? != 0,
-                        token_length: row.get(16)?,
-                        previous_message_id: row.get(17).map(MessageId).ok(),
-                        created_at: row.get(18)?,
+                        role: row.get(14)?,
+                        message_type: row.get(15)?,
+                        content: row.get(16)?,
+                        has_attachments: row.get::<_, i64>(17)? != 0,
+                        token_length: row.get(18)?,
+                        previous_message_id: row.get(19).map(MessageId).ok(),
+                        created_at: row.get(20)?,
                         is_deleted: false,
                     })
                 } else {

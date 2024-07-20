@@ -4,10 +4,10 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::db::ConversationId;
 use super::{
     CompletionResponse, ConversationDatabaseStore, ConversationReader,
     PromptInstruction, ServerManager, WindowEvent, ConversationEvent,
+    ConversationId,
 };
 use crate::api::error::ApplicationError;
 

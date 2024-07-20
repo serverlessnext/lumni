@@ -1,6 +1,6 @@
 use lumni::api::error::ApplicationError;
 
-use super::schema::{Conversation, ConversationId, Message};
+use super::conversation::{Conversation, ConversationId, Message};
 use super::ConversationDatabaseStore;
 pub use crate::external as lumni;
 

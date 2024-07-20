@@ -54,11 +54,11 @@ impl ChatCompletionOptions {
         Ok(())
     }
 
-    pub fn update_from_model(&mut self, model: &LLMDefinition) {
-        if self.stop.is_none() {
-            self.stop = Some(model.get_stop_tokens().clone());
-        }
-    }
+//    pub fn update_from_model(&mut self, model: &LLMDefinition) {
+//        if self.stop.is_none() {
+//            self.stop = Some(model.get_stop_tokens().clone());
+//        }
+//    }
 
     pub fn set_temperature(mut self, temperature: f64) -> Self {
         self.temperature = Some(temperature);

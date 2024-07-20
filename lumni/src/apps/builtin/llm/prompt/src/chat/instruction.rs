@@ -1,8 +1,9 @@
 use lumni::api::error::ApplicationError;
 
-use super::db::{
-    ConversationCache, ConversationDatabaseStore, ConversationId,
-    Message, MessageId, Model, ModelIdentifier, ModelServerName,
+use super::db::ConversationDatabaseStore;
+use super::conversation::{
+    ConversationCache, ConversationId,
+    Message, MessageId, LLMModel, ModelIdentifier, ModelServerName,
 };
 use super::prompt::Prompt;
 use super::{ChatCompletionOptions, ChatMessage, PromptRole, PERSONAS};
@@ -35,7 +36,7 @@ impl PromptInstruction {
             None => serde_json::to_value(ChatCompletionOptions::default())?,
         };
         // Create a new Conversation in the database
-        let model = Model::new(
+        let model = LLMModel::new(
             ModelIdentifier::new("foo-provider", "bar-model"),
         );
 
@@ -141,7 +142,7 @@ impl PromptInstruction {
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
-        let model = Model::new(
+        let model = LLMModel::new(
             ModelIdentifier::new("foo-provider", "bar-model"),
         );
 

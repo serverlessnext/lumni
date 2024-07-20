@@ -4,9 +4,11 @@ mod instruction;
 mod options;
 mod prompt;
 mod send;
+pub mod conversation;
 mod session;
 
-pub use db::{ConversationDatabaseStore, ConversationReader, ConversationId};
+pub use db::{ConversationDatabaseStore, ConversationReader};
+pub use conversation::{ConversationId, LLMModel};
 pub use instruction::PromptInstruction;
 pub use options::ChatCompletionOptions;
 use prompt::Prompt;

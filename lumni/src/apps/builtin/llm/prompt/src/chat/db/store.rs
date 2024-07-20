@@ -5,9 +5,9 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
 use super::reader::ConversationReader;
-use super::schema::{
+use super::conversation::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, Model, ModelIdentifier, ModelServerName,
+    Message, MessageId, LLMModel, ModelIdentifier, ModelServerName,
 };
 
 pub struct ConversationDatabaseStore {
@@ -34,7 +34,7 @@ impl ConversationDatabaseStore {
         parent_id: Option<ConversationId>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
-        model: Model,
+        model: LLMModel,
         model_server: ModelServerName,
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();

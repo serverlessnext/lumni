@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::schema::ConversationId;
+use super::conversation::ConversationId;
 
 pub struct ConversationReader<'a> {
     conversation_id: ConversationId,

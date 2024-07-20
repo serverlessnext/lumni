@@ -42,8 +42,4 @@ impl LLMDefinition {
     pub fn get_formatter(&self) -> Box<dyn ModelFormatterTrait> {
         Box::new(ModelFormatter::from_str(&self.name))
     }
-
-    pub fn get_stop_tokens(&self) -> Vec<String> {
-        self.get_formatter().get_stop_tokens().to_vec()
-    }
 }

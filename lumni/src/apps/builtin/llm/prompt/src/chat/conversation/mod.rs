@@ -1,0 +1,78 @@
+use serde::{Deserialize, Serialize};
+
+mod model;
+mod cache;
+
+pub use model::LLMModel;
+pub use cache::ConversationCache;
+
+use super::PromptRole;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModelIdentifier(pub String);
+
+impl ModelIdentifier {
+    pub fn new(provider: &str, name: &str) -> Self {
+        ModelIdentifier(format!("{}::{}", provider, name))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModelServerName(pub String);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ConversationId(pub i64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MessageId(pub i64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttachmentId(pub i64);
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Conversation {
+    pub id: ConversationId,
+    pub name: String,
+    pub info: serde_json::Value,
+    pub model_identifier: ModelIdentifier,
+    pub model_server: ModelServerName,
+    pub parent_conversation_id: Option<ConversationId>,
+    pub fork_message_id: Option<MessageId>, // New field
+    pub completion_options: Option<serde_json::Value>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub is_deleted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Message {
+    pub id: MessageId,
+    pub conversation_id: ConversationId,
+    pub role: PromptRole,
+    pub message_type: String,
+    pub content: String,
+    pub has_attachments: bool,
+    pub token_length: Option<i64>,
+    pub previous_message_id: Option<MessageId>,
+    pub created_at: i64,
+    pub is_deleted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AttachmentData {
+    Uri(String),
+    Data(Vec<u8>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Attachment {
+    pub attachment_id: AttachmentId,
+    pub message_id: MessageId,
+    pub conversation_id: ConversationId,
+    pub data: AttachmentData, // file_uri or file_data
+    pub file_type: String,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: i64,
+    pub is_deleted: bool,
+}

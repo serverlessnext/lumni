@@ -4,20 +4,21 @@ mod instruction;
 mod options;
 mod prompt;
 mod send;
+mod prompt_role;
 pub mod conversation;
 mod session;
 
 pub use db::{ConversationDatabaseStore, ConversationReader};
-pub use conversation::{ConversationId, LLMModel};
+pub use conversation::{ConversationId, ModelSpec};
 pub use instruction::PromptInstruction;
 pub use options::ChatCompletionOptions;
 use prompt::Prompt;
 pub use send::{http_get_with_response, http_post, http_post_with_response};
 pub use session::ChatSession;
+pub use prompt_role::PromptRole;
 
 pub use super::defaults::*;
-pub use super::model::PromptRole;
-pub use super::server::{CompletionResponse, LLMDefinition, ServerManager};
+pub use super::server::{CompletionResponse, ServerManager};
 pub use super::tui::{WindowEvent, ConversationEvent};
 
 // gets PERSONAS from the generated code

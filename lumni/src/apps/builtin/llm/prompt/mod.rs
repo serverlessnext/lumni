@@ -4,7 +4,6 @@ pub mod src {
     mod chat;
     mod defaults;
     mod handler;
-    mod model;
     mod server;
     mod session;
     mod tui;

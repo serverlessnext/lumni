@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{LLMDefinition, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
+use super::{DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {

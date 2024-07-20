@@ -20,7 +20,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, LLMDefinition, ServerSpecTrait, ServerTrait,
+    ConversationReader, Endpoints, ModelSpec, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -33,7 +33,7 @@ pub struct OpenAI {
     spec: OpenAISpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<LLMDefinition>,
+    model: Option<ModelSpec>,
     stream_parser: StreamParser,
 }
 
@@ -56,7 +56,7 @@ impl OpenAI {
 
     fn completion_api_payload(
         &self,
-        model: &LLMDefinition,
+        model: &ModelSpec,
         chat_messages: Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
         let messages: Vec<OpenAIChatMessage> = chat_messages
@@ -68,7 +68,7 @@ impl OpenAI {
             .collect();
 
         let openai_request_payload = OpenAIRequestPayload {
-            model: model.get_name().to_string(),
+            model: model.get_model_name().to_string(),
             messages,
             stream: true,
             stream_options: Some(StreamOptions {
@@ -95,14 +95,14 @@ impl ServerTrait for OpenAI {
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         self.model = Some(model);
         Ok(())
     }
 
-    fn get_model(&self) -> Option<&LLMDefinition> {
+    fn get_model(&self) -> Option<&ModelSpec> {
         self.model.as_ref()
     }
 
@@ -154,8 +154,9 @@ impl ServerTrait for OpenAI {
 
     async fn list_models(
         &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
-        let model = LLMDefinition::new("gpt-3.5-turbo".to_string());
-        Ok(vec![model])
+    ) -> Result<Vec<ModelSpec>, ApplicationError> {
+        Ok(vec![
+            ModelSpec::new_with_validation("openai::gpt-3.5-turbo")?,
+        ])
     }
 }

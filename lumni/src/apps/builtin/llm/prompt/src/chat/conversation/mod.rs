@@ -3,19 +3,11 @@ use serde::{Deserialize, Serialize};
 mod model;
 mod cache;
 
-pub use model::LLMModel;
+pub use model::{ModelIdentifier, ModelSpec};
 pub use cache::ConversationCache;
 
 use super::PromptRole;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ModelIdentifier(pub String);
-
-impl ModelIdentifier {
-    pub fn new(provider: &str, name: &str) -> Self {
-        ModelIdentifier(format!("{}::{}", provider, name))
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelServerName(pub String);

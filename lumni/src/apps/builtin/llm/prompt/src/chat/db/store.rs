@@ -7,7 +7,7 @@ use super::connector::DatabaseConnector;
 use super::reader::ConversationReader;
 use super::conversation::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, LLMModel, ModelIdentifier, ModelServerName,
+    Message, MessageId, ModelSpec, ModelIdentifier, ModelServerName,
 };
 
 pub struct ConversationDatabaseStore {
@@ -34,7 +34,7 @@ impl ConversationDatabaseStore {
         parent_id: Option<ConversationId>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
-        model: LLMModel,
+        model: ModelSpec,
         model_server: ModelServerName,
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();

@@ -1,3 +1,5 @@
+mod formatters;
+
 use std::error::Error;
 
 use async_trait::async_trait;
@@ -9,9 +11,11 @@ use url::Url;
 
 use super::{
     http_get_with_response, http_post, ChatMessage, CompletionResponse,
-    CompletionStats, ConversationReader, Endpoints, HttpClient, LLMDefinition,
-    PromptRole, ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
+    CompletionStats, ConversationReader, Endpoints, HttpClient, ModelSpec,
+    ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
 };
+use formatters::{ModelFormatter, ModelFormatterTrait};
+pub use super::PromptRole;
 use crate::external as lumni;
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
@@ -24,7 +28,8 @@ pub struct Llama {
     spec: LlamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<LLMDefinition>,
+    model: Option<ModelSpec>,
+    formatter: Option<Box<dyn ModelFormatterTrait>>,
     completion_options: Option<serde_json::Value>,
 }
 
@@ -41,6 +46,7 @@ impl Llama {
             http_client: HttpClient::new(),
             endpoints,
             model: None,
+            formatter: None,
             completion_options: None,
         })
     }
@@ -138,14 +144,18 @@ impl ServerTrait for Llama {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-        let model = self.get_selected_model()?;
-        let formatter = model.get_formatter();
+
+        let formatter = self.formatter.as_ref().ok_or_else(|| {
+            ApplicationError::NotReady("Formatter not initialized".to_string())
+        })?;
+
         let prompt = messages
             .into_iter()
             .map(|m| formatter.fmt_prompt_message(&m.role, &m.content))
             .collect::<Vec<String>>()
             .join("\n");
 
+        eprintln!("LamaPrompt: {}", prompt);
         let data_payload = self.completion_api_payload(prompt);
 
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
@@ -166,24 +176,31 @@ impl ServerTrait for Llama {
 
     async fn list_models(
         &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
+    ) -> Result<Vec<ModelSpec>, ApplicationError> {
         let settings = self.get_props().await?;
         let model_file = settings.default_generation_settings.model;
-        let model_name = model_file.split('/').last().unwrap().to_lowercase();
-        let llm_def = LLMDefinition::new(model_name.to_string());
-        Ok(vec![llm_def])
+        let file_name = model_file.split('/').last().unwrap();
+        let model_name = file_name.split('.').next().unwrap().to_lowercase();
+
+        Ok(vec![
+            ModelSpec::new_with_validation(&format!("unknown::{}", model_name))?,
+        ])
     }
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
+        let model_name = model.get_model_name().to_string();
         self.model = Some(model);
         // Send the system prompt to the completion endpoint at initialization
         self.set_completion_options(reader)?;
         let system_prompt = reader.get_system_prompt()?.unwrap_or_default();
         let system_prompt_payload = self.system_prompt_payload(system_prompt);
+
+        self.formatter = Some(Box::new(ModelFormatter::from_str(&model_name)));
+
         if let Some(payload) = system_prompt_payload {
             let completion_endpoint =
                 self.endpoints.get_completion_endpoint()?;
@@ -201,7 +218,7 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
-    fn get_model(&self) -> Option<&LLMDefinition> {
+    fn get_model(&self) -> Option<&ModelSpec> {
         self.model.as_ref()
     }
 

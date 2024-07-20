@@ -1,8 +1,45 @@
+use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
-use super::ModelIdentifier;
+
+pub use crate::external as lumni;
+
+use lazy_static::lazy_static;
+use regex::Regex;
+
+lazy_static! {
+    static ref IDENTIFIER_REGEX: Regex = Regex::new(
+        r"^[-a-z0-9_]+::[-a-z0-9_][-a-z0-9_:.]*[-a-z0-9_]+$"
+    ).unwrap();
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModelIdentifier(pub String);
+
+impl ModelIdentifier {
+    pub fn new(identifier_str: &str) -> Result<Self, ApplicationError> {
+        if IDENTIFIER_REGEX.is_match(identifier_str) {
+            Ok(ModelIdentifier(identifier_str.to_string()))
+        } else {
+            Err(ApplicationError::InvalidInput(format!(
+                "Identifier must be in the format 'provider::model_name', where the provider contains only lowercase letters, numbers, hyphens, underscores, and the model name can include internal colons but not start or end with them. Got: '{}'",
+                identifier_str
+            )))
+        }
+    }
+
+    pub fn get_model_provider(&self) -> &str {
+        // model provider is the first part of the identifier
+        self.0.split("::").next().unwrap()
+    }
+
+    pub fn get_model_name(&self) -> &str {
+        // model name is the second part of the identifier
+        self.0.split("::").nth(1).unwrap()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LLMModel {
+pub struct ModelSpec {
     pub identifier: ModelIdentifier,
     pub info: Option<serde_json::Value>,
     pub config: Option<serde_json::Value>,
@@ -10,15 +47,24 @@ pub struct LLMModel {
     pub input_token_limit: Option<i64>,
 }
 
-impl LLMModel {
-    pub fn new(identifier: ModelIdentifier) -> Self {
-        LLMModel {
+impl ModelSpec {
+    pub fn new_with_validation(identifier_str: &str) -> Result<Self, ApplicationError> {
+        let identifier = ModelIdentifier::new(identifier_str)?;
+        Ok(ModelSpec {
             identifier,
             info: None,
             config: None, 
             context_window_size: None,
             input_token_limit: None,
-        }
+        })
+    }
+
+    pub fn get_model_provider(&self) -> &str {
+        self.identifier.get_model_provider()
+    }
+
+    pub fn get_model_name(&self) -> &str {
+        self.identifier.get_model_name()
     }
 
     pub fn identifier(&self) -> &ModelIdentifier {

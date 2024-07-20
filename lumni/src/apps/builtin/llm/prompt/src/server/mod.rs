@@ -5,7 +5,6 @@ mod spec;
 mod bedrock;
 mod endpoints;
 mod llama;
-mod llm;
 mod ollama;
 mod openai;
 mod response;
@@ -15,7 +14,6 @@ pub use bedrock::Bedrock;
 use bytes::Bytes;
 pub use endpoints::Endpoints;
 pub use llama::Llama;
-pub use llm::LLMDefinition;
 use lumni::api::error::ApplicationError;
 pub use lumni::HttpClient;
 pub use ollama::Ollama;
@@ -29,7 +27,8 @@ pub use super::chat::{
     ConversationReader, PromptInstruction,
 };
 pub use super::defaults::*;
-pub use super::model::{ModelFormatter, ModelFormatterTrait, PromptRole};
+pub use super::chat::ModelSpec;
+pub use super::chat::PromptRole;
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] =
@@ -95,9 +94,10 @@ impl ServerTrait for ModelServer {
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
+        eprintln!("initialize_with_model");
         match self {
             ModelServer::Llama(llama) => {
                 llama.initialize_with_model(model, reader).await
@@ -170,7 +170,7 @@ impl ServerTrait for ModelServer {
 
     async fn list_models(
         &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
+    ) -> Result<Vec<ModelSpec>, ApplicationError> {
         match self {
             ModelServer::Llama(llama) => llama.list_models().await,
             ModelServer::Ollama(ollama) => ollama.list_models().await,
@@ -179,7 +179,7 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    fn get_model(&self) -> Option<&LLMDefinition> {
+    fn get_model(&self) -> Option<&ModelSpec> {
         match self {
             ModelServer::Llama(llama) => llama.get_model(),
             ModelServer::Ollama(ollama) => ollama.get_model(),
@@ -195,7 +195,7 @@ pub trait ServerTrait: Send + Sync {
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError>;
 
@@ -207,11 +207,11 @@ pub trait ServerTrait: Send + Sync {
     ) -> Result<(), ApplicationError>;
 
     async fn list_models(&self)
-        -> Result<Vec<LLMDefinition>, ApplicationError>;
+        -> Result<Vec<ModelSpec>, ApplicationError>;
 
-    fn get_model(&self) -> Option<&LLMDefinition>;
+    fn get_model(&self) -> Option<&ModelSpec>;
 
-    fn get_selected_model(&self) -> Result<&LLMDefinition, ApplicationError> {
+    fn get_selected_model(&self) -> Result<&ModelSpec, ApplicationError> {
         match self.get_model() {
             Some(m) => Ok(m),
             None => {
@@ -220,7 +220,7 @@ pub trait ServerTrait: Send + Sync {
         }
     }
 
-    async fn get_default_model(&self) -> Option<LLMDefinition> {
+    async fn get_default_model(&self) -> Option<ModelSpec> {
         match self.list_models().await {
             Ok(models) => {
                 if models.is_empty() {
@@ -261,7 +261,7 @@ pub trait ServerTrait: Send + Sync {
 pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         log::debug!("Initializing server with model: {:?}", model);

@@ -19,7 +19,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, LLMDefinition,
+    ConversationReader, Endpoints, ModelSpec,
     PromptRole, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
@@ -30,7 +30,7 @@ pub struct Bedrock {
     spec: BedrockSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<LLMDefinition>,
+    model: Option<ModelSpec>,
 }
 
 impl Bedrock {
@@ -55,7 +55,7 @@ impl Bedrock {
 
     fn completion_api_payload(
         &self,
-        _model: &LLMDefinition,
+        _model: &ModelSpec,
         chat_messages: &Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
         // Check if the first message is a system prompt
@@ -125,14 +125,14 @@ impl ServerTrait for Bedrock {
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         self.model = Some(model);
         Ok(())
     }
 
-    fn get_model(&self) -> Option<&LLMDefinition> {
+    fn get_model(&self) -> Option<&ModelSpec> {
         self.model.as_ref()
     }
 
@@ -211,7 +211,7 @@ impl ServerTrait for Bedrock {
         let model = self.get_selected_model()?;
 
         let resource = HttpClient::percent_encode_with_exclusion(
-            &format!("/model/{}/converse-stream", model.get_name()),
+            &format!("/model/{}.{}/converse-stream", model.get_model_provider(), model.get_model_name()),
             Some(&[b'/', b'.', b'-']),
         );
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
@@ -259,11 +259,10 @@ impl ServerTrait for Bedrock {
 
     async fn list_models(
         &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
-        let model = LLMDefinition::new(
-            "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string(),
-        );
-        Ok(vec![model])
+    ) -> Result<Vec<ModelSpec>, ApplicationError> {
+        Ok(vec![
+            ModelSpec::new_with_validation("anthropic::claude-3-5-sonnet-20240620-v1:0")?,
+        ])
     }
 }
 

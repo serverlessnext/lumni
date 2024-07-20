@@ -1,47 +1,12 @@
-use std::fmt::Display;
+mod generic;
+mod llama3;
 
 use async_trait::async_trait;
 use regex::Regex;
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ValueRef};
-use serde::{Deserialize, Serialize};
 
-use super::generic::Generic;
-use super::llama3::Llama3;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PromptRole {
-    User,
-    Assistant,
-    System,
-}
-
-impl PromptRole {
-    pub fn to_string(&self) -> String {
-        match self {
-            PromptRole::User => "user",
-            PromptRole::Assistant => "assistant",
-            PromptRole::System => "system",
-        }
-        .to_string()
-    }
-}
-
-impl Display for PromptRole {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl FromSql for PromptRole {
-    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
-        match value.as_str()? {
-            "user" => Ok(PromptRole::User),
-            "assistant" => Ok(PromptRole::Assistant),
-            "system" => Ok(PromptRole::System),
-            _ => Err(FromSqlError::InvalidType.into()),
-        }
-    }
-}
+use generic::Generic;
+use llama3::Llama3;
+pub use super::PromptRole;
 
 #[derive(Clone, Debug)]
 enum PromptModel {

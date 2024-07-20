@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{ModelIdentifier, LLMModel, PromptRole,
+use super::{ModelIdentifier, ModelSpec, PromptRole,
     ConversationId, Message,
     MessageId, AttachmentId, Attachment
 };
@@ -8,7 +8,7 @@ use super::{ModelIdentifier, LLMModel, PromptRole,
 #[derive(Debug)]
 pub struct ConversationCache {
     conversation_id: ConversationId,
-    models: HashMap<ModelIdentifier, LLMModel>,
+    models: HashMap<ModelIdentifier, ModelSpec>,
     messages: Vec<Message>, // messages have to be ordered
     attachments: HashMap<AttachmentId, Attachment>,
     message_attachments: HashMap<MessageId, Vec<AttachmentId>>,
@@ -41,7 +41,7 @@ impl ConversationCache {
         AttachmentId(self.attachments.len() as i64)
     }
 
-    pub fn add_model(&mut self, model: LLMModel) {
+    pub fn add_model(&mut self, model: ModelSpec) {
         self.models.insert(model.identifier.clone(), model);
     }
 

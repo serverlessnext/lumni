@@ -9,7 +9,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response,
     ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, HttpClient, LLMDefinition,
+    ConversationReader, Endpoints, HttpClient, ModelSpec,
     ServerSpecTrait, ServerTrait,
 };
 
@@ -24,7 +24,7 @@ pub struct Ollama {
     spec: OllamaSpec,
     http_client: HttpClient,
     endpoints: Endpoints,
-    model: Option<LLMDefinition>,
+    model: Option<ModelSpec>,
 }
 
 impl Ollama {
@@ -45,7 +45,7 @@ impl Ollama {
 
     fn completion_api_payload(
         &self,
-        model: &LLMDefinition,
+        model: &ModelSpec,
         chat_messages: &Vec<ChatMessage>,
     ) -> Result<String, serde_json::Error> {
         let messages: Vec<OllamaChatMessage> = chat_messages
@@ -57,7 +57,7 @@ impl Ollama {
             .collect();
 
         let payload = ServerPayload {
-            model: model.get_name(),
+            model: model.get_model_name(),
             messages: &messages,
             //options: &self.completion_options,
         };
@@ -73,11 +73,11 @@ impl ServerTrait for Ollama {
 
     async fn initialize_with_model(
         &mut self,
-        model: LLMDefinition,
+        model: ModelSpec,
         _reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
         let payload = OllamaShowPayload {
-            name: model.get_name(),
+            name: model.get_model_name(),
         }
         .serialize()
         .ok_or_else(|| {
@@ -98,7 +98,7 @@ impl ServerTrait for Ollama {
             if OllamaShowResponse::extract_content(&response).is_err() {
                 let error_message = format!(
                     "Failed to get model information for: {}",
-                    model.get_name()
+                    model.get_model_name()
                 );
                 return Err(ApplicationError::ServerConfigurationError(
                     error_message,
@@ -109,7 +109,7 @@ impl ServerTrait for Ollama {
         Ok(())
     }
 
-    fn get_model(&self) -> Option<&LLMDefinition> {
+    fn get_model(&self) -> Option<&ModelSpec> {
         self.model.as_ref()
     }
 
@@ -153,7 +153,7 @@ impl ServerTrait for Ollama {
 
     async fn list_models(
         &self,
-    ) -> Result<Vec<LLMDefinition>, ApplicationError> {
+    ) -> Result<Vec<ModelSpec>, ApplicationError> {
         let list_models_endpoint = self.endpoints.get_list_models_endpoint()?;
         let response = http_get_with_response(
             list_models_endpoint.to_string(),
@@ -174,23 +174,27 @@ impl ServerTrait for Ollama {
                     e
                 ))
             })?;
-        let models = api_response
+
+        let models: Result<Vec<ModelSpec>, ApplicationError> = api_response
             .models
             .into_iter()
             .map(|model| {
-                let mut llm_def = LLMDefinition::new(model.name);
-                llm_def
+                let model_identifier = format!("{}::{}", "unknown", model.name.to_lowercase());
+                let mut model_spec = ModelSpec::new_with_validation(&model_identifier)?;
+
+                model_spec
                     .set_size(model.size)
-                    .set_family(model.details.family)
-                    .set_description(format!(
+                    .set_family(&model.details.family)
+                    .set_description(&format!(
                         "Parameter Size: {}",
                         model.details.parameter_size
                     ));
-
-                llm_def
+                
+                Ok(model_spec)
             })
             .collect();
-        Ok(models)
+        eprintln!("models: {:?}", models);
+        models
     }
 }
 

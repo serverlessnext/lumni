@@ -19,8 +19,8 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, ModelSpec,
-    PromptRole, ServerSpecTrait, ServerTrait,
+    ConversationReader, Endpoints, ModelSpec, PromptRole, ServerSpecTrait,
+    ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -202,7 +202,11 @@ impl ServerTrait for Bedrock {
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
         let resource = HttpClient::percent_encode_with_exclusion(
-            &format!("/model/{}.{}/converse-stream", model.get_model_provider(), model.get_model_name()),
+            &format!(
+                "/model/{}.{}/converse-stream",
+                model.get_model_provider(),
+                model.get_model_name()
+            ),
             Some(&[b'/', b'.', b'-']),
         );
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
@@ -248,12 +252,10 @@ impl ServerTrait for Bedrock {
         Ok(())
     }
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<ModelSpec>, ApplicationError> {
-        Ok(vec![
-            ModelSpec::new_with_validation("anthropic::claude-3-5-sonnet-20240620-v1:0")?,
-        ])
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError> {
+        Ok(vec![ModelSpec::new_with_validation(
+            "anthropic::claude-3-5-sonnet-20240620-v1:0",
+        )?])
     }
 }
 

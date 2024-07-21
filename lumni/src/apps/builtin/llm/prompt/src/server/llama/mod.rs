@@ -4,18 +4,18 @@ use std::error::Error;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use formatters::{ModelFormatter, ModelFormatterTrait};
 use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
+pub use super::PromptRole;
 use super::{
     http_get_with_response, http_post, ChatMessage, CompletionResponse,
     CompletionStats, ConversationReader, Endpoints, HttpClient, ModelSpec,
     ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
 };
-use formatters::{ModelFormatter, ModelFormatterTrait};
-pub use super::PromptRole;
 use crate::external as lumni;
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str =
@@ -111,7 +111,7 @@ impl Llama {
             .map_err(|e| {
                 ApplicationError::ServerConfigurationError(e.to_string())
             })?),
-            Err(e) => Err(ApplicationError::NotReady(e.to_string())),
+            Err(e) => Err(e), // propagate the error
         }
     }
 }
@@ -170,17 +170,16 @@ impl ServerTrait for Llama {
         Ok(())
     }
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<ModelSpec>, ApplicationError> {
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError> {
         let settings = self.get_props().await?;
         let model_file = settings.default_generation_settings.model;
         let file_name = model_file.split('/').last().unwrap();
         let model_name = file_name.split('.').next().unwrap().to_lowercase();
 
-        Ok(vec![
-            ModelSpec::new_with_validation(&format!("unknown::{}", model_name))?,
-        ])
+        Ok(vec![ModelSpec::new_with_validation(&format!(
+            "unknown::{}",
+            model_name
+        ))?])
     }
 
     async fn initialize_with_model(

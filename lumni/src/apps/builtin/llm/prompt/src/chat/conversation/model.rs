@@ -1,15 +1,14 @@
+use lazy_static::lazy_static;
 use lumni::api::error::ApplicationError;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 pub use crate::external as lumni;
 
-use lazy_static::lazy_static;
-use regex::Regex;
-
 lazy_static! {
-    static ref IDENTIFIER_REGEX: Regex = Regex::new(
-        r"^[-a-z0-9_]+::[-a-z0-9_][-a-z0-9_:.]*[-a-z0-9_]+$"
-    ).unwrap();
+    static ref IDENTIFIER_REGEX: Regex =
+        Regex::new(r"^[-a-z0-9_]+::[-a-z0-9_][-a-z0-9_:.]*[-a-z0-9_]+$")
+            .unwrap();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -21,7 +20,10 @@ impl ModelIdentifier {
             Ok(ModelIdentifier(identifier_str.to_string()))
         } else {
             Err(ApplicationError::InvalidInput(format!(
-                "Identifier must be in the format 'provider::model_name', where the provider contains only lowercase letters, numbers, hyphens, underscores, and the model name can include internal colons but not start or end with them. Got: '{}'",
+                "Identifier must be in the format 'provider::model_name', \
+                 where the provider contains only lowercase letters, numbers, \
+                 hyphens, underscores, and the model name can include \
+                 internal colons but not start or end with them. Got: '{}'",
                 identifier_str
             )))
         }
@@ -48,12 +50,14 @@ pub struct ModelSpec {
 }
 
 impl ModelSpec {
-    pub fn new_with_validation(identifier_str: &str) -> Result<Self, ApplicationError> {
+    pub fn new_with_validation(
+        identifier_str: &str,
+    ) -> Result<Self, ApplicationError> {
         let identifier = ModelIdentifier::new(identifier_str)?;
         Ok(ModelSpec {
             identifier,
             info: None,
-            config: None, 
+            config: None,
             context_window_size: None,
             input_token_limit: None,
         })
@@ -107,7 +111,11 @@ impl ModelSpec {
         self
     }
 
-    pub fn set_config_value(&mut self, key: &str, value: serde_json::Value) -> &mut Self {
+    pub fn set_config_value(
+        &mut self,
+        key: &str,
+        value: serde_json::Value,
+    ) -> &mut Self {
         if let Some(config) = self.config.as_mut() {
             if let serde_json::Value::Object(map) = config {
                 map.insert(key.to_string(), value);
@@ -142,16 +150,21 @@ impl ModelSpec {
     }
 
     pub fn set_family(&mut self, family: &str) -> &mut Self {
-        self.set_config_value("family", serde_json::Value::String(family.to_string()))
+        self.set_config_value(
+            "family",
+            serde_json::Value::String(family.to_string()),
+        )
     }
 
     pub fn get_family(&self) -> Option<&str> {
-        self.get_config_value("family")
-            .and_then(|v| v.as_str())
+        self.get_config_value("family").and_then(|v| v.as_str())
     }
 
     pub fn set_description(&mut self, description: &str) -> &mut Self {
-        self.set_config_value("description", serde_json::Value::String(description.to_string()))
+        self.set_config_value(
+            "description",
+            serde_json::Value::String(description.to_string()),
+        )
     }
 
     pub fn get_description(&self) -> Option<&str> {

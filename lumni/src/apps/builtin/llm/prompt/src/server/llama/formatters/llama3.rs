@@ -53,8 +53,7 @@ impl ModelFormatterTrait for Llama3 {
         let mut prompt_message = String::new();
         prompt_message.push_str(&format!(
             "<|start_header_id|>{}<|end_header_id|>\n{}",
-            role_handle,
-            message
+            role_handle, message
         ));
         if !message.is_empty() {
             prompt_message.push_str("<|eot_id|>\n");

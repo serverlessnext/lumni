@@ -1,13 +1,80 @@
 use lumni::api::error::ApplicationError;
 
-use super::db::ConversationDatabaseStore;
 use super::conversation::{
-    ConversationCache, ConversationId, Message, MessageId,
-    ModelServerName, ModelSpec
+    ConversationCache, ConversationId, Message, MessageId, ModelServerName,
+    ModelSpec,
 };
+use super::db::{ConversationDatabaseStore, ConversationReader};
 use super::prompt::Prompt;
-use super::{ChatCompletionOptions, ChatMessage, PromptRole, PERSONAS};
+use super::{
+    ChatCompletionOptions, ChatMessage, PromptRole, ServerManager, PERSONAS,
+};
 pub use crate::external as lumni;
+
+#[derive(Debug, Clone)]
+pub struct ParentConversation {
+    pub id: ConversationId,
+    pub fork_message_id: MessageId,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConversation {
+    pub server: ModelServerName,
+    pub model: Option<ModelSpec>,
+    pub options: Option<serde_json::Value>,
+    pub system_prompt: Option<String>, // system_prompt ignored if parent is provided
+    pub assistant_name: Option<String>, // assistant_name ignored if parent is provided
+    pub parent: Option<ParentConversation>, // forked conversation
+}
+
+impl NewConversation {
+    pub fn new(
+        new_server: Box<dyn ServerManager>,
+        new_model: ModelSpec,
+        conversation_reader: Option<&ConversationReader<'_>>,
+    ) -> Result<NewConversation, ApplicationError> {
+        if let Some(reader) = conversation_reader {
+            // fork from an existing conversation
+            let current_conversation_id = reader.get_conversation_id();
+            let current_completion_options = reader.get_completion_options()?;
+
+            if let Some(last_message_id) = reader.get_last_message_id()? {
+                Ok(NewConversation {
+                    server: new_server.server_name(),
+                    model: Some(new_model),
+                    options: Some(current_completion_options),
+                    system_prompt: None, // ignored when forking
+                    assistant_name: None, // ignored when forking
+                    parent: Some(ParentConversation {
+                        id: current_conversation_id,
+                        fork_message_id: last_message_id,
+                    }),
+                })
+            } else {
+                // start a new conversation, as there is no last message is there is nothing to fork from.
+                // Both system_prompt and assistant_name are set to None, because if no messages exist, these were also None in the (empty) parent conversation
+                Ok(NewConversation {
+                    server: new_server.server_name(),
+                    model: Some(new_model),
+                    options: Some(current_completion_options),
+                    system_prompt: None,
+                    assistant_name: None,
+                    parent: None,
+                })
+            }
+        } else {
+            // start a new conversation
+            Ok(NewConversation {
+                server: new_server.server_name(),
+                model: Some(new_model),
+                options: None,
+                system_prompt: None,
+                assistant_name: None,
+                parent: None,
+            })
+        }
+    }
+}
 
 pub struct PromptInstruction {
     cache: ConversationCache,
@@ -18,46 +85,34 @@ pub struct PromptInstruction {
 
 impl PromptInstruction {
     pub fn new(
-        model: Option<ModelSpec>,
-        instruction: Option<String>,
-        assistant: Option<String>,
-        options: Option<&String>,
+        new_conversation: NewConversation,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        // If both instruction and assistant are None, use the default assistant
-        let assistant = if instruction.is_none() && assistant.is_none() {
-            Some("Default".to_string())
-        } else {
-            assistant
-        };
-        let completion_options = match options {
+        let completion_options = match new_conversation.options {
             Some(opts) => {
                 let mut options = ChatCompletionOptions::default();
-                options.update_from_json(opts)?;
+                options.update(opts)?;
                 serde_json::to_value(options)?
             }
             None => serde_json::to_value(ChatCompletionOptions::default())?,
         };
 
-        let conversation_id = if let Some(ref model) = &model {
-            // Create a new Conversation in the database
-            Some({
-                db_conn.new_conversation(
-                    "New Conversation",
-                    None, // parent_id, None for new conversation
-                    None, // fork_message_id, None for new conversation
-                    Some(completion_options),   // completion_options
-                    model,
-                    ModelServerName("ollama".to_string()),
-                )?
-            })
+        let conversation_id = if let Some(ref model) = new_conversation.model {
+            Some(db_conn.new_conversation(
+                "New Conversation",
+                new_conversation.parent.as_ref().map(|p| p.id),
+                new_conversation.parent.as_ref().map(|p| p.fork_message_id),
+                Some(completion_options),
+                model,
+                new_conversation.server,
+            )?)
         } else {
             None
         };
 
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
-            model,
+            model: new_conversation.model,
             prompt_template: None,
             conversation_id,
         };
@@ -68,17 +123,50 @@ impl PromptInstruction {
                 .set_conversation_id(conversation_id);
         }
 
-        if let Some(assistant) = assistant {
-            prompt_instruction.preload_from_assistant(
-                assistant,
-                instruction, // add user-instruction with assistant
-                db_conn,
-            )?;
-        } else if let Some(instruction) = instruction {
-            prompt_instruction.add_system_message(instruction, db_conn)?;
+        if new_conversation.parent.is_none() {
+            // evaluate system_prompt and assistant_name only if parent is not provided
+            match (
+                new_conversation.system_prompt,
+                new_conversation.assistant_name,
+            ) {
+                (Some(system_prompt), Some(assistant_name)) => {
+                    prompt_instruction.preload_from_assistant(
+                        assistant_name,
+                        Some(system_prompt),
+                        db_conn,
+                    )?;
+                }
+                (Some(system_prompt), None) => {
+                    prompt_instruction
+                        .add_system_message(system_prompt, db_conn)?;
+                }
+                (None, Some(assistant_name)) => {
+                    prompt_instruction.preload_from_assistant(
+                        assistant_name,
+                        None,
+                        db_conn,
+                    )?;
+                }
+                (None, None) => {
+                    // TODO: default should only apply to servers that do no handle this
+                    // internally
+                    // Use default assistant when both system_promt and assistant_name are None
+                    prompt_instruction.preload_from_assistant(
+                        "Default".to_string(),
+                        None,
+                        db_conn,
+                    )?;
+                }
+            }
         }
-
         Ok(prompt_instruction)
+    }
+    
+    pub fn new_from_import(
+        &mut self,
+        reader: &ConversationReader<'_>,
+    ) -> Result<(), ApplicationError> {
+        Ok(())
     }
 
     pub fn get_model(&self) -> Option<&ModelSpec> {
@@ -86,6 +174,9 @@ impl PromptInstruction {
     }
 
     pub fn get_conversation_id(&self) -> Option<ConversationId> {
+        // return the conversation_id from an active conversation
+        // use the ConversationId from this struct, and not the cache as
+        // the latter can be from a non-active conversation
         self.conversation_id
     }
 
@@ -112,42 +203,6 @@ impl PromptInstruction {
         Ok(())
     }
 
-    pub fn import_conversation(
-        &mut self,
-        id: &str,
-        db_conn: &ConversationDatabaseStore,
-    ) -> Result<(), ApplicationError> {
-        let conversation_id = ConversationId(id.parse().map_err(|_| {
-            ApplicationError::NotFound(format!(
-                "Conversation {id} not found in database"
-            ))
-        })?);
-
-        let (conversation, messages) = db_conn
-            .fetch_conversation(Some(conversation_id), None)?
-            .ok_or_else(|| {
-                ApplicationError::NotFound("Conversation not found".to_string())
-            })?;
-
-        // Clear the existing ConversationCache
-        self.cache = ConversationCache::new();
-
-        // Set the conversation ID
-        self.cache.set_conversation_id(conversation.id);
-
-        // Add messages to the cache
-        for message in messages {
-            // Fetch and add attachments for each message
-            let attachments = db_conn.fetch_message_attachments(message.id)?;
-            for attachment in attachments {
-                self.cache.add_attachment(attachment);
-            }
-            self.cache.add_message(message);
-        }
-
-        Ok(())
-    }
-
     pub fn reset_history(
         &mut self,
         db_conn: &ConversationDatabaseStore,
@@ -155,15 +210,14 @@ impl PromptInstruction {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
         if let Some(ref model) = &self.model {
-            let current_conversation_id =
-                db_conn.new_conversation(
-                    "New Conversation",
-                    None,
-                    None,
-                    None,
-                    model,
-                    ModelServerName("ollama".to_string()),
-                )?;
+            let current_conversation_id = db_conn.new_conversation(
+                "New Conversation",
+                None,
+                None,
+                None,
+                model,
+                ModelServerName("ollama".to_string()),
+            )?;
             self.cache.set_conversation_id(current_conversation_id);
         };
         Ok(())

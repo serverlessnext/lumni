@@ -8,8 +8,8 @@ use super::components::Scroller;
 use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
 use super::{
-    ApplicationError, ChatSession, ConversationReader, ModelServer,
-    ServerTrait, WindowEvent,
+    ApplicationError, ChatSession, ConversationEvent, ConversationReader,
+    ModelServer, ModelSpec, NewConversation, ServerTrait, WindowEvent,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -73,9 +73,37 @@ impl ModalWindowTrait for ModalConfigWindow {
             KeyCode::Down => self.widget.key_down(),
             KeyCode::Enter => {
                 let selected_server = self.widget.current_endpoint();
+                // TODO: allow model selection, + check if model changes
                 if selected_server != tab_chat.server_name() {
                     let server = ModelServer::from_str(selected_server)?;
-                    return tab_chat.change_server(Box::new(server), reader).await;
+
+                    match server.get_default_model().await {
+                        Ok(model) => {
+                            let new_conversation = NewConversation::new(
+                                Box::new(server),
+                                model,
+                                reader,
+                            )?;
+                            // Return the new conversation event
+                            return Ok(Some(WindowEvent::PromptWindow(Some(
+                                ConversationEvent::NewConversation(
+                                    new_conversation,
+                                ),
+                            ))));
+                        }
+                        Err(ApplicationError::NotReady(e)) => {
+                            // already a NotReady error
+                            return Err(ApplicationError::NotReady(e));
+                        }
+                        Err(e) => {
+                            // ensure each error is converted to NotReady,
+                            // with additional logging as its unexpected
+                            log::error!("Error: {}", e);
+                            return Err(ApplicationError::NotReady(
+                                e.to_string(),
+                            ));
+                        }
+                    }
                 }
                 return Ok(Some(WindowEvent::PromptWindow(None)));
             }

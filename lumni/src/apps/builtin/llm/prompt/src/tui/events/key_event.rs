@@ -225,7 +225,9 @@ impl KeyEventHandler {
                                     ApplicationError::NotReady(message) => {
                                         // pass as warning to the user
                                         log::debug!("Not ready: {:?}", message);
-                                        tab_ui.command_line.set_alert(&message);
+                                        tab_ui.command_line.set_alert(
+                                            &format!("Not Ready: {}", message),
+                                        );
                                         return Ok(Some(WindowEvent::Modal(
                                             window_type,
                                         )));

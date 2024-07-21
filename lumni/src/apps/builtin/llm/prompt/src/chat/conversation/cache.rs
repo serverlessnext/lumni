@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use super::{ModelIdentifier, ModelSpec, PromptRole,
-    ConversationId, Message,
-    MessageId, AttachmentId, Attachment
+use super::{
+    Attachment, AttachmentId, ConversationId, Message, MessageId,
+    ModelIdentifier, ModelSpec, PromptRole,
 };
 
 #[derive(Debug)]

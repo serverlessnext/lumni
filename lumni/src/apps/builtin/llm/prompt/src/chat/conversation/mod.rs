@@ -1,16 +1,25 @@
 use serde::{Deserialize, Serialize};
 
-mod model;
 mod cache;
+mod model;
 
-pub use model::{ModelIdentifier, ModelSpec};
 pub use cache::ConversationCache;
+pub use model::{ModelIdentifier, ModelSpec};
 
 use super::PromptRole;
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelServerName(pub String);
+
+impl ModelServerName {
+    pub fn from_str<T: AsRef<str>>(s: T) -> Self {
+        ModelServerName(s.as_ref().to_string())
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ConversationId(pub i64);
@@ -20,7 +29,6 @@ pub struct MessageId(pub i64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttachmentId(pub i64);
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {

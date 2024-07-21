@@ -2,10 +2,10 @@ mod generic;
 mod llama3;
 
 use async_trait::async_trait;
-use regex::Regex;
-
 use generic::Generic;
 use llama3::Llama3;
+use regex::Regex;
+
 pub use super::PromptRole;
 
 #[derive(Clone, Debug)]

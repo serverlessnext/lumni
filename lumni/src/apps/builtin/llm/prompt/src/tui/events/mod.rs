@@ -13,7 +13,7 @@ use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;
-use super::{ChatSession, ConversationReader, ConversationId};
+use super::{ChatSession, ConversationReader, NewConversation};
 pub use crate::external as lumni;
 
 #[derive(Debug)]
@@ -40,5 +40,5 @@ pub enum CommandLineAction {
 
 #[derive(Debug)]
 pub enum ConversationEvent {
-    New(ConversationId),
+    NewConversation(NewConversation),
 }

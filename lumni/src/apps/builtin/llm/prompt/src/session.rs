@@ -67,6 +67,10 @@ impl TabSession<'_> {
         }
     }
 
+    pub fn new_conversation(&mut self, chat: ChatSession) {
+        self.chat = chat;
+    }
+
     pub fn draw_ui<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,

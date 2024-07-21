@@ -9,8 +9,8 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response,
     ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, HttpClient, ModelSpec,
-    ServerSpecTrait, ServerTrait,
+    ConversationReader, Endpoints, HttpClient, ModelSpec, ServerSpecTrait,
+    ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
@@ -75,15 +75,13 @@ impl ServerTrait for Ollama {
     ) -> Result<(), ApplicationError> {
         let identifier = reader.get_model_identifier()?;
         let model_name = identifier.get_model_name().to_string();
-        let payload = OllamaShowPayload {
-            name: &model_name,
-        }
-        .serialize()
-        .ok_or_else(|| {
-            ApplicationError::ServerConfigurationError(
-                "Failed to serialize show payload".to_string(),
-            )
-        })?;
+        let payload = OllamaShowPayload { name: &model_name }
+            .serialize()
+            .ok_or_else(|| {
+                ApplicationError::ServerConfigurationError(
+                    "Failed to serialize show payload".to_string(),
+                )
+            })?;
 
         let response = http_post_with_response(
             DEFAULT_SHOW_ENDPOINT.to_string(),
@@ -145,9 +143,7 @@ impl ServerTrait for Ollama {
         Ok(())
     }
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<ModelSpec>, ApplicationError> {
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError> {
         let list_models_endpoint = self.endpoints.get_list_models_endpoint()?;
         let response = http_get_with_response(
             list_models_endpoint.to_string(),
@@ -173,8 +169,10 @@ impl ServerTrait for Ollama {
             .models
             .into_iter()
             .map(|model| {
-                let model_identifier = format!("{}::{}", "unknown", model.name.to_lowercase());
-                let mut model_spec = ModelSpec::new_with_validation(&model_identifier)?;
+                let model_identifier =
+                    format!("{}::{}", "unknown", model.name.to_lowercase());
+                let mut model_spec =
+                    ModelSpec::new_with_validation(&model_identifier)?;
 
                 model_spec
                     .set_size(model.size)
@@ -183,7 +181,7 @@ impl ServerTrait for Ollama {
                         "Parameter Size: {}",
                         model.details.parameter_size
                     ));
-                
+
                 Ok(model_spec)
             })
             .collect();

@@ -133,7 +133,12 @@ impl std::error::Error for ApplicationError {}
 
 impl From<HttpClientError> for ApplicationError {
     fn from(error: HttpClientError) -> Self {
-        ApplicationError::HttpClientError(error)
+        match error {
+            HttpClientError::ConnectionError(e) => {
+                ApplicationError::NotReady(e.to_string())
+            }
+            _ => ApplicationError::HttpClientError(error),
+        }
     }
 }
 

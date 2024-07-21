@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::conversation::{ConversationId, ModelIdentifier};
+use super::conversation::{ConversationId, MessageId, ModelIdentifier};
 
 pub struct ConversationReader<'a> {
     conversation_id: ConversationId,
@@ -23,6 +23,10 @@ impl<'a> ConversationReader<'a> {
 }
 
 impl<'a> ConversationReader<'a> {
+    pub fn get_conversation_id(&self) -> ConversationId {
+        self.conversation_id
+    }
+
     pub fn get_model_identifier(&self) -> Result<ModelIdentifier, SqliteError> {
         let query = "
             SELECT m.identifier
@@ -89,9 +93,25 @@ impl<'a> ConversationReader<'a> {
         })
     }
 
-    pub fn get_conversation_stats(
+    pub fn get_last_message_id(
         &self,
-    ) -> Result<(i64, i64), SqliteError> {
+    ) -> Result<Option<MessageId>, SqliteError> {
+        let query = "
+            SELECT MAX(id) as last_message_id
+            FROM messages
+            WHERE conversation_id = ? AND is_deleted = FALSE
+        ";
+
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, params![self.conversation_id.0], |row| {
+                row.get::<_, Option<i64>>(0)
+                    .map(|opt_id| opt_id.map(MessageId))
+            })
+        })
+    }
+
+    pub fn get_conversation_stats(&self) -> Result<(i64, i64), SqliteError> {
         let query = "SELECT message_count, total_tokens FROM conversations \
                      WHERE id = ?";
         let mut db = self.db.lock().unwrap();

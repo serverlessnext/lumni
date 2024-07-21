@@ -24,13 +24,15 @@ use tokio::signal;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
-use super::chat::{ChatSession, ConversationDatabaseStore};
+use super::chat::{ChatSession, ConversationDatabaseStore, NewConversation};
 use super::server::{
-    ModelServer, PromptInstruction, ServerManager, ServerTrait,
+    ModelServer, ModelServerName, PromptInstruction, ServerManager, ServerTrait,
 };
 use super::session::{AppSession, TabSession};
 use super::tui::{
-    ColorScheme, CommandLineAction, ConversationReader, KeyEventHandler, PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind
+    ColorScheme, CommandLineAction, ConversationEvent, ConversationReader,
+    KeyEventHandler, PromptAction, TabUi, TextWindowTrait, WindowEvent,
+    WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -56,11 +58,12 @@ async fn prompt_app<B: Backend>(
     let mut redraw_ui = true;
 
     // TODO: reader should be updated when conversation_id changes
-    let mut reader: Option<ConversationReader> = if let Some(conversation_id) = tab.chat.get_conversation_id() {
-        Some(db_conn.get_conversation_reader(conversation_id))
-    } else {
-        None
-    };
+    let mut reader: Option<ConversationReader> =
+        if let Some(conversation_id) = tab.chat.get_conversation_id() {
+            Some(db_conn.get_conversation_reader(conversation_id))
+        } else {
+            None
+        };
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
@@ -135,11 +138,24 @@ async fn prompt_app<B: Backend>(
                                 }
                                 Some(WindowEvent::PromptWindow(ref event)) => {
                                     match event {
-                                        None => {},
-                                        Some(converation_event) => {
-                                            // TODO: if conversation_id changes, update reader
-                                            eprintln!("Conversation event: {:?}", converation_event);
+                                        Some(ConversationEvent::NewConversation(new_conversation)) => {
+                                            let prompt_instruction = PromptInstruction::new(
+                                                new_conversation.clone(),
+                                                &db_conn,
+                                            )?;
+                                            let chat_session = ChatSession::new(
+                                                &new_conversation.server.to_string(),
+                                                prompt_instruction,
+                                                &db_conn,
+                                            ).await?;
+                                            tab.new_conversation(chat_session);
+                                            reader = if let Some(conversation_id) = tab.chat.get_conversation_id() {
+                                                Some(db_conn.get_conversation_reader(conversation_id))
+                                            } else {
+                                                None
+                                            };
                                         }
+                                        _ => {},
                                     }
                                 }
                                 _ => {}
@@ -367,7 +383,13 @@ pub async fn run_cli(
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
     let assistant = matches.get_one::<String>("assistant").cloned();
-    let options = matches.get_one::<String>("options");
+    let options = match matches.get_one::<String>("options") {
+        Some(s) => {
+            let value = serde_json::from_str::<serde_json::Value>(s)?;
+            Some(value)
+        }
+        None => None,
+    };
 
     let server_name = matches
         .get_one::<String>("server")
@@ -375,21 +397,29 @@ pub async fn run_cli(
         .unwrap_or_else(|| "ollama".to_lowercase());
 
     // create new (un-initialized) server from requested server name
-    let mut server = ModelServer::from_str(&server_name)?;
-    let default_model = server.get_default_model().await;
+    let server = ModelServer::from_str(&server_name)?;
+    let default_model = match server.get_default_model().await {
+        Ok(model) => Some(model),
+        Err(e) => {
+            log::error!("Failed to get default model during startup: {}", e);
+            None
+        }
+    };
 
-    // setup prompt, server and chat session
-    let prompt_instruction =
-        PromptInstruction::new(default_model, instruction, assistant, options, &db_conn)?;
-    let conversation_id = prompt_instruction.get_conversation_id();
-
-    if let Some(conversation_id) = conversation_id {
-        let reader = db_conn.get_conversation_reader(conversation_id);
-        server.setup_and_initialize(&reader).await?;
-    }
+    let prompt_instruction = PromptInstruction::new(
+        NewConversation {
+            server: ModelServerName::from_str(&server_name),
+            model: default_model,
+            options,
+            system_prompt: instruction,
+            assistant_name: assistant,
+            parent: None,
+        },
+        &db_conn,
+    )?;
 
     let chat_session =
-        ChatSession::new(Box::new(server), prompt_instruction).await?;
+        ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

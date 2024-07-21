@@ -56,15 +56,15 @@ impl fmt::Display for HttpClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             HttpClientError::ConnectionError(e) => {
-                write!(f, "Connection error: {}", e)
+                write!(f, "ConnectionError: {}", e)
             }
-            HttpClientError::TimeoutError => write!(f, "Timeout error"),
+            HttpClientError::TimeoutError => write!(f, "TimeoutError"),
             HttpClientError::HttpError(code, message) => {
-                write!(f, "HTTP error {}: {}", code, message)
+                write!(f, "HTTPError: {} {}", code, message)
             }
-            HttpClientError::Utf8Error(e) => write!(f, "UTF-8 error: {}", e),
-            HttpClientError::Other(e) => write!(f, "Other error: {}", e),
-            HttpClientError::RequestCancelled => write!(f, "Request cancelled"),
+            HttpClientError::Utf8Error(e) => write!(f, "Utf8Error: {}", e),
+            HttpClientError::Other(e) => write!(f, "Other: {}", e),
+            HttpClientError::RequestCancelled => write!(f, "RequestCancelled"),
         }
     }
 }
@@ -155,6 +155,7 @@ impl HttpClient {
         tx: Option<mpsc::Sender<Bytes>>,
         mut cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> HttpClientResult {
+        log::debug!("{} {}", method, url);
         let uri = Uri::from_str(url)
             .map_err(|e| HttpClientError::Other(e.to_string()))?;
 
@@ -175,11 +176,10 @@ impl HttpClient {
             .body(request_body)
             .expect("Failed to build the request");
         // Send the request and await the response, handling timeout as needed
-        let mut response = self
-            .client
-            .request(request)
-            .await
-            .map_err(|e| HttpClientError::ConnectionError(e.to_string()))?;
+        let mut response =
+            self.client.request(request).await.map_err(|_| {
+                HttpClientError::ConnectionError(url.to_string())
+            })?;
 
         if !response.status().is_success() {
             let canonical_reason = response

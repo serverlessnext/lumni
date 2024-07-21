@@ -114,7 +114,6 @@ impl ServerTrait for OpenAI {
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError> {
-
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let data_payload = self
             .completion_api_payload(model, messages.clone())
@@ -144,11 +143,9 @@ impl ServerTrait for OpenAI {
         Ok(())
     }
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<ModelSpec>, ApplicationError> {
-        Ok(vec![
-            ModelSpec::new_with_validation("openai::gpt-3.5-turbo")?,
-        ])
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError> {
+        Ok(vec![ModelSpec::new_with_validation(
+            "openai::gpt-3.5-turbo",
+        )?])
     }
 }

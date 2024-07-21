@@ -24,10 +24,10 @@ use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response, ChatMessage,
-    ConversationReader, PromptInstruction,
+    ConversationReader, ModelServerName, ModelSpec, PromptInstruction,
+    PromptRole,
 };
 pub use super::defaults::*;
-pub use super::chat::{ModelIdentifier, ModelSpec, PromptRole};
 use crate::external as lumni;
 
 pub const SUPPORTED_MODEL_ENDPOINTS: [&str; 4] =
@@ -166,9 +166,7 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    async fn list_models(
-        &self,
-    ) -> Result<Vec<ModelSpec>, ApplicationError> {
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError> {
         match self {
             ModelServer::Llama(llama) => llama.list_models().await,
             ModelServer::Ollama(ollama) => ollama.list_models().await,
@@ -195,24 +193,20 @@ pub trait ServerTrait: Send + Sync {
         cancel_rx: Option<oneshot::Receiver<()>>,
     ) -> Result<(), ApplicationError>;
 
-    async fn list_models(&self)
-        -> Result<Vec<ModelSpec>, ApplicationError>;
+    async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError>;
 
-    async fn get_default_model(&self) -> Option<ModelSpec> {
+    async fn get_default_model(&self) -> Result<ModelSpec, ApplicationError> {
         match self.list_models().await {
             Ok(models) => {
                 if models.is_empty() {
-                    log::warn!("Received empty model list");
-                    None
+                    Err(ApplicationError::ServerConfigurationError(
+                        "No models available".to_string(),
+                    ))
                 } else {
-                    log::debug!("Available models: {:?}", models);
-                    Some(models[0].to_owned())
+                    Ok(models[0].to_owned())
                 }
             }
-            Err(e) => {
-                log::error!("Failed to list models: {}", e);
-                None
-            }
+            Err(e) => Err(e), // propagate error
         }
     }
 
@@ -241,13 +235,10 @@ pub trait ServerManager: ServerTrait {
         &mut self,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        // update completion options from the model, i.e. stop tokens
-        // TODO: prompt_intruction should be re-initialized with the model
-        //prompt_instruction.set_model(&model);
         self.initialize_with_model(reader).await
     }
 
-    fn server_name(&self) -> &str {
-        self.get_spec().name()
+    fn server_name(&self) -> ModelServerName {
+        ModelServerName::from_str(self.get_spec().name().to_lowercase())
     }
 }

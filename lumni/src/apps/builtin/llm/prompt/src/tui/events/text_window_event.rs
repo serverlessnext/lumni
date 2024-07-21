@@ -98,9 +98,7 @@ where
     match window.get_kind() {
         WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
         WindowKind::PromptWindow => Some(WindowEvent::PromptWindow(None)),
-        WindowKind::CommandLine => {
-            Some(WindowEvent::CommandLine(None))
-        }
+        WindowKind::CommandLine => Some(WindowEvent::CommandLine(None)),
     }
 }
 
@@ -197,9 +195,9 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return Some(WindowEvent::CommandLine(Some(CommandLineAction::Write(
-                ":".to_string(),
-            ))));
+            return Some(WindowEvent::CommandLine(Some(
+                CommandLineAction::Write(":".to_string()),
+            )));
         }
         // ignore other characters
         _ => {}
@@ -207,9 +205,7 @@ where
     match window.get_kind() {
         WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
         WindowKind::PromptWindow => Some(WindowEvent::PromptWindow(None)),
-        WindowKind::CommandLine => {
-            Some(WindowEvent::CommandLine(None))
-        }
+        WindowKind::CommandLine => Some(WindowEvent::CommandLine(None)),
     }
 }
 

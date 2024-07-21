@@ -9,7 +9,8 @@ use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
 use super::{
     ApplicationError, ChatSession, ConversationEvent, ConversationReader,
-    ModelServer, ModelSpec, NewConversation, ServerTrait, WindowEvent,
+    ModelServer, ModelSpec, NewConversation, ServerManager, ServerTrait,
+    WindowEvent,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,7 +81,7 @@ impl ModalWindowTrait for ModalConfigWindow {
                     match server.get_default_model().await {
                         Ok(model) => {
                             let new_conversation = NewConversation::new(
-                                Box::new(server),
+                                server.server_name(),
                                 model,
                                 reader,
                             )?;

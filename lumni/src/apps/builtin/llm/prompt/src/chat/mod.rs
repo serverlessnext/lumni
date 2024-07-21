@@ -1,4 +1,5 @@
 use std::error::Error;
+mod assistant;
 pub mod conversation;
 mod db;
 mod instruction;
@@ -8,6 +9,7 @@ mod prompt_role;
 mod send;
 mod session;
 
+pub use assistant::AssistantManager;
 pub use conversation::{ConversationId, ModelServerName, ModelSpec};
 pub use db::{ConversationDatabaseStore, ConversationReader};
 pub use instruction::{NewConversation, PromptInstruction};

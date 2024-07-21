@@ -36,7 +36,6 @@ pub struct Conversation {
     pub name: String,
     pub info: serde_json::Value,
     pub model_identifier: ModelIdentifier,
-    pub model_server: ModelServerName,
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_message_id: Option<MessageId>, // New field
     pub completion_options: Option<serde_json::Value>,

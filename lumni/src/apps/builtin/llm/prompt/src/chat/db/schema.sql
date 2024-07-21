@@ -20,7 +20,6 @@ CREATE TABLE conversations (
     info TEXT, -- JSON string including description and other metadata
     completion_options TEXT, -- JSON string
     model_identifier TEXT NOT NULL,
-    model_server TEXT NOT NULL,
     parent_conversation_id INTEGER,
     fork_message_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

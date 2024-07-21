@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
+use super::{ModelServerName, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
@@ -20,6 +20,8 @@ pub struct ChatCompletionOptions {
     stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_server: Option<ModelServerName>,
 }
 
 impl Default for ChatCompletionOptions {
@@ -33,6 +35,7 @@ impl Default for ChatCompletionOptions {
             cache_prompt: Some(true),
             stop: None,
             stream: Some(true),
+            model_server: None,
         }
     }
 }
@@ -52,6 +55,8 @@ impl ChatCompletionOptions {
         self.cache_prompt = user_options.cache_prompt.or(self.cache_prompt);
         self.stop = user_options.stop.or_else(|| self.stop.clone());
         self.stream = user_options.stream.or(self.stream);
+        self.model_server =
+            user_options.model_server.or(self.model_server.clone());
         Ok(())
     }
 

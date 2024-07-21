@@ -5,10 +5,7 @@ use super::conversation::{
     ModelSpec,
 };
 use super::db::{ConversationDatabaseStore, ConversationReader};
-use super::prompt::Prompt;
-use super::{
-    ChatCompletionOptions, ChatMessage, PromptRole, ServerManager, PERSONAS,
-};
+use super::{ChatCompletionOptions, ChatMessage, PromptRole};
 pub use crate::external as lumni;
 
 #[derive(Debug, Clone)]
@@ -23,13 +20,13 @@ pub struct NewConversation {
     pub model: Option<ModelSpec>,
     pub options: Option<serde_json::Value>,
     pub system_prompt: Option<String>, // system_prompt ignored if parent is provided
-    pub assistant_name: Option<String>, // assistant_name ignored if parent is provided
-    pub parent: Option<ParentConversation>, // forked conversation
+    pub initial_messages: Option<Vec<Message>>, // initial_messages ignored if parent is provided
+    pub parent: Option<ParentConversation>,     // forked conversation
 }
 
 impl NewConversation {
     pub fn new(
-        new_server: Box<dyn ServerManager>,
+        new_server: ModelServerName,
         new_model: ModelSpec,
         conversation_reader: Option<&ConversationReader<'_>>,
     ) -> Result<NewConversation, ApplicationError> {
@@ -40,11 +37,11 @@ impl NewConversation {
 
             if let Some(last_message_id) = reader.get_last_message_id()? {
                 Ok(NewConversation {
-                    server: new_server.server_name(),
+                    server: new_server,
                     model: Some(new_model),
                     options: Some(current_completion_options),
                     system_prompt: None, // ignored when forking
-                    assistant_name: None, // ignored when forking
+                    initial_messages: None, // ignored when forking
                     parent: Some(ParentConversation {
                         id: current_conversation_id,
                         fork_message_id: last_message_id,
@@ -54,22 +51,22 @@ impl NewConversation {
                 // start a new conversation, as there is no last message is there is nothing to fork from.
                 // Both system_prompt and assistant_name are set to None, because if no messages exist, these were also None in the (empty) parent conversation
                 Ok(NewConversation {
-                    server: new_server.server_name(),
+                    server: new_server,
                     model: Some(new_model),
                     options: Some(current_completion_options),
                     system_prompt: None,
-                    assistant_name: None,
+                    initial_messages: None,
                     parent: None,
                 })
             }
         } else {
             // start a new conversation
             Ok(NewConversation {
-                server: new_server.server_name(),
+                server: new_server,
                 model: Some(new_model),
                 options: None,
                 system_prompt: None,
-                assistant_name: None,
+                initial_messages: None,
                 parent: None,
             })
         }
@@ -79,7 +76,6 @@ impl NewConversation {
 pub struct PromptInstruction {
     cache: ConversationCache,
     model: Option<ModelSpec>,
-    prompt_template: Option<String>,
     conversation_id: Option<ConversationId>,
 }
 
@@ -88,7 +84,7 @@ impl PromptInstruction {
         new_conversation: NewConversation,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        let completion_options = match new_conversation.options {
+        let mut completion_options = match new_conversation.options {
             Some(opts) => {
                 let mut options = ChatCompletionOptions::default();
                 options.update(opts)?;
@@ -96,6 +92,9 @@ impl PromptInstruction {
             }
             None => serde_json::to_value(ChatCompletionOptions::default())?,
         };
+        // Update model_server in completion_options
+        completion_options["model_server"] =
+            serde_json::to_value(new_conversation.server.0)?;
 
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(db_conn.new_conversation(
@@ -104,7 +103,6 @@ impl PromptInstruction {
                 new_conversation.parent.as_ref().map(|p| p.fork_message_id),
                 Some(completion_options),
                 model,
-                new_conversation.server,
             )?)
         } else {
             None
@@ -113,7 +111,6 @@ impl PromptInstruction {
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
             model: new_conversation.model,
-            prompt_template: None,
             conversation_id,
         };
 
@@ -124,49 +121,73 @@ impl PromptInstruction {
         }
 
         if new_conversation.parent.is_none() {
-            // evaluate system_prompt and assistant_name only if parent is not provided
-            match (
-                new_conversation.system_prompt,
-                new_conversation.assistant_name,
-            ) {
-                (Some(system_prompt), Some(assistant_name)) => {
-                    prompt_instruction.preload_from_assistant(
-                        assistant_name,
-                        Some(system_prompt),
-                        db_conn,
-                    )?;
+            // evaluate system_prompt and initial_messages only if parent is not provided
+            // TODO: check if first initial message is a System message,
+            // if not, and prompt is provided, add it as the first message
+            if let Some(messages) = new_conversation.initial_messages {
+                let mut messages_to_insert = Vec::new();
+
+                for (index, mut message) in messages.into_iter().enumerate() {
+                    message.id = MessageId(index as i64);
+                    message.conversation_id =
+                        prompt_instruction.cache.get_conversation_id();
+                    message.previous_message_id = if index > 0 {
+                        Some(MessageId((index - 1) as i64))
+                    } else {
+                        None
+                    };
+                    message.token_length =
+                        Some(simple_token_estimator(&message.content, None));
+                    prompt_instruction.cache.add_message(message.clone());
+                    messages_to_insert.push(message);
                 }
-                (Some(system_prompt), None) => {
-                    prompt_instruction
-                        .add_system_message(system_prompt, db_conn)?;
-                }
-                (None, Some(assistant_name)) => {
-                    prompt_instruction.preload_from_assistant(
-                        assistant_name,
-                        None,
-                        db_conn,
-                    )?;
-                }
-                (None, None) => {
-                    // TODO: default should only apply to servers that do no handle this
-                    // internally
-                    // Use default assistant when both system_promt and assistant_name are None
-                    prompt_instruction.preload_from_assistant(
-                        "Default".to_string(),
-                        None,
-                        db_conn,
-                    )?;
-                }
+
+                // Insert messages into the database
+                db_conn.put_new_messages(&messages_to_insert)?;
+            } else if let Some(system_prompt) = new_conversation.system_prompt {
+                // add system_prompt as the first message
+                prompt_instruction
+                    .add_system_message(system_prompt, db_conn)?;
             }
         }
         Ok(prompt_instruction)
     }
-    
-    pub fn new_from_import(
-        &mut self,
+
+    pub fn from_reader(
         reader: &ConversationReader<'_>,
-    ) -> Result<(), ApplicationError> {
-        Ok(())
+    ) -> Result<Self, ApplicationError> {
+        let conversation_id = reader.get_conversation_id();
+        let model_spec = reader
+            .get_model_spec()
+            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+
+        let mut prompt_instruction = PromptInstruction {
+            cache: ConversationCache::new(),
+            model: Some(model_spec),
+            conversation_id: Some(conversation_id),
+        };
+
+        prompt_instruction
+            .cache
+            .set_conversation_id(conversation_id);
+
+        // Load messages
+        let messages = reader
+            .get_all_messages()
+            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+        for message in messages {
+            prompt_instruction.cache.add_message(message);
+        }
+
+        // Load attachments
+        let attachments = reader
+            .get_all_attachments()
+            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+        for attachment in attachments {
+            prompt_instruction.cache.add_attachment(attachment);
+        }
+
+        Ok(prompt_instruction)
     }
 
     pub fn get_model(&self) -> Option<&ModelSpec> {
@@ -216,7 +237,6 @@ impl PromptInstruction {
                 None,
                 None,
                 model,
-                ModelServerName("ollama".to_string()),
             )?;
             self.cache.set_conversation_id(current_conversation_id);
         };
@@ -407,112 +427,6 @@ impl PromptInstruction {
         // Reverse the messages to maintain chronological order
         messages.reverse();
         messages
-    }
-
-    pub fn get_prompt_template(&self) -> Option<&str> {
-        self.prompt_template.as_deref()
-    }
-
-    pub fn preload_from_assistant(
-        &mut self,
-        assistant: String,
-        user_instruction: Option<String>,
-        db_conn: &ConversationDatabaseStore,
-    ) -> Result<(), ApplicationError> {
-        let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)
-            .map_err(|e| {
-                ApplicationError::Unexpected(format!(
-                    "Failed to parse persona data: {}",
-                    e
-                ))
-            })?;
-
-        let prompt = assistant_prompts
-            .into_iter()
-            .find(|p| p.name() == assistant)
-            .ok_or_else(|| {
-                ApplicationError::Unexpected(format!(
-                    "Assistant '{}' not found in the dataset",
-                    assistant
-                ))
-            })?;
-
-        let system_prompt = build_system_prompt(&prompt, &user_instruction);
-
-        // Add system prompt
-        self.add_system_message(system_prompt, db_conn)?;
-
-        if let Some(exchanges) = prompt.exchanges() {
-            let mut messages = Vec::new();
-            let conversation_id = self.cache.get_conversation_id();
-            let current_timestamp = 0;
-
-            for loaded_exchange in exchanges.iter() {
-                let previous_message_id = self.cache.get_last_message_id();
-
-                let user_message = Message {
-                    id: self.cache.new_message_id(),
-                    conversation_id,
-                    role: PromptRole::User,
-                    message_type: "text".to_string(),
-                    content: loaded_exchange.question.clone(),
-                    has_attachments: false,
-                    token_length: Some(simple_token_estimator(
-                        &loaded_exchange.question,
-                        None,
-                    )),
-                    previous_message_id,
-                    created_at: current_timestamp,
-                    is_deleted: false,
-                };
-                messages.push(user_message.clone());
-                let user_message_id = user_message.id;
-                self.cache.add_message(user_message);
-
-                // Assistant message
-                let assistant_message = Message {
-                    id: self.cache.new_message_id(),
-                    conversation_id,
-                    role: PromptRole::Assistant,
-                    message_type: "text".to_string(),
-                    content: loaded_exchange.answer.clone(),
-                    has_attachments: false,
-                    token_length: Some(simple_token_estimator(
-                        &loaded_exchange.answer,
-                        None,
-                    )),
-                    previous_message_id: Some(user_message_id),
-                    created_at: current_timestamp,
-                    is_deleted: false,
-                };
-                messages.push(assistant_message.clone());
-                self.cache.add_message(assistant_message);
-            }
-
-            // Batch insert messages
-            db_conn.put_new_messages(&messages)?;
-        }
-
-        if let Some(prompt_template) = prompt.prompt_template() {
-            self.prompt_template = Some(prompt_template.to_string());
-        }
-        Ok(())
-    }
-}
-
-fn build_system_prompt(
-    prompt: &Prompt,
-    user_instruction: &Option<String>,
-) -> String {
-    match (prompt.system_prompt(), user_instruction) {
-        (Some(assistant_instruction), Some(user_instr)) => {
-            format!("{} {}", assistant_instruction.trim_end(), user_instr)
-        }
-        (Some(assistant_instruction), None) => {
-            assistant_instruction.to_string()
-        }
-        (None, Some(user_instr)) => user_instr.to_string(),
-        (None, None) => String::new(),
     }
 }
 

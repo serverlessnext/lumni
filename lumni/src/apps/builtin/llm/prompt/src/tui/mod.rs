@@ -21,8 +21,10 @@ pub use ui::TabUi;
 pub use windows::{CommandLine, PromptWindow, ResponseWindow};
 
 pub use super::chat::{
-    ChatSession, ConversationId, ConversationReader, ModelSpec, NewConversation,
+    ChatSession, ConversationReader, ModelSpec, NewConversation,
 };
-pub use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};
+pub use super::server::{
+    ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
+};
 pub use super::session::TabSession;
 pub use crate::external as lumni;

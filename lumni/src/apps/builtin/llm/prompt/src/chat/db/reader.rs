@@ -3,7 +3,10 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::conversation::{ConversationId, MessageId, ModelIdentifier};
+use super::conversation::{
+    Attachment, AttachmentData, AttachmentId, ConversationId, Message,
+    MessageId, ModelIdentifier, ModelSpec,
+};
 
 pub struct ConversationReader<'a> {
     conversation_id: ConversationId,
@@ -70,6 +73,99 @@ impl<'a> ConversationReader<'a> {
                     None => Ok(serde_json::json!({})),
                 }
             })
+        })
+    }
+
+    pub fn get_model_spec(&self) -> Result<ModelSpec, SqliteError> {
+        let query = "
+            SELECT m.identifier, m.info, m.config, m.context_window_size, \
+                     m.input_token_limit
+            FROM conversations c
+            JOIN models m ON c.model_identifier = m.identifier
+            WHERE c.id = ?
+        ";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, params![self.conversation_id.0], |row| {
+                Ok(ModelSpec {
+                    identifier: ModelIdentifier::new(&row.get::<_, String>(0)?)
+                        .unwrap(),
+                    info: row
+                        .get::<_, Option<String>>(1)?
+                        .map(|s| serde_json::from_str(&s).unwrap()),
+                    config: row
+                        .get::<_, Option<String>>(2)?
+                        .map(|s| serde_json::from_str(&s).unwrap()),
+                    context_window_size: row.get(3)?,
+                    input_token_limit: row.get(4)?,
+                })
+            })
+        })
+    }
+
+    pub fn get_all_messages(&self) -> Result<Vec<Message>, SqliteError> {
+        let query = "
+            SELECT id, role, message_type, content, has_attachments, \
+                     token_length, previous_message_id, created_at, is_deleted
+            FROM messages
+            WHERE conversation_id = ? AND is_deleted = FALSE
+            ORDER BY created_at ASC
+        ";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.prepare(query)?
+                .query_map(params![self.conversation_id.0], |row| {
+                    Ok(Message {
+                        id: MessageId(row.get(0)?),
+                        conversation_id: self.conversation_id,
+                        role: row.get(1)?,
+                        message_type: row.get(2)?,
+                        content: row.get(3)?,
+                        has_attachments: row.get::<_, i64>(4)? != 0,
+                        token_length: row.get(5)?,
+                        previous_message_id: row
+                            .get::<_, Option<i64>>(6)?
+                            .map(MessageId),
+                        created_at: row.get(7)?,
+                        is_deleted: row.get::<_, i64>(8)? != 0,
+                    })
+                })?
+                .collect()
+        })
+    }
+
+    pub fn get_all_attachments(&self) -> Result<Vec<Attachment>, SqliteError> {
+        let query = "
+            SELECT attachment_id, message_id, file_uri, file_data, file_type, \
+                     metadata, created_at, is_deleted
+            FROM attachments
+            WHERE conversation_id = ? AND is_deleted = FALSE
+            ORDER BY created_at ASC
+        ";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.prepare(query)?
+                .query_map(params![self.conversation_id.0], |row| {
+                    Ok(Attachment {
+                        attachment_id: AttachmentId(row.get(0)?),
+                        message_id: MessageId(row.get(1)?),
+                        conversation_id: self.conversation_id,
+                        data: if let Some(uri) =
+                            row.get::<_, Option<String>>(2)?
+                        {
+                            AttachmentData::Uri(uri)
+                        } else {
+                            AttachmentData::Data(row.get(3)?)
+                        },
+                        file_type: row.get(4)?,
+                        metadata: row.get::<_, Option<String>>(5)?.map(|s| {
+                            serde_json::from_str(&s).unwrap_or_default()
+                        }),
+                        created_at: row.get(6)?,
+                        is_deleted: row.get::<_, i64>(7)? != 0,
+                    })
+                })?
+                .collect()
         })
     }
 

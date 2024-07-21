@@ -24,10 +24,11 @@ use tokio::signal;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
-use super::chat::{ChatSession, ConversationDatabaseStore, NewConversation};
-use super::server::{
-    ModelServer, ModelServerName, PromptInstruction, ServerManager, ServerTrait,
+use super::chat::{
+    AssistantManager, ChatSession, ConversationDatabaseStore, NewConversation,
+    PromptInstruction,
 };
+use super::server::{ModelServer, ModelServerName, ServerManager, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
     ColorScheme, CommandLineAction, ConversationEvent, ConversationReader,
@@ -143,11 +144,18 @@ async fn prompt_app<B: Backend>(
                                                 new_conversation.clone(),
                                                 &db_conn,
                                             )?;
+                                            // assume prompt template does not change
+                                            // TODO: should be optional defined via modal
+                                            let prompt_template = tab.chat.get_prompt_template();
                                             let chat_session = ChatSession::new(
                                                 &new_conversation.server.to_string(),
                                                 prompt_instruction,
+                                                prompt_template,
                                                 &db_conn,
                                             ).await?;
+                                            // stop current chat session
+                                            tab.chat.stop();
+                                            // update tab with new chat session
                                             tab.new_conversation(chat_session);
                                             reader = if let Some(conversation_id) = tab.chat.get_conversation_id() {
                                                 Some(db_conn.get_conversation_reader(conversation_id))
@@ -406,20 +414,29 @@ pub async fn run_cli(
         }
     };
 
+    let assistant_manager =
+        AssistantManager::new(assistant, instruction.clone())?;
+    let initial_messages = assistant_manager.get_initial_messages().to_vec();
+
     let prompt_instruction = PromptInstruction::new(
         NewConversation {
             server: ModelServerName::from_str(&server_name),
             model: default_model,
             options,
             system_prompt: instruction,
-            assistant_name: assistant,
+            initial_messages: Some(initial_messages),
             parent: None,
         },
         &db_conn,
     )?;
 
-    let chat_session =
-        ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;
+    let chat_session = ChatSession::new(
+        &server_name,
+        prompt_instruction,
+        assistant_manager.get_prompt_template(),
+        &db_conn,
+    )
+    .await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

@@ -6,7 +6,7 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 use super::connector::DatabaseConnector;
 use super::conversation::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, ModelIdentifier, ModelServerName, ModelSpec,
+    Message, MessageId, ModelIdentifier, ModelSpec,
 };
 use super::reader::ConversationReader;
 
@@ -35,7 +35,6 @@ impl ConversationDatabaseStore {
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
         model: &ModelSpec,
-        model_server: ModelServerName,
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();
         db.process_queue_with_result(|tx| {
@@ -78,7 +77,6 @@ impl ConversationDatabaseStore {
                 name: name.to_string(),
                 info: serde_json::Value::Null,
                 model_identifier: model.identifier.clone(),
-                model_server,
                 parent_conversation_id: parent_id,
                 fork_message_id,
                 completion_options,
@@ -89,19 +87,17 @@ impl ConversationDatabaseStore {
 
             tx.execute(
                 "INSERT INTO conversations (
-                    name, info, model_identifier, model_server, \
-                 parent_conversation_id, 
+                    name, info, model_identifier, parent_conversation_id, 
                     fork_message_id, completion_options, created_at, \
                  updated_at, 
                     message_count, total_tokens, is_deleted
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
                 params![
                     conversation.name,
                     serde_json::to_string(&conversation.info)
                         .unwrap_or_default(),
                     conversation.model_identifier.0,
-                    conversation.model_server.0,
                     conversation.parent_conversation_id.map(|id| id.0),
                     conversation.fork_message_id.map(|id| id.0),
                     conversation
@@ -283,28 +279,27 @@ impl ConversationDatabaseStore {
                     info: serde_json::from_str(&row.get::<_, String>(2)?)
                         .unwrap_or_default(),
                     model_identifier: ModelIdentifier(row.get(3)?),
-                    model_server: ModelServerName(row.get(4)?),
-                    parent_conversation_id: row.get(5).map(ConversationId).ok(),
-                    fork_message_id: row.get(6).map(MessageId).ok(),
+                    parent_conversation_id: row.get(4).map(ConversationId).ok(),
+                    fork_message_id: row.get(5).map(MessageId).ok(),
                     completion_options: row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>(6)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    created_at: row.get(8)?,
-                    updated_at: row.get(9)?,
-                    is_deleted: row.get::<_, i64>(10)? != 0,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    is_deleted: row.get::<_, i64>(9)? != 0,
                 };
 
-                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(12)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(13)?),
+                        id: MessageId(row.get(12)?),
                         conversation_id: conversation.id,
-                        role: row.get(14)?,
-                        message_type: row.get(15)?,
-                        content: row.get(16)?,
-                        has_attachments: row.get::<_, i64>(17)? != 0,
-                        token_length: row.get(18)?,
-                        previous_message_id: row.get(19).map(MessageId).ok(),
-                        created_at: row.get(20)?,
+                        role: row.get(13)?,
+                        message_type: row.get(14)?,
+                        content: row.get(15)?,
+                        has_attachments: row.get::<_, i64>(16)? != 0,
+                        token_length: row.get(17)?,
+                        previous_message_id: row.get(18).map(MessageId).ok(),
+                        created_at: row.get(19)?,
                         is_deleted: false,
                     })
                 } else {
@@ -336,8 +331,8 @@ impl ConversationDatabaseStore {
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
         let query = format!(
-            "SELECT id, name, info, model_identifier, model_server, 
-             parent_conversation_id, fork_message_id, completion_options, 
+            "SELECT id, name, info, model_identifier, parent_conversation_id, \
+             fork_message_id, completion_options, 
              created_at, updated_at, is_deleted
              FROM conversations
              WHERE is_deleted = FALSE
@@ -356,19 +351,18 @@ impl ConversationDatabaseStore {
                     info: serde_json::from_str(&row.get::<_, String>(2)?)
                         .unwrap_or_default(),
                     model_identifier: ModelIdentifier(row.get(3)?),
-                    model_server: ModelServerName(row.get(4)?),
                     parent_conversation_id: row
-                        .get::<_, Option<i64>>(5)?
+                        .get::<_, Option<i64>>(4)?
                         .map(ConversationId),
                     fork_message_id: row
-                        .get::<_, Option<i64>>(6)?
+                        .get::<_, Option<i64>>(5)?
                         .map(MessageId),
                     completion_options: row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>(6)?
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    created_at: row.get(8)?,
-                    updated_at: row.get(9)?,
-                    is_deleted: row.get(10)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    is_deleted: row.get(9)?,
                 })
             })?;
 

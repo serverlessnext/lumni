@@ -40,7 +40,7 @@ impl ModelIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelSpec {
     pub identifier: ModelIdentifier,
     pub info: Option<serde_json::Value>,

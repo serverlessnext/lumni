@@ -20,9 +20,8 @@ pub use modal::{ModalConfigWindow, ModalWindowTrait, ModalWindowType};
 pub use ui::TabUi;
 pub use windows::{CommandLine, PromptWindow, ResponseWindow};
 
-pub use super::chat::{
-    ChatSession, ConversationReader, ModelSpec, NewConversation,
-};
+pub use super::chat::db::{ConversationReader, ModelSpec};
+pub use super::chat::{ChatSession, NewConversation};
 pub use super::server::{
     ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
 };

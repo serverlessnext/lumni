@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use super::{ModelServerName, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
+use super::db::ModelServerName;
+use super::{DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
@@ -106,7 +107,7 @@ impl ChatCompletionOptions {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AssistantOptions {
-    pub name: String,   // name of assistant used
+    pub name: String, // name of assistant used
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_template: Option<String>,
 }

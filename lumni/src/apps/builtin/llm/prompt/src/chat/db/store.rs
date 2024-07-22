@@ -4,12 +4,12 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::conversation::{
+use super::helpers::system_time_in_milliseconds;
+use super::reader::ConversationReader;
+use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     Message, MessageId, ModelIdentifier, ModelSpec,
 };
-use super::helpers::system_time_in_milliseconds;
-use super::reader::ConversationReader;
 
 pub struct ConversationDatabaseStore {
     db: Arc<Mutex<DatabaseConnector>>,

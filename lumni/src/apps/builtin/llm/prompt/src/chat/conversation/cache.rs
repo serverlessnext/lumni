@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use super::{
+use super::db::{
     Attachment, AttachmentId, ConversationId, Message, MessageId,
-    ModelIdentifier, ModelSpec, PromptRole,
+    ModelIdentifier, ModelSpec,
 };
+use super::PromptRole;
 
 #[derive(Debug)]
 pub struct ConversationCache {

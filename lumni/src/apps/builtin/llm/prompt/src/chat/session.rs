@@ -4,9 +4,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
+use super::db::{ConversationDatabaseStore, ConversationId};
 use super::{
-    CompletionResponse, ConversationDatabaseStore, ConversationId, ModelServer,
-    PromptInstruction, ServerManager,
+    CompletionResponse, ModelServer, PromptInstruction, ServerManager,
 };
 use crate::api::error::ApplicationError;
 

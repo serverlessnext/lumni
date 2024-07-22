@@ -22,9 +22,9 @@ pub use response::{CompletionResponse, CompletionStats};
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
+pub use super::chat::db::{ConversationReader, ModelServerName, ModelSpec};
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response, ChatMessage,
-    ConversationReader, ModelServerName, ModelSpec, PromptInstruction,
     PromptRole,
 };
 pub use super::defaults::*;

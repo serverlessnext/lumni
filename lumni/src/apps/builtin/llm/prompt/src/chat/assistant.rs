@@ -1,6 +1,6 @@
 use lumni::api::error::ApplicationError;
 
-use super::conversation::{ConversationId, Message, MessageId};
+use super::db::{ConversationId, Message, MessageId};
 use super::options::{AssistantOptions, ChatCompletionOptions};
 use super::prompt::Prompt;
 use super::{PromptRole, PERSONAS};

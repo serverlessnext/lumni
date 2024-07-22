@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::conversation::{
+use super::{
     Attachment, AttachmentData, AttachmentId, ConversationId, Message,
     MessageId, ModelIdentifier, ModelSpec,
 };

@@ -1,79 +1,13 @@
 use lumni::api::error::ApplicationError;
 
-use super::conversation::{
-    ConversationCache, ConversationId, Message, MessageId, ModelServerName,
+use super::db::{
+    system_time_in_milliseconds, ConversationCache, ConversationDatabaseStore,
+    ConversationId, ConversationReader, Message, MessageId, ModelServerName,
     ModelSpec,
 };
-use super::db::{
-    system_time_in_milliseconds, ConversationDatabaseStore, ConversationReader,
-};
+use super::prepare::NewConversation;
 use super::{ChatCompletionOptions, ChatMessage, PromptRole};
 pub use crate::external as lumni;
-
-#[derive(Debug, Clone)]
-pub struct ParentConversation {
-    pub id: ConversationId,
-    pub fork_message_id: MessageId,
-}
-
-#[derive(Debug, Clone)]
-pub struct NewConversation {
-    pub server: ModelServerName,
-    pub model: Option<ModelSpec>,
-    pub options: Option<serde_json::Value>,
-    pub system_prompt: Option<String>, // system_prompt ignored if parent is provided
-    pub initial_messages: Option<Vec<Message>>, // initial_messages ignored if parent is provided
-    pub parent: Option<ParentConversation>,     // forked conversation
-}
-
-impl NewConversation {
-    pub fn new(
-        new_server: ModelServerName,
-        new_model: ModelSpec,
-        conversation_reader: Option<&ConversationReader<'_>>,
-    ) -> Result<NewConversation, ApplicationError> {
-        if let Some(reader) = conversation_reader {
-            // fork from an existing conversation
-            let current_conversation_id = reader.get_conversation_id();
-            let current_completion_options = reader.get_completion_options()?;
-
-            if let Some(last_message_id) = reader.get_last_message_id()? {
-                Ok(NewConversation {
-                    server: new_server,
-                    model: Some(new_model),
-                    options: Some(current_completion_options),
-                    system_prompt: None, // ignored when forking
-                    initial_messages: None, // ignored when forking
-                    parent: Some(ParentConversation {
-                        id: current_conversation_id,
-                        fork_message_id: last_message_id,
-                    }),
-                })
-            } else {
-                // start a new conversation, as there is no last message is there is nothing to fork from.
-                // Both system_prompt and assistant_name are set to None, because if no messages exist, these were also None in the (empty) parent conversation
-                Ok(NewConversation {
-                    server: new_server,
-                    model: Some(new_model),
-                    options: Some(current_completion_options),
-                    system_prompt: None,
-                    initial_messages: None,
-                    parent: None,
-                })
-            }
-        } else {
-            // start a new conversation
-            Ok(NewConversation {
-                server: new_server,
-                model: Some(new_model),
-                options: None,
-                system_prompt: None,
-                initial_messages: None,
-                parent: None,
-            })
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct PromptInstruction {
@@ -88,7 +22,7 @@ impl PromptInstruction {
         new_conversation: NewConversation,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        let mut completion_options = match new_conversation.options {
+        let completion_options = match new_conversation.options {
             Some(opts) => {
                 let mut options = ChatCompletionOptions::default();
                 options.update(opts)?;
@@ -96,8 +30,6 @@ impl PromptInstruction {
             }
             None => ChatCompletionOptions::default(),
         };
-        // Update model_server in completion_options
-        completion_options.model_server = Some(new_conversation.server);
 
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(db_conn.new_conversation(

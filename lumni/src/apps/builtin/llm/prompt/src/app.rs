@@ -24,9 +24,9 @@ use tokio::signal;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, timeout, Duration};
 
+use super::chat::db::ConversationDatabaseStore;
 use super::chat::{
-    AssistantManager, ChatSession, ConversationDatabaseStore, NewConversation,
-    PromptInstruction,
+    AssistantManager, ChatSession, NewConversation, PromptInstruction,
 };
 use super::server::{ModelServer, ModelServerName, ServerTrait};
 use super::session::{AppSession, TabSession};
@@ -409,14 +409,16 @@ pub async fn run_cli(
     let mut completion_options =
         assistant_manager.get_completion_options().clone();
 
+    let model_server = ModelServerName::from_str(&server_name);
+    completion_options.model_server = Some(model_server.clone());
+
     // overwrite default options with options set by the user
     if let Some(s) = user_options {
         let user_options_value = serde_json::from_str::<serde_json::Value>(s)?;
         completion_options.update(user_options_value)?;
-    } 
-
+    }
     let new_conversation = NewConversation {
-        server: ModelServerName::from_str(&server_name),
+        server: model_server,
         model: default_model,
         options: Some(serde_json::to_value(completion_options)?),
         system_prompt: instruction,
@@ -424,10 +426,23 @@ pub async fn run_cli(
         parent: None,
     };
 
-    let prompt_instruction = PromptInstruction::new(
-        new_conversation,
-        &db_conn,
-    )?;
+    // check if the last conversation is the same as the new conversation, if so,
+    // continue the conversation, otherwise start a new conversation
+    let prompt_instruction =
+        if let Some(conversation_id) = db_conn.fetch_last_conversation_id()? {
+            let reader = db_conn.get_conversation_reader(conversation_id);
+            let is_equal = new_conversation.is_equal(&reader)?;
+            if is_equal {
+                log::debug!("Continuing last conversation");
+                PromptInstruction::from_reader(&reader)?
+            } else {
+                log::debug!("Starting new conversation");
+                PromptInstruction::new(new_conversation, &db_conn)?
+            }
+        } else {
+            log::debug!("Starting new conversation");
+            PromptInstruction::new(new_conversation, &db_conn)?
+        };
 
     let chat_session =
         ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;

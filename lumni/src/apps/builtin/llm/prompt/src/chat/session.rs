@@ -13,7 +13,6 @@ use crate::api::error::ApplicationError;
 pub struct ChatSession {
     server: Box<dyn ServerManager>,
     prompt_instruction: PromptInstruction,
-    prompt_template: Option<String>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
@@ -21,7 +20,6 @@ impl ChatSession {
     pub async fn new(
         server_name: &str,
         prompt_instruction: PromptInstruction,
-        prompt_template: Option<String>,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
         let mut server = Box::new(ModelServer::from_str(&server_name)?);
@@ -35,17 +33,12 @@ impl ChatSession {
         Ok(ChatSession {
             server,
             prompt_instruction,
-            prompt_template,
             cancel_tx: None,
         })
     }
 
     pub fn server_name(&self) -> String {
         self.server.server_name().to_string()
-    }
-
-    pub fn get_prompt_template(&self) -> Option<String> {
-        self.prompt_template.clone()
     }
 
     pub fn get_conversation_id(&self) -> Option<ConversationId> {
@@ -122,12 +115,23 @@ impl ChatSession {
         Ok(if user_question.is_empty() {
             "continue".to_string()
         } else {
-            if let Some(prompt_template) = &self.prompt_template {
-                prompt_template.replace("{{ USER_QUESTION }}", user_question)
-            } else {
-                user_question.to_string()
-            }
+            self.format_user_question(user_question)
         })
+    }
+
+    fn format_user_question(&self, user_question: &str) -> String {
+        self.get_prompt_template()
+            .map(|template| {
+                template.replace("{{ USER_QUESTION }}", user_question)
+            })
+            .unwrap_or_else(|| user_question.to_string())
+    }
+
+    fn get_prompt_template(&self) -> Option<String> {
+        self.prompt_instruction
+            .get_completion_options()
+            .get_assistant_options()
+            .and_then(|opts| opts.prompt_template.clone())
     }
 
     pub fn process_response(

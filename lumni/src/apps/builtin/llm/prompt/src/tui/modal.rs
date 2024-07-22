@@ -112,7 +112,6 @@ impl ModalWindowTrait for ModalConfigWindow {
                 let server =
                     ModelServer::from_str(self.widget.current_endpoint())?;
                 let _models = server.list_models().await?;
-                //eprintln!("models: {:?}", models);
             }
             _ => {} // Ignore other keys
         }

@@ -1,13 +1,14 @@
 use lumni::api::error::ApplicationError;
 
 use super::conversation::{ConversationId, Message, MessageId};
+use super::options::{AssistantOptions, ChatCompletionOptions};
 use super::prompt::Prompt;
 use super::{PromptRole, PERSONAS};
 pub use crate::external as lumni;
 
 pub struct AssistantManager {
-    prompt_template: Option<String>,
     initial_messages: Vec<Message>,
+    completion_options: ChatCompletionOptions,
 }
 
 impl AssistantManager {
@@ -16,8 +17,8 @@ impl AssistantManager {
         user_instruction: Option<String>,
     ) -> Result<Self, ApplicationError> {
         let mut manager = AssistantManager {
-            prompt_template: None,
             initial_messages: Vec::new(),
+            completion_options: ChatCompletionOptions::default(),
         };
 
         // TODO: default should only apply to servers that do no handle this internally
@@ -41,7 +42,7 @@ impl AssistantManager {
 
     fn load_assistant(
         &mut self,
-        assistant: String,
+        assistant_name: String,
         user_instruction: Option<String>,
     ) -> Result<(), ApplicationError> {
         let assistant_prompts: Vec<Prompt> = serde_yaml::from_str(PERSONAS)
@@ -54,11 +55,11 @@ impl AssistantManager {
 
         let prompt = assistant_prompts
             .into_iter()
-            .find(|p| p.name() == assistant)
+            .find(|p| p.name() == assistant_name)
             .ok_or_else(|| {
                 ApplicationError::Unexpected(format!(
                     "Assistant '{}' not found in the dataset",
-                    assistant
+                    assistant_name
                 ))
             })?;
 
@@ -113,14 +114,18 @@ impl AssistantManager {
             }
         }
 
-        if let Some(prompt_template) = prompt.prompt_template() {
-            self.prompt_template = Some(prompt_template.to_string());
-        }
+        let assistant_options = AssistantOptions {
+            name: assistant_name,
+            prompt_template: prompt.prompt_template().map(|s| s.to_string()),
+        };
+        self.completion_options
+            .set_assistant_options(assistant_options);
+
         Ok(())
     }
 
-    pub fn get_prompt_template(&self) -> Option<String> {
-        self.prompt_template.clone()
+    pub fn get_completion_options(&self) -> &ChatCompletionOptions {
+        &self.completion_options
     }
 
     pub fn get_initial_messages(&self) -> &[Message] {

@@ -58,7 +58,6 @@ async fn prompt_app<B: Backend>(
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
-    // TODO: reader should be updated when conversation_id changes
     let mut reader: Option<ConversationReader> =
         if let Some(conversation_id) = tab.chat.get_conversation_id() {
             Some(db_conn.get_conversation_reader(conversation_id))
@@ -144,13 +143,9 @@ async fn prompt_app<B: Backend>(
                                                 new_conversation.clone(),
                                                 &db_conn,
                                             )?;
-                                            // assume prompt template does not change
-                                            // TODO: should be optional defined via modal
-                                            let prompt_template = tab.chat.get_prompt_template();
                                             let chat_session = ChatSession::new(
                                                 &new_conversation.server.to_string(),
                                                 prompt_instruction,
-                                                prompt_template,
                                                 &db_conn,
                                             ).await?;
                                             // stop current chat session
@@ -391,14 +386,7 @@ pub async fn run_cli(
     // optional arguments
     let instruction = matches.get_one::<String>("system").cloned();
     let assistant = matches.get_one::<String>("assistant").cloned();
-    let options = match matches.get_one::<String>("options") {
-        Some(s) => {
-            let value = serde_json::from_str::<serde_json::Value>(s)?;
-            Some(value)
-        }
-        None => None,
-    };
-
+    let user_options = matches.get_one::<String>("options");
     let server_name = matches
         .get_one::<String>("server")
         .map(|s| s.to_lowercase())
@@ -417,26 +405,32 @@ pub async fn run_cli(
     let assistant_manager =
         AssistantManager::new(assistant, instruction.clone())?;
     let initial_messages = assistant_manager.get_initial_messages().to_vec();
+    // get default options via assistant
+    let mut completion_options =
+        assistant_manager.get_completion_options().clone();
+
+    // overwrite default options with options set by the user
+    if let Some(s) = user_options {
+        let user_options_value = serde_json::from_str::<serde_json::Value>(s)?;
+        completion_options.update(user_options_value)?;
+    } 
+
+    let new_conversation = NewConversation {
+        server: ModelServerName::from_str(&server_name),
+        model: default_model,
+        options: Some(serde_json::to_value(completion_options)?),
+        system_prompt: instruction,
+        initial_messages: Some(initial_messages),
+        parent: None,
+    };
 
     let prompt_instruction = PromptInstruction::new(
-        NewConversation {
-            server: ModelServerName::from_str(&server_name),
-            model: default_model,
-            options,
-            system_prompt: instruction,
-            initial_messages: Some(initial_messages),
-            parent: None,
-        },
+        new_conversation,
         &db_conn,
     )?;
 
-    let chat_session = ChatSession::new(
-        &server_name,
-        prompt_instruction,
-        assistant_manager.get_prompt_template(),
-        &db_conn,
-    )
-    .await?;
+    let chat_session =
+        ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

@@ -4,7 +4,9 @@ use super::conversation::{
     ConversationCache, ConversationId, Message, MessageId, ModelServerName,
     ModelSpec,
 };
-use super::db::{ConversationDatabaseStore, ConversationReader};
+use super::db::{
+    system_time_in_milliseconds, ConversationDatabaseStore, ConversationReader,
+};
 use super::{ChatCompletionOptions, ChatMessage, PromptRole};
 pub use crate::external as lumni;
 
@@ -73,6 +75,7 @@ impl NewConversation {
     }
 }
 
+#[derive(Debug)]
 pub struct PromptInstruction {
     cache: ConversationCache,
     model: Option<ModelSpec>,
@@ -85,7 +88,6 @@ impl PromptInstruction {
         new_conversation: NewConversation,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-
         let mut completion_options = match new_conversation.options {
             Some(opts) => {
                 let mut options = ChatCompletionOptions::default();
@@ -114,7 +116,6 @@ impl PromptInstruction {
             model: new_conversation.model,
             conversation_id,
             completion_options,
-
         };
 
         if let Some(conversation_id) = prompt_instruction.conversation_id {
@@ -130,6 +131,8 @@ impl PromptInstruction {
             if let Some(messages) = new_conversation.initial_messages {
                 let mut messages_to_insert = Vec::new();
 
+                let timestamp = system_time_in_milliseconds();
+
                 for (index, mut message) in messages.into_iter().enumerate() {
                     message.id = MessageId(index as i64);
                     message.conversation_id =
@@ -141,6 +144,8 @@ impl PromptInstruction {
                     };
                     message.token_length =
                         Some(simple_token_estimator(&message.content, None));
+                    message.created_at = timestamp;
+
                     prompt_instruction.cache.add_message(message.clone());
                     messages_to_insert.push(message);
                 }
@@ -167,8 +172,9 @@ impl PromptInstruction {
         let completion_options = reader
             .get_completion_options()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
-    
-        let completion_options: ChatCompletionOptions = serde_json::from_value(completion_options)?;
+
+        let completion_options: ChatCompletionOptions =
+            serde_json::from_value(completion_options)?;
 
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
@@ -211,6 +217,10 @@ impl PromptInstruction {
         self.conversation_id
     }
 
+    pub fn get_completion_options(&self) -> &ChatCompletionOptions {
+        &self.completion_options
+    }
+
     fn add_system_message(
         &mut self,
         content: String,
@@ -225,7 +235,7 @@ impl PromptInstruction {
             token_length: Some(simple_token_estimator(&content, None)),
             content,
             previous_message_id: None,
-            created_at: 0,
+            created_at: system_time_in_milliseconds(),
             is_deleted: false,
         };
         // put system message directly into the database
@@ -284,7 +294,7 @@ impl PromptInstruction {
         db_conn: &ConversationDatabaseStore,
     ) -> Result<(), ApplicationError> {
         let (user_message, assistant_message) =
-            self.prepare_last_messages(answer, tokens_predicted);
+            self.finalize_last_messages(answer, tokens_predicted);
 
         // Prepare messages for database insertion
         let mut messages_to_insert = Vec::new();
@@ -305,7 +315,7 @@ impl PromptInstruction {
         Ok(())
     }
 
-    fn prepare_last_messages(
+    fn finalize_last_messages(
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
@@ -323,7 +333,7 @@ impl PromptInstruction {
             message_type: last_message.message_type,
             has_attachments: last_message.has_attachments,
             previous_message_id: last_message.previous_message_id,
-            created_at: last_message.created_at,
+            created_at: system_time_in_milliseconds(),
             is_deleted: last_message.is_deleted,
             content: answer.to_string(),
             token_length: tokens_predicted.map(|t| t as i64),
@@ -372,7 +382,7 @@ impl PromptInstruction {
             has_attachments: false,
             token_length: None,
             previous_message_id: self.cache.get_last_message_id(),
-            created_at: 0,
+            created_at: 0, // updated when finalizing the message
             is_deleted: false,
         };
         self.cache.add_message(message);
@@ -392,7 +402,7 @@ impl PromptInstruction {
             has_attachments: false,
             token_length: None, // token length is computed after completion
             previous_message_id: self.cache.get_last_message_id(),
-            created_at: 0,
+            created_at: system_time_in_milliseconds(),
             is_deleted: false,
         };
         self.cache.add_message(message);

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ModelServerName, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
@@ -22,6 +22,8 @@ pub struct ChatCompletionOptions {
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_server: Option<ModelServerName>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assistant_options: Option<AssistantOptions>,
 }
 
 impl Default for ChatCompletionOptions {
@@ -36,6 +38,7 @@ impl Default for ChatCompletionOptions {
             stop: None,
             stream: Some(true),
             model_server: None,
+            assistant_options: None,
         }
     }
 }
@@ -57,6 +60,9 @@ impl ChatCompletionOptions {
         self.stream = user_options.stream.or(self.stream);
         self.model_server =
             user_options.model_server.or(self.model_server.clone());
+        self.assistant_options = user_options
+            .assistant_options
+            .or_else(|| self.assistant_options.clone());
         Ok(())
     }
 
@@ -88,4 +94,19 @@ impl ChatCompletionOptions {
         self.stream = Some(stream);
         self
     }
+
+    pub fn set_assistant_options(&mut self, options: AssistantOptions) {
+        self.assistant_options = Some(options);
+    }
+
+    pub fn get_assistant_options(&self) -> Option<&AssistantOptions> {
+        self.assistant_options.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AssistantOptions {
+    pub name: String,   // name of assistant used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_template: Option<String>,
 }

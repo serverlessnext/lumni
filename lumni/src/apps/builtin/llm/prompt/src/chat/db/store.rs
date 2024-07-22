@@ -8,6 +8,7 @@ use super::conversation::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     Message, MessageId, ModelIdentifier, ModelSpec,
 };
+use super::helpers::system_time_in_milliseconds;
 use super::reader::ConversationReader;
 
 pub struct ConversationDatabaseStore {
@@ -37,6 +38,9 @@ impl ConversationDatabaseStore {
         model: &ModelSpec,
     ) -> Result<ConversationId, SqliteError> {
         let mut db = self.db.lock().unwrap();
+
+        let timestamp = system_time_in_milliseconds();
+
         db.process_queue_with_result(|tx| {
             // Ensure the model exists
             let exists: bool = tx
@@ -80,8 +84,8 @@ impl ConversationDatabaseStore {
                 parent_conversation_id: parent_id,
                 fork_message_id,
                 completion_options,
-                created_at: 0,
-                updated_at: 0,
+                created_at: timestamp,
+                updated_at: timestamp,
                 is_deleted: false,
             };
 
@@ -242,6 +246,18 @@ impl ConversationDatabaseStore {
 }
 
 impl ConversationDatabaseStore {
+    pub fn fetch_last_conversation_id(
+        &self,
+    ) -> Result<Option<ConversationId>, SqliteError> {
+        let query = "SELECT id FROM conversations WHERE is_deleted = FALSE \
+                     ORDER BY updated_at DESC LIMIT 1";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, [], |row| Ok(ConversationId(row.get(0)?)))
+                .optional()
+        })
+    }
+
     pub fn fetch_conversation(
         &self,
         conversation_id: Option<ConversationId>,

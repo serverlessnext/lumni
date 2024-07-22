@@ -5,23 +5,23 @@ use super::{ModelServerName, DEFAULT_N_PREDICT, DEFAULT_TEMPERATURE};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChatCompletionOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f64>,
+    pub temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_k: Option<u32>,
+    pub top_k: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_p: Option<f64>,
+    pub top_p: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    n_keep: Option<usize>,
+    pub n_keep: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    n_predict: Option<u32>,
+    pub n_predict: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    cache_prompt: Option<bool>,
+    pub cache_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stop: Option<Vec<String>>,
+    pub stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
+    pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    model_server: Option<ModelServerName>,
+    pub model_server: Option<ModelServerName>,
 }
 
 impl Default for ChatCompletionOptions {

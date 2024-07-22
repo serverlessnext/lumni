@@ -77,6 +77,7 @@ pub struct PromptInstruction {
     cache: ConversationCache,
     model: Option<ModelSpec>,
     conversation_id: Option<ConversationId>,
+    completion_options: ChatCompletionOptions,
 }
 
 impl PromptInstruction {
@@ -84,24 +85,24 @@ impl PromptInstruction {
         new_conversation: NewConversation,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
+
         let mut completion_options = match new_conversation.options {
             Some(opts) => {
                 let mut options = ChatCompletionOptions::default();
                 options.update(opts)?;
-                serde_json::to_value(options)?
+                options
             }
-            None => serde_json::to_value(ChatCompletionOptions::default())?,
+            None => ChatCompletionOptions::default(),
         };
         // Update model_server in completion_options
-        completion_options["model_server"] =
-            serde_json::to_value(new_conversation.server.0)?;
+        completion_options.model_server = Some(new_conversation.server);
 
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(db_conn.new_conversation(
                 "New Conversation",
                 new_conversation.parent.as_ref().map(|p| p.id),
                 new_conversation.parent.as_ref().map(|p| p.fork_message_id),
-                Some(completion_options),
+                Some(serde_json::to_value(&completion_options)?),
                 model,
             )?)
         } else {
@@ -112,6 +113,8 @@ impl PromptInstruction {
             cache: ConversationCache::new(),
             model: new_conversation.model,
             conversation_id,
+            completion_options,
+
         };
 
         if let Some(conversation_id) = prompt_instruction.conversation_id {
@@ -161,10 +164,17 @@ impl PromptInstruction {
             .get_model_spec()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
+        let completion_options = reader
+            .get_completion_options()
+            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+    
+        let completion_options: ChatCompletionOptions = serde_json::from_value(completion_options)?;
+
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
             model: Some(model_spec),
             conversation_id: Some(conversation_id),
+            completion_options,
         };
 
         prompt_instruction

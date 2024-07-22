@@ -28,7 +28,7 @@ use super::chat::{
     AssistantManager, ChatSession, ConversationDatabaseStore, NewConversation,
     PromptInstruction,
 };
-use super::server::{ModelServer, ModelServerName, ServerManager, ServerTrait};
+use super::server::{ModelServer, ModelServerName, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
     ColorScheme, CommandLineAction, ConversationEvent, ConversationReader,

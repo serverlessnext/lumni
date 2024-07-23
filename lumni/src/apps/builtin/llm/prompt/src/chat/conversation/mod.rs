@@ -7,7 +7,9 @@ pub use instruction::PromptInstruction;
 pub use prepare::NewConversation;
 
 pub use super::db;
-use super::{ChatCompletionOptions, ChatMessage, PromptRole};
+use super::{
+    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextSegment,
+};
 
 #[derive(Debug, Clone)]
 pub struct ParentConversation {

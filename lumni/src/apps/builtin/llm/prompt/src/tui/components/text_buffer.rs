@@ -2,7 +2,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Masked, Span};
 
 use super::cursor::{Cursor, MoveCursor};
-use super::piece_table::{PieceTable, TextLine};
+use super::piece_table::{PieceTable, TextLine, TextSegment};
 use super::text_wrapper::TextWrapper;
 
 #[allow(dead_code)]
@@ -186,9 +186,14 @@ pub struct TextBuffer<'a> {
 }
 
 impl TextBuffer<'_> {
-    pub fn new() -> Self {
+    pub fn new(text: Option<Vec<TextSegment>>) -> Self {
+        let piece_table = if let Some(text) = text {
+            PieceTable::from_text(text)
+        } else {
+            PieceTable::new()
+        };
         Self {
-            text: PieceTable::new(),
+            text: piece_table,
             placeholder: String::new(),
             display: TextDisplay::new(0),
             cursor: Cursor::new(),
@@ -641,7 +646,7 @@ impl TextBuffer<'_> {
 
         for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
-                line.segments().map(|s| s.text()).collect::<String>();
+                line.segments().map(|s| s.text.as_str()).collect::<String>();
 
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
@@ -727,7 +732,7 @@ impl TextBuffer<'_> {
 
             // Start character position for this line from the cumulative offset
             for segment in line.segments() {
-                let chars: Vec<char> = segment.text().chars().collect();
+                let chars: Vec<char> = segment.text.chars().collect();
                 for ch in chars.into_iter() {
                     // Adjust row based on the index in wrapped lines
                     let should_select = self.cursor.should_select(
@@ -740,7 +745,7 @@ impl TextBuffer<'_> {
                     );
 
                     let mut effective_style =
-                        segment.style().unwrap_or(Style::default());
+                        segment.style.unwrap_or(Style::default());
                     if should_select {
                         effective_style = effective_style.bg(Color::Blue);
                     }

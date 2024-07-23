@@ -107,7 +107,8 @@ impl ChatCompletionOptions {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AssistantOptions {
-    pub name: String, // name of assistant used
+    pub name: String,              // name of assistant used
+    pub preloaded_messages: usize, // number of messages loaded by the assistant, does not include the first system message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_template: Option<String>,
 }

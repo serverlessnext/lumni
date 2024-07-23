@@ -58,12 +58,18 @@ pub struct TabSession<'a> {
 
 impl TabSession<'_> {
     fn new(chat: ChatSession) -> Self {
-        let mut tab_ui = TabUi::new();
+        let color_scheme = ColorScheme::new(ColorSchemeType::Default);
+        let conversation_text = {
+            let export = chat.export_conversation(&color_scheme);
+            (!export.is_empty()).then(|| export)
+        };
+
+        let mut tab_ui = TabUi::new(conversation_text);
         tab_ui.init();
         TabSession {
             ui: tab_ui,
             chat,
-            color_scheme: ColorScheme::new(ColorSchemeType::Default),
+            color_scheme,
         }
     }
 

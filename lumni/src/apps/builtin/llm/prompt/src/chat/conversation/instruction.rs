@@ -2,11 +2,13 @@ use lumni::api::error::ApplicationError;
 
 use super::db::{
     system_time_in_milliseconds, ConversationCache, ConversationDatabaseStore,
-    ConversationId, ConversationReader, Message, MessageId, ModelServerName,
-    ModelSpec,
+    ConversationId, ConversationReader, Message, MessageId, ModelSpec,
 };
 use super::prepare::NewConversation;
-use super::{ChatCompletionOptions, ChatMessage, PromptRole};
+use super::{
+    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextSegment,
+};
+use crate::apps::builtin::llm::prompt::src::chat::assistant;
 pub use crate::external as lumni;
 
 #[derive(Debug)]
@@ -31,6 +33,7 @@ impl PromptInstruction {
             None => ChatCompletionOptions::default(),
         };
 
+        eprintln!("completion_options: {:?}", completion_options);
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(db_conn.new_conversation(
                 "New Conversation",
@@ -58,8 +61,6 @@ impl PromptInstruction {
 
         if new_conversation.parent.is_none() {
             // evaluate system_prompt and initial_messages only if parent is not provided
-            // TODO: check if first initial message is a System message,
-            // if not, and prompt is provided, add it as the first message
             if let Some(messages) = new_conversation.initial_messages {
                 let mut messages_to_insert = Vec::new();
 
@@ -81,6 +82,9 @@ impl PromptInstruction {
                     prompt_instruction.cache.add_message(message.clone());
                     messages_to_insert.push(message);
                 }
+                prompt_instruction
+                    .cache
+                    .set_preloaded_messages(messages_to_insert.len());
 
                 // Insert messages into the database
                 db_conn.put_new_messages(&messages_to_insert)?;
@@ -108,6 +112,11 @@ impl PromptInstruction {
         let completion_options: ChatCompletionOptions =
             serde_json::from_value(completion_options)?;
 
+        let preloaded_messages = completion_options
+            .assistant_options
+            .as_ref()
+            .map_or(0, |options| options.preloaded_messages);
+
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
             model: Some(model_spec),
@@ -118,6 +127,9 @@ impl PromptInstruction {
         prompt_instruction
             .cache
             .set_conversation_id(conversation_id);
+        prompt_instruction
+            .cache
+            .set_preloaded_messages(preloaded_messages);
 
         // Load messages
         let messages = reader
@@ -379,6 +391,13 @@ impl PromptInstruction {
         // Reverse the messages to maintain chronological order
         messages.reverse();
         messages
+    }
+
+    pub fn export_conversation(
+        &self,
+        color_scheme: &ColorScheme,
+    ) -> Vec<TextSegment> {
+        self.cache.export_conversation(color_scheme)
     }
 }
 

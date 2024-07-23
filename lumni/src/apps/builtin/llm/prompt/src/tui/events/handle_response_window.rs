@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
-use super::{PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind};
+use super::{TabUi, TextWindowTrait, WindowEvent, WindowKind};
 
 pub fn handle_response_window_event(
     tab_ui: &mut TabUi,
@@ -21,13 +21,7 @@ pub fn handle_response_window_event(
             if key_track.current_key().modifiers == KeyModifiers::CONTROL {
                 match key {
                     'c' => {
-                        if tab_ui.response.text_buffer().is_empty() {
-                            return Some(WindowEvent::Quit);
-                        } else {
-                            return Some(WindowEvent::Prompt(
-                                PromptAction::Clear,
-                            ));
-                        }
+                        return Some(WindowEvent::Quit);
                     }
                     'q' => {
                         return Some(WindowEvent::Quit);

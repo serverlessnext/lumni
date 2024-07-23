@@ -1,7 +1,8 @@
 use ratatui::style::{Color, Style};
 
 use super::components::{
-    TextWindow, TextWindowTrait, WindowConfig, WindowKind, WindowStatus,
+    TextSegment, TextWindow, TextWindowTrait, WindowConfig, WindowKind,
+    WindowStatus,
 };
 
 pub struct PromptWindow<'a> {
@@ -19,7 +20,7 @@ impl PromptWindow<'_> {
         let mut window_type = WindowConfig::new(WindowKind::PromptWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type),
+            base: TextWindow::new(window_type, None),
         }
     }
 }
@@ -35,11 +36,11 @@ impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
 }
 
 impl ResponseWindow<'_> {
-    pub fn new() -> Self {
+    pub fn new(text: Option<Vec<TextSegment>>) -> Self {
         let mut window_type = WindowConfig::new(WindowKind::ResponseWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type),
+            base: TextWindow::new(window_type, text),
         }
     }
 }
@@ -67,7 +68,7 @@ impl CommandLine<'_> {
         let mut window_type = WindowConfig::new(WindowKind::CommandLine);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type),
+            base: TextWindow::new(window_type, None),
             mode: CommandLineMode::Normal,
         }
     }

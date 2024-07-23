@@ -8,6 +8,7 @@ mod text_wrapper;
 mod window_config;
 
 pub use cursor::MoveCursor;
+pub use piece_table::TextSegment;
 pub use scroller::Scroller;
 pub use text_buffer::{LineType, TextBuffer};
 pub use text_window::{TextWindow, TextWindowTrait};

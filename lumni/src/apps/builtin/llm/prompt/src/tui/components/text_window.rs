@@ -5,6 +5,7 @@ use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
+use super::piece_table::TextSegment;
 use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
@@ -19,12 +20,15 @@ pub struct TextWindow<'a> {
 }
 
 impl<'a> TextWindow<'a> {
-    pub fn new(window_type: WindowConfig) -> Self {
+    pub fn new(
+        window_type: WindowConfig,
+        text: Option<Vec<TextSegment>>,
+    ) -> Self {
         Self {
             area: RectArea::default(),
             window_type,
             scroller: Scroller::new(),
-            text_buffer: TextBuffer::new(),
+            text_buffer: TextBuffer::new(text),
         }
     }
 

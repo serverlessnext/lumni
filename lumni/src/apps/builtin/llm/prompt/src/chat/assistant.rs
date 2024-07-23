@@ -21,16 +21,18 @@ impl AssistantManager {
             completion_options: ChatCompletionOptions::default(),
         };
 
-        // TODO: default should only apply to servers that do no handle this internally
         // Use default assistant when both system_promt and assistant_name are None
         let assistant_name = assistant_name.or_else(|| {
-            if user_instruction.is_some() {
-                // assistant not needed
-                None
-            } else {
-                // no user instruction, use default assistant
-                Some("Default".to_string())
-            }
+            user_instruction
+                .as_ref()
+                .map(|instruction| {
+                    manager.add_system_message(instruction.to_string());
+                    None // No assistant required
+                })
+                .unwrap_or_else(|| {
+                    // TODO: default should only apply to servers that do no handle this internally
+                    Some("Default".to_string()) // Use default assistant
+                })
         });
 
         if let Some(assistant_name) = assistant_name {
@@ -38,6 +40,21 @@ impl AssistantManager {
         }
 
         Ok(manager)
+    }
+
+    fn add_system_message(&mut self, system_prompt: String) {
+        self.initial_messages.push(Message {
+            id: MessageId(0), // system message is always the first message
+            conversation_id: ConversationId(0), // temporary conversation id
+            role: PromptRole::System,
+            message_type: "text".to_string(),
+            content: system_prompt,
+            has_attachments: false,
+            token_length: None,
+            previous_message_id: None,
+            created_at: 0,
+            is_deleted: false,
+        });
     }
 
     fn load_assistant(
@@ -66,18 +83,7 @@ impl AssistantManager {
         let system_prompt = build_system_prompt(&prompt, &user_instruction);
 
         // Add system message
-        self.initial_messages.push(Message {
-            id: MessageId(0), // system message is always the first message
-            conversation_id: ConversationId(0), // temporary conversation id
-            role: PromptRole::System,
-            message_type: "text".to_string(),
-            content: system_prompt,
-            has_attachments: false,
-            token_length: None,
-            previous_message_id: None,
-            created_at: 0,
-            is_deleted: false,
-        });
+        self.add_system_message(system_prompt);
 
         // Add exchanges if any
         if let Some(exchanges) = prompt.exchanges() {
@@ -116,6 +122,7 @@ impl AssistantManager {
 
         let assistant_options = AssistantOptions {
             name: assistant_name,
+            preloaded_messages: self.initial_messages.len() - 1, // exclude the first system message
             prompt_template: prompt.prompt_template().map(|s| s.to_string()),
         };
         self.completion_options

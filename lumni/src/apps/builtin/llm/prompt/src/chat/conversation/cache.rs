@@ -1,28 +1,27 @@
 use std::collections::HashMap;
 
-use super::db::{
-    Attachment, AttachmentId, ConversationId, Message, MessageId,
-    ModelIdentifier, ModelSpec,
-};
-use super::PromptRole;
+use ratatui::style::Style;
+
+use super::db::{Attachment, AttachmentId, ConversationId, Message, MessageId};
+use super::{ColorScheme, PromptRole, TextSegment};
 
 #[derive(Debug)]
 pub struct ConversationCache {
     conversation_id: ConversationId,
-    models: HashMap<ModelIdentifier, ModelSpec>,
     messages: Vec<Message>, // messages have to be ordered
     attachments: HashMap<AttachmentId, Attachment>,
     message_attachments: HashMap<MessageId, Vec<AttachmentId>>,
+    preloaded_messages: usize,
 }
 
 impl ConversationCache {
     pub fn new() -> Self {
         ConversationCache {
             conversation_id: ConversationId(-1),
-            models: HashMap::new(),
             messages: Vec::new(),
             attachments: HashMap::new(),
             message_attachments: HashMap::new(),
+            preloaded_messages: 0,
         }
     }
 
@@ -34,16 +33,16 @@ impl ConversationCache {
         self.conversation_id = conversation_id;
     }
 
+    pub fn set_preloaded_messages(&mut self, preloaded_messages: usize) {
+        self.preloaded_messages = preloaded_messages;
+    }
+
     pub fn new_message_id(&self) -> MessageId {
         MessageId(self.messages.len() as i64)
     }
 
     pub fn new_attachment_id(&self) -> AttachmentId {
         AttachmentId(self.attachments.len() as i64)
-    }
-
-    pub fn add_model(&mut self, model: ModelSpec) {
-        self.models.insert(model.identifier.clone(), model);
     }
 
     pub fn add_message(&mut self, message: Message) {
@@ -100,27 +99,57 @@ impl ConversationCache {
         self.attachments
             .insert(attachment.attachment_id, attachment);
     }
+}
 
-    pub fn get_message_attachments(
+impl ConversationCache {
+    pub fn export_conversation(
         &self,
-        message_id: MessageId,
-    ) -> Vec<&Attachment> {
-        self.message_attachments
-            .get(&message_id)
-            .map(|attachment_ids| {
-                attachment_ids
-                    .iter()
-                    .filter_map(|id| self.attachments.get(id))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
+        color_scheme: &ColorScheme,
+    ) -> Vec<TextSegment> {
+        let mut skip_count = self.preloaded_messages;
 
-    pub fn get_system_prompt(&self) -> Option<String> {
-        // system prompt is the first message in the conversation
+        // Check if the first message is a system message, and skip it
+        if !self.messages.is_empty()
+            && self.messages[0].role == PromptRole::System
+        {
+            skip_count += 1;
+        }
+
         self.messages
-            .first()
-            .filter(|m| m.role == PromptRole::System)
-            .map(|m| m.content.clone())
+            .iter()
+            .skip(skip_count) // Skip preloaded messages
+            .filter(|m| !m.is_deleted && m.role != PromptRole::System)
+            .flat_map(|message| {
+                let style = match message.role {
+                    PromptRole::User => Some(color_scheme.get_primary_style()),
+                    PromptRole::Assistant => {
+                        Some(color_scheme.get_secondary_style())
+                    }
+                    _ => None,
+                };
+
+                let mut segments = Vec::new();
+
+                // Add the message content
+                let text = message.content.clone();
+                segments.push(TextSegment { text, style });
+
+                // For assistant messages, add an extra newline with the same style
+                if message.role == PromptRole::Assistant {
+                    segments.push(TextSegment {
+                        text: "\n".to_string(),
+                        style,
+                    });
+                }
+
+                // Add an empty unstyled line after each message
+                segments.push(TextSegment {
+                    text: "\n".to_string(),
+                    style: Some(Style::reset()),
+                });
+
+                segments
+            })
+            .collect()
     }
 }

@@ -41,9 +41,8 @@ impl TextWrapper {
         wrapped_lines: &mut Vec<TextLine>,
         max_width: usize,
     ) {
-        let text = segment.text();
         let mut current_text = String::new();
-        let words = self.split_text_into_words(text);
+        let words = self.split_text_into_words(&segment.text);
 
         for (mut leading_spaces, word) in words {
             if word.contains("```") {
@@ -103,7 +102,7 @@ impl TextWrapper {
                         // Add the available leading spaces to the current line
                         current_line.add_segment(
                             leading_spaces[..spaces_to_add].to_string(),
-                            segment.style().clone(),
+                            segment.style.clone(),
                         );
 
                         // Update leading_spaces by slicing off the added spaces
@@ -121,7 +120,7 @@ impl TextWrapper {
 
         if !current_text.is_empty() {
             current_line
-                .add_segment(current_text.to_string(), segment.style().clone());
+                .add_segment(current_text.to_string(), segment.style.clone());
         }
     }
 
@@ -140,7 +139,7 @@ impl TextWrapper {
     ) {
         if !current_text.is_empty() {
             current_line
-                .add_segment(current_text.to_string(), segment.style().clone());
+                .add_segment(current_text.to_string(), segment.style.clone());
             current_text.clear();
         }
     }
@@ -171,7 +170,7 @@ impl TextWrapper {
 
             current_line.add_segment(
                 current_text.clone() + slice,
-                segment.style().clone(),
+                segment.style.clone(),
             );
             wrapped_lines.push(current_line.clone());
             *current_line = TextLine::new();
@@ -197,13 +196,13 @@ impl TextWrapper {
                     // if the first part is text, leading spaces should be kept
                     current_line.add_segment(
                         format!("{}{}", leading_spaces, part),
-                        segment.style().clone(),
+                        segment.style.clone(),
                     );
                     leading_spaces.clear(); // leading spaces are only added once
                 } else {
                     // first part is triple-backticks, text is always added on a new line
                     current_line
-                        .add_segment(part.to_string(), segment.style().clone());
+                        .add_segment(part.to_string(), segment.style.clone());
                 }
             }
             if i < parts.len() - 1 {
@@ -216,14 +215,14 @@ impl TextWrapper {
                     if leading_spaces.len() > 0 {
                         current_line.add_segment(
                             leading_spaces.clone(),
-                            segment.style().clone(),
+                            segment.style.clone(),
                         );
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
                 }
                 current_line
-                    .add_segment("```".to_string(), segment.style().clone());
+                    .add_segment("```".to_string(), segment.style.clone());
                 wrapped_lines.push(current_line.clone());
                 *current_line = TextLine::new();
             }

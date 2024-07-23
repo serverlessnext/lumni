@@ -1,6 +1,12 @@
 use ratatui::style::{Color, Style};
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct StyledText {
+    pub content: String,
+    pub style: Option<Style>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 enum Action {
     Insert {
         index: usize,
@@ -18,18 +24,8 @@ enum Action {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSegment {
-    text: String,
-    style: Option<Style>,
-}
-
-impl TextSegment {
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    pub fn style(&self) -> Option<Style> {
-        self.style
-    }
+    pub text: String,
+    pub style: Option<Style>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -124,6 +120,65 @@ impl PieceTable {
             redo_stack: Vec::new(),
             modified: false,
         }
+    }
+
+    pub fn from_text(segments: Vec<TextSegment>) -> Self {
+        let mut piece_table = Self::new();
+
+        if segments.is_empty() {
+            return piece_table;
+        }
+
+        let mut new_pieces = Vec::new();
+        let mut new_lines = Vec::new();
+        let mut current_line = TextLine::new();
+        let mut add_start = 0;
+
+        for segment in segments {
+            // Append the content to the add buffer
+            piece_table.add.push_str(&segment.text);
+
+            // Create a new piece for this text
+            new_pieces.push(Piece {
+                source: SourceBuffer::Add,
+                start: add_start,
+                length: segment.text.len(),
+                style: segment.style.clone(),
+            });
+
+            // Update text_lines
+            for ch in segment.text.chars() {
+                if ch == '\n' {
+                    if !current_line.is_empty() {
+                        new_lines.push(current_line);
+                        current_line = TextLine::new();
+                    } else {
+                        // Empty line, set background if style is available
+                        if let Some(s) = &segment.style {
+                            current_line.background = s.bg;
+                        }
+                        new_lines.push(current_line);
+                        current_line = TextLine::new();
+                    }
+                } else {
+                    current_line
+                        .add_segment(ch.to_string(), segment.style.clone());
+                }
+            }
+
+            add_start += segment.text.len();
+        }
+
+        // Add the last line if it's not empty
+        if !current_line.is_empty() {
+            new_lines.push(current_line);
+        }
+
+        piece_table.pieces = new_pieces;
+        piece_table.text_lines = new_lines;
+        piece_table.modified = false; // It's not modified, it's the initial state
+
+        piece_table
     }
 
     pub fn text_lines(&self) -> &[TextLine] {

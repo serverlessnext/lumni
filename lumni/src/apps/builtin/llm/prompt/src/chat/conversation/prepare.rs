@@ -90,7 +90,6 @@ impl NewConversation {
         if last_options != new_options {
             return Ok(false);
         }
-
         // Compare system prompt. If the system prompt is not set in the new conversation, we check by first system prompt in the initial messages
         let last_system_prompt = reader.get_system_prompt()?;
         let new_system_prompt = match &self.system_prompt {
@@ -105,6 +104,7 @@ impl NewConversation {
                 })
             }),
         };
+
         if last_system_prompt.as_deref() != new_system_prompt {
             return Ok(false);
         }

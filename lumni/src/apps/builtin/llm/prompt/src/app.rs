@@ -428,21 +428,22 @@ pub async fn run_cli(
 
     // check if the last conversation is the same as the new conversation, if so,
     // continue the conversation, otherwise start a new conversation
-    let prompt_instruction =
-        if let Some(conversation_id) = db_conn.fetch_last_conversation_id()? {
+    let prompt_instruction = db_conn
+        .fetch_last_conversation_id()?
+        .and_then(|conversation_id| {
             let reader = db_conn.get_conversation_reader(conversation_id);
-            let is_equal = new_conversation.is_equal(&reader)?;
-            if is_equal {
+            // Convert Result to Option using .ok()
+            if new_conversation.is_equal(&reader).ok()? {
                 log::debug!("Continuing last conversation");
-                PromptInstruction::from_reader(&reader)?
+                Some(PromptInstruction::from_reader(&reader))
             } else {
-                log::debug!("Starting new conversation");
-                PromptInstruction::new(new_conversation, &db_conn)?
+                None
             }
-        } else {
+        })
+        .unwrap_or_else(|| {
             log::debug!("Starting new conversation");
-            PromptInstruction::new(new_conversation, &db_conn)?
-        };
+            PromptInstruction::new(new_conversation, &db_conn)
+        })?;
 
     let chat_session =
         ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;

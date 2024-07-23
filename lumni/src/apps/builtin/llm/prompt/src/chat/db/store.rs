@@ -141,9 +141,9 @@ impl ConversationDatabaseStore {
                 "INSERT INTO messages (
                     conversation_id, role, message_type, content, 
                     has_attachments, token_length, previous_message_id, 
-                    created_at, is_deleted
+                    created_at, vote, include_in_prompt, is_hidden, is_deleted
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 params![
                     message.conversation_id.0,
                     message.role.to_string(),
@@ -153,6 +153,9 @@ impl ConversationDatabaseStore {
                     message.token_length,
                     last_message_id,
                     message.created_at,
+                    message.vote,
+                    message.include_in_prompt,
+                    message.is_hidden,
                     message.is_deleted
                 ],
             )?;
@@ -204,9 +207,9 @@ impl ConversationDatabaseStore {
                     "INSERT INTO messages (
                         conversation_id, role, message_type, content, 
                         has_attachments, token_length, previous_message_id, 
-                        created_at, is_deleted
+                        created_at, vote, include_in_prompt, is_hidden, is_deleted
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     params![
                         message.conversation_id.0,
                         message.role.to_string(),
@@ -216,6 +219,9 @@ impl ConversationDatabaseStore {
                         message.token_length,
                         last_message_id,
                         message.created_at,
+                        message.vote,
+                        message.include_in_prompt,
+                        message.is_hidden,
                         message.is_deleted
                     ],
                 )?;
@@ -316,6 +322,9 @@ impl ConversationDatabaseStore {
                         token_length: row.get(17)?,
                         previous_message_id: row.get(18).map(MessageId).ok(),
                         created_at: row.get(19)?,
+                        vote: row.get(20)?,
+                        include_in_prompt: row.get::<_, i64>(21)? != 0,
+                        is_hidden: row.get::<_, i64>(22)? != 0,
                         is_deleted: false,
                     })
                 } else {

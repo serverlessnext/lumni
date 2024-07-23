@@ -180,6 +180,9 @@ impl PromptInstruction {
             content,
             previous_message_id: None,
             created_at: system_time_in_milliseconds(),
+            vote: 0,
+            include_in_prompt: true,
+            is_hidden: false,
             is_deleted: false,
         };
         // put system message directly into the database
@@ -278,6 +281,9 @@ impl PromptInstruction {
             has_attachments: last_message.has_attachments,
             previous_message_id: last_message.previous_message_id,
             created_at: system_time_in_milliseconds(),
+            vote: last_message.vote,
+            include_in_prompt: last_message.include_in_prompt,
+            is_hidden: last_message.is_hidden,
             is_deleted: last_message.is_deleted,
             content: answer.to_string(),
             token_length: tokens_predicted.map(|t| t as i64),
@@ -327,6 +333,9 @@ impl PromptInstruction {
             token_length: None,
             previous_message_id: self.cache.get_last_message_id(),
             created_at: 0, // updated when finalizing the message
+            vote: 0,
+            include_in_prompt: true,
+            is_hidden: false,
             is_deleted: false,
         };
         self.cache.add_message(message);
@@ -347,6 +356,9 @@ impl PromptInstruction {
             token_length: None, // token length is computed after completion
             previous_message_id: self.cache.get_last_message_id(),
             created_at: system_time_in_milliseconds(),
+            vote: 0,
+            include_in_prompt: true,
+            is_hidden: false,
             is_deleted: false,
         };
         self.cache.add_message(message);

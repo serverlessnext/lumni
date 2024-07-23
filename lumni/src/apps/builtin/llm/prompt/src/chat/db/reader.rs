@@ -105,8 +105,9 @@ impl<'a> ConversationReader<'a> {
 
     pub fn get_all_messages(&self) -> Result<Vec<Message>, SqliteError> {
         let query = "
-            SELECT id, role, message_type, content, has_attachments, \
-                     token_length, previous_message_id, created_at, is_deleted
+            SELECT id, role, message_type, content, has_attachments, 
+                   token_length, previous_message_id, created_at, vote, 
+                   include_in_prompt, is_hidden, is_deleted
             FROM messages
             WHERE conversation_id = ? AND is_deleted = FALSE
             ORDER BY created_at ASC
@@ -127,7 +128,10 @@ impl<'a> ConversationReader<'a> {
                             .get::<_, Option<i64>>(6)?
                             .map(MessageId),
                         created_at: row.get(7)?,
-                        is_deleted: row.get::<_, i64>(8)? != 0,
+                        vote: row.get(8)?,
+                        include_in_prompt: row.get::<_, i64>(9)? != 0,
+                        is_hidden: row.get::<_, i64>(10)? != 0,
+                        is_deleted: row.get::<_, i64>(11)? != 0,
                     })
                 })?
                 .collect()

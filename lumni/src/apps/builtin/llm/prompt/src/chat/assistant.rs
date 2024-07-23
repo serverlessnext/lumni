@@ -53,6 +53,9 @@ impl AssistantManager {
             token_length: None,
             previous_message_id: None,
             created_at: 0,
+            vote: 0,
+            include_in_prompt: true,
+            is_hidden: false,
             is_deleted: false,
         });
     }
@@ -99,6 +102,9 @@ impl AssistantManager {
                     token_length: None,
                     previous_message_id: Some(MessageId((index * 2) as i64)),
                     created_at: 0,
+                    vote: 0,
+                    include_in_prompt: true,
+                    is_hidden: false,
                     is_deleted: false,
                 });
 
@@ -115,6 +121,9 @@ impl AssistantManager {
                         (index * 2 + 1) as i64,
                     )),
                     created_at: 0,
+                    vote: 0,
+                    include_in_prompt: true,
+                    is_hidden: false,
                     is_deleted: false,
                 });
             }

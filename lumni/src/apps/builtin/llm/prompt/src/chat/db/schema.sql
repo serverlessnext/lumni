@@ -1,4 +1,3 @@
-
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE metadata (
@@ -42,6 +41,9 @@ CREATE TABLE messages (
     token_length INTEGER,
     previous_message_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    vote INTEGER DEFAULT 0, -- ADDED
+    include_in_prompt BOOLEAN DEFAULT TRUE, -- ADDED
+    is_hidden BOOLEAN DEFAULT FALSE,    -- ADDED
     is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (previous_message_id) REFERENCES messages(id)

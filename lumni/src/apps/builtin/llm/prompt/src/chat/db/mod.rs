@@ -61,6 +61,9 @@ pub struct Message {
     pub token_length: Option<i64>,
     pub previous_message_id: Option<MessageId>,
     pub created_at: i64,
+    pub vote: i64,  // New field
+    pub include_in_prompt: bool,    // New field
+    pub is_hidden: bool,    // New field
     pub is_deleted: bool,
 }
 

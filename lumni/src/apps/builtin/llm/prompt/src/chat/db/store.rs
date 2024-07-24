@@ -8,7 +8,7 @@ use super::helpers::system_time_in_milliseconds;
 use super::reader::ConversationReader;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, ModelIdentifier, ModelSpec, ConversationStatus,
+    ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
 };
 
 pub struct ConversationDatabaseStore {
@@ -165,7 +165,8 @@ impl ConversationDatabaseStore {
                 |row| row.get(0),
             )?;
             tx.execute(
-                "INSERT OR IGNORE INTO conversation_tags (conversation_id, tag_id) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO conversation_tags (conversation_id, \
+                 tag_id) VALUES (?, ?)",
                 params![conversation_id.0, tag_id],
             )?;
             Ok(())
@@ -179,7 +180,8 @@ impl ConversationDatabaseStore {
     ) -> Result<(), SqliteError> {
         let query = "
             DELETE FROM conversation_tags
-            WHERE conversation_id = ? AND tag_id = (SELECT id FROM tags WHERE name = ?)
+            WHERE conversation_id = ? AND tag_id = (SELECT id FROM tags WHERE \
+                     name = ?)
         ";
         let mut db = self.db.lock().unwrap();
         db.process_queue_with_result(|tx| {
@@ -298,7 +300,8 @@ impl ConversationDatabaseStore {
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
         let query = format!(
-            "SELECT id, name, info, completion_options, model_identifier, parent_conversation_id, 
+            "SELECT id, name, info, completion_options, model_identifier, \
+             parent_conversation_id, 
              fork_message_id, created_at, updated_at, is_deleted, status
              FROM conversations
              WHERE is_deleted = FALSE
@@ -328,8 +331,10 @@ impl ConversationDatabaseStore {
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     is_deleted: row.get::<_, i64>(9)? != 0,
-                    status: ConversationStatus::from_str(&row.get::<_, String>(10)?)
-                        .unwrap_or(ConversationStatus::Active),
+                    status: ConversationStatus::from_str(
+                        &row.get::<_, String>(10)?,
+                    )
+                    .unwrap_or(ConversationStatus::Active),
                 })
             })?;
             rows.collect()
@@ -426,7 +431,8 @@ impl ConversationDatabaseStore {
                     "INSERT INTO messages (
                         conversation_id, role, message_type, content, 
                         has_attachments, token_length, previous_message_id, 
-                        created_at, vote, include_in_prompt, is_hidden, is_deleted
+                        created_at, vote, include_in_prompt, is_hidden, \
+                     is_deleted
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     params![

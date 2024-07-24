@@ -33,6 +33,7 @@ pub struct TextLine {
     segments: Vec<TextSegment>,
     length: usize,
     background: Option<Color>,
+
 }
 
 impl TextLine {

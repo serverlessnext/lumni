@@ -122,9 +122,7 @@ impl<'a> TextDisplay<'a> {
                 || row == last_line
             {
                 // Cursor is on this line
-                //eprintln!("{}:Line: {:?}|({})", line.idx, line.to_string(), line_length);
                 let column = cursor_position.saturating_sub(new_line_position);
-                //eprintln!("Cursor,r={},c={},t={},n={}", row, column, cursor_position, new_line_position);
                 self.column = column;
                 self.row = row;
                 break;
@@ -640,21 +638,13 @@ impl TextBuffer<'_> {
         let selection_bounds = self.get_selection_bounds();
 
         let text_wrapper = TextWrapper::new(self.display.width());
-        // debug text lines including newlines
-        //let total_length: usize = text_lines.iter().map(|l| l.length() + 1).sum::<usize>().saturating_sub(1);
-        //eprintln!("Text lines:\n{}|{}", text_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>().join("\n"), total_length);
 
         for (idx, line) in text_lines.iter().enumerate() {
             let text_str =
                 line.segments().map(|s| s.text.as_str()).collect::<String>();
-
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
-
-            let wrapped_lines = text_wrapper.wrap_text_styled(line);
-
-            // debug wrapped lines
-            //eprintln!("Wrapped lines: {:?}", wrapped_lines.iter().map(|l| l.to_string()).collect::<Vec<String>>());
+            let wrapped_lines = text_wrapper.wrap_text_styled(line, None);
 
             // length of the wrapped lines content
             if wrapped_lines.is_empty() {

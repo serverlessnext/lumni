@@ -9,26 +9,49 @@ impl TextWrapper {
         Self { display_width }
     }
 
-    pub fn wrap_text_styled(&self, line: &TextLine) -> Vec<TextLine> {
+    pub fn wrap_text_styled(
+        &self,
+        line: &TextLine,
+        first_line_max_width: Option<usize>,
+    ) -> Vec<TextLine> {
         let mut wrapped_lines = Vec::new();
         let mut current_line = TextLine::new();
-        let max_width = self.display_width.saturating_sub(2);
+        let max_display_width = self.display_width.saturating_sub(2);
 
-        if max_width < 1 {
+        let max_first_line_width = if let Some(max) = first_line_max_width {
+            max
+        } else {
+            max_display_width
+        };
+
+        if max_display_width < 1 {
+            // no space for text
             return wrapped_lines;
         }
+
+        let mut is_first_line = true;
 
         for segment in line.segments() {
             self.wrap_segment(
                 segment,
                 &mut current_line,
                 &mut wrapped_lines,
-                max_width,
+                max_display_width,
+                max_first_line_width,
+                &mut is_first_line,
             );
         }
 
         if !current_line.is_empty() {
             wrapped_lines.push(current_line);
+        }
+
+        // If the first line would be empty due to reserving too much space,
+        // we ensure that an empty line is at the beginning of wrapped_lines.
+        if max_first_line_width < 1 && !wrapped_lines.is_empty() {
+            if !wrapped_lines[0].is_empty() {
+                wrapped_lines.insert(0, TextLine::new());
+            }
         }
 
         wrapped_lines
@@ -39,7 +62,9 @@ impl TextWrapper {
         segment: &TextSegment,
         current_line: &mut TextLine,
         wrapped_lines: &mut Vec<TextLine>,
-        max_width: usize,
+        max_display_width: usize,
+        first_line_max_width: usize,
+        is_first_line: &mut bool,
     ) {
         let mut current_text = String::new();
         let words = self.split_text_into_words(&segment.text);
@@ -60,18 +85,34 @@ impl TextWrapper {
                     segment,
                     current_line,
                     wrapped_lines,
+                    is_first_line,
                 );
                 continue;
             }
 
             let space_len = if !current_text.is_empty() { 1 } else { 0 };
 
+            let additional_length = leading_spaces.len() + word.len();
+            let current_max_width = if *is_first_line == true {
+                if additional_length > first_line_max_width {
+                    // if leading spaces + single word is longer than width of first
+                    // line, push existing contents immediately and move to next line
+                    wrapped_lines.push(current_line.clone());
+                    *current_line = TextLine::new();
+                    *is_first_line = false;
+                    max_display_width
+                } else {
+                    first_line_max_width
+                }
+            } else {
+                max_display_width
+            };
+
             let needs_wrapping = current_text.len()
                 + space_len
-                + leading_spaces.len()
-                + word.len()
+                + additional_length
                 + current_line.get_length()
-                > max_width;
+                > current_max_width;
 
             if needs_wrapping {
                 self.add_current_text_to_line(
@@ -79,38 +120,36 @@ impl TextWrapper {
                     segment,
                     current_line,
                 );
-
-                if leading_spaces.len() + word.len() > max_width {
-                    // word is too long to fit on a single line
+                
+                if additional_length > max_display_width {
                     self.handle_long_word(
                         &leading_spaces,
                         &word,
                         segment,
                         current_line,
                         wrapped_lines,
-                        max_width,
+                        max_display_width,
                     );
                     continue;
                 } else {
                     if !leading_spaces.is_empty() {
                         // Calculate the number of spaces that can be added
                         let available_spaces =
-                            max_width.saturating_sub(current_line.get_length());
+                            current_max_width.saturating_sub(current_line.get_length());
                         let spaces_to_add =
                             available_spaces.min(leading_spaces.len());
-
                         // Add the available leading spaces to the current line
                         current_line.add_segment(
                             leading_spaces[..spaces_to_add].to_string(),
                             segment.style.clone(),
                         );
-
                         // Update leading_spaces by slicing off the added spaces
                         leading_spaces =
                             leading_spaces[spaces_to_add..].to_string();
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
+                    *is_first_line = false;  // Set to false after pushing a line
                     current_text = format!("{}{}", leading_spaces, word);
                 }
             } else {
@@ -151,14 +190,14 @@ impl TextWrapper {
         segment: &TextSegment,
         current_line: &mut TextLine,
         wrapped_lines: &mut Vec<TextLine>,
-        max_width: usize,
+        max_display_width: usize,
     ) {
         let mut current_text = leading_spaces.to_string();
         let mut start_index = 0;
 
         while start_index < word.len() {
             let end_index = std::cmp::min(
-                (start_index + max_width).saturating_sub(current_text.len()),
+                (start_index + max_display_width).saturating_sub(current_text.len()),
                 word.len(),
             );
             let slice = &word[start_index..end_index];
@@ -186,6 +225,7 @@ impl TextWrapper {
         segment: &TextSegment,
         current_line: &mut TextLine,
         wrapped_lines: &mut Vec<TextLine>,
+        is_first_line: &mut bool,
     ) {
         let mut leading_spaces = leading_spaces.to_string();
 
@@ -220,11 +260,13 @@ impl TextWrapper {
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
+                    *is_first_line = false;
                 }
                 current_line
                     .add_segment("```".to_string(), segment.style.clone());
                 wrapped_lines.push(current_line.clone());
                 *current_line = TextLine::new();
+                *is_first_line = false;
             }
         }
     }

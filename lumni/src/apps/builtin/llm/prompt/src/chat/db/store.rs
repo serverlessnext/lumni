@@ -8,7 +8,7 @@ use super::helpers::system_time_in_milliseconds;
 use super::reader::ConversationReader;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
-    Message, MessageId, ModelIdentifier, ModelSpec,
+    Message, MessageId, ModelIdentifier, ModelSpec, ConversationStatus,
 };
 
 pub struct ConversationDatabaseStore {
@@ -87,6 +87,7 @@ impl ConversationDatabaseStore {
                 created_at: timestamp,
                 updated_at: timestamp,
                 is_deleted: false,
+                status: ConversationStatus::Active,
             };
 
             tx.execute(
@@ -94,9 +95,9 @@ impl ConversationDatabaseStore {
                     name, info, model_identifier, parent_conversation_id, 
                     fork_message_id, completion_options, created_at, \
                  updated_at, 
-                    message_count, total_tokens, is_deleted
+                    message_count, total_tokens, is_deleted, status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
                 params![
                     conversation.name,
                     serde_json::to_string(&conversation.info)
@@ -111,6 +112,11 @@ impl ConversationDatabaseStore {
                     conversation.created_at,
                     conversation.updated_at,
                     conversation.is_deleted,
+                    match conversation.status {
+                        ConversationStatus::Active => "active",
+                        ConversationStatus::Archived => "archived",
+                        ConversationStatus::Deleted => "deleted",
+                    },
                 ],
             )?;
 
@@ -119,6 +125,219 @@ impl ConversationDatabaseStore {
         })
     }
 
+    pub fn update_conversation_status(
+        &self,
+        conversation_id: ConversationId,
+        status: ConversationStatus,
+    ) -> Result<(), SqliteError> {
+        let query = "UPDATE conversations SET status = ? WHERE id = ?";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.execute(
+                query,
+                params![
+                    match status {
+                        ConversationStatus::Active => "active",
+                        ConversationStatus::Archived => "archived",
+                        ConversationStatus::Deleted => "deleted",
+                    },
+                    conversation_id.0
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    pub fn add_conversation_tag(
+        &self,
+        conversation_id: ConversationId,
+        tag: &str,
+    ) -> Result<(), SqliteError> {
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.execute(
+                "INSERT OR IGNORE INTO tags (name) VALUES (?)",
+                params![tag],
+            )?;
+            let tag_id: i64 = tx.query_row(
+                "SELECT id FROM tags WHERE name = ?",
+                params![tag],
+                |row| row.get(0),
+            )?;
+            tx.execute(
+                "INSERT OR IGNORE INTO conversation_tags (conversation_id, tag_id) VALUES (?, ?)",
+                params![conversation_id.0, tag_id],
+            )?;
+            Ok(())
+        })
+    }
+
+    pub fn remove_conversation_tag(
+        &self,
+        conversation_id: ConversationId,
+        tag: &str,
+    ) -> Result<(), SqliteError> {
+        let query = "
+            DELETE FROM conversation_tags
+            WHERE conversation_id = ? AND tag_id = (SELECT id FROM tags WHERE name = ?)
+        ";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.execute(query, params![conversation_id.0, tag])?;
+            Ok(())
+        })
+    }
+
+    pub fn fetch_last_conversation_id(
+        &self,
+    ) -> Result<Option<ConversationId>, SqliteError> {
+        let query = "SELECT id FROM conversations WHERE is_deleted = FALSE \
+                     ORDER BY updated_at DESC LIMIT 1";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, [], |row| Ok(ConversationId(row.get(0)?)))
+                .optional()
+        })
+    }
+
+    pub fn fetch_conversation(
+        &self,
+        conversation_id: Option<ConversationId>,
+        limit: Option<usize>,
+    ) -> Result<Option<(Conversation, Vec<Message>)>, SqliteError> {
+        let query = format!(
+            "WITH target_conversation AS (
+                SELECT id
+                FROM conversations
+                WHERE is_deleted = FALSE
+                {}
+                ORDER BY updated_at DESC
+                LIMIT 1
+            )
+            SELECT c.*, m.id as message_id, m.role, m.message_type, 
+            m.content, m.has_attachments, m.token_length, 
+            m.previous_message_id, m.created_at as message_created_at,
+            m.vote, m.include_in_prompt, m.is_hidden, m.is_deleted
+            FROM target_conversation tc
+            JOIN conversations c ON c.id = tc.id
+            LEFT JOIN messages m ON c.id = m.conversation_id
+            ORDER BY m.created_at ASC
+            {}",
+            conversation_id
+                .map_or(String::new(), |id| format!("AND id = {}", id.0)),
+            limit.map_or(String::new(), |l| format!("LIMIT {}", l))
+        );
+
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(&query)?;
+            let rows = stmt.query_map([], |row| {
+                let conversation = Conversation {
+                    id: ConversationId(row.get(0)?),
+                    name: row.get(1)?,
+                    info: serde_json::from_str(&row.get::<_, String>(2)?)
+                        .unwrap_or_default(),
+                    model_identifier: ModelIdentifier(row.get(3)?),
+                    parent_conversation_id: row.get(4).map(ConversationId).ok(),
+                    fork_message_id: row.get(5).map(MessageId).ok(),
+                    completion_options: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    is_deleted: row.get::<_, i64>(11)? != 0,
+                    status: match row.get::<_, String>(12)?.as_str() {
+                        "active" => ConversationStatus::Active,
+                        "archived" => ConversationStatus::Archived,
+                        "deleted" => ConversationStatus::Deleted,
+                        _ => ConversationStatus::Active,
+                    },
+                };
+
+                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
+                    Some(Message {
+                        id: MessageId(row.get(13)?),
+                        conversation_id: conversation.id,
+                        role: row.get(14)?,
+                        message_type: row.get(15)?,
+                        content: row.get(16)?,
+                        has_attachments: row.get::<_, i64>(17)? != 0,
+                        token_length: row.get(18)?,
+                        previous_message_id: row.get(19).map(MessageId).ok(),
+                        created_at: row.get(20)?,
+                        vote: row.get(21)?,
+                        include_in_prompt: row.get::<_, i64>(22)? != 0,
+                        is_hidden: row.get::<_, i64>(23)? != 0,
+                        is_deleted: row.get::<_, i64>(24)? != 0,
+                    })
+                } else {
+                    None
+                };
+                Ok((conversation, message))
+            })?;
+
+            let mut conversation = None;
+            let mut messages = Vec::new();
+
+            for row in rows {
+                let (conv, message) = row?;
+                if conversation.is_none() {
+                    conversation = Some(conv);
+                }
+                if let Some(msg) = message {
+                    messages.push(msg);
+                }
+            }
+
+            Ok(conversation.map(|c| (c, messages)))
+        })
+    }
+
+    pub fn fetch_conversation_list(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<Conversation>, SqliteError> {
+        let query = format!(
+            "SELECT id, name, info, completion_options, model_identifier, parent_conversation_id, 
+             fork_message_id, created_at, updated_at, is_deleted, status
+             FROM conversations
+             WHERE is_deleted = FALSE
+             ORDER BY updated_at DESC
+             LIMIT {}",
+            limit
+        );
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(&query)?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Conversation {
+                    id: ConversationId(row.get(0)?),
+                    name: row.get(1)?,
+                    info: serde_json::from_str(&row.get::<_, String>(2)?)
+                        .unwrap_or_default(),
+                    completion_options: row
+                        .get::<_, Option<String>>(3)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    model_identifier: ModelIdentifier(row.get(4)?),
+                    parent_conversation_id: row
+                        .get::<_, Option<i64>>(5)?
+                        .map(ConversationId),
+                    fork_message_id: row
+                        .get::<_, Option<i64>>(6)?
+                        .map(MessageId),
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    is_deleted: row.get::<_, i64>(9)? != 0,
+                    status: ConversationStatus::from_str(&row.get::<_, String>(10)?)
+                        .unwrap_or(ConversationStatus::Active),
+                })
+            })?;
+            rows.collect()
+        })
+    }
+}
+
+impl ConversationDatabaseStore {
     pub fn put_new_message(
         &self,
         message: &Message,
@@ -249,151 +468,7 @@ impl ConversationDatabaseStore {
             Ok(new_message_ids)
         })
     }
-}
 
-impl ConversationDatabaseStore {
-    pub fn fetch_last_conversation_id(
-        &self,
-    ) -> Result<Option<ConversationId>, SqliteError> {
-        let query = "SELECT id FROM conversations WHERE is_deleted = FALSE \
-                     ORDER BY updated_at DESC LIMIT 1";
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            tx.query_row(query, [], |row| Ok(ConversationId(row.get(0)?)))
-                .optional()
-        })
-    }
-
-    pub fn fetch_conversation(
-        &self,
-        conversation_id: Option<ConversationId>,
-        limit: Option<usize>,
-    ) -> Result<Option<(Conversation, Vec<Message>)>, SqliteError> {
-        let query = format!(
-            "WITH target_conversation AS (
-                SELECT id
-                FROM conversations
-                WHERE is_deleted = FALSE
-                {}
-                ORDER BY updated_at DESC
-                LIMIT 1
-            )
-            SELECT c.*, m.id as message_id, m.role, m.message_type, 
-            m.content, m.has_attachments, m.token_length, 
-            m.previous_message_id, m.created_at as message_created_at
-            FROM target_conversation tc
-            JOIN conversations c ON c.id = tc.id
-            LEFT JOIN messages m ON c.id = m.conversation_id
-            ORDER BY m.created_at ASC
-            {}",
-            conversation_id
-                .map_or(String::new(), |id| format!("AND id = {}", id.0)),
-            limit.map_or(String::new(), |l| format!("LIMIT {}", l))
-        );
-
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            let mut stmt = tx.prepare(&query)?;
-            let rows = stmt.query_map([], |row| {
-                let conversation = Conversation {
-                    id: ConversationId(row.get(0)?),
-                    name: row.get(1)?,
-                    info: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    model_identifier: ModelIdentifier(row.get(3)?),
-                    parent_conversation_id: row.get(4).map(ConversationId).ok(),
-                    fork_message_id: row.get(5).map(MessageId).ok(),
-                    completion_options: row
-                        .get::<_, Option<String>>(6)?
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    created_at: row.get(7)?,
-                    updated_at: row.get(8)?,
-                    is_deleted: row.get::<_, i64>(9)? != 0,
-                };
-
-                let message = if !row.get::<_, Option<i64>>(12)?.is_none() {
-                    Some(Message {
-                        id: MessageId(row.get(12)?),
-                        conversation_id: conversation.id,
-                        role: row.get(13)?,
-                        message_type: row.get(14)?,
-                        content: row.get(15)?,
-                        has_attachments: row.get::<_, i64>(16)? != 0,
-                        token_length: row.get(17)?,
-                        previous_message_id: row.get(18).map(MessageId).ok(),
-                        created_at: row.get(19)?,
-                        vote: row.get(20)?,
-                        include_in_prompt: row.get::<_, i64>(21)? != 0,
-                        is_hidden: row.get::<_, i64>(22)? != 0,
-                        is_deleted: false,
-                    })
-                } else {
-                    None
-                };
-
-                Ok((conversation, message))
-            })?;
-
-            let mut conversation = None;
-            let mut messages = Vec::new();
-
-            for row in rows {
-                let (conv, message) = row?;
-                if conversation.is_none() {
-                    conversation = Some(conv);
-                }
-                if let Some(msg) = message {
-                    messages.push(msg);
-                }
-            }
-
-            Ok(conversation.map(|c| (c, messages)))
-        })
-    }
-
-    pub fn fetch_conversation_list(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<Conversation>, SqliteError> {
-        let query = format!(
-            "SELECT id, name, info, model_identifier, parent_conversation_id, \
-             fork_message_id, completion_options, 
-             created_at, updated_at, is_deleted
-             FROM conversations
-             WHERE is_deleted = FALSE
-             ORDER BY updated_at DESC
-             LIMIT {}",
-            limit
-        );
-
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            let mut stmt = tx.prepare(&query)?;
-            let rows = stmt.query_map([], |row| {
-                Ok(Conversation {
-                    id: ConversationId(row.get(0)?),
-                    name: row.get(1)?,
-                    info: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    model_identifier: ModelIdentifier(row.get(3)?),
-                    parent_conversation_id: row
-                        .get::<_, Option<i64>>(4)?
-                        .map(ConversationId),
-                    fork_message_id: row
-                        .get::<_, Option<i64>>(5)?
-                        .map(MessageId),
-                    completion_options: row
-                        .get::<_, Option<String>>(6)?
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    created_at: row.get(7)?,
-                    updated_at: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                })
-            })?;
-
-            rows.collect()
-        })
-    }
     pub fn fetch_message_attachments(
         &self,
         message_id: MessageId,

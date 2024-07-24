@@ -4,8 +4,8 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
 use super::{
-    Attachment, AttachmentData, AttachmentId, ConversationId, Message,
-    MessageId, ModelIdentifier, ModelSpec,
+    Attachment, AttachmentData, AttachmentId, ConversationId,
+    ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
 };
 
 pub struct ConversationReader<'a> {
@@ -73,6 +73,41 @@ impl<'a> ConversationReader<'a> {
                     None => Ok(serde_json::json!({})),
                 }
             })
+        })
+    }
+
+    pub fn get_conversation_status(
+        &self,
+    ) -> Result<ConversationStatus, SqliteError> {
+        let query = "SELECT status FROM conversations WHERE id = ?";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.query_row(query, params![self.conversation_id.0], |row| {
+                let status: String = row.get(0)?;
+                ConversationStatus::from_str(&status).map_err(|e| {
+                    SqliteError::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })
+            })
+        })
+    }
+
+    pub fn get_conversation_tags(&self) -> Result<Vec<String>, SqliteError> {
+        let query = "
+            SELECT t.name
+            FROM tags t
+            JOIN conversation_tags ct ON t.id = ct.tag_id
+            WHERE ct.conversation_id = ?
+            ORDER BY t.name
+        ";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.prepare(query)?
+                .query_map(params![self.conversation_id.0], |row| row.get(0))?
+                .collect()
         })
     }
 

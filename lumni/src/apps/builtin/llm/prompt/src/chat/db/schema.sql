@@ -26,9 +26,12 @@ CREATE TABLE conversations (
     message_count INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     is_deleted BOOLEAN DEFAULT FALSE,
+    status TEXT CHECK(status IN ('active', 'archived', 'deleted')) DEFAULT 'active',
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (model_identifier) REFERENCES models(identifier),
-    FOREIGN KEY (fork_message_id) REFERENCES messages(id)
+    FOREIGN KEY (fork_message_id) REFERENCES messages(id),
+    CONSTRAINT check_message_count CHECK (message_count >= 0),
+    CONSTRAINT check_total_tokens CHECK (total_tokens >= 0)
 );
 
 CREATE TABLE messages (
@@ -41,12 +44,13 @@ CREATE TABLE messages (
     token_length INTEGER,
     previous_message_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    vote INTEGER DEFAULT 0, -- ADDED
-    include_in_prompt BOOLEAN DEFAULT TRUE, -- ADDED
-    is_hidden BOOLEAN DEFAULT FALSE,    -- ADDED
+    vote INTEGER DEFAULT 0,
+    include_in_prompt BOOLEAN DEFAULT TRUE,
+    is_hidden BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-    FOREIGN KEY (previous_message_id) REFERENCES messages(id)
+    FOREIGN KEY (previous_message_id) REFERENCES messages(id),
+    CONSTRAINT check_token_length CHECK (token_length >= 0)
 );
 
 CREATE TABLE attachments (
@@ -62,6 +66,17 @@ CREATE TABLE attachments (
     FOREIGN KEY (message_id) REFERENCES messages(id),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id),
     CHECK ((file_uri IS NULL) != (file_data IS NULL))
+);
+
+CREATE TABLE tags (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE conversation_tags (
+    conversation_id INTEGER REFERENCES conversations(id),
+    tag_id INTEGER REFERENCES tags(id),
+    PRIMARY KEY (conversation_id, tag_id)
 );
 
 CREATE INDEX idx_parent_conversation ON conversations(parent_conversation_id);

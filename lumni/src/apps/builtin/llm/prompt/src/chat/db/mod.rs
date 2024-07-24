@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+
 mod connector;
 mod display;
 mod helpers;
@@ -36,6 +39,24 @@ pub struct MessageId(pub i64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttachmentId(pub i64);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConversationStatus {
+    Active,
+    Archived,
+    Deleted,
+}
+
+impl ConversationStatus {
+    pub fn from_str(s: &str) -> Result<Self, ConversionError> {
+        match s {
+            "active" => Ok(ConversationStatus::Active),
+            "archived" => Ok(ConversationStatus::Archived),
+            "deleted" => Ok(ConversationStatus::Deleted),
+            _ => Err(ConversionError::new("status", s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: ConversationId,
@@ -48,6 +69,7 @@ pub struct Conversation {
     pub created_at: i64,
     pub updated_at: i64,
     pub is_deleted: bool,
+    pub status: ConversationStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,9 +83,9 @@ pub struct Message {
     pub token_length: Option<i64>,
     pub previous_message_id: Option<MessageId>,
     pub created_at: i64,
-    pub vote: i64,  // New field
-    pub include_in_prompt: bool,    // New field
-    pub is_hidden: bool,    // New field
+    pub vote: i64,
+    pub include_in_prompt: bool,
+    pub is_hidden: bool,
     pub is_deleted: bool,
 }
 
@@ -84,3 +106,26 @@ pub struct Attachment {
     pub created_at: i64,
     pub is_deleted: bool,
 }
+
+#[derive(Debug)]
+pub struct ConversionError {
+    field: String,
+    value: String,
+}
+
+impl ConversionError {
+    pub fn new<T: fmt::Display>(field: &str, value: T) -> Self {
+        ConversionError {
+            field: field.to_string(),
+            value: value.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid {} value: '{}'", self.field, self.value)
+    }
+}
+
+impl Error for ConversionError {}

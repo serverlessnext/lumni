@@ -5,30 +5,31 @@ use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
-use super::piece_table::TextSegment;
+use super::text_document::{ReadWriteDocument, TextDocumentTrait};
+use super::text_line::TextSegment;
 use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
 use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
 
 #[derive(Debug, Clone)]
-pub struct TextWindow<'a> {
+pub struct TextWindow<'a, T: TextDocumentTrait> {
     area: RectArea,
     window_type: WindowConfig,
     scroller: Scroller,
-    text_buffer: TextBuffer<'a>,
+    text_buffer: TextBuffer<'a, T>,
 }
 
-impl<'a> TextWindow<'a> {
+impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
     pub fn new(
         window_type: WindowConfig,
-        text: Option<Vec<TextSegment>>,
+        document: T,
     ) -> Self {
         Self {
             area: RectArea::default(),
             window_type,
             scroller: Scroller::new(),
-            text_buffer: TextBuffer::new(text),
+            text_buffer: TextBuffer::new(document),
         }
     }
 
@@ -144,7 +145,7 @@ impl<'a> TextWindow<'a> {
         }
     }
 
-    pub fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
+    pub fn text_buffer(&mut self) -> &mut TextBuffer<'a, T> {
         &mut self.text_buffer
     }
 
@@ -242,8 +243,21 @@ impl<'a> TextWindow<'a> {
     }
 }
 
+impl<'a> TextWindow<'a, ReadWriteDocument> {
+    pub fn new_editable(
+        window_type: WindowConfig,
+        text: Option<Vec<TextSegment>>,
+    ) -> Self {
+        let document = if let Some(text) = text {
+            ReadWriteDocument::from_text(text)
+        } else {
+            ReadWriteDocument::new()
+        };
+        Self::new(window_type, document)
+    }
+}
 pub trait TextWindowTrait<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a>;
+    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument>;
 
     fn init(&mut self) {
         self.base().update_placeholder_text();
@@ -332,7 +346,7 @@ pub trait TextWindowTrait<'a> {
         self.base().text_buffer.set_selection_anchor(enable);
     }
 
-    fn text_buffer(&mut self) -> &mut TextBuffer<'a> {
+    fn text_buffer(&mut self) -> &mut TextBuffer<'a, ReadWriteDocument> {
         self.base().text_buffer()
     }
 

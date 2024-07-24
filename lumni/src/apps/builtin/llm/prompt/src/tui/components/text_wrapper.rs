@@ -1,4 +1,4 @@
-use super::piece_table::{TextLine, TextSegment};
+use super::text_line::{TextLine, TextSegment};
 
 pub struct TextWrapper {
     display_width: usize,

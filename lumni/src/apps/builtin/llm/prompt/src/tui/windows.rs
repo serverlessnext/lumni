@@ -2,15 +2,15 @@ use ratatui::style::{Color, Style};
 
 use super::components::{
     TextSegment, TextWindow, TextWindowTrait, WindowConfig, WindowKind,
-    WindowStatus,
+    WindowStatus, ReadWriteDocument,
 };
 
 pub struct PromptWindow<'a> {
-    base: TextWindow<'a>,
+    base: TextWindow<'a, ReadWriteDocument>,
 }
 
 impl<'a> TextWindowTrait<'a> for PromptWindow<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a> {
+    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
         &mut self.base
     }
 }
@@ -20,17 +20,17 @@ impl PromptWindow<'_> {
         let mut window_type = WindowConfig::new(WindowKind::PromptWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type, None),
+            base: TextWindow::new_editable(window_type, None),
         }
     }
 }
 
 pub struct ResponseWindow<'a> {
-    base: TextWindow<'a>,
+    base: TextWindow<'a, ReadWriteDocument>,
 }
 
 impl<'a> TextWindowTrait<'a> for ResponseWindow<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a> {
+    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
         &mut self.base
     }
 }
@@ -40,7 +40,7 @@ impl ResponseWindow<'_> {
         let mut window_type = WindowConfig::new(WindowKind::ResponseWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type, text),
+            base: TextWindow::new_editable(window_type, text),
         }
     }
 }
@@ -51,14 +51,15 @@ enum CommandLineMode {
     Alert,
 }
 
+
 #[derive(Debug)]
 pub struct CommandLine<'a> {
-    base: TextWindow<'a>,
+    base: TextWindow<'a, ReadWriteDocument>,
     mode: CommandLineMode,
 }
 
 impl<'a> TextWindowTrait<'a> for CommandLine<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a> {
+    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
         &mut self.base
     }
 }
@@ -68,7 +69,7 @@ impl CommandLine<'_> {
         let mut window_type = WindowConfig::new(WindowKind::CommandLine);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new(window_type, None),
+            base: TextWindow::new_editable(window_type, None),
             mode: CommandLineMode::Normal,
         }
     }

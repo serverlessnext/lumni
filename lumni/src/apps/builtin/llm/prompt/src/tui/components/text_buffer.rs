@@ -2,7 +2,8 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Masked, Span};
 
 use super::cursor::{Cursor, MoveCursor};
-use super::piece_table::{PieceTable, TextLine, TextSegment};
+use super::text_document::TextDocumentTrait;
+use super::text_line::TextLine;
 use super::text_wrapper::TextWrapper;
 
 #[allow(dead_code)]
@@ -175,23 +176,18 @@ impl<'a> TextDisplay<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TextBuffer<'a> {
-    text: PieceTable,         // text buffer
+pub struct TextBuffer<'a, T: TextDocumentTrait> {
+    text: T,                  // text buffer
     placeholder: String,      // placeholder text
     display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     cursor: Cursor,
     code_blocks: Vec<CodeBlock>, // code blocks
 }
 
-impl TextBuffer<'_> {
-    pub fn new(text: Option<Vec<TextSegment>>) -> Self {
-        let piece_table = if let Some(text) = text {
-            PieceTable::from_text(text)
-        } else {
-            PieceTable::new()
-        };
+impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
+    pub fn new(document: T) -> Self {
         Self {
-            text: piece_table,
+            text: document,
             placeholder: String::new(),
             display: TextDisplay::new(0),
             cursor: Cursor::new(),
@@ -241,7 +237,7 @@ impl TextBuffer<'_> {
     pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
         // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
-        self.text.insert(idx, text, style, false);
+        self.text.insert(idx, text, style);
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment

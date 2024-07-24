@@ -1,4 +1,4 @@
-use super::piece_table::TextLine;
+use super::text_line::TextLine;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {

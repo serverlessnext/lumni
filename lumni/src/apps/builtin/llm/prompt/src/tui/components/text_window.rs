@@ -6,13 +6,12 @@ use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
-use super::rect_area::RectArea;
 use super::scroller::Scroller;
-use super::text_buffer::{CodeBlock, LineType};
+use super::text_display::{CodeBlock, LineType};
 use super::text_document::{
     ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine,
 };
-use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
+use super::{RectArea, TextBuffer, WindowConfig, WindowKind, WindowStatus};
 pub use crate::external as lumni;
 
 #[derive(Debug, Clone)]

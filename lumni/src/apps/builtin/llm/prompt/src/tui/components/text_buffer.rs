@@ -3,177 +3,12 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Masked, Span};
 
 use super::cursor::{Cursor, MoveCursor};
+use super::text_display::{
+    CodeBlock, CodeBlockLine, CodeBlockLineType, LineType, TextDisplay,
+};
 use super::text_document::{TextDocumentTrait, TextLine, TextWrapper};
+use super::text_render::DisplayWindowRenderer;
 pub use crate::external as lumni;
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-pub struct CodeBlock {
-    start: u16,       // start line of the code block
-    end: Option<u16>, // end line of the code block (if closed)
-}
-
-impl CodeBlock {
-    pub fn is_closed(&self) -> bool {
-        self.end.is_some()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CodeBlockLineType {
-    Start,
-    End,
-    Line,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CodeBlockLine {
-    ptr: u16, // refers to the code block itself
-    r#type: CodeBlockLineType,
-}
-
-impl CodeBlockLine {
-    pub fn get_ptr(&self) -> u16 {
-        self.ptr
-    }
-
-    pub fn get_type(&self) -> CodeBlockLineType {
-        self.r#type
-    }
-
-    pub fn is_end(&self) -> bool {
-        self.r#type == CodeBlockLineType::End
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LineType {
-    Text,
-    Code(CodeBlockLine),
-}
-
-#[derive(Debug, Clone)]
-struct LineSegment<'a> {
-    line: Line<'a>,              // wrapped line segment
-    length: usize,               // length of the line segment
-    last_segment: bool,          // last part of a line
-    line_type: Option<LineType>, // type of line: Text or Code
-    background: Option<Color>,   // default background color
-}
-
-impl<'a> LineSegment<'a> {
-    fn new(
-        line: Line<'a>,
-        length: usize,
-        last_segment: bool,
-        line_type: Option<LineType>,
-        background: Option<Color>,
-    ) -> Self {
-        LineSegment {
-            line,
-            length,
-            last_segment,
-            line_type,
-            background,
-        }
-    }
-
-    fn spans_mut(&mut self) -> &mut Vec<Span<'a>> {
-        &mut self.line.spans
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TextDisplay<'a> {
-    wrap_lines: Vec<LineSegment<'a>>, // Text (e.g., wrapped, highlighted) for display
-    display_width: usize, // Width of the display area, used for wrapping
-    column: usize,
-    row: usize,
-}
-
-impl<'a> TextDisplay<'a> {
-    fn new(display_width: usize) -> Self {
-        TextDisplay {
-            wrap_lines: Vec::new(),
-            display_width,
-            column: 0,
-            row: 0,
-        }
-    }
-
-    pub fn update_column_row(&mut self, cursor: &Cursor) -> (usize, usize) {
-        // Get the current row in the wrapped text display based on the cursor position
-        let cursor_position = cursor.real_position();
-        let mut new_line_position = 0;
-
-        self.column = 0;
-        self.row = 0;
-
-        let last_line = self.wrap_lines.len().saturating_sub(1);
-
-        for (row, line) in self.wrap_lines.iter().enumerate() {
-            let line_length = if line.last_segment {
-                line.length + 1 // account for end of line/ cursor space
-            } else {
-                line.length
-            };
-
-            // position_newline
-            if new_line_position + line_length > cursor_position
-                || row == last_line
-            {
-                // Cursor is on this line
-                let column = cursor_position.saturating_sub(new_line_position);
-                self.column = column;
-                self.row = row;
-                break;
-            }
-            new_line_position += line_length;
-        }
-        (self.column, self.row)
-    }
-
-    fn wrap_lines(&self) -> &[LineSegment<'a>] {
-        &self.wrap_lines
-    }
-
-    fn wrap_lines_mut(&mut self) -> &mut Vec<LineSegment<'a>> {
-        &mut self.wrap_lines
-    }
-
-    fn width(&self) -> usize {
-        self.display_width
-    }
-
-    fn push_line(
-        &mut self,
-        line: Line<'a>,
-        length: usize,
-        last_segment: bool,
-        line_type: Option<LineType>,
-        background: Option<Color>,
-    ) {
-        self.wrap_lines.push(LineSegment::new(
-            line,
-            length,
-            last_segment,
-            line_type,
-            background,
-        ));
-    }
-
-    fn set_display_width(&mut self, width: usize) {
-        self.display_width = width;
-    }
-
-    fn get_column_row(&self) -> (usize, usize) {
-        (self.column, self.row)
-    }
-
-    fn clear(&mut self) {
-        self.wrap_lines.clear();
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a, T: TextDocumentTrait> {
@@ -329,141 +164,11 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn display_window_lines(&self, start: usize, end: usize) -> Vec<Line> {
-        let lines = self.display.wrap_lines();
-        let length = lines.len();
-
-        if start >= length {
-            return Vec::new(); // out of bounds
-        }
-
-        // Convert inclusive end to exclusive end for slicing
-        let exclusive_end = (end + 1).min(length);
-
-        if start > end {
-            return Vec::new(); // invalid range
-        }
-
-        let window_width = self.display.width();
-
-        lines[start..exclusive_end]
-            .iter()
-            .map(|line_segment| {
-                let mut line = line_segment.line.clone();
-                let text_width = line.width();
-
-                let line_type = line_segment.line_type;
-
-                let line_bg = if let Some(bg) = line_segment.background {
-                    if bg == Color::Reset {
-                        Color::Black // switch to black as default
-                    } else {
-                        bg // keep original background color
-                    }
-                } else {
-                    Color::Black // default background color
-                };
-
-                let background = match line_type {
-                    Some(LineType::Text) => {
-                        if line_segment.background.is_some() {
-                            for span in &mut line.spans {
-                                // fill background color if not already set
-                                if span.style.bg.is_none()
-                                    || span.style.bg == Some(Color::Reset)
-                                {
-                                    span.style.bg = Some(line_bg);
-                                }
-                            }
-                        }
-                        Some(line_bg)
-                    }
-                    Some(LineType::Code(block_line)) => {
-                        match block_line.get_type() {
-                            CodeBlockLineType::Line => {
-                                // fill background color if not already set
-                                let background = Some(Color::Rgb(80, 80, 80));
-                                for span in &mut line.spans {
-                                    if span.style.bg.is_none()
-                                        || span.style.bg == Some(Color::Reset)
-                                    {
-                                        span.style.bg = background;
-                                    }
-                                }
-                                background
-                            }
-                            CodeBlockLineType::Start => {
-                                // hide line using modifier style
-                                let masked = Masked::new("```", '>');
-                                if let Some(background) =
-                                    line_segment.background
-                                {
-                                    line.spans = vec![Span::styled(
-                                        masked,
-                                        Style::default().bg(background),
-                                    )];
-                                } else {
-                                    line.spans = vec![Span::raw(masked)];
-                                }
-                                line_segment.background
-                            }
-                            CodeBlockLineType::End => {
-                                // hide line using modifier style
-                                let masked = Masked::new("```", '<');
-                                if let Some(background) =
-                                    line_segment.background
-                                {
-                                    line.spans = vec![Span::styled(
-                                        masked,
-                                        Style::default().bg(background),
-                                    )];
-                                } else {
-                                    line.spans = vec![Span::raw(masked)];
-                                }
-                                line_segment.background
-                            }
-                        }
-                    }
-                    None => {
-                        // default background color
-                        line_segment.background
-                    }
-                };
-
-                // left padding
-                line.spans.insert(
-                    0,
-                    Span::styled(
-                        " ",
-                        Style::default().bg(background.unwrap_or(Color::Black)),
-                    ),
-                );
-
-                // add 2 to account for left and right space padding
-                if text_width.saturating_add(2) < window_width {
-                    let spaces_needed =
-                        window_width.saturating_sub(text_width + 2);
-                    let spaces = " ".repeat(spaces_needed);
-
-                    if let Some(bg_color) = background {
-                        // fill background color with default if not already set
-                        line.spans.push(Span::styled(
-                            spaces,
-                            Style::default().bg(bg_color),
-                        ));
-                    } else {
-                        line.spans.push(Span::raw(spaces));
-                    }
-                };
-
-                // right padding
-                line.spans.push(Span::styled(
-                    " ",
-                    Style::default().bg(background.unwrap_or(Color::Black)),
-                ));
-
-                line
-            })
-            .collect()
+        let renderer = DisplayWindowRenderer::new(
+            self.display.wrap_lines(),
+            self.display.width(),
+        );
+        renderer.render_lines(start, end)
     }
 
     pub fn display_lines_len(&self) -> usize {
@@ -556,7 +261,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         let reset = Style::reset();
 
         for (line_number, line) in
-            self.display.wrap_lines_mut().iter_mut().enumerate()
+            self.display.wrap_lines.iter_mut().enumerate()
         {
             let line_number = line_number as u16;
 
@@ -580,10 +285,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
                         }
                     }
 
-                    line.line_type = Some(LineType::Code(CodeBlockLine {
-                        ptr: code_block_ptr,
-                        r#type: CodeBlockLineType::End,
-                    }));
+                    line.line_type = Some(LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::End,
+                    )));
                     code_block_ptr += 1; // increment for the next code block
                 } else {
                     // start of code block
@@ -593,10 +298,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
                         start: line_number,
                         end: None,
                     });
-                    line.line_type = Some(LineType::Code(CodeBlockLine {
-                        ptr: code_block_ptr, // ptr to the code block
-                        r#type: CodeBlockLineType::Start,
-                    }));
+                    line.line_type = Some(LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::Start,
+                    )));
                 }
             } else {
                 // mark line as code or text based on wether it is in a code block
@@ -609,10 +314,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
                             span.style.bg = None;
                         }
                     }
-                    LineType::Code(CodeBlockLine {
-                        ptr: code_block_ptr,
-                        r#type: CodeBlockLineType::Line,
-                    })
+                    LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::Line,
+                    ))
                 } else {
                     LineType::Text
                 });
@@ -785,7 +490,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         let (column, row) = self.display.update_column_row(&self.cursor);
         let mut line_column = column;
 
-        if let Some(current_line) = self.display.wrap_lines_mut().get_mut(row) {
+        if let Some(current_line) = self.display.wrap_lines.get_mut(row) {
             let line_length = current_line.length;
             let last_segment = current_line.last_segment;
             let spans = current_line.spans_mut();

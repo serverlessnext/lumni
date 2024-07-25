@@ -1,6 +1,6 @@
 use super::{
     CommandLine, ModalConfigWindow, ModalWindowTrait, ModalWindowType,
-    PromptWindow, ResponseWindow, TextSegment, TextWindowTrait, WindowEvent,
+    PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowEvent,
     WindowKind,
 };
 
@@ -13,7 +13,7 @@ pub struct TabUi<'a> {
 }
 
 impl TabUi<'_> {
-    pub fn new(conversation_text: Option<Vec<TextSegment>>) -> Self {
+    pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
             prompt: PromptWindow::new(),
             response: ResponseWindow::new(conversation_text),

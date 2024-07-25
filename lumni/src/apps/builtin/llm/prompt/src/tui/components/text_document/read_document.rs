@@ -1,7 +1,7 @@
 use lumni::api::error::ApplicationError;
 use ratatui::style::Style;
 
-use super::text_line::{TextLine, TextSegment};
+use super::text_line::TextLine;
 use super::TextDocumentTrait;
 pub use crate::external as lumni;
 
@@ -18,18 +18,16 @@ impl ReadDocument {
             modified: false,
         }
     }
-
-    pub fn from_text(segments: Vec<TextSegment>) -> Self {
-        let mut doc = Self::new();
-        for segment in segments {
-            doc.append(&segment.text, segment.style);
-        }
-        doc.modified = false;
-        doc
-    }
 }
 
 impl TextDocumentTrait for ReadDocument {
+    fn from_text(lines: Vec<TextLine>) -> Self {
+        Self {
+            lines,
+            modified: false,
+        }
+    }
+
     fn append_line(&mut self, line: TextLine) {
         self.lines.push(line);
         self.modified = true;
@@ -45,7 +43,6 @@ impl TextDocumentTrait for ReadDocument {
     }
 
     fn append(&mut self, text: &str, style: Option<Style>) {
-        eprintln!("Appending text: {:?}", text);
         let mut current_line = if let Some(last) = self.lines.last_mut() {
             if !last.to_string().ends_with('\n') {
                 last
@@ -105,7 +102,7 @@ impl TextDocumentTrait for ReadDocument {
         _len: usize,
     ) -> Result<(), ApplicationError> {
         Err(ApplicationError::NotImplemented(
-            "Operation not supported in ReadDocument".to_string(),
+            "Delete not supported in ReadDocument".to_string(),
         ))
     }
     fn insert(
@@ -115,17 +112,17 @@ impl TextDocumentTrait for ReadDocument {
         _style: Option<Style>,
     ) -> Result<(), ApplicationError> {
         Err(ApplicationError::NotImplemented(
-            "Operation not supported in ReadDocument".to_string(),
+            "Insert not supported in ReadDocument".to_string(),
         ))
     }
     fn undo(&mut self) -> Result<(), ApplicationError> {
         Err(ApplicationError::NotImplemented(
-            "Operation not supported in ReadDocument".to_string(),
+            "Undo not supported in ReadDocument".to_string(),
         ))
     }
     fn redo(&mut self) -> Result<(), ApplicationError> {
         Err(ApplicationError::NotImplemented(
-            "Operation not supported in ReadDocument".to_string(),
+            "Redo not supported in ReadDocument".to_string(),
         ))
     }
 }

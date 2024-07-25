@@ -2,7 +2,7 @@ use lumni::api::error::ApplicationError;
 use ratatui::style::{Color, Style};
 
 use super::components::{
-    ReadDocument, ReadWriteDocument, TextSegment, TextWindow, TextWindowTrait,
+    ReadDocument, ReadWriteDocument, TextLine, TextWindow, TextWindowTrait,
     WindowConfig, WindowKind, WindowStatus,
 };
 pub use crate::external as lumni;
@@ -27,27 +27,22 @@ impl PromptWindow<'_> {
     }
 }
 
-// TODO: change ReadWriteDocument to ReadDocument
-// works partially 
-// can change Document type to ReadDocument, but when an insert is called it will
-// throw an ApplicationError::NotImplemented -- which is correct behavior as we
-// should aim to remove any insert calls that are actually append
 pub struct ResponseWindow<'a> {
-    base: TextWindow<'a, ReadWriteDocument>,
+    base: TextWindow<'a, ReadDocument>,
 }
 
-impl<'a> TextWindowTrait<'a, ReadWriteDocument> for ResponseWindow<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
+impl<'a> TextWindowTrait<'a, ReadDocument> for ResponseWindow<'a> {
+    fn base(&mut self) -> &mut TextWindow<'a, ReadDocument> {
         &mut self.base
     }
 }
 
 impl ResponseWindow<'_> {
-    pub fn new(text: Option<Vec<TextSegment>>) -> Self {
+    pub fn new(text: Option<Vec<TextLine>>) -> Self {
         let mut window_type = WindowConfig::new(WindowKind::ResponseWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
-            base: TextWindow::new_read_write(window_type, text),
+            base: TextWindow::new_read_append(window_type, text),
         }
     }
 }

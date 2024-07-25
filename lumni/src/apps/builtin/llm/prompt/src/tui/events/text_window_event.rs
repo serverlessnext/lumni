@@ -34,7 +34,8 @@ where
     {
         key_track.set_leader_key(true); // enable leader key capture
     } else if key_track.leader_key_set() {
-        let window_event = process_leader_key(key_track); // process captured leader key string
+        // process captured leader key string
+        let window_event = process_leader_key(key_track);
         if window_event.is_some() {
             return Ok(window_event);
         }
@@ -44,7 +45,7 @@ where
             KeyCode::Char(c) => {
                 // check mode
                 if is_insert_mode {
-                    window.text_insert_add(&c.to_string(), None);
+                    window.text_insert_add(&c.to_string(), None)?;
                 } else {
                     return handle_char_key(c, key_track, window);
                 }
@@ -54,7 +55,7 @@ where
             }
             KeyCode::Tab => {
                 if is_insert_mode {
-                    window.text_insert_add("        ", None);
+                    window.text_insert_add("        ", None)?;
                 }
             }
             KeyCode::Right => {
@@ -74,17 +75,17 @@ where
                     if !is_insert_mode {
                         window.set_status_insert();
                     }
-                    window.text_insert_add("\n", None);
+                    window.text_insert_add("\n", None)?;
                 }
             }
             KeyCode::Backspace => {
                 if window.is_editable() && !window.text_buffer().is_empty() {
-                    window.text_delete_backspace();
+                    window.text_delete_backspace()?;
                 }
             }
             KeyCode::Delete => {
                 if window.is_editable() {
-                    window.text_delete_char();
+                    window.text_delete_char()?;
                 }
             }
             KeyCode::Home => {
@@ -164,21 +165,21 @@ where
             if window.is_editable() {
                 let mut clipboard = ClipboardProvider::new();
                 if let Ok(text) = clipboard.read_text() {
-                    window.text_insert_add(&text, None);
+                    window.text_insert_add(&text, None)?;
                 }
             } else {
                 // TODO: give feedback
-                // eprintln!("Cannot paste in a read-only window");
+                log::warn!("Cannot paste in non-editable mode");
             }
         }
         'u' => {
             if window.is_editable() {
-                window.text_undo();
+                window.text_undo()?;
             }
         }
         'r' => {
             if window.is_editable() {
-                window.text_redo();
+                window.text_redo()?;
             }
         }
         'y' => {
@@ -242,9 +243,6 @@ fn write_to_clipboard(text: &str) -> Result<(), String> {
 
     match clipboard.write_line(text, false) {
         Ok(_) => Ok(()),
-        Err(e) => {
-            eprintln!("Clipboard error: {}", e);
-            Err(e.to_string())
-        }
+        Err(e) => Err(e.to_string()),
     }
 }

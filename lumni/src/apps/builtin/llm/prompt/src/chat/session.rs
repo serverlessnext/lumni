@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use super::db::{ConversationDatabaseStore, ConversationId};
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
-    ServerManager, TextSegment,
+    ServerManager, TextLine,
 };
 use crate::api::error::ApplicationError;
 
@@ -195,7 +195,7 @@ impl ChatSession {
     pub fn export_conversation(
         &self,
         color_scheme: &ColorScheme,
-    ) -> Vec<TextSegment> {
+    ) -> Vec<TextLine> {
         self.prompt_instruction.export_conversation(color_scheme)
     }
 }

@@ -17,15 +17,15 @@ impl ReadWriteDocument {
             piece_table: PieceTable::new(),
         }
     }
-
-    pub fn from_text(segments: Vec<TextSegment>) -> Self {
-        Self {
-            piece_table: PieceTable::from_text(segments),
-        }
-    }
 }
 
 impl TextDocumentTrait for ReadWriteDocument {
+    fn from_text(lines: Vec<TextLine>) -> Self {
+        Self {
+            piece_table: PieceTable::from_text(lines),
+        }
+    }
+
     fn append_line(&mut self, line: TextLine) {
         self.piece_table.append(&line.to_string(), None);
         self.piece_table.update_if_modified();

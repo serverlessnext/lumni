@@ -14,6 +14,7 @@ pub use text_wrapper::TextWrapper;
 pub use crate::external as lumni;
 
 pub trait TextDocumentTrait {
+    fn from_text(lines: Vec<TextLine>) -> Self;
     fn append_line(&mut self, line: TextLine);
     fn is_empty(&self) -> bool;
     fn empty(&mut self);

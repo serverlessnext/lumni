@@ -6,7 +6,7 @@ use super::db::{
 };
 use super::prepare::NewConversation;
 use super::{
-    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextSegment,
+    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextLine,
 };
 pub use crate::external as lumni;
 
@@ -32,7 +32,6 @@ impl PromptInstruction {
             None => ChatCompletionOptions::default(),
         };
 
-        eprintln!("completion_options: {:?}", completion_options);
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(db_conn.new_conversation(
                 "New Conversation",
@@ -407,7 +406,7 @@ impl PromptInstruction {
     pub fn export_conversation(
         &self,
         color_scheme: &ColorScheme,
-    ) -> Vec<TextSegment> {
+    ) -> Vec<TextLine> {
         self.cache.export_conversation(color_scheme)
     }
 }

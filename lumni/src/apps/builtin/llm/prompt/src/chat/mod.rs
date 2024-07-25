@@ -18,7 +18,7 @@ pub use session::ChatSession;
 
 pub use super::defaults::*;
 pub use super::server::{CompletionResponse, ModelServer, ServerManager};
-pub use super::tui::{ColorScheme, TextSegment};
+pub use super::tui::{ColorScheme, TextLine, TextSegment};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

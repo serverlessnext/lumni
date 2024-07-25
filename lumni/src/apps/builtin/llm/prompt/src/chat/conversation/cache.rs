@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ratatui::style::Style;
 
 use super::db::{Attachment, AttachmentId, ConversationId, Message, MessageId};
-use super::{ColorScheme, PromptRole, TextSegment};
+use super::{ColorScheme, PromptRole, TextLine, TextSegment};
 
 #[derive(Debug)]
 pub struct ConversationCache {
@@ -105,51 +105,64 @@ impl ConversationCache {
     pub fn export_conversation(
         &self,
         color_scheme: &ColorScheme,
-    ) -> Vec<TextSegment> {
+    ) -> Vec<TextLine> {
+        let mut lines = Vec::new();
         let mut skip_count = self.preloaded_messages;
-
-        // Check if the first message is a system message, and skip it
         if !self.messages.is_empty()
             && self.messages[0].role == PromptRole::System
         {
             skip_count += 1;
         }
 
-        self.messages
+        for message in self
+            .messages
             .iter()
-            .skip(skip_count) // Skip preloaded messages
+            .skip(skip_count)
             .filter(|m| !m.is_deleted && m.role != PromptRole::System)
-            .flat_map(|message| {
-                let style = match message.role {
-                    PromptRole::User => Some(color_scheme.get_primary_style()),
-                    PromptRole::Assistant => {
-                        Some(color_scheme.get_secondary_style())
-                    }
-                    _ => None,
-                };
-
-                let mut segments = Vec::new();
-
-                // Add the message content
-                let text = message.content.clone();
-                segments.push(TextSegment { text, style });
-
-                // For assistant messages, add an extra newline with the same style
-                if message.role == PromptRole::Assistant {
-                    segments.push(TextSegment {
-                        text: "\n".to_string(),
-                        style,
-                    });
+        {
+            let style = match message.role {
+                PromptRole::User => Some(color_scheme.get_primary_style()),
+                PromptRole::Assistant => {
+                    Some(color_scheme.get_secondary_style())
                 }
+                _ => None,
+            };
 
-                // Add an empty unstyled line after each message
-                segments.push(TextSegment {
-                    text: "\n".to_string(),
-                    style: Some(Style::reset()),
+            // Split message content into lines
+            for line in message.content.lines() {
+                lines.push(TextLine {
+                    segments: vec![TextSegment {
+                        text: line.to_string(),
+                        style: style.clone(),
+                    }],
+                    length: line.len(),
+                    background: None,
                 });
+            }
 
-                segments
-            })
-            .collect()
+            // Add an empty line after each message
+            lines.push(TextLine {
+                segments: vec![TextSegment {
+                    text: String::new(),
+                    style: Some(Style::reset()),
+                }],
+                length: 0,
+                background: None,
+            });
+
+            // Add an extra empty line for assistant messages
+            if message.role == PromptRole::Assistant {
+                lines.push(TextLine {
+                    segments: vec![TextSegment {
+                        text: String::new(),
+                        style: Some(Style::reset()),
+                    }],
+                    length: 0,
+                    background: None,
+                });
+            }
+        }
+
+        lines
     }
 }

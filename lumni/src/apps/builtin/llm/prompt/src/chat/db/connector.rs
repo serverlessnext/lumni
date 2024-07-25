@@ -58,16 +58,16 @@ impl DatabaseConnector {
                                     _ => {}
                                 }
                             }
-                            eprintln!(
+                            log::debug!(
                                 "Version: {:?}, Identifier: {:?}",
-                                version, identifier
+                                version,
+                                identifier
                             );
                             (version, identifier, false)
                         }
                         Ok(_) | Err(SqliteError::QueryReturnedNoRows) => {
-                            eprintln!(
-                                "No schema version or identifier found. Need \
-                                 initialization."
+                            log::info!(
+                                "No metadata found. Need initialization."
                             );
                             (None, None, true)
                         }
@@ -78,7 +78,7 @@ impl DatabaseConnector {
                     SqliteError::SqliteFailure(_, Some(ref error_string))
                         if error_string.contains("no such table") =>
                     {
-                        eprintln!(
+                        log::info!(
                             "No metadata table found. Need to create the \
                              schema."
                         );
@@ -90,22 +90,19 @@ impl DatabaseConnector {
         };
 
         if need_initialization {
-            eprintln!("Initializing database schema...");
+            log::info!("Initializing schema...");
             transaction.execute_batch(Self::SCHEMA_SQL)?;
             transaction.execute(
                 "INSERT INTO metadata (key, value) VALUES ('schema_version', \
                  ?1), ('schema_identifier', ?2)",
                 params![Self::EXPECTED_VERSION, Self::EXPECTED_IDENTIFIER],
             )?;
-            eprintln!(
-                "Schema version and identifier metadata initialized \
-                 successfully."
-            );
+            log::info!("Schema initialized successfully.");
         } else if let (Some(v), Some(i)) = (version, identifier) {
             if v == Self::EXPECTED_VERSION && i == Self::EXPECTED_IDENTIFIER {
-                eprintln!("Database schema is up to date (version {}).", v);
+                log::info!("Database schema is up to date (version {}).", v);
             } else {
-                eprintln!(
+                log::error!(
                     "Found existing schema version {} for app {}. Expected \
                      version {} for {}.",
                     v,
@@ -147,7 +144,6 @@ impl DatabaseConnector {
         let tx = self.connection.transaction()?;
 
         while let Some(sql) = queue.pop_front() {
-            eprintln!("Executing SQL {}", sql);
             if sql.trim().to_lowercase().starts_with("select") {
                 // For SELECT statements, use query
                 tx.query_row(&sql, [], |_| Ok(()))?;
@@ -156,7 +152,6 @@ impl DatabaseConnector {
                 tx.execute(&sql, [])?;
             }
         }
-        eprintln!("Committing transaction");
         let result = result_handler(&tx)?;
 
         tx.commit()?;

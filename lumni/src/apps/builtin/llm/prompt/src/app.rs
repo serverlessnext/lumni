@@ -225,7 +225,7 @@ async fn prompt_app<B: Backend>(
 
                 if !display_content.is_empty() {
                     chat.update_last_exchange(&display_content);
-                    tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()))?;
+                    tab_ui.response.text_append(&display_content, Some(color_scheme.get_secondary_style()))?;
                 }
 
                 // response is final is is_final is true or response is None
@@ -290,14 +290,11 @@ async fn finalize_response(
     // stop trying to get more responses
     chat.stop();
     // finalize with newline for in display
-    tab_ui.response.text_append_with_insert(
-        "\n",
-        Some(color_scheme.get_secondary_style()),
-    )?;
-    // add an empty unstyled line
     tab_ui
         .response
-        .text_append_with_insert("\n", Some(Style::reset()))?;
+        .text_append("\n", Some(color_scheme.get_secondary_style()))?;
+    // add an empty unstyled line
+    tab_ui.response.text_append("\n", Some(Style::reset()))?;
     // trim exchange + update token length
     chat.finalize_last_exchange(db_conn, tokens_predicted)
         .await?;
@@ -640,14 +637,12 @@ async fn send_prompt<'a>(
             // clear prompt
             tab.ui.prompt.text_empty();
             tab.ui.prompt.set_status_normal();
-            tab.ui.response.text_append_with_insert(
+            tab.ui.response.text_append(
                 &formatted_prompt,
                 Some(color_scheme.get_primary_style()),
             )?;
             tab.ui.set_primary_window(WindowKind::ResponseWindow);
-            tab.ui
-                .response
-                .text_append_with_insert("\n", Some(Style::reset()))?;
+            tab.ui.response.text_append("\n", Some(Style::reset()))?;
         }
         Err(e) => {
             log::error!("Error sending message: {:?}", e);

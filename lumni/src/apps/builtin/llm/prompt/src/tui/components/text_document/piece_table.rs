@@ -3,12 +3,6 @@ use ratatui::style::Style;
 use super::text_line::{TextLine, TextSegment};
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct StyledText {
-    pub content: String,
-    pub style: Option<Style>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 enum Action {
     Insert {
         index: usize,
@@ -59,62 +53,47 @@ impl PieceTable {
         }
     }
 
-    pub fn from_text(segments: Vec<TextSegment>) -> Self {
+    pub fn from_text(lines: Vec<TextLine>) -> Self {
         let mut piece_table = Self::new();
-
-        if segments.is_empty() {
+        if lines.is_empty() {
             return piece_table;
         }
 
         let mut new_pieces = Vec::new();
-        let mut new_lines = Vec::new();
-        let mut current_line = TextLine::new();
         let mut add_start = 0;
 
-        for segment in segments {
-            // Append the content to the add buffer
-            piece_table.add.push_str(&segment.text);
+        for line in &lines {
+            for segment in &line.segments {
+                // Append the content to the add buffer
+                piece_table.add.push_str(&segment.text);
 
-            // Create a new piece for this text
-            new_pieces.push(Piece {
-                source: SourceBuffer::Add,
-                start: add_start,
-                length: segment.text.len(),
-                style: segment.style.clone(),
-            });
+                // Create a new piece for this text
+                new_pieces.push(Piece {
+                    source: SourceBuffer::Add,
+                    start: add_start,
+                    length: segment.text.len(),
+                    style: segment.style.clone(),
+                });
 
-            // Update text_lines
-            for ch in segment.text.chars() {
-                if ch == '\n' {
-                    if !current_line.is_empty() {
-                        new_lines.push(current_line);
-                        current_line = TextLine::new();
-                    } else {
-                        // Empty line, set background if style is available
-                        if let Some(s) = &segment.style {
-                            current_line.background = s.bg;
-                        }
-                        new_lines.push(current_line);
-                        current_line = TextLine::new();
-                    }
-                } else {
-                    current_line
-                        .add_segment(ch.to_string(), segment.style.clone());
-                }
+                add_start += segment.text.len();
             }
 
-            add_start += segment.text.len();
-        }
-
-        // Add the last line if it's not empty
-        if !current_line.is_empty() {
-            new_lines.push(current_line);
+            // Add a newline character after each line (except potentially the last one)
+            if add_start > 0 && !piece_table.add.ends_with('\n') {
+                piece_table.add.push('\n');
+                new_pieces.push(Piece {
+                    source: SourceBuffer::Add,
+                    start: add_start,
+                    length: 1,
+                    style: None, // or you might want to use the line's background style here
+                });
+                add_start += 1;
+            }
         }
 
         piece_table.pieces = new_pieces;
-        piece_table.text_lines = new_lines;
+        piece_table.text_lines = lines;
         piece_table.modified = false; // It's not modified, it's the initial state
-
         piece_table
     }
 

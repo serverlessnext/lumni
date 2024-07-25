@@ -10,7 +10,7 @@ pub use cursor::MoveCursor;
 pub use scroller::Scroller;
 pub use text_buffer::{LineType, TextBuffer};
 pub use text_document::{
-    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextSegment,
+    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine, TextSegment,
 };
 pub use text_window::{TextWindow, TextWindowTrait};
 pub use window_config::{WindowConfig, WindowKind, WindowStatus};

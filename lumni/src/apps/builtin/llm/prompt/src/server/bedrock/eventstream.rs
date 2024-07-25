@@ -14,7 +14,6 @@ impl EventStreamMessage {
         mut buffer: Bytes,
     ) -> Result<(Self, Option<Bytes>), &'static str> {
         // Parse a single message from an EventStream buffer. This works similar as to what is described in the AWS documentation for the Amazon Transcribe Streaming API:
-        //eprintln!("Raw buffer: {:?}", buffer);
         if buffer.remaining() < 16 {
             // Minimum size of a message
             return Err("Buffer too short");

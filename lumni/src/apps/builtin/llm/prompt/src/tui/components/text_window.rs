@@ -10,7 +10,7 @@ use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
 use super::text_document::{
-    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextSegment,
+    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine,
 };
 use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
 pub use crate::external as lumni;
@@ -223,6 +223,19 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
         Ok(())
     }
 
+    pub fn text_append(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
+        // appended text is added at end of text
+        self.text_buffer.text_append(text, style);
+        if self.scroller.auto_scroll {
+            self.scroll_to_end();
+        }
+        Ok(())
+    }
+
     pub fn text_append_with_insert(
         &mut self,
         text: &str,
@@ -257,7 +270,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
 impl<'a> TextWindow<'a, ReadWriteDocument> {
     pub fn new_read_write(
         window_type: WindowConfig,
-        text: Option<Vec<TextSegment>>,
+        text: Option<Vec<TextLine>>,
     ) -> Self {
         let document = if let Some(text) = text {
             ReadWriteDocument::from_text(text)
@@ -271,7 +284,7 @@ impl<'a> TextWindow<'a, ReadWriteDocument> {
 impl<'a> TextWindow<'a, ReadDocument> {
     pub fn new_read_append(
         window_type: WindowConfig,
-        text: Option<Vec<TextSegment>>,
+        text: Option<Vec<TextLine>>,
     ) -> Self {
         let document = if let Some(text) = text {
             ReadDocument::from_text(text)
@@ -353,6 +366,14 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
         style: Option<Style>,
     ) -> Result<(), ApplicationError> {
         self.base().text_insert_add(text, style)
+    }
+
+    fn text_append(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
+        self.base().text_append(text, style)
     }
 
     fn text_append_with_insert(

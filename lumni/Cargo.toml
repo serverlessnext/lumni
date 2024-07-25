@@ -49,6 +49,8 @@ syntect = { version = "5.2.0", default-features = false, features = ["parsing", 
 crc32fast = { version = "1.4" }
 rusqlite = { version = "0.31" }
 lazy_static = { version = "1.5" }
+rayon = { version = "1.10" }
+crossbeam-channel = { version = "0.5" }
 
 # CLI
 env_logger = { version = "0.9", optional = true }

@@ -1,12 +1,10 @@
 use ratatui::style::{Color, Style};
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextLine {
     pub segments: Vec<TextSegment>,
     pub length: usize,
     pub background: Option<Color>,
-
 }
 
 impl TextLine {
@@ -66,5 +64,3 @@ pub struct TextSegment {
     pub text: String,
     pub style: Option<Style>,
 }
-
-

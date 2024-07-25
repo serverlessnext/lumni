@@ -24,7 +24,6 @@ enum Action {
     },
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct PieceTable {
     text_lines: Vec<TextLine>, // text split into lines with styles

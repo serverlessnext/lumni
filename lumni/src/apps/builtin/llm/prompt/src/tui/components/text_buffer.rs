@@ -1,10 +1,10 @@
+use lumni::api::error::ApplicationError;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Masked, Span};
 
 use super::cursor::{Cursor, MoveCursor};
-use super::text_document::TextDocumentTrait;
-use super::text_line::TextLine;
-use super::text_wrapper::TextWrapper;
+use super::text_document::{TextDocumentTrait, TextLine, TextWrapper};
+pub use crate::external as lumni;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
@@ -234,10 +234,14 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         self.display.set_display_width(width);
     }
 
-    pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
+    pub fn text_insert_add(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
         // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
-        self.text.insert(idx, text, style);
+        self.text.insert(idx, text, style)?;
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment
@@ -267,6 +271,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             // If no newlines, just move right
             self.move_cursor(MoveCursor::Right(text.len() as u16), true);
         }
+        Ok(())
     }
 
     pub fn text_append(&mut self, text: &str, style: Option<Style>) {
@@ -274,11 +279,15 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         self.update_display_text();
     }
 
-    pub fn text_delete(&mut self, include_cursor: bool, char_count: usize) {
+    pub fn text_delete(
+        &mut self,
+        include_cursor: bool,
+        char_count: usize,
+    ) -> Result<(), ApplicationError> {
         // get current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
         if char_count == 0 {
-            return; // nothing to delete
+            return Ok(()); // nothing to delete
         }
 
         let start_idx = if include_cursor {
@@ -286,10 +295,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         } else if idx > 0 {
             idx - 1 // start at the character before the cursor
         } else {
-            return;
+            return Ok(()); // nothing to delete
         };
 
-        self.text.delete(start_idx, char_count);
+        self.text.delete(start_idx, char_count)?;
 
         if include_cursor {
             // delete rightwards from the cursor
@@ -304,6 +313,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             // delete leftwards from the cursor
             self.move_cursor(MoveCursor::Left(char_count as u16), true);
         }
+        Ok(())
     }
 
     pub fn row_line_type(&self, row: usize) -> Option<LineType> {
@@ -827,14 +837,16 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         }
     }
 
-    pub fn undo(&mut self) {
-        self.text.undo();
+    pub fn undo(&mut self) -> Result<(), ApplicationError> {
+        self.text.undo()?;
         self.update_display_text();
+        Ok(())
     }
 
-    pub fn redo(&mut self) {
-        self.text.redo();
+    pub fn redo(&mut self) -> Result<(), ApplicationError> {
+        self.text.redo()?;
         self.update_display_text();
+        Ok(())
     }
 
     pub fn to_string(&self) -> String {

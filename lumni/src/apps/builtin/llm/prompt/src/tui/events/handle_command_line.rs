@@ -2,18 +2,20 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::KeyCode;
+use lumni::api::error::ApplicationError;
 
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
     ModalWindowType, PromptAction, TabUi, TextWindowTrait, WindowEvent,
 };
+pub use crate::external as lumni;
 
 pub fn handle_command_line_event(
     tab_ui: &mut TabUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
-) -> Option<WindowEvent> {
+) -> Result<Option<WindowEvent>, ApplicationError> {
     let key_code = key_track.current_key().code;
 
     match key_code {
@@ -23,7 +25,7 @@ pub fn handle_command_line_event(
             tab_ui.command_line.text_empty();
             tab_ui.command_line.set_status_inactive();
 
-            Some(tab_ui.set_response_window())
+            Ok(Some(tab_ui.set_response_window()))
         }
         KeyCode::Enter => {
             let command = tab_ui.command_line.text_buffer().to_string();
@@ -31,30 +33,34 @@ pub fn handle_command_line_event(
             tab_ui.command_line.set_status_inactive();
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
-                    "q" => return Some(WindowEvent::Quit),
+                    "q" => return Ok(Some(WindowEvent::Quit)),
                     "w" => {
                         let question = tab_ui.prompt.text_buffer().to_string();
                         tab_ui.prompt.text_empty();
-                        return Some(WindowEvent::Prompt(PromptAction::Write(
-                            question,
+                        return Ok(Some(WindowEvent::Prompt(
+                            PromptAction::Write(question),
                         )));
                     }
                     "clear" => {
-                        return Some(WindowEvent::Prompt(PromptAction::Clear))
+                        return Ok(Some(WindowEvent::Prompt(
+                            PromptAction::Clear,
+                        )))
                     }
                     "stop" => {
-                        return Some(WindowEvent::Prompt(PromptAction::Stop));
+                        return Ok(Some(WindowEvent::Prompt(
+                            PromptAction::Stop,
+                        )));
                     }
                     _ => {} // command not recognized
                 }
             }
-            Some(WindowEvent::PromptWindow(None))
+            Ok(Some(WindowEvent::PromptWindow(None)))
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window
             tab_ui.command_line.text_empty();
             tab_ui.command_line.set_status_inactive();
-            Some(WindowEvent::Modal(ModalWindowType::Config))
+            Ok(Some(WindowEvent::Modal(ModalWindowType::Config)))
         }
         _ => handle_text_window_event(
             key_track,

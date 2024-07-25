@@ -177,21 +177,21 @@ impl KeyEventHandler {
 
         // try to catch Shift+Enter key press in prompt window
         match current_mode {
-            WindowEvent::CommandLine(_) => Ok(handle_command_line_event(
+            WindowEvent::CommandLine(_) => handle_command_line_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            )),
-            WindowEvent::ResponseWindow => Ok(handle_response_window_event(
+            ),
+            WindowEvent::ResponseWindow => handle_response_window_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            )),
-            WindowEvent::PromptWindow(_) => Ok(handle_prompt_window_event(
+            ),
+            WindowEvent::PromptWindow(_) => handle_prompt_window_event(
                 tab_ui,
                 &mut self.key_track,
                 is_running,
-            )),
+            ),
             WindowEvent::Modal(window_type) => {
                 // get Escape key press to close modal window
                 if self.key_track.current_key().code == KeyCode::Esc
@@ -227,7 +227,7 @@ impl KeyEventHandler {
                                         log::debug!("Not ready: {:?}", message);
                                         tab_ui.command_line.set_alert(
                                             &format!("Not Ready: {}", message),
-                                        );
+                                        )?;
                                         return Ok(Some(WindowEvent::Modal(
                                             window_type,
                                         )));

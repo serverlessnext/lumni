@@ -120,7 +120,7 @@ impl TextWrapper {
                     segment,
                     current_line,
                 );
-                
+
                 if additional_length > max_display_width {
                     self.handle_long_word(
                         &leading_spaces,
@@ -134,8 +134,8 @@ impl TextWrapper {
                 } else {
                     if !leading_spaces.is_empty() {
                         // Calculate the number of spaces that can be added
-                        let available_spaces =
-                            current_max_width.saturating_sub(current_line.get_length());
+                        let available_spaces = current_max_width
+                            .saturating_sub(current_line.get_length());
                         let spaces_to_add =
                             available_spaces.min(leading_spaces.len());
                         // Add the available leading spaces to the current line
@@ -149,7 +149,7 @@ impl TextWrapper {
                     }
                     wrapped_lines.push(current_line.clone());
                     *current_line = TextLine::new();
-                    *is_first_line = false;  // Set to false after pushing a line
+                    *is_first_line = false; // Set to false after pushing a line
                     current_text = format!("{}{}", leading_spaces, word);
                 }
             } else {
@@ -197,7 +197,8 @@ impl TextWrapper {
 
         while start_index < word.len() {
             let end_index = std::cmp::min(
-                (start_index + max_display_width).saturating_sub(current_text.len()),
+                (start_index + max_display_width)
+                    .saturating_sub(current_text.len()),
                 word.len(),
             );
             let slice = &word[start_index..end_index];

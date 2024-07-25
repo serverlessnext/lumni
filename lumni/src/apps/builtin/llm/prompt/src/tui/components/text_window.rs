@@ -1,3 +1,4 @@
+use lumni::api::error::ApplicationError;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Text;
@@ -5,12 +6,14 @@ use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, Borders, Paragraph, ScrollbarState};
 
 use super::cursor::MoveCursor;
-use super::text_document::{ReadWriteDocument, TextDocumentTrait};
-use super::text_line::TextSegment;
 use super::rect_area::RectArea;
 use super::scroller::Scroller;
 use super::text_buffer::{CodeBlock, LineType};
+use super::text_document::{
+    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextSegment,
+};
 use super::{TextBuffer, WindowConfig, WindowKind, WindowStatus};
+pub use crate::external as lumni;
 
 #[derive(Debug, Clone)]
 pub struct TextWindow<'a, T: TextDocumentTrait> {
@@ -21,10 +24,7 @@ pub struct TextWindow<'a, T: TextDocumentTrait> {
 }
 
 impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
-    pub fn new(
-        window_type: WindowConfig,
-        document: T,
-    ) -> Self {
+    pub fn new(window_type: WindowConfig, document: T) -> Self {
         Self {
             area: RectArea::default(),
             window_type,
@@ -212,29 +212,40 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
             .alignment(Alignment::Left)
     }
 
-    pub fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
+    pub fn text_insert_add(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
         // inserted text is added at cursor position
-        self.text_buffer.text_insert_add(text, style);
+        self.text_buffer.text_insert_add(text, style)?;
         self.scroll_to_cursor();
+        Ok(())
     }
 
     pub fn text_append_with_insert(
         &mut self,
         text: &str,
         style: Option<Style>,
-    ) {
+    ) -> Result<(), ApplicationError> {
         // inserted text is appended at end of text
         if self.scroller.auto_scroll {
             self.scroll_to_end();
-            self.text_buffer.text_insert_add(text, style);
+            self.text_buffer.text_insert_add(text, style)?;
         } else {
             self.text_buffer.text_append(text, style);
         }
+        Ok(())
     }
 
-    pub fn text_delete(&mut self, include_cursor: bool, count: usize) {
-        self.text_buffer.text_delete(include_cursor, count);
+    pub fn text_delete(
+        &mut self,
+        include_cursor: bool,
+        count: usize,
+    ) -> Result<(), ApplicationError> {
+        self.text_buffer.text_delete(include_cursor, count)?;
         self.scroll_to_cursor();
+        Ok(())
     }
 
     pub fn update_placeholder_text(&mut self) {
@@ -244,7 +255,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
 }
 
 impl<'a> TextWindow<'a, ReadWriteDocument> {
-    pub fn new_editable(
+    pub fn new_read_write(
         window_type: WindowConfig,
         text: Option<Vec<TextSegment>>,
     ) -> Self {
@@ -256,8 +267,23 @@ impl<'a> TextWindow<'a, ReadWriteDocument> {
         Self::new(window_type, document)
     }
 }
-pub trait TextWindowTrait<'a> {
-    fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument>;
+
+impl<'a> TextWindow<'a, ReadDocument> {
+    pub fn new_read_append(
+        window_type: WindowConfig,
+        text: Option<Vec<TextSegment>>,
+    ) -> Self {
+        let document = if let Some(text) = text {
+            ReadDocument::from_text(text)
+        } else {
+            ReadDocument::new()
+        };
+        Self::new(window_type, document)
+    }
+}
+
+pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
+    fn base(&mut self) -> &mut TextWindow<'a, T>;
 
     fn init(&mut self) {
         self.base().update_placeholder_text();
@@ -274,6 +300,7 @@ pub trait TextWindowTrait<'a> {
     fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b>
     where
         'a: 'b,
+        T: 'b,
     {
         let base = self.base();
         base.widget(area)
@@ -282,6 +309,7 @@ pub trait TextWindowTrait<'a> {
     fn vertical_scroll_bar_state<'b>(&'b mut self) -> &'b mut ScrollbarState
     where
         'a: 'b,
+        T: 'b,
     {
         self.base().scroller.vertical_scroll_bar_state()
     }
@@ -319,43 +347,55 @@ pub trait TextWindowTrait<'a> {
         self.base().move_cursor(direction);
     }
 
-    fn text_insert_add(&mut self, text: &str, style: Option<Style>) {
-        self.base().text_insert_add(text, style);
+    fn text_insert_add(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
+        self.base().text_insert_add(text, style)
     }
 
-    fn text_append_with_insert(&mut self, text: &str, style: Option<Style>) {
-        self.base().text_append_with_insert(text, style);
+    fn text_append_with_insert(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
+        self.base().text_append_with_insert(text, style)
     }
 
-    fn text_set(&mut self, text: &str, style: Option<Style>) {
+    fn text_set(
+        &mut self,
+        text: &str,
+        style: Option<Style>,
+    ) -> Result<(), ApplicationError> {
         self.text_empty();
         self.text_insert_add(text, style)
     }
 
-    fn text_delete_char(&mut self) {
+    fn text_delete_char(&mut self) -> Result<(), ApplicationError> {
         // single-char delete on cursor position
-        self.base().text_delete(true, 1);
+        self.base().text_delete(true, 1)
     }
 
-    fn text_delete_backspace(&mut self) {
+    fn text_delete_backspace(&mut self) -> Result<(), ApplicationError> {
         // single-char backspace, move cursor to the left
-        self.base().text_delete(false, 1);
+        self.base().text_delete(false, 1)
     }
 
     fn set_selection_anchor(&mut self, enable: bool) {
         self.base().text_buffer.set_selection_anchor(enable);
     }
 
-    fn text_buffer(&mut self) -> &mut TextBuffer<'a, ReadWriteDocument> {
+    fn text_buffer(&mut self) -> &mut TextBuffer<'a, T> {
         self.base().text_buffer()
     }
 
-    fn text_undo(&mut self) {
-        self.base().text_buffer.undo();
+    fn text_undo(&mut self) -> Result<(), ApplicationError> {
+        self.base().text_buffer.undo()
     }
 
-    fn text_redo(&mut self) {
-        self.base().text_buffer.redo();
+    fn text_redo(&mut self) -> Result<(), ApplicationError> {
+        self.base().text_buffer.redo()
     }
 
     fn text_empty(&mut self) {

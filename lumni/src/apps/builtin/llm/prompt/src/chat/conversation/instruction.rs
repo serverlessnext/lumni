@@ -8,7 +8,6 @@ use super::prepare::NewConversation;
 use super::{
     ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextSegment,
 };
-use crate::apps::builtin::llm::prompt::src::chat::assistant;
 pub use crate::external as lumni;
 
 #[derive(Debug)]

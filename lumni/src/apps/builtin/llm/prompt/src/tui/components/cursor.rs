@@ -1,4 +1,4 @@
-use super::text_line::TextLine;
+use super::text_document::TextLine;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {

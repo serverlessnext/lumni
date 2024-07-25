@@ -9,7 +9,9 @@ pub use key_event::{KeyEventHandler, KeyTrack};
 use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
-use super::components::{LineType, MoveCursor, TextWindowTrait, WindowKind};
+use super::components::{
+    LineType, MoveCursor, TextDocumentTrait, TextWindowTrait, WindowKind,
+};
 use super::modal::ModalWindowType;
 use super::ui::TabUi;
 use super::windows::PromptWindow;

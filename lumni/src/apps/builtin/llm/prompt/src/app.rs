@@ -126,7 +126,7 @@ async fn prompt_app<B: Backend>(
                                     match action {
                                         Some(CommandLineAction::Write(prefix)) => {
                                             tab.ui.command_line.set_status_insert();
-                                            tab.ui.command_line.text_set(prefix, None);
+                                            tab.ui.command_line.text_set(prefix, None)?;
                                         }
                                         None => {}
                                     }
@@ -225,7 +225,7 @@ async fn prompt_app<B: Backend>(
 
                 if !display_content.is_empty() {
                     chat.update_last_exchange(&display_content);
-                    tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()));
+                    tab_ui.response.text_append_with_insert(&display_content, Some(color_scheme.get_secondary_style()))?;
                 }
 
                 // response is final is is_final is true or response is None
@@ -293,11 +293,11 @@ async fn finalize_response(
     tab_ui.response.text_append_with_insert(
         "\n",
         Some(color_scheme.get_secondary_style()),
-    );
+    )?;
     // add an empty unstyled line
     tab_ui
         .response
-        .text_append_with_insert("\n", Some(Style::reset()));
+        .text_append_with_insert("\n", Some(Style::reset()))?;
     // trim exchange + update token length
     chat.finalize_last_exchange(db_conn, tokens_predicted)
         .await?;
@@ -643,15 +643,15 @@ async fn send_prompt<'a>(
             tab.ui.response.text_append_with_insert(
                 &formatted_prompt,
                 Some(color_scheme.get_primary_style()),
-            );
+            )?;
             tab.ui.set_primary_window(WindowKind::ResponseWindow);
             tab.ui
                 .response
-                .text_append_with_insert("\n", Some(Style::reset()));
+                .text_append_with_insert("\n", Some(Style::reset()))?;
         }
         Err(e) => {
             log::error!("Error sending message: {:?}", e);
-            tab.ui.command_line.set_alert(&e.to_string());
+            tab.ui.command_line.set_alert(&e.to_string())?;
         }
     }
     Ok(())

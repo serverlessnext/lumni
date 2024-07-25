@@ -162,3 +162,9 @@ impl From<serde_json::Error> for ApplicationError {
         ApplicationError::InvalidInput(format!("Invalid JSON: {}", error))
     }
 }
+
+impl From<anyhow::Error> for ApplicationError {
+    fn from(err: anyhow::Error) -> Self {
+        ApplicationError::Runtime(format!("Runtime error: {}", err))
+    }
+}

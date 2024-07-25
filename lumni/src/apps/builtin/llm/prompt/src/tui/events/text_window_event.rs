@@ -2,21 +2,24 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::KeyCode;
+use lumni::api::error::ApplicationError;
 
 use super::key_event::KeyTrack;
 use super::leader_key::{process_leader_key, LEADER_KEY};
 use super::{
-    ClipboardProvider, CommandLineAction, MoveCursor, TextWindowTrait,
-    WindowEvent, WindowKind,
+    ClipboardProvider, CommandLineAction, MoveCursor, TextDocumentTrait,
+    TextWindowTrait, WindowEvent, WindowKind,
 };
+pub use crate::external as lumni;
 
-pub fn handle_text_window_event<'a, T>(
+pub fn handle_text_window_event<'a, T, D>(
     key_track: &mut KeyTrack,
     window: &mut T,
     _is_running: Arc<AtomicBool>,
-) -> Option<WindowEvent>
+) -> Result<Option<WindowEvent>, ApplicationError>
 where
-    T: TextWindowTrait<'a>,
+    T: TextWindowTrait<'a, D>,
+    D: TextDocumentTrait,
 {
     let key_event = key_track.current_key();
     let is_insert_mode = window.is_status_insert();
@@ -33,7 +36,7 @@ where
     } else if key_track.leader_key_set() {
         let window_event = process_leader_key(key_track); // process captured leader key string
         if window_event.is_some() {
-            return window_event;
+            return Ok(window_event);
         }
     } else {
         // process regular key
@@ -95,20 +98,22 @@ where
         }
     }
 
-    match window.get_kind() {
-        WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
-        WindowKind::PromptWindow => Some(WindowEvent::PromptWindow(None)),
-        WindowKind::CommandLine => Some(WindowEvent::CommandLine(None)),
-    }
+    let kind = match window.get_kind() {
+        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
+        WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
+        WindowKind::CommandLine => WindowEvent::CommandLine(None),
+    };
+    Ok(Some(kind))
 }
 
-fn handle_char_key<'a, T>(
+fn handle_char_key<'a, T, D>(
     character: char,
     key_track: &mut KeyTrack,
     window: &mut T,
-) -> Option<WindowEvent>
+) -> Result<Option<WindowEvent>, ApplicationError>
 where
-    T: TextWindowTrait<'a>,
+    T: TextWindowTrait<'a, D>,
+    D: TextDocumentTrait,
 {
     match character {
         '0' => {
@@ -195,23 +200,25 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return Some(WindowEvent::CommandLine(Some(
+            return Ok(Some(WindowEvent::CommandLine(Some(
                 CommandLineAction::Write(":".to_string()),
-            )));
+            ))));
         }
         // ignore other characters
         _ => {}
     }
-    match window.get_kind() {
-        WindowKind::ResponseWindow => Some(WindowEvent::ResponseWindow),
-        WindowKind::PromptWindow => Some(WindowEvent::PromptWindow(None)),
-        WindowKind::CommandLine => Some(WindowEvent::CommandLine(None)),
-    }
+    let kind = match window.get_kind() {
+        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
+        WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
+        WindowKind::CommandLine => WindowEvent::CommandLine(None),
+    };
+    Ok(Some(kind))
 }
 
-fn yank_text<'a, T>(window: &mut T, lines_to_yank: Option<usize>)
+fn yank_text<'a, T, D>(window: &mut T, lines_to_yank: Option<usize>)
 where
-    T: TextWindowTrait<'a>,
+    T: TextWindowTrait<'a, D>,
+    D: TextDocumentTrait,
 {
     let text_buffer = window.text_buffer();
     let selected_text = text_buffer.yank_selected_text();

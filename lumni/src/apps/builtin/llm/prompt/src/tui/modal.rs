@@ -9,8 +9,7 @@ use super::events::KeyTrack;
 use super::widgets::SelectEndpoint;
 use super::{
     ApplicationError, ChatSession, ConversationEvent, ConversationReader,
-    ModelServer, ModelSpec, NewConversation, ServerManager, ServerTrait,
-    WindowEvent,
+    ModelServer, NewConversation, ServerManager, ServerTrait, WindowEvent,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

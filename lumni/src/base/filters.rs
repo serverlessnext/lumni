@@ -4,17 +4,37 @@ use crate::utils::time::system_time_in_seconds;
 use crate::utils::time_parse::calculate_time_offset_seconds;
 use crate::FileObject;
 
+const BYTE_UNITS: &[(&str, u64)] = &[
+    ("b", 1u64),
+    ("k", 1024u64),
+    ("M", 1024u64 * 1024u64),
+    ("G", 1024u64 * 1024u64 * 1024u64),
+    ("T", 1024u64 * 1024u64 * 1024u64 * 1024u64),
+];
+const PERCENTAGE: f64 = 0.05;
+
+#[derive(Debug, Clone)]
+pub struct Conditions {
+    pub name_regex: Option<Regex>,
+    pub min_size: Option<u64>,
+    pub max_size: Option<u64>,
+    pub min_mtime: Option<u64>,
+    pub max_mtime: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FileObjectFilter {
-    name_regex: Option<Regex>,
-    min_size: Option<u64>,
-    max_size: Option<u64>,
-    min_mtime: Option<u64>,
-    max_mtime: Option<u64>,
+    pub conditions: Vec<Conditions>,
 }
 
 impl FileObjectFilter {
-    pub fn new(
+    pub fn new(conditions: Conditions) -> Self {
+        FileObjectFilter {
+            conditions: vec![conditions],
+        }
+    }
+
+    pub fn new_with_single_condition(
         name: Option<&str>,
         size: Option<&str>,
         mtime: Option<&str>,
@@ -32,98 +52,85 @@ impl FileObjectFilter {
         };
 
         Ok(FileObjectFilter {
-            name_regex,
-            min_size,
-            max_size,
-            min_mtime,
-            max_mtime,
+            conditions: vec![Conditions {
+                name_regex,
+                min_size,
+                max_size,
+                min_mtime,
+                max_mtime,
+            }],
         })
+    }
+    pub fn add_or_condition(&mut self, condition: Conditions) {
+        self.conditions.push(condition);
     }
 
     pub fn matches(&self, file_object: &FileObject) -> bool {
-        let name_match = match &self.name_regex {
-            Some(re) => re.is_match(file_object.name()),
-            None => true,
-        };
+        self.conditions.iter().any(|condition| {
+            let name_match = condition
+                .name_regex
+                .as_ref()
+                .map_or(true, |re| re.is_match(file_object.name()));
 
-        let size_match = {
-            (self.min_size.map_or(true, |min| file_object.size() >= min))
-                && (self.max_size.map_or(true, |max| file_object.size() <= max))
-        };
+            let size_match = (condition
+                .min_size
+                .map_or(true, |min| file_object.size() >= min))
+                && (condition
+                    .max_size
+                    .map_or(true, |max| file_object.size() <= max));
 
-        let mtime_match = {
-            (self.min_mtime.map_or(true, |min| {
-                file_object.modified().map_or(false, |mtime| mtime >= min)
-            })) && (self.max_mtime.map_or(true, |max| {
-                file_object.modified().map_or(false, |mtime| mtime <= max)
-            }))
-        };
+            let mtime_match =
+                (condition.min_mtime.map_or(true, |min| {
+                    file_object.modified().map_or(false, |mtime| mtime >= min)
+                })) && (condition.max_mtime.map_or(true, |max| {
+                    file_object.modified().map_or(false, |mtime| mtime <= max)
+                }));
 
-        name_match && size_match && mtime_match
+            name_match && size_match && mtime_match
+        })
     }
 }
 
-fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
-    const BYTE_UNITS: &[(&str, u64)] = &[
-        ("b", 1u64),
-        ("k", 1024u64),
-        ("M", 1024u64 * 1024u64),
-        ("G", 1024u64 * 1024u64 * 1024u64),
-        ("T", 1024u64 * 1024u64 * 1024u64 * 1024u64),
-    ];
-    const PERCENTAGE: f64 = 0.05;
+pub fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
+    if size.contains("..") {
+        // Handle range case
+        let parts: Vec<&str> = size.split("..").collect();
+        if parts.len() != 2 {
+            return Err(format!("Invalid size range format: {}", size));
+        }
+        let start = if parts[0].is_empty() {
+            None
+        } else {
+            Some(parse_single_size(parts[0])?)
+        };
+        let end = if parts[1].is_empty() {
+            None
+        } else {
+            Some(parse_single_size(parts[1])?)
+        };
+        return Ok((start, end));
+    }
 
     let re = Regex::new(
-        r"^(?P<modifier>[+\-=]?)(?P<value>\d+)(?P<unit>[bBkKmMGtT]?)$",
+        r"^(?P<modifier>[+<>=-]?=?)(?P<value>\d+)(?P<unit>[bBkKmMGtT]?)$",
     )
     .unwrap();
-    let range_re = Regex::new(r"^(?P<min_value>\d+)(?P<unit1>[bBkKmMGtT]?)-(?P<max_value>\d+)(?P<unit2>[bBkKmMGtT]?)$").unwrap();
 
-    if let Some(caps) = range_re.captures(size) {
-        // Handle range case
-        let min_value: u64 =
-            caps["min_value"].parse().expect("Invalid numeric value");
-        let max_value: u64 =
-            caps["max_value"].parse().expect("Invalid numeric value");
-        let unit1 = caps["unit1"].to_ascii_lowercase();
-        let unit2 = caps["unit2"].to_ascii_lowercase();
-
-        let multiplier1 = BYTE_UNITS
-            .iter()
-            .find(|(u, _)| u.to_lowercase() == unit1)
-            .map(|(_, m)| m)
-            .unwrap_or(&1u64);
-
-        let multiplier2 = BYTE_UNITS
-            .iter()
-            .find(|(u, _)| u.to_lowercase() == unit2)
-            .map(|(_, m)| m)
-            .unwrap_or(&1u64);
-
-        let min_size = min_value * multiplier1;
-        let max_size = max_value * multiplier2;
-
-        if min_size > max_size {
-            Err("Minimum size is greater than maximum size.".to_string())
-        } else {
-            Ok((Some(min_size), Some(max_size)))
-        }
-    } else if let Some(caps) = re.captures(size) {
+    if let Some(caps) = re.captures(size) {
         let modifier = &caps["modifier"];
         let value: u64 = caps["value"].parse().expect("Invalid numeric value");
         let unit = caps["unit"].to_ascii_lowercase();
-
         let multiplier = BYTE_UNITS
             .iter()
             .find(|(u, _)| u.to_lowercase() == unit)
             .map(|(_, m)| m)
             .unwrap_or(&1u64);
-
         let size = value * multiplier;
-
         match modifier {
-            "+" => Ok((Some(size), None)),
-            "-" => Ok((None, Some(size))),
+            "+" | ">=" => Ok((Some(size), None)),
+            "-" | "<=" => Ok((None, Some(size))),
+            "<" => Ok((None, Some(size.saturating_sub(1)))),
+            ">" => Ok((Some(size + 1), None)),
             "=" => Ok((Some(size), Some(size))),
             "" => {
                 let min_size = (size as f64 * (1.0 - PERCENTAGE)).ceil() as u64;
@@ -138,13 +145,28 @@ fn parse_size(size: &str) -> Result<(Option<u64>, Option<u64>), String> {
     }
 }
 
-fn parse_time(
+fn parse_single_size(size: &str) -> Result<u64, String> {
+    let re = Regex::new(r"^(?P<value>\d+)(?P<unit>[bBkKmMGtT]?)$").unwrap();
+    if let Some(caps) = re.captures(size) {
+        let value: u64 = caps["value"].parse().expect("Invalid numeric value");
+        let unit = caps["unit"].to_ascii_lowercase();
+        let multiplier = BYTE_UNITS
+            .iter()
+            .find(|(u, _)| u.to_lowercase() == unit)
+            .map(|(_, m)| m)
+            .unwrap_or(&1u64);
+        Ok(value * multiplier)
+    } else {
+        Err(format!("Invalid size format: {}", size))
+    }
+}
+
+pub fn parse_time(
     time_offset_str: &str,
     current_time: u64,
 ) -> Result<(Option<u64>, Option<u64>), String> {
     let is_negative = time_offset_str.starts_with('-');
     let is_positive = time_offset_str.starts_with('+');
-
     if time_offset_str
         .chars()
         .any(|c| !c.is_ascii_digit() && !"+-YMWDhms".contains(c))

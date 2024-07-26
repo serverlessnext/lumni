@@ -3,3 +3,4 @@ pub mod config;
 pub mod connector;
 pub mod file_object;
 pub mod filters;
+pub mod filters_sql;

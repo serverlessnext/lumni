@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::collections::HashMap;
-use rayon::prelude::*;
+
 use crossbeam_channel::{bounded, Sender};
+use rayon::prelude::*;
 
 use crate::table::{FileObjectTable, TableColumnValue};
 use crate::{FileObject, FileObjectFilter};
@@ -22,7 +23,7 @@ pub async fn list_files(
     let count = AtomicUsize::new(0);
     let (sender, receiver) = bounded(500);
 
-    let path_buf = path.to_path_buf();  // Clone the path
+    let path_buf = path.to_path_buf(); // Clone the path
 
     // Spawn a thread to process entries
     std::thread::spawn(move || {
@@ -61,7 +62,13 @@ fn process_directory(
             if let Ok(entry) = entry {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_dir() && recursive {
-                        process_directory(&entry.path(), recursive, count, max_count, sender);
+                        process_directory(
+                            &entry.path(),
+                            recursive,
+                            count,
+                            max_count,
+                            sender,
+                        );
                     }
                     if file_type.is_file() || file_type.is_dir() {
                         count.fetch_add(1, Ordering::Relaxed);
@@ -193,4 +200,3 @@ fn handle_file(
         Some(row_data)
     }
 }
-

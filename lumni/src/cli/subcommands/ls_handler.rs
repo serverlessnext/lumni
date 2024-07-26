@@ -69,7 +69,7 @@ fn prepare_handle_ls_arguments(
     let filter = match (&filter_name, &filter_size, &filter_mtime) {
         (None, None, None) => None,
         _ => {
-            let filter_result = FileObjectFilter::new(
+            let filter_result = FileObjectFilter::new_with_single_condition(
                 filter_name.as_deref(),
                 filter_size.as_deref(),
                 filter_mtime.as_deref(),

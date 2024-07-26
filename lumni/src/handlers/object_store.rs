@@ -355,18 +355,6 @@ impl ObjectStoreHandler {
             };
 
             if let Some(table) = select.from.first() {
-                // assume the query is of the form 'SELECT * FROM "uri"'
-                // TODOs:
-                // 1. directories vs files
-                // in this first implementation, everything is treated as a directory,
-                // while we should distinguish between files and directories
-                // directories -> call list_objects()
-                // files -> treat as a database file (e.g. .sql, .parquet)
-                //
-                // 2. handle the following SQL clauses:
-                // non-wildcards in the SELECT statementA, e.g. 'SELECT name, size FROM "uri"'
-                // WHERE clauses, e.g. 'SELECT * FROM "uri" WHERE size > 100'
-                // ORDER BY, LIMIT and OFFSET clauses
                 let mut uri = table.relation.to_string();
 
                 // check for and remove leading and trailing quotes
@@ -384,6 +372,16 @@ impl ObjectStoreHandler {
                     _ => None,
                 };
 
+                // Extract the WHERE clause if present
+                let file_object_filter = match &select.selection {
+                    Some(where_clause) => {
+                        FileObjectFilter::parse_where_clause(where_clause)?
+                    }
+                    None => None,
+                };
+
+                // TODO: handle ORDER BY and OFFSET clauses
+
                 let result = self
                     .list_objects(
                         &ParsedUri::from_uri(&uri, true),
@@ -391,7 +389,7 @@ impl ObjectStoreHandler {
                         selected_columns,
                         true,
                         limit,
-                        &None,
+                        &file_object_filter,
                         callback.clone(),
                     )
                     .await;
@@ -408,7 +406,6 @@ impl ObjectStoreHandler {
                 }
             }
         }
-        //}
 
         Err(LakestreamError::InternalError(
             "Query does not match 'SELECT * FROM uri' pattern".to_string(),

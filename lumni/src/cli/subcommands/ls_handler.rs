@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use log::{debug, error};
 use lumni::{
-    EnvironmentConfig, FileObjectFilter, LakestreamError, ObjectStoreHandler,
+    EnvironmentConfig, FileObjectFilter, InternalError, ObjectStoreHandler,
     ParsedUri, TableCallback, TableRow,
 };
 
@@ -32,7 +32,7 @@ pub async fn handle_ls(
         Ok(_) => {
             debug!("List objects executed successfully with no return value.");
         }
-        Err(LakestreamError::NoBucketInUri(_)) => {
+        Err(InternalError::NoBucketInUri(_)) => {
             error!("Error: No bucket in URI");
             std::process::exit(1);
         }

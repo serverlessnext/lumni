@@ -1,12 +1,12 @@
-use crate::{EnvironmentConfig, LakestreamError, ObjectStoreHandler, Table};
+use crate::{EnvironmentConfig, InternalError, ObjectStoreHandler, Table};
 
 #[derive(Clone)]
-pub struct LakestreamHandler {
+pub struct LumniHandler {
     handler: ObjectStoreHandler,
     config: EnvironmentConfig,
 }
 
-impl LakestreamHandler {
+impl LumniHandler {
     pub fn new(config: EnvironmentConfig) -> Self {
         Self {
             handler: ObjectStoreHandler::new(None),
@@ -17,7 +17,7 @@ impl LakestreamHandler {
     pub async fn execute_query(
         &self,
         query: String,
-    ) -> Result<Box<dyn Table>, LakestreamError> {
+    ) -> Result<Box<dyn Table>, InternalError> {
         let callback = None;
         let result = self
             .handler

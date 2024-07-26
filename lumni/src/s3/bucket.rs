@@ -9,7 +9,7 @@ use crate::base::config::EnvironmentConfig;
 use crate::handlers::object_store::ObjectStoreTrait;
 use crate::s3::config::validate_config;
 use crate::table::FileObjectTable;
-use crate::{FileObjectFilter, LakestreamError};
+use crate::{FileObjectFilter, InternalError};
 
 #[derive(Debug, Clone)]
 pub struct S3Bucket {
@@ -21,7 +21,7 @@ impl S3Bucket {
     pub fn new(
         name: &str,
         mut config: EnvironmentConfig,
-    ) -> Result<S3Bucket, LakestreamError> {
+    ) -> Result<S3Bucket, InternalError> {
         validate_config(&mut config)?;
 
         Ok(S3Bucket {
@@ -61,13 +61,13 @@ impl ObjectStoreTrait for S3Bucket {
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
         table: &mut FileObjectTable,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<(), InternalError> {
         if let Some(prefix) = prefix {
             // prefix should not exist as a file object
             let (status_code, _response_headers) =
                 self.head_object(prefix.trim_end_matches("/")).await?;
             if status_code != 404 {
-                return Err(LakestreamError::NoBucketInUri(prefix.to_string()));
+                return Err(InternalError::NoBucketInUri(prefix.to_string()));
             }
         }
         list_files(
@@ -86,14 +86,14 @@ impl ObjectStoreTrait for S3Bucket {
         &self,
         key: &str,
         data: &mut Vec<u8>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<(), InternalError> {
         get_object(self, key, data).await
     }
 
     async fn head_object(
         &self,
         key: &str,
-    ) -> Result<(u16, HashMap<String, String>), LakestreamError> {
+    ) -> Result<(u16, HashMap<String, String>), InternalError> {
         head_object(self, key).await
     }
 }

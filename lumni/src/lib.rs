@@ -18,8 +18,8 @@ pub use base::callback_wrapper::{
 pub use base::config::EnvironmentConfig;
 pub use base::file_object::FileObject;
 pub use base::filters::FileObjectFilter;
-// LakestreamError should be phased out in favor of LumniError
-pub use error::LakestreamError;
+// InternalError should be phased out in favor of LumniError
+pub use error::InternalError;
 pub use handlers::ObjectStoreHandler;
 pub use table::{
     FileObjectTable, ObjectStoreTable, Table, TableCallback, TableColumn,

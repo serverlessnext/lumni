@@ -4,7 +4,7 @@ use std::env;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyDict, PyBytes};
 
-use crate::LakestreamError;
+use crate::InternalError;
 use crate::utils::create_filter;
 use tokio::runtime::Runtime;
 
@@ -93,13 +93,13 @@ impl _Client {
                     Ok(PyList::new(py, &py_file_objects).to_object(py))
                 }
                 _ => {
-                    let lumni_error = LakestreamError::new_err(format!("Error listing objects: {}", "Unknown error"));
+                    let lumni_error = InternalError::new_err(format!("Error listing objects: {}", "Unknown error"));
                     Err(lumni_error)
                 },
             },
             Ok(None) => Ok(PyList::empty(py).to_object(py)),
             Err(err) => {
-                let lumni_error = LakestreamError::new_err(format!("Error listing objects: {}", err));
+                let lumni_error = InternalError::new_err(format!("Error listing objects: {}", err));
                 Err(lumni_error)
             },
         }
@@ -132,13 +132,13 @@ impl _Client {
                     Ok(PyList::new(py, &py_buckets).to_object(py))
                 }
                 _ => {
-                    let lumni_error = LakestreamError::new_err(format!("Error listing buckets"));
+                    let lumni_error = InternalError::new_err(format!("Error listing buckets"));
                     Err(lumni_error)
                 },
             },
             Ok(None) => Ok(PyList::empty(py).to_object(py)),
             Err(err) => {
-                let lumni_error = LakestreamError::new_err(format!("Error listing buckets: {}", err));
+                let lumni_error = InternalError::new_err(format!("Error listing buckets: {}", err));
                 Err(lumni_error)
             },
         }
@@ -154,9 +154,9 @@ impl _Client {
 
         match result {
             Ok(Some(data)) => Ok(PyBytes::new(py, &data).to_object(py)),
-            Ok(None) => Err(LakestreamError::new_err("No data received")),
+            Ok(None) => Err(InternalError::new_err("No data received")),
             Err(err) => {
-                let lumni_error = LakestreamError::new_err(format!("Error getting object: {}", err));
+                let lumni_error = InternalError::new_err(format!("Error getting object: {}", err));
                 Err(lumni_error)
             },
         }

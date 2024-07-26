@@ -3,13 +3,13 @@ use super::client_headers::Headers;
 use super::list::create_s3_client;
 use super::request_handler::http_with_redirect_handling;
 use crate::handlers::object_store::ObjectStoreTrait;
-use crate::LakestreamError;
+use crate::InternalError;
 
 pub async fn get_object(
     s3_bucket: &S3Bucket,
     object_key: &str,
     data: &mut Vec<u8>,
-) -> Result<(), LakestreamError> {
+) -> Result<(), InternalError> {
     let s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 

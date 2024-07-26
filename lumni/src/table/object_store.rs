@@ -8,7 +8,7 @@ use crate::localfs::backend::LocalFsBackend;
 use crate::s3::backend::S3Backend;
 use crate::table::{StringColumn, TableRow};
 use crate::{
-    EnvironmentConfig, LakestreamError, Table, TableCallback, TableColumn,
+    EnvironmentConfig, InternalError, Table, TableCallback, TableColumn,
     TableColumnValue,
 };
 
@@ -142,7 +142,7 @@ pub async fn table_from_list_bucket(
     selected_columns: &Option<Vec<&str>>,
     max_files: Option<u32>,
     callback: Option<Arc<dyn TableCallback>>,
-) -> Result<Box<dyn Table>, LakestreamError> {
+) -> Result<Box<dyn Table>, InternalError> {
     let uri = config.get("uri").unwrap_or(&"".to_string()).clone();
 
     let mut table = ObjectStoreTable::new(selected_columns);

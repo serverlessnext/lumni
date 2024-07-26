@@ -9,14 +9,14 @@ use crate::s3::backend::S3Backend;
 
 use crate::{
     CallbackWrapper, Config,
-    ObjectStore, ObjectStoreVec, LakestreamError,
+    ObjectStore, ObjectStoreVec, InternalError,
 };
 
 
 pub async fn object_stores_from_config(
     config: Config,
     callback: &Option<CallbackWrapper<ObjectStore>>,
-) -> Result<ObjectStoreVec, LakestreamError> {
+) -> Result<ObjectStoreVec, InternalError> {
     let uri = config.get("uri").unwrap_or(&"".to_string()).clone();
 
     let callback = match callback {

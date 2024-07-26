@@ -5,7 +5,7 @@ use bytes::Bytes;
 use crate::http::requests::http_request_with_headers;
 use crate::s3::client::S3Client;
 use crate::s3::client_config::S3ClientConfig;
-use crate::LakestreamError;
+use crate::InternalError;
 
 async fn handle_redirect(s3_client: &S3Client, new_region: &str) -> S3Client {
     let config = s3_client.config();
@@ -24,10 +24,10 @@ pub async fn http_with_redirect_handling<F>(
     method: &str,
 ) -> Result<
     (Bytes, Option<S3Client>, u16, HashMap<String, String>),
-    LakestreamError,
+    InternalError,
 >
 where
-    F: Fn(&mut S3Client) -> Result<HashMap<String, String>, LakestreamError>,
+    F: Fn(&mut S3Client) -> Result<HashMap<String, String>, InternalError>,
 {
     let mut current_s3_client = s3_client.clone();
     loop {
@@ -51,12 +51,12 @@ where
                     } else {
                         let error = "Error: Redirect without \
                                      x-amz-bucket-region header";
-                        return Err(LakestreamError::from(error));
+                        return Err(InternalError::from(error));
                     }
                 } else {
                     if status_code == 403 {
                         let url = current_s3_client.url();
-                        return Err(LakestreamError::AccessDenied(
+                        return Err(InternalError::AccessDenied(
                             url.to_string(),
                         ));
                     }
@@ -75,7 +75,7 @@ where
                     ));
                 }
             }
-            Err(e) => return Err(LakestreamError::from(e)),
+            Err(e) => return Err(InternalError::from(e)),
         }
     }
 }

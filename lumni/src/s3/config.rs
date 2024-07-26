@@ -1,11 +1,11 @@
 use std::env;
 
 use super::aws_credentials::AWS_DEFAULT_REGION;
-use crate::{EnvironmentConfig, LakestreamError};
+use crate::{EnvironmentConfig, InternalError};
 
 pub fn validate_config(
     config: &mut EnvironmentConfig,
-) -> Result<(), LakestreamError> {
+) -> Result<(), InternalError> {
     // Set AWS_REGION
     if !config.contains_key("AWS_REGION") {
         if let Some(region) = config.get("region").cloned() {
@@ -24,7 +24,7 @@ pub fn validate_config(
         if let Ok(aws_access_key_id) = env::var("AWS_ACCESS_KEY_ID") {
             config.insert("AWS_ACCESS_KEY_ID".to_string(), aws_access_key_id);
         } else {
-            return Err(LakestreamError::ConfigError(
+            return Err(InternalError::ConfigError(
                 "AWS_ACCESS_KEY_ID not found in the config and environment"
                     .to_string(),
             ));
@@ -39,7 +39,7 @@ pub fn validate_config(
                 aws_secret_access_key,
             );
         } else {
-            return Err(LakestreamError::ConfigError(
+            return Err(InternalError::ConfigError(
                 "AWS_SECRET_ACCESS_KEY not found in the config and environment"
                     .to_string(),
             ));

@@ -3,26 +3,26 @@ use std::collections::HashMap;
 use url::form_urlencoded;
 
 use super::client::S3Client;
-use crate::{LakestreamError, AWS_MAX_LIST_OBJECTS};
+use crate::{InternalError, AWS_MAX_LIST_OBJECTS};
 
 pub trait Headers {
     fn generate_list_buckets_headers(
         &self,
-    ) -> Result<HashMap<String, String>, LakestreamError>;
+    ) -> Result<HashMap<String, String>, InternalError>;
     fn generate_list_objects_headers(
         &mut self,
         prefix: Option<&str>,
         max_keys: Option<u32>,
         continuation_token: Option<&str>,
-    ) -> Result<HashMap<String, String>, LakestreamError>;
+    ) -> Result<HashMap<String, String>, InternalError>;
     fn generate_get_object_headers(
         &mut self,
         object_key: &str,
-    ) -> Result<HashMap<String, String>, LakestreamError>;
+    ) -> Result<HashMap<String, String>, InternalError>;
     fn generate_head_object_headers(
         &mut self,
         object_key: &str,
-    ) -> Result<HashMap<String, String>, LakestreamError>;
+    ) -> Result<HashMap<String, String>, InternalError>;
     fn create_list_objects_query_string(
         &self,
         prefix: Option<&str>,
@@ -34,7 +34,7 @@ pub trait Headers {
 impl Headers for S3Client {
     fn generate_list_buckets_headers(
         &self,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> Result<HashMap<String, String>, InternalError> {
         let method = "GET";
         self.request_builder.generate_headers(
             method,
@@ -51,7 +51,7 @@ impl Headers for S3Client {
         prefix: Option<&str>,
         max_keys: Option<u32>,
         continuation_token: Option<&str>,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> Result<HashMap<String, String>, InternalError> {
         let method = "GET";
         let query_string = Some(self.create_list_objects_query_string(
             prefix,
@@ -73,7 +73,7 @@ impl Headers for S3Client {
     fn generate_get_object_headers(
         &mut self,
         object_key: &str,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> Result<HashMap<String, String>, InternalError> {
         self.resource = Some(object_key.to_string());
         let method = "GET";
         self.request_builder.generate_headers(
@@ -89,7 +89,7 @@ impl Headers for S3Client {
     fn generate_head_object_headers(
         &mut self,
         object_key: &str,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> Result<HashMap<String, String>, InternalError> {
         self.resource = Some(object_key.to_string());
         let method = "HEAD";
         self.request_builder.generate_headers(

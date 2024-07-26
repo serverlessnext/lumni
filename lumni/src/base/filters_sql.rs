@@ -2,18 +2,18 @@ use regex::Regex;
 use sqlparser::ast::{BinaryOperator, Expr, Value};
 
 use super::filters::{parse_size, Conditions, FileObjectFilter};
-use crate::LakestreamError;
+use crate::InternalError;
 
 impl FileObjectFilter {
     pub fn parse_where_clause(
         where_clause: &Expr,
-    ) -> Result<Option<FileObjectFilter>, LakestreamError> {
+    ) -> Result<Option<FileObjectFilter>, InternalError> {
         match where_clause {
             Expr::BinaryOp { left, op, right } => match op {
                 BinaryOperator::Or => {
                     let mut left_filter =
                         parse_condition(left)?.ok_or_else(|| {
-                            LakestreamError::InternalError(
+                            InternalError::InternalError(
                                 "Invalid left condition in OR".to_string(),
                             )
                         })?;
@@ -62,7 +62,7 @@ impl FileObjectFilter {
 
 fn parse_condition(
     expr: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     match expr {
         Expr::BinaryOp { left, op, right } => match op {
             BinaryOperator::And => parse_and_condition(left, right),
@@ -70,7 +70,7 @@ fn parse_condition(
         },
         Expr::Like { expr, pattern, .. } => parse_like_condition(expr, pattern),
         _ => {
-            Err(LakestreamError::InternalError(
+            Err(InternalError::InternalError(
                 "Unsupported WHERE clause structure".to_string(),
             ))
         }
@@ -80,7 +80,7 @@ fn parse_condition(
 fn parse_and_condition(
     left: &Expr,
     right: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     let left_filter = parse_condition(left)?;
     let right_filter = parse_condition(right)?;
 
@@ -143,21 +143,21 @@ fn parse_single_condition(
     left: &Expr,
     op: &BinaryOperator,
     right: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     if let Expr::Identifier(ident) = left {
         match ident.value.as_str() {
             "name" => parse_name_condition(op, right),
             "size" => parse_size_condition(op, right),
             "mtime" => parse_mtime_condition(op, right),
             _ => {
-                Err(LakestreamError::InternalError(format!(
+                Err(InternalError::InternalError(format!(
                     "Unsupported field in WHERE clause: {}",
                     ident.value
                 )))
             }
         }
     } else {
-        Err(LakestreamError::InternalError(
+        Err(InternalError::InternalError(
             "Unexpected left-hand expression in WHERE clause".to_string(),
         ))
     }
@@ -166,7 +166,7 @@ fn parse_single_condition(
 fn parse_like_condition(
     expr: &Expr,
     pattern: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     if let Expr::Identifier(ident) = expr {
         if ident.value == "name" {
             match pattern {
@@ -187,19 +187,19 @@ fn parse_like_condition(
                         None,
                     )?))
                 }
-                _ => Err(LakestreamError::InternalError(format!(
+                _ => Err(InternalError::InternalError(format!(
                     "Unsupported pattern type for LIKE operation: {:?}",
                     pattern
                 ))),
             }
         } else {
-            Err(LakestreamError::InternalError(format!(
+            Err(InternalError::InternalError(format!(
                 "LIKE operation not supported for field: {}",
                 ident.value
             )))
         }
     } else {
-        Err(LakestreamError::InternalError(
+        Err(InternalError::InternalError(
             "Unexpected expression in LIKE operation".to_string(),
         ))
     }
@@ -229,13 +229,13 @@ fn sql_like_to_regex(like_pattern: &str) -> Regex {
 fn parse_name_condition(
     op: &BinaryOperator,
     right: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     let value = match right {
         Expr::Value(Value::SingleQuotedString(s))
         | Expr::Value(Value::DoubleQuotedString(s)) => s,
         Expr::Identifier(ident) => &ident.value,
         _ => {
-            return Err(LakestreamError::InternalError(
+            return Err(InternalError::InternalError(
                 "Unsupported value type for name comparison".to_string(),
             ));
         }
@@ -250,7 +250,7 @@ fn parse_name_condition(
             )?))
         }
         _ => {
-            Err(LakestreamError::InternalError(
+            Err(InternalError::InternalError(
                 "Unsupported operator for name comparison".to_string(),
             ))
         }
@@ -260,7 +260,7 @@ fn parse_name_condition(
 fn parse_size_condition(
     op: &BinaryOperator,
     right: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     if let Expr::Value(Value::Number(n, _)) = right {
         let condition = match op {
             BinaryOperator::Gt => format!(">{}", n),
@@ -269,7 +269,7 @@ fn parse_size_condition(
             BinaryOperator::LtEq => format!("<={}", n),
             BinaryOperator::Eq => format!("={}", n),
             _ => {
-                return Err(LakestreamError::InternalError(
+                return Err(InternalError::InternalError(
                     "Unsupported operator for size comparison".to_string(),
                 ))
             }
@@ -280,7 +280,7 @@ fn parse_size_condition(
             None,
         )?))
     } else {
-        Err(LakestreamError::InternalError(
+        Err(InternalError::InternalError(
             "Invalid value type for size comparison".to_string(),
         ))
     }
@@ -289,7 +289,7 @@ fn parse_size_condition(
 fn parse_mtime_condition(
     op: &BinaryOperator,
     right: &Expr,
-) -> Result<Option<FileObjectFilter>, LakestreamError> {
+) -> Result<Option<FileObjectFilter>, InternalError> {
     if let Expr::Value(Value::Number(n, _)) = right {
         let condition = match op {
             BinaryOperator::Gt => format!(">{}", n),
@@ -298,7 +298,7 @@ fn parse_mtime_condition(
             BinaryOperator::LtEq => format!("<={}", n),
             BinaryOperator::Eq => format!("={}", n),
             _ => {
-                return Err(LakestreamError::InternalError(
+                return Err(InternalError::InternalError(
                     "Unsupported operator for mtime comparison".to_string(),
                 ))
             }
@@ -309,7 +309,7 @@ fn parse_mtime_condition(
             Some(&condition),
         )?))
     } else {
-        Err(LakestreamError::InternalError(
+        Err(InternalError::InternalError(
             "Invalid value type for mtime comparison".to_string(),
         ))
     }

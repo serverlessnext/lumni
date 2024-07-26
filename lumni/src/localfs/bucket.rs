@@ -10,7 +10,7 @@ use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
 use crate::handlers::object_store::ObjectStoreTrait;
 use crate::table::FileObjectTable;
-use crate::{FileObjectFilter, LakestreamError};
+use crate::{FileObjectFilter, InternalError};
 
 pub struct LocalFileSystem;
 
@@ -61,7 +61,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
         table: &mut FileObjectTable,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<(), InternalError> {
         let path = match prefix {
             Some(prefix) => Path::new(&self.name).join(prefix),
             None => Path::new(&self.name).to_path_buf(),
@@ -69,7 +69,7 @@ impl ObjectStoreTrait for LocalFsBucket {
 
         // to be considered a Bucket, path must be a directory
         if !path.is_dir() {
-            return Err(LakestreamError::NoBucketInUri(
+            return Err(InternalError::NoBucketInUri(
                 path.to_string_lossy().to_string(),
             ));
         }
@@ -82,7 +82,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         &self,
         key: &str,
         data: &mut Vec<u8>,
-    ) -> Result<(), LakestreamError> {
+    ) -> Result<(), InternalError> {
         let path = Path::new(&self.name);
         get_object(path, key, data).await
     }
@@ -90,8 +90,8 @@ impl ObjectStoreTrait for LocalFsBucket {
     async fn head_object(
         &self,
         _key: &str,
-    ) -> Result<(u16, HashMap<String, String>), LakestreamError> {
-        return Err(LakestreamError::InternalError(
+    ) -> Result<(u16, HashMap<String, String>), InternalError> {
+        return Err(InternalError::InternalError(
             "Not implemented".to_string(),
         ));
     }

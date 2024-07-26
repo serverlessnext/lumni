@@ -4,7 +4,7 @@ use std::{fmt, io};
 use url::ParseError;
 
 #[derive(Debug)]
-pub enum LakestreamError {
+pub enum InternalError {
     Io(io::Error),
     Parse(ParseError),
     String(String),
@@ -21,78 +21,78 @@ pub enum LakestreamError {
     HttpClientError(crate::http::client::HttpClientError),
 }
 
-impl fmt::Display for LakestreamError {
+impl fmt::Display for InternalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LakestreamError::Io(e) => write!(f, "{}", e),
-            LakestreamError::Parse(e) => write!(f, "{}", e),
-            LakestreamError::String(s) => write!(f, "{}", s),
-            LakestreamError::ConfigError(s) => write!(f, "Config error: {}", s),
-            LakestreamError::Wrapped(e) => write!(f, "{}", e),
-            LakestreamError::NoBucketInUri(s) => {
+            InternalError::Io(e) => write!(f, "{}", e),
+            InternalError::Parse(e) => write!(f, "{}", e),
+            InternalError::String(s) => write!(f, "{}", s),
+            InternalError::ConfigError(s) => write!(f, "Config error: {}", s),
+            InternalError::Wrapped(e) => write!(f, "{}", e),
+            InternalError::NoBucketInUri(s) => {
                 write!(f, "No bucket specified in URI: {}", s)
             }
-            LakestreamError::AccessDenied(s) => {
+            InternalError::AccessDenied(s) => {
                 write!(f, "Access denied: {}", s)
             }
-            LakestreamError::InternalError(s) => {
+            InternalError::InternalError(s) => {
                 write!(f, "Internal error: {}", s)
             }
-            LakestreamError::Anyhow(e) => write!(f, "Anyhow error: {}", e),
-            LakestreamError::NotFound(s) => write!(f, "Not found: {}", s),
+            InternalError::Anyhow(e) => write!(f, "Anyhow error: {}", e),
+            InternalError::NotFound(s) => write!(f, "Not found: {}", s),
             #[cfg(target_arch = "wasm32")]
-            LakestreamError::Js(e) => write!(
+            InternalError::Js(e) => write!(
                 f,
                 "JsError: {}",
                 e.as_string().unwrap_or_else(|| "Unknown error".to_string())
             ),
             #[cfg(feature = "http_client")]
-            LakestreamError::HttpClientError(e) => write!(f, "{}", e),
+            InternalError::HttpClientError(e) => write!(f, "{}", e),
         }
     }
 }
 
-impl Error for LakestreamError {}
+impl Error for InternalError {}
 
-impl From<Box<dyn Error>> for LakestreamError {
+impl From<Box<dyn Error>> for InternalError {
     fn from(error: Box<dyn Error>) -> Self {
-        LakestreamError::Wrapped(error)
+        InternalError::Wrapped(error)
     }
 }
 
-impl From<io::Error> for LakestreamError {
+impl From<io::Error> for InternalError {
     fn from(error: io::Error) -> Self {
-        LakestreamError::Io(error)
+        InternalError::Io(error)
     }
 }
 
-impl From<anyhow::Error> for LakestreamError {
+impl From<anyhow::Error> for InternalError {
     fn from(error: anyhow::Error) -> Self {
-        LakestreamError::Anyhow(error)
+        InternalError::Anyhow(error)
     }
 }
 
-impl From<ParseError> for LakestreamError {
+impl From<ParseError> for InternalError {
     fn from(error: ParseError) -> Self {
-        LakestreamError::Parse(error)
+        InternalError::Parse(error)
     }
 }
 
-impl From<&str> for LakestreamError {
+impl From<&str> for InternalError {
     fn from(error: &str) -> Self {
-        LakestreamError::String(error.to_owned())
+        InternalError::String(error.to_owned())
     }
 }
 
-impl From<std::string::String> for LakestreamError {
+impl From<std::string::String> for InternalError {
     fn from(error: std::string::String) -> Self {
-        LakestreamError::String(error.to_owned())
+        InternalError::String(error.to_owned())
     }
 }
 
 #[cfg(target_arch = "wasm32")]
-impl From<wasm_bindgen::JsValue> for LakestreamError {
+impl From<wasm_bindgen::JsValue> for InternalError {
     fn from(error: wasm_bindgen::JsValue) -> Self {
-        LakestreamError::Js(error)
+        InternalError::Js(error)
     }
 }

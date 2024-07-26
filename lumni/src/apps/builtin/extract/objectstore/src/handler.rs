@@ -12,7 +12,7 @@ use crate::api::invoke::{Request, Response};
 use crate::api::types::{
     Column, ColumnarData, ColumnarTable, Data, DataType, RowTable, Table,
 };
-use crate::base::connector::LakestreamHandler;
+use crate::base::connector::LumniHandler;
 use crate::utils::string_replace::replace_variables_in_string_with_map;
 use crate::{impl_app_handler, EnvironmentConfig};
 
@@ -47,7 +47,7 @@ async fn handle_incoming_request(
                 let query =
                     replace_variables_in_string_with_map(&query, settings);
                 log::info!("Query: {}", query);
-                let handler = LakestreamHandler::new(config);
+                let handler = LumniHandler::new(config);
                 let results = handler.execute_query(query).await;
                 log::info!("Results: {:?}", results);
 

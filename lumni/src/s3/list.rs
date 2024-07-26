@@ -16,7 +16,7 @@ use crate::handlers::object_store::ObjectStoreTrait;
 use crate::http::requests::http_get_request;
 use crate::table::{FileObjectTable, ObjectStoreTable, Table};
 use crate::{
-    FileObject, FileObjectFilter, LakestreamError, AWS_MAX_LIST_OBJECTS,
+    FileObject, FileObjectFilter, InternalError, AWS_MAX_LIST_OBJECTS,
 };
 
 pub struct ListFilesParams<'a> {
@@ -36,7 +36,7 @@ pub async fn list_files(
     max_keys: Option<u32>,
     filter: &Option<FileObjectFilter>,
     table: &mut FileObjectTable,
-) -> Result<(), LakestreamError> {
+) -> Result<(), InternalError> {
     let mut s3_client =
         create_s3_client(s3_bucket.config(), Some(s3_bucket.name()));
 
@@ -60,7 +60,7 @@ async fn list_files_next(
     params: &mut ListFilesParams<'_>,
     table: &mut FileObjectTable,
     _selected_columns: &Option<Vec<&str>>, // not yet implemented
-) -> Result<(), LakestreamError> {
+) -> Result<(), InternalError> {
     let mut directory_stack = std::collections::VecDeque::new();
     let mut temp_file_objects = Vec::new();
 
@@ -197,7 +197,7 @@ pub async fn list_buckets(
     config: &EnvironmentConfig,
     max_files: Option<u32>,
     table: &mut ObjectStoreTable,
-) -> Result<(), LakestreamError> {
+) -> Result<(), InternalError> {
     let s3_client = create_s3_client(config, None);
     let headers: HashMap<String, String> =
         s3_client.generate_list_buckets_headers().unwrap();

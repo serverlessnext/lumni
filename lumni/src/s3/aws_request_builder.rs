@@ -8,7 +8,7 @@ use url::Url;
 use super::aws_credentials::AWSCredentials;
 use crate::http::client::HttpClient;
 use crate::utils::time::UtcTimeNow;
-use crate::LakestreamError;
+use crate::InternalError;
 
 pub struct AWSRequestBuilder {
     url: String,
@@ -27,7 +27,7 @@ impl AWSRequestBuilder {
         resource: Option<&str>,
         query_string: Option<&str>,
         payload_hash: Option<&str>,
-    ) -> Result<HashMap<String, String>, LakestreamError> {
+    ) -> Result<HashMap<String, String>, InternalError> {
         let utc_now = UtcTimeNow::new();
         let date_stamp = utc_now.date_stamp();
         let x_amz_date = utc_now.x_amz_date();
@@ -178,7 +178,7 @@ impl AWSRequestBuilder {
     fn get_canonical_query_string(
         &self,
         query_string: Option<&str>,
-    ) -> Result<String, LakestreamError> {
+    ) -> Result<String, InternalError> {
         if query_string.as_ref().map_or(true, |s| s.is_empty()) {
             Ok(String::new())
         } else {

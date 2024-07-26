@@ -60,11 +60,12 @@ fn process_directory(
 
             if let Ok(entry) = entry {
                 if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_file() {
+                    if file_type.is_dir() && recursive {
+                        process_directory(&entry.path(), recursive, count, max_count, sender);
+                    }
+                    if file_type.is_file() || file_type.is_dir() {
                         count.fetch_add(1, Ordering::Relaxed);
                         let _ = sender.send(entry);
-                    } else if file_type.is_dir() && recursive {
-                        process_directory(&entry.path(), recursive, count, max_count, sender);
                     }
                 }
             }
@@ -99,7 +100,6 @@ fn handle_directory(
         .to_string_lossy()
         .to_string();
     let mut dir_row_data = HashMap::new();
-
     if selected_columns
         .as_ref()
         .map_or(true, |cols| cols.contains(&"name"))

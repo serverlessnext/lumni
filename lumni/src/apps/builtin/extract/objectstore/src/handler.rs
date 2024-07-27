@@ -34,6 +34,9 @@ impl AppHandler for Handler {
 async fn handle_incoming_request(
     mut rx: mpsc::UnboundedReceiver<Request>,
 ) -> Result<(), LumniError> {
+    let skip_hidden = false;
+    let recursive = true;
+
     if let Some(request) = rx.next().await {
         let tx = request.tx();
 
@@ -48,7 +51,8 @@ async fn handle_incoming_request(
                     replace_variables_in_string_with_map(&query, settings);
                 log::info!("Query: {}", query);
                 let handler = LumniHandler::new(config);
-                let results = handler.execute_query(query).await;
+                let results =
+                    handler.execute_query(query, skip_hidden, recursive).await;
                 log::info!("Results: {:?}", results);
 
                 // TODO: wrap results into rows and columns

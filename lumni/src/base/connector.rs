@@ -17,11 +17,20 @@ impl LumniHandler {
     pub async fn execute_query(
         &self,
         query: String,
+        skip_hidden: bool,
+        recursive: bool,
     ) -> Result<Box<dyn Table>, InternalError> {
         let callback = None;
         let result = self
             .handler
-            .execute_query(&query, &self.config, callback)
+            .execute_query(
+                &query,
+                &self.config,
+                skip_hidden,
+                recursive,
+                None,
+                callback,
+            )
             .await;
         result
     }

@@ -1,9 +1,11 @@
 mod file_object_filter;
 mod glob_matcher;
+mod ignore_contents;
 mod parse_filter_condition;
 mod parse_where_clause;
 
 pub use file_object_filter::FileObjectFilter;
+pub use ignore_contents::IgnoreContents;
 pub use parse_filter_condition::ParseFilterCondition;
 use regex::Regex;
 

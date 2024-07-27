@@ -1,9 +1,9 @@
-use std::fs;
 use std::path::Path;
 
 use regex::Regex;
 
 use super::glob_matcher::GlobMatcher;
+use super::ignore_contents::IgnoreContents;
 use super::{Conditions, ParseFilterCondition};
 use crate::utils::time::system_time_in_seconds;
 use crate::{FileObject, LumniError};
@@ -22,12 +22,15 @@ impl FileObjectFilter {
         }
     }
 
+    pub fn add_glob_matcher(&mut self, glob_matcher: GlobMatcher) {
+        self.glob_matcher = Some(glob_matcher);
+    }
+
     pub fn new_with_single_condition(
         name: Option<&str>,
         size: Option<&str>,
         mtime: Option<&str>,
-        root_path: Option<&Path>,
-        ignore_contents: Option<String>,
+        ignore_contents: Option<IgnoreContents>,
     ) -> Result<Self, LumniError> {
         let name_regex = name.map(|pattern| Regex::new(pattern).unwrap());
 
@@ -41,10 +44,8 @@ impl FileObjectFilter {
             None => (None, None),
         };
 
-        let glob_matcher = if let Some(content) = ignore_contents {
-            let root_path = root_path.unwrap_or(Path::new("."));
-            let matcher = GlobMatcher::new(root_path, &content)?;
-            Some(matcher)
+        let glob_matcher = if let Some(ignore_contents) = ignore_contents {
+            ignore_contents.to_glob_matcher()?
         } else {
             None
         };

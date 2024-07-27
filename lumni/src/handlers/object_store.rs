@@ -1,7 +1,6 @@
 use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,8 +14,8 @@ use crate::s3::backend::S3Bucket;
 use crate::table::object_store::table_from_list_bucket;
 use crate::table::{FileObjectTable, Table, TableCallback};
 use crate::{
-    BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter, InternalError,
-    ObjectStoreTable, ParsedUri, UriScheme,
+    BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter, IgnoreContents,
+    InternalError, ObjectStoreTable, ParsedUri, UriScheme,
 };
 
 #[derive(Debug, Clone)]
@@ -302,6 +301,9 @@ impl ObjectStoreHandler {
         &self,
         statement: &str,
         config: &EnvironmentConfig,
+        skip_hidden: bool,
+        recursive: bool,
+        ignore_contents: Option<IgnoreContents>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, InternalError> {
         let dialect = GenericDialect {};
@@ -312,7 +314,15 @@ impl ObjectStoreHandler {
                 if let Some(Statement::Query(query)) =
                     statements.into_iter().next()
                 {
-                    self.handle_select_statement(&query, config, callback).await
+                    self.handle_select_statement(
+                        &query,
+                        config,
+                        skip_hidden,
+                        recursive,
+                        ignore_contents,
+                        callback,
+                    )
+                    .await
                 } else {
                     Err(InternalError::InternalError(
                         "Unsupported query statement".to_string(),
@@ -329,6 +339,9 @@ impl ObjectStoreHandler {
         &self,
         query: &Query,
         config: &EnvironmentConfig,
+        skip_hidden: bool,
+        recursive: bool,
+        ignore_contents: Option<IgnoreContents>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, InternalError> {
         if let SetExpr::Select(select) = &*query.body {
@@ -381,12 +394,33 @@ impl ObjectStoreHandler {
                     _ => None,
                 };
 
+                let glob_matcher =
+                    if let Some(ignore_contents) = ignore_contents {
+                        ignore_contents.to_glob_matcher().map_err(|e| {
+                            InternalError::ConfigError(e.to_string())
+                        })?
+                    } else {
+                        None
+                    };
                 // Extract the WHERE clause if present
-                let file_object_filter = match &select.selection {
+                let mut file_object_filter = match &select.selection {
                     Some(where_clause) => {
                         FileObjectFilter::parse_where_clause(where_clause)?
                     }
                     None => None,
+                };
+
+                if let Some(filter) = &mut file_object_filter {
+                    // Update the glob_matcher in the filter if it exists
+                    if let Some(glob_matcher) = &glob_matcher {
+                        filter.glob_matcher = Some(glob_matcher.clone());
+                    }
+                } else if let Some(glob_matcher) = &glob_matcher {
+                    // Create a new filter if it doesn't exist
+                    file_object_filter = Some(FileObjectFilter {
+                        conditions: vec![],
+                        glob_matcher: Some(glob_matcher.clone()),
+                    });
                 };
 
                 // TODO: handle ORDER BY and OFFSET clauses
@@ -396,8 +430,8 @@ impl ObjectStoreHandler {
                         &ParsedUri::from_uri(&uri, true),
                         config,
                         selected_columns,
-                        false, // not skipping hidden files: TODO, evaluate
-                        true,
+                        skip_hidden,
+                        recursive,
                         limit,
                         file_object_filter,
                         callback.clone(),

@@ -14,6 +14,7 @@ pub enum LumniError {
     Invoke(ApplicationError, Option<String>),
     NotImplemented(String),
     Message(String),
+    Any(String),
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +66,7 @@ impl fmt::Display for LumniError {
             }
             LumniError::NotImplemented(s) => write!(f, "NotImplemented: {}", s),
             LumniError::Message(s) => write!(f, "{}", s),
+            LumniError::Any(s) => write!(f, "{}", s),
         }
     }
 }
@@ -166,5 +168,17 @@ impl From<serde_json::Error> for ApplicationError {
 impl From<anyhow::Error> for ApplicationError {
     fn from(err: anyhow::Error) -> Self {
         ApplicationError::Runtime(format!("Runtime error: {}", err))
+    }
+}
+
+impl From<&str> for LumniError {
+    fn from(error: &str) -> Self {
+        LumniError::Any(error.to_owned())
+    }
+}
+
+impl From<std::string::String> for LumniError {
+    fn from(error: std::string::String) -> Self {
+        LumniError::Any(error.to_owned())
     }
 }

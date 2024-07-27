@@ -6,7 +6,7 @@ use regex::Regex;
 use super::glob_matcher::GlobMatcher;
 use super::{Conditions, ParseFilterCondition};
 use crate::utils::time::system_time_in_seconds;
-use crate::{FileObject, InternalError};
+use crate::{FileObject, LumniError};
 
 #[derive(Debug, Clone)]
 pub struct FileObjectFilter {
@@ -28,7 +28,7 @@ impl FileObjectFilter {
         mtime: Option<&str>,
         root_path: Option<&Path>,
         ignore_contents: Option<String>,
-    ) -> Result<Self, InternalError> {
+    ) -> Result<Self, LumniError> {
         let name_regex = name.map(|pattern| Regex::new(pattern).unwrap());
 
         let (min_size, max_size) = match size {
@@ -69,21 +69,19 @@ impl FileObjectFilter {
         &mut self,
         root_path: &Path,
         ignore_content: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), LumniError> {
         self.glob_matcher = Some(GlobMatcher::new(root_path, ignore_content)?);
         Ok(())
     }
 
-    pub fn matches(&self, file_object: &FileObject) -> bool {
-        // Check if the file should be ignored
+    pub fn ignore_matches(&self, path: &Path) -> bool {
         if let Some(ref matcher) = self.glob_matcher {
-            let path_name = file_object.name();
-            if !matcher.should_process(path_name) {
-                log::debug!("Ignoring file: {}", file_object.name());
-                return false;
-            }
+            return matcher.should_ignore(path);
         }
+        false
+    }
 
+    pub fn condition_matches(&self, file_object: &FileObject) -> bool {
         // If no conditions are specified, file can be included
         if self.conditions.is_empty() {
             return true;

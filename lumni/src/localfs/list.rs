@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use crossbeam_channel::{bounded, Sender};
 use rayon::prelude::*;
@@ -31,11 +32,13 @@ pub async fn list_files(
 
     // Spawn a thread to process entries
     let count_clone = count.clone();
+    let filter_clone = filter.clone();
     std::thread::spawn(move || {
         process_directory(
             &path_buf,
             skip_hidden,
             recursive,
+            &filter_clone,
             &count_clone,
             max_count,
             &sender,
@@ -48,7 +51,7 @@ pub async fn list_files(
             let result = process_entry(&entry, filter, selected_columns);
             if result.is_some() {
                 // Increment only if process_entry returns an entry
-                count.fetch_add(1, Ordering::Relaxed); 
+                count.fetch_add(1, Ordering::Relaxed);
             }
             result
         })
@@ -65,6 +68,7 @@ fn process_directory(
     path: &Path,
     skip_hidden: bool,
     recursive: bool,
+    filter: &Option<FileObjectFilter>,
     count: &AtomicUsize,
     max_count: usize,
     sender: &Sender<fs::DirEntry>,
@@ -87,20 +91,32 @@ fn process_directory(
                     return;
                 }
 
+                if let Some(filter) = filter {
+                    let path_name = entry.path();
+                    if filter.ignore_matches(&path_name) {
+                        return;
+                    }
+                }
+
                 if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() && recursive {
-                        process_directory(
-                            &entry.path(),
-                            skip_hidden,
-                            recursive,
-                            count,
-                            max_count,
-                            sender,
-                        );
+                    match file_type {
+                        t if t.is_dir() => {
+                            if recursive {
+                                process_directory(
+                                    &entry.path(),
+                                    skip_hidden,
+                                    recursive,
+                                    filter,
+                                    count,
+                                    max_count,
+                                    sender,
+                                );
+                            };
+                        }
+                        t if t.is_file() => {}
+                        _ => return, // Ignore other file types
                     }
-                    if file_type.is_file() || file_type.is_dir() {
-                        let _ = sender.send(entry);
-                    }
+                    let _ = sender.send(entry);
                 }
             }
         });
@@ -187,7 +203,7 @@ fn handle_file(
     let file_object =
         FileObject::new(file_name.clone(), file_size, modified, None);
     if let Some(ref filter) = filter {
-        if !filter.matches(&file_object) {
+        if !filter.condition_matches(&file_object) {
             return None;
         }
     }

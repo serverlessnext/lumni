@@ -114,6 +114,9 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     LumniError::Application(error, _) => {
                         log::error!("ApplicationError: {:?}", error);
                     }
+                    LumniError::Any(e) => {
+                        log::error!("{}", e);
+                    }
                 },
             }
         }

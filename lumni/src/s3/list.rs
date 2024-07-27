@@ -158,7 +158,7 @@ fn process_file_object(
         }
     } else {
         if let Some(ref filter) = filter {
-            if !filter.matches(&file_object) {
+            if !filter.condition_matches(&file_object) {
                 return;
             }
         }

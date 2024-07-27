@@ -39,6 +39,12 @@ pub fn ls_subcommand() -> Command {
                 ),
         )
         .arg(
+            Arg::new("max_files")
+                .long("max-files")
+                .short('m')
+                .help("Maximum number of files to list"),
+        )
+        .arg(
             Arg::new("show_hidden")
                 .long("show-hidden")
                 .short('H')
@@ -46,31 +52,30 @@ pub fn ls_subcommand() -> Command {
                 .help("Show hidden files [default: false]"),
         )
         .arg(
-            Arg::new("recursive")
-                .long("recursive")
-                .short('r')
+            Arg::new("no_recursive")
+                .long("no-recursive")
                 .action(ArgAction::SetTrue)
                 .help(
-                    "List (virtual) subdirectories recursively [default: \
-                     false]",
+                    "List (virtual) subdirectories recursively [default: true]",
                 ),
         )
         .arg(
-            Arg::new("max_files")
-                .long("max-files")
-                .short('m')
-                .default_value("1000")
-                .help("Maximum number of files to list"),
+            Arg::new("no_gitignore")
+                .long("no-gitignore")
+                .action(ArgAction::SetTrue)
+                .help(
+                    "Disable the default use of '.gitignore' files for \
+                     ignoring patterns",
+                ),
         )
         .arg(
-            Arg::new("ignore_file")
-                .long("ignore-file")
+            Arg::new("other_ignore_files")
+                .long("other-ignore-files")
                 .short('i')
-                .num_args(0..=1)
-                .default_missing_value(".gitignore")
+                .num_args(1..)
                 .help(
-                    "Ignore files matching patterns in the specified file. \
-                     Defaults to '.gitignore' if no file is specified.",
+                    "Specify additional ignore files. E.g. '.dockerignore', \
+                     '.llmignore'",
                 ),
         )
 }

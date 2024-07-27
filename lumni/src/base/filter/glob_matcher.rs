@@ -1,8 +1,6 @@
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::path::{Path, PathBuf};
 
-use crate::FileObject;
-
 #[derive(Debug, Clone)]
 pub struct GlobMatcher {
     ignore_set: GlobSet,
@@ -65,10 +63,10 @@ impl GlobMatcher {
         }
     }
 
-    pub fn should_process(&self, file_object: &FileObject) -> bool {
-        let file_path = Path::new(file_object.name());
+    pub fn should_process(&self, path_name: &str) -> bool {
+        let file_path = Path::new(path_name);
         let relative_path = file_path.strip_prefix(&self.root_path).unwrap_or(file_path);
-        let is_dir = file_object.name().ends_with('/');
+        let is_dir = path_name.ends_with('/');
 
         // First, check if the path or any of its ancestors are whitelisted
         for ancestor in relative_path.ancestors() {

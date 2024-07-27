@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 use crossbeam_channel::{bounded, Sender};
 use rayon::prelude::*;
@@ -23,18 +23,20 @@ pub async fn list_files(
     }
 
     let max_count = max_keys.map(|m| m as usize).unwrap_or(usize::MAX);
-    let count = AtomicUsize::new(0);
+    //let count = AtomicUsize::new(0);
+    let count = Arc::new(AtomicUsize::new(0));
     let (sender, receiver) = bounded(500);
 
     let path_buf = path.to_path_buf(); // Clone the path
 
     // Spawn a thread to process entries
+    let count_clone = count.clone();
     std::thread::spawn(move || {
         process_directory(
             &path_buf,
             skip_hidden,
             recursive,
-            &count,
+            &count_clone,
             max_count,
             &sender,
         );
@@ -42,7 +44,14 @@ pub async fn list_files(
 
     let rows: Vec<_> = receiver
         .into_iter()
-        .filter_map(|entry| process_entry(&entry, filter, selected_columns))
+        .filter_map(|entry| {
+            let result = process_entry(&entry, filter, selected_columns);
+            if result.is_some() {
+                // Increment only if process_entry returns an entry
+                count.fetch_add(1, Ordering::Relaxed); 
+            }
+            result
+        })
         .take(max_count)
         .collect();
 
@@ -90,7 +99,6 @@ fn process_directory(
                         );
                     }
                     if file_type.is_file() || file_type.is_dir() {
-                        count.fetch_add(1, Ordering::Relaxed);
                         let _ = sender.send(entry);
                     }
                 }

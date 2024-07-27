@@ -44,6 +44,7 @@ build/
 dist/
 pkg/
 
+.llmignore
 
 # history
 .bash_history

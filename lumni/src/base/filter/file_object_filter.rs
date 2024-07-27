@@ -77,7 +77,8 @@ impl FileObjectFilter {
     pub fn matches(&self, file_object: &FileObject) -> bool {
         // Check if the file should be ignored
         if let Some(ref matcher) = self.glob_matcher {
-            if !matcher.should_process(file_object) {
+            let path_name = file_object.name();
+            if !matcher.should_process(path_name) {
                 log::debug!("Ignoring file: {}", file_object.name());
                 return false;
             }

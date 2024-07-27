@@ -39,11 +39,21 @@ pub fn ls_subcommand() -> Command {
                 ),
         )
         .arg(
+            Arg::new("show_hidden")
+                .long("show-hidden")
+                .short('H')
+                .action(ArgAction::SetTrue)
+                .help("Show hidden files [default: false]"),
+        )
+        .arg(
             Arg::new("recursive")
                 .long("recursive")
                 .short('r')
                 .action(ArgAction::SetTrue)
-                .help("List (virtual) subdirectories recursively"),
+                .help(
+                    "List (virtual) subdirectories recursively [default: \
+                     false]",
+                ),
         )
         .arg(
             Arg::new("max_files")
@@ -51,5 +61,16 @@ pub fn ls_subcommand() -> Command {
                 .short('m')
                 .default_value("1000")
                 .help("Maximum number of files to list"),
+        )
+        .arg(
+            Arg::new("ignore_file")
+                .long("ignore-file")
+                .short('i')
+                .num_args(0..=1)
+                .default_missing_value(".gitignore")
+                .help(
+                    "Ignore files matching patterns in the specified file. \
+                     Defaults to '.gitignore' if no file is specified.",
+                ),
         )
 }

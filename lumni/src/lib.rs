@@ -17,7 +17,7 @@ pub use base::callback_wrapper::{
 };
 pub use base::config::EnvironmentConfig;
 pub use base::file_object::FileObject;
-pub use base::filters::FileObjectFilter;
+pub use base::FileObjectFilter;
 // InternalError should be phased out in favor of LumniError
 pub use error::InternalError;
 pub use handlers::ObjectStoreHandler;

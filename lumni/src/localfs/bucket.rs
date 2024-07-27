@@ -57,6 +57,7 @@ impl ObjectStoreTrait for LocalFsBucket {
         &self,
         prefix: Option<&str>,
         selected_columns: &Option<Vec<&str>>,
+        skip_hidden: bool,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -73,8 +74,16 @@ impl ObjectStoreTrait for LocalFsBucket {
                 path.to_string_lossy().to_string(),
             ));
         }
-        list_files(&path, selected_columns, max_keys, recursive, filter, table)
-            .await;
+        list_files(
+            &path,
+            selected_columns,
+            max_keys,
+            skip_hidden,
+            recursive,
+            filter,
+            table,
+        )
+        .await;
         Ok(())
     }
 

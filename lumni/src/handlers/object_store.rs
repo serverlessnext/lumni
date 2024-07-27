@@ -1,6 +1,7 @@
 use core::panic;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,8 +15,8 @@ use crate::s3::backend::S3Bucket;
 use crate::table::object_store::table_from_list_bucket;
 use crate::table::{FileObjectTable, Table, TableCallback};
 use crate::{
-    BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter,
-    InternalError, ObjectStoreTable, ParsedUri, UriScheme,
+    BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter, InternalError,
+    ObjectStoreTable, ParsedUri, UriScheme,
 };
 
 #[derive(Debug, Clone)]
@@ -75,6 +76,7 @@ impl ObjectStore {
         &self,
         prefix: Option<&str>,
         selected_columns: &Option<Vec<&str>>,
+        skip_hidden: bool,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -88,6 +90,7 @@ impl ObjectStore {
                     .list_files(
                         prefix,
                         selected_columns,
+                        skip_hidden,
                         recursive,
                         max_files,
                         filter,
@@ -100,6 +103,7 @@ impl ObjectStore {
                     .list_files(
                         prefix,
                         selected_columns,
+                        skip_hidden,
                         recursive,
                         max_files,
                         filter,
@@ -133,6 +137,7 @@ pub trait ObjectStoreTrait: Send {
         &self,
         prefix: Option<&str>,
         selected_columns: &Option<Vec<&str>>,
+        skip_hidden: bool,
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -163,9 +168,10 @@ impl ObjectStoreHandler {
         parsed_uri: &ParsedUri,
         config: &EnvironmentConfig,
         selected_columns: Option<Vec<&str>>,
+        skip_hidden: bool,
         recursive: bool,
         max_files: Option<u32>,
-        filter: &Option<FileObjectFilter>,
+        filter: Option<FileObjectFilter>,
         callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, InternalError> {
         if let Some(bucket) = &parsed_uri.bucket {
@@ -176,9 +182,10 @@ impl ObjectStoreHandler {
                     parsed_uri, // FROM
                     config.clone(),
                     &selected_columns, // SELECT
+                    skip_hidden,       // skip_hidden
                     recursive,         // true in case Query is used
                     max_files,         // LIMIT
-                    filter,            // WHERE
+                    &filter,           // WHERE
                     callback,          // callback is a custom function
                                        // applied to what gets selected (via ROW addition)
                 )
@@ -265,6 +272,7 @@ impl ObjectStoreHandler {
         parsed_uri: &ParsedUri,
         config: EnvironmentConfig,
         selected_columns: &Option<Vec<&str>>,
+        skip_hidden: bool,
         recursive: bool,
         max_files: Option<u32>,
         filter: &Option<FileObjectFilter>,
@@ -281,6 +289,7 @@ impl ObjectStoreHandler {
             .list_files(
                 parsed_uri.path.as_deref(),
                 selected_columns,
+                skip_hidden,
                 recursive,
                 max_files,
                 filter,
@@ -387,9 +396,10 @@ impl ObjectStoreHandler {
                         &ParsedUri::from_uri(&uri, true),
                         config,
                         selected_columns,
+                        false, // not skipping hidden files: TODO, evaluate
                         true,
                         limit,
-                        &file_object_filter,
+                        file_object_filter,
                         callback.clone(),
                     )
                     .await;

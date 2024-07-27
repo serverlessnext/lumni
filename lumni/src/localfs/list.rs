@@ -13,11 +13,14 @@ pub async fn list_files(
     path: &Path,
     selected_columns: &Option<Vec<&str>>,
     max_keys: Option<u32>,
+    skip_hidden: bool,
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     table: &mut FileObjectTable,
 ) {
-    println!("Selected columns: {:?}", selected_columns);
+    if let Some(columns) = selected_columns {
+        println!("Selected columns: {:?}", columns);
+    }
 
     let max_count = max_keys.map(|m| m as usize).unwrap_or(usize::MAX);
     let count = AtomicUsize::new(0);
@@ -27,7 +30,14 @@ pub async fn list_files(
 
     // Spawn a thread to process entries
     std::thread::spawn(move || {
-        process_directory(&path_buf, recursive, &count, max_count, &sender);
+        process_directory(
+            &path_buf,
+            skip_hidden,
+            recursive,
+            &count,
+            max_count,
+            &sender,
+        );
     });
 
     let rows: Vec<_> = receiver
@@ -44,6 +54,7 @@ pub async fn list_files(
 
 fn process_directory(
     path: &Path,
+    skip_hidden: bool,
     recursive: bool,
     count: &AtomicUsize,
     max_count: usize,
@@ -60,10 +71,18 @@ fn process_directory(
             }
 
             if let Ok(entry) = entry {
+                // Check for hidden files if skip_hidden is true
+                if skip_hidden
+                    && entry.file_name().to_string_lossy().starts_with('.')
+                {
+                    return;
+                }
+
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_dir() && recursive {
                         process_directory(
                             &entry.path(),
+                            skip_hidden,
                             recursive,
                             count,
                             max_count,

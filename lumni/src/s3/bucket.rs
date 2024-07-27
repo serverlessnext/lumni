@@ -57,6 +57,7 @@ impl ObjectStoreTrait for S3Bucket {
         &self,
         prefix: Option<&str>,
         selected_columns: &Option<Vec<&str>>,
+        _skip_hidden: bool, // TODO: Implement skip_hidden for S3
         recursive: bool,
         max_keys: Option<u32>,
         filter: &Option<FileObjectFilter>,

@@ -1,7 +1,7 @@
 use regex::Regex;
 use sqlparser::ast::{BinaryOperator, Expr, Value};
 
-use super::filters::{parse_size, Conditions, FileObjectFilter};
+use super::{Conditions, FileObjectFilter, ParseFilterCondition};
 use crate::InternalError;
 
 impl FileObjectFilter {
@@ -38,15 +38,17 @@ impl FileObjectFilter {
     ) -> Result<Self, String> {
         log::debug!(
             "SQL conditions - name_regex: {:?}, size: {:?}, mtime: {:?}",
-            name_regex, size, mtime
+            name_regex,
+            size,
+            mtime
         );
         let (min_size, max_size) = match size {
-            Some(s) => parse_size(s)?,
+            Some(s) => ParseFilterCondition::size(s)?,
             None => (None, None),
         };
 
         let (min_mtime, max_mtime) = match mtime {
-            Some(m) => parse_absolute_time_condition(m)?,
+            Some(m) => ParseFilterCondition::absolute_time(m)?,
             None => (None, None),
         };
 
@@ -69,11 +71,9 @@ fn parse_condition(
             _ => parse_single_condition(left, op, right),
         },
         Expr::Like { expr, pattern, .. } => parse_like_condition(expr, pattern),
-        _ => {
-            Err(InternalError::InternalError(
-                "Unsupported WHERE clause structure".to_string(),
-            ))
-        }
+        _ => Err(InternalError::InternalError(
+            "Unsupported WHERE clause structure".to_string(),
+        )),
     }
 }
 
@@ -88,6 +88,7 @@ fn parse_and_condition(
         (Some(left), Some(right)) => {
             let mut combined_filter = FileObjectFilter {
                 conditions: Vec::new(),
+                glob_matcher: None,
             };
 
             for left_condition in &left.conditions {
@@ -149,12 +150,10 @@ fn parse_single_condition(
             "name" => parse_name_condition(op, right),
             "size" => parse_size_condition(op, right),
             "mtime" => parse_mtime_condition(op, right),
-            _ => {
-                Err(InternalError::InternalError(format!(
-                    "Unsupported field in WHERE clause: {}",
-                    ident.value
-                )))
-            }
+            _ => Err(InternalError::InternalError(format!(
+                "Unsupported field in WHERE clause: {}",
+                ident.value
+            ))),
         }
     } else {
         Err(InternalError::InternalError(
@@ -249,11 +248,9 @@ fn parse_name_condition(
                 None,
             )?))
         }
-        _ => {
-            Err(InternalError::InternalError(
-                "Unsupported operator for name comparison".to_string(),
-            ))
-        }
+        _ => Err(InternalError::InternalError(
+            "Unsupported operator for name comparison".to_string(),
+        )),
     }
 }
 
@@ -315,78 +312,6 @@ fn parse_mtime_condition(
     }
 }
 
-fn parse_absolute_time_condition(
-    time_str: &str,
-) -> Result<(Option<u64>, Option<u64>), String> {
-    if time_str.contains("..") {
-        // Handle range
-        let parts: Vec<&str> = time_str.split("..").collect();
-        if parts.len() != 2 {
-            return Err(format!("Invalid time range format: {}", time_str));
-        }
-        let start = if parts[0].is_empty() {
-            None
-        } else {
-            Some(
-                parts[0]
-                    .parse::<u64>()
-                    .map_err(|_| format!("Invalid start time: {}", parts[0]))?,
-            )
-        };
-        let end = if parts[1].is_empty() {
-            None
-        } else {
-            Some(
-                parts[1]
-                    .parse::<u64>()
-                    .map_err(|_| format!("Invalid end time: {}", parts[1]))?,
-            )
-        };
-        return Ok((start, end));
-    }
-
-    match time_str.chars().next() {
-        Some('>') => {
-            if time_str.chars().nth(1) == Some('=') {
-                let timestamp = time_str[2..].parse::<u64>().map_err(|_| {
-                    format!("Invalid time format: {}", time_str)
-                })?;
-                Ok((Some(timestamp), None))
-            } else {
-                let timestamp = time_str[1..].parse::<u64>().map_err(|_| {
-                    format!("Invalid time format: {}", time_str)
-                })?;
-                Ok((Some(timestamp + 1), None)) // Exclusive lower bound
-            }
-        }
-        Some('<') => {
-            if time_str.chars().nth(1) == Some('=') {
-                let timestamp = time_str[2..].parse::<u64>().map_err(|_| {
-                    format!("Invalid time format: {}", time_str)
-                })?;
-                Ok((None, Some(timestamp))) // Inclusive upper bound
-            } else {
-                let timestamp = time_str[1..].parse::<u64>().map_err(|_| {
-                    format!("Invalid time format: {}", time_str)
-                })?;
-                Ok((None, Some(timestamp.saturating_sub(1)))) // Exclusive upper bound, converted to inclusive
-            }
-        }
-        Some('=') => {
-            let timestamp = time_str[1..]
-                .parse::<u64>()
-                .map_err(|_| format!("Invalid time format: {}", time_str))?;
-            Ok((Some(timestamp), Some(timestamp))) // Inclusive single point
-        }
-        _ => {
-            // Try parsing as a direct timestamp if no prefix is found
-            let timestamp = time_str
-                .parse::<u64>()
-                .map_err(|_| format!("Invalid time format: {}", time_str))?;
-            Ok((Some(timestamp), Some(timestamp))) // Inclusive single point
-        }
-    }
-}
 // test cases
 // SELECT * FROM "localfs://." WHERE name = "Makefile" LIMIT 5
 // SELECT * FROM "localfs://." WHERE name LIKE "%.txt" LIMIT 10

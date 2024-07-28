@@ -18,54 +18,42 @@ impl NewConversation {
     pub fn new(
         new_server: ModelServerName,
         new_model: ModelSpec,
-        conversation_reader: Option<&ConversationReader<'_>>,
+        conversation_reader: &ConversationReader<'_>,
     ) -> Result<NewConversation, ApplicationError> {
-        if let Some(reader) = conversation_reader {
-            // fork from an existing conversation
-            let current_conversation_id = reader.get_conversation_id();
-            let mut current_completion_options =
-                reader.get_completion_options()?;
+        match conversation_reader.get_conversation_id() {
+            Some(current_conversation_id) => {
+                // Fork from an existing conversation
+                let mut current_completion_options =
+                    conversation_reader.get_completion_options()?;
+                current_completion_options["model_server"] =
+                    serde_json::to_value(new_server.clone())?;
 
-            current_completion_options["model_server"] =
-                serde_json::to_value(new_server.clone())?;
-
-            if let Some(last_message_id) = reader.get_last_message_id()? {
-                Ok(NewConversation {
-                    server: new_server,
-                    model: Some(new_model),
-                    options: Some(current_completion_options),
-                    system_prompt: None, // ignored when forking
-                    initial_messages: None, // ignored when forking
-                    parent: Some(ParentConversation {
+                let parent = conversation_reader.get_last_message_id()?.map(
+                    |last_message_id| ParentConversation {
                         id: current_conversation_id,
                         fork_message_id: last_message_id,
-                    }),
-                })
-            } else {
-                // start a new conversation, as there is no last message is there is nothing to fork from.
-                // Both system_prompt and assistant_name are set to None, because if no messages exist, these were also None in the (empty) parent conversation
-                Ok(NewConversation {
-                    server: new_server,
-                    model: Some(new_model),
-                    options: Some(current_completion_options),
-                    system_prompt: None,
-                    initial_messages: None,
-                    parent: None,
-                })
+                    },
+                );
+
+                create_new_conversation(
+                    new_server,
+                    new_model,
+                    Some(current_completion_options),
+                    parent,
+                )
             }
-        } else {
-            // start a new conversation
-            let completion_options = serde_json::json!({
-                "model_server": new_server,
-            });
-            Ok(NewConversation {
-                server: new_server,
-                model: Some(new_model),
-                options: Some(completion_options),
-                system_prompt: None,
-                initial_messages: None,
-                parent: None,
-            })
+            None => {
+                // Start a new conversation
+                let completion_options = serde_json::json!({
+                    "model_server": new_server,
+                });
+                create_new_conversation(
+                    new_server,
+                    new_model,
+                    Some(completion_options),
+                    None,
+                )
+            }
         }
     }
 
@@ -111,4 +99,20 @@ impl NewConversation {
         // Conversation settings are equal
         Ok(true)
     }
+}
+
+fn create_new_conversation(
+    server: ModelServerName,
+    model: ModelSpec,
+    options: Option<serde_json::Value>,
+    parent: Option<ParentConversation>,
+) -> Result<NewConversation, ApplicationError> {
+    Ok(NewConversation {
+        server,
+        model: Some(model),
+        options,
+        system_prompt: None,
+        initial_messages: None,
+        parent,
+    })
 }

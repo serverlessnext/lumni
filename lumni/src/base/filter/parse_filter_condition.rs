@@ -89,10 +89,8 @@ impl ParseFilterCondition {
 
     pub fn time(
         time_offset_str: &str,
-        current_time: u64,
-    ) -> Result<(Option<u64>, Option<u64>), String> {
-        let is_negative = time_offset_str.starts_with('-');
-        let is_positive = time_offset_str.starts_with('+');
+        current_time: i64,
+    ) -> Result<(Option<i64>, Option<i64>), String> {
         if time_offset_str
             .chars()
             .any(|c| !c.is_ascii_digit() && !"+-YMWDhms".contains(c))
@@ -103,37 +101,18 @@ impl ParseFilterCondition {
             ));
         }
 
-        let time_offset_str = if is_negative || is_positive {
-            &time_offset_str[1..]
-        } else {
-            time_offset_str
-        };
-
         let total_offset_seconds =
-            calculate_time_offset_seconds(time_offset_str)? as i64;
+            calculate_time_offset_seconds(time_offset_str)?;
 
-        let total_offset_seconds = if is_negative {
-            -total_offset_seconds
-        } else {
-            total_offset_seconds
-        };
+        let min_time = current_time.checked_sub(total_offset_seconds);
+        let max_time = current_time.checked_add(total_offset_seconds);
 
-        let min_time = if total_offset_seconds < 0 {
-            current_time.checked_sub(total_offset_seconds.unsigned_abs())
-        } else {
-            None
-        };
-        let max_time = if total_offset_seconds > 0 {
-            current_time.checked_sub(total_offset_seconds.unsigned_abs())
-        } else {
-            None
-        };
         Ok((min_time, max_time))
     }
 
     pub fn absolute_time(
         time_str: &str,
-    ) -> Result<(Option<u64>, Option<u64>), String> {
+    ) -> Result<(Option<i64>, Option<i64>), String> {
         if time_str.contains("..") {
             // Handle range
             let parts: Vec<&str> = time_str.split("..").collect();
@@ -144,7 +123,7 @@ impl ParseFilterCondition {
                 if parts[0].is_empty() {
                     None
                 } else {
-                    Some(parts[0].parse::<u64>().map_err(|_| {
+                    Some(parts[0].parse::<i64>().map_err(|_| {
                         format!("Invalid start time: {}", parts[0])
                     })?)
                 };
@@ -152,7 +131,7 @@ impl ParseFilterCondition {
                 if parts[1].is_empty() {
                     None
                 } else {
-                    Some(parts[1].parse::<u64>().map_err(|_| {
+                    Some(parts[1].parse::<i64>().map_err(|_| {
                         format!("Invalid end time: {}", parts[1])
                     })?)
                 };
@@ -163,13 +142,13 @@ impl ParseFilterCondition {
             Some('>') => {
                 if time_str.chars().nth(1) == Some('=') {
                     let timestamp =
-                        time_str[2..].parse::<u64>().map_err(|_| {
+                        time_str[2..].parse::<i64>().map_err(|_| {
                             format!("Invalid time format: {}", time_str)
                         })?;
                     Ok((Some(timestamp), None))
                 } else {
                     let timestamp =
-                        time_str[1..].parse::<u64>().map_err(|_| {
+                        time_str[1..].parse::<i64>().map_err(|_| {
                             format!("Invalid time format: {}", time_str)
                         })?;
                     Ok((Some(timestamp + 1), None)) // Exclusive lower bound
@@ -178,27 +157,27 @@ impl ParseFilterCondition {
             Some('<') => {
                 if time_str.chars().nth(1) == Some('=') {
                     let timestamp =
-                        time_str[2..].parse::<u64>().map_err(|_| {
+                        time_str[2..].parse::<i64>().map_err(|_| {
                             format!("Invalid time format: {}", time_str)
                         })?;
                     Ok((None, Some(timestamp))) // Inclusive upper bound
                 } else {
                     let timestamp =
-                        time_str[1..].parse::<u64>().map_err(|_| {
+                        time_str[1..].parse::<i64>().map_err(|_| {
                             format!("Invalid time format: {}", time_str)
                         })?;
                     Ok((None, Some(timestamp.saturating_sub(1)))) // Exclusive upper bound, converted to inclusive
                 }
             }
             Some('=') => {
-                let timestamp = time_str[1..].parse::<u64>().map_err(|_| {
+                let timestamp = time_str[1..].parse::<i64>().map_err(|_| {
                     format!("Invalid time format: {}", time_str)
                 })?;
                 Ok((Some(timestamp), Some(timestamp))) // Inclusive single point
             }
             _ => {
                 // Try parsing as a direct timestamp if no prefix is found
-                let timestamp = time_str.parse::<u64>().map_err(|_| {
+                let timestamp = time_str.parse::<i64>().map_err(|_| {
                     format!("Invalid time format: {}", time_str)
                 })?;
                 Ok((Some(timestamp), Some(timestamp))) // Inclusive single point
@@ -213,9 +192,9 @@ mod tests {
     use crate::utils::time::system_time_in_seconds;
 
     fn generate_valid_cases<'a>(
-        current_time: u64,
+        current_time: i64,
         inputs: &'a [&'a str],
-    ) -> Result<Vec<(&'a str, Option<u64>, Option<u64>)>, String> {
+    ) -> Result<Vec<(&'a str, Option<i64>, Option<i64>)>, String> {
         inputs
             .iter()
             .map(|&input| {
@@ -240,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_parse_time() {
-        let current_time = system_time_in_seconds();
+        let current_time = system_time_in_seconds() as i64;
 
         let valid_base_cases_inputs = &[
             "2M", "-2M", "3W", "-3W", "5D", "-5D", "48h", "-48h", "20m",

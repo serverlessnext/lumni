@@ -9,13 +9,15 @@ pub use key_event::{KeyEventHandler, KeyTrack};
 use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
-use super::window::{
-    LineType, MoveCursor, TextDocumentTrait, TextWindowTrait, WindowKind,
-};
 use super::modals::ModalWindowType;
 use super::ui::TabUi;
-use super::window::PromptWindow;
-use super::{ChatSession, ConversationReader, NewConversation};
+use super::window::{
+    LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
+    WindowKind,
+};
+use super::{
+    ChatSession, ConversationReader, NewConversation, PromptInstruction,
+};
 pub use crate::external as lumni;
 
 #[derive(Debug)]
@@ -43,4 +45,5 @@ pub enum CommandLineAction {
 #[derive(Debug)]
 pub enum ConversationEvent {
     NewConversation(NewConversation),
+    ContinueConversation(PromptInstruction),
 }

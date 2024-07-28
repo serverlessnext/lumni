@@ -5,7 +5,7 @@ use ratatui::style::Style;
 use super::db::{Attachment, AttachmentId, ConversationId, Message, MessageId};
 use super::{ColorScheme, PromptRole, TextLine, TextSegment};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConversationCache {
     conversation_id: ConversationId,
     messages: Vec<Message>, // messages have to be ordered

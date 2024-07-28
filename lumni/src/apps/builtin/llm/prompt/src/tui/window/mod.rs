@@ -7,13 +7,10 @@ mod text_render;
 mod text_window;
 mod window_config;
 
-use lumni::api::error::ApplicationError;
-use ratatui::style::{Color, Style};
-
-pub use crate::external as lumni;
-
 pub use cursor::MoveCursor;
+use lumni::api::error::ApplicationError;
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
 pub use scroller::Scroller;
 pub use text_buffer::TextBuffer;
 pub use text_display::LineType;
@@ -22,6 +19,8 @@ pub use text_document::{
 };
 pub use text_window::{TextWindow, TextWindowTrait};
 pub use window_config::{WindowConfig, WindowKind, WindowStatus};
+
+pub use crate::external as lumni;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RectArea {

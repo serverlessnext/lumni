@@ -63,7 +63,6 @@ impl TabSession<'_> {
             let export = chat.export_conversation(&color_scheme);
             (!export.is_empty()).then(|| export)
         };
-
         let mut tab_ui = TabUi::new(conversation_text);
         tab_ui.init();
         TabSession {
@@ -75,6 +74,8 @@ impl TabSession<'_> {
 
     pub fn new_conversation(&mut self, chat: ChatSession) {
         self.chat = chat;
+        self.ui =
+            TabUi::new(Some(self.chat.export_conversation(&self.color_scheme)));
     }
 
     pub fn draw_ui<B: Backend>(

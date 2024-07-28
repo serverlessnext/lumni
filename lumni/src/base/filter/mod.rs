@@ -14,6 +14,7 @@ pub struct Conditions {
     pub name_regex: Option<Regex>,
     pub min_size: Option<u64>,
     pub max_size: Option<u64>,
-    pub min_mtime: Option<u64>,
-    pub max_mtime: Option<u64>,
+    // time is i64 to align with db, pre-epoch timestamps
+    pub min_mtime: Option<i64>,
+    pub max_mtime: Option<i64>,
 }

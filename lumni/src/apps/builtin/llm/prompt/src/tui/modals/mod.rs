@@ -1,23 +1,23 @@
-mod modal;
-mod config_modal;
+mod conversations;
+mod endpoint;
 
 use async_trait::async_trait;
-use ratatui::Frame;
+pub use conversations::ConversationListModal;
+pub use endpoint::SelectEndpointModal;
 use ratatui::layout::Rect;
-
-pub use super::SUPPORTED_MODEL_ENDPOINTS;
+use ratatui::Frame;
 
 pub use super::{
-    ApplicationError, ChatSession, ConversationEvent, ConversationReader,
-    ModelServer, NewConversation, ServerManager, ServerTrait, WindowEvent,
-    KeyTrack, Scroller,
+    ApplicationError, ChatSession, Conversation, ConversationEvent,
+    ConversationReader, KeyTrack, ModelServer, NewConversation,
+    PromptInstruction, Scroller, ServerManager, ServerTrait, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
-
-pub use modal::ModalConfigWindow;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ModalWindowType {
-    Config,
+    SelectEndpoint,
+    ConversationList,
 }
 
 #[async_trait]
@@ -28,6 +28,6 @@ pub trait ModalWindowTrait {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: Option<&ConversationReader<'_>>,
+        reader: &mut ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError>;
 }

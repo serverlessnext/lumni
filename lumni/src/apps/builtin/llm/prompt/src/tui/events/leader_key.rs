@@ -39,10 +39,10 @@ macro_rules! define_commands {
     };
 }
 
-// <leader> + c -> config window
-// NOTE: currently cant use <leader> + something that includes either "i" or "v"
-// check note in key_event::update_previous_key_with_leader()
-define_commands!(PC);
+// <leader> + [] -> load a modal window
+// NOTE: cant use <leader> + something that includes "i", as this
+// is reserved to always trigger insert mode
+define_commands!(PE, PC);
 
 pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
     let leader_key_str = key_track.previous_key_str();
@@ -50,8 +50,14 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
     match leader_key_str {
         Some(key_str) => match LeaderKeyCommand::match_command(key_str) {
             MatchOutcome::FullMatch(cmd) => {
+                // NOTE: should match define_commands! macro
                 let window_event = match cmd.as_str() {
-                    "pc" => Some(WindowEvent::Modal(ModalWindowType::Config)),
+                    "pe" => Some(WindowEvent::Modal(
+                        ModalWindowType::SelectEndpoint,
+                    )),
+                    "pc" => Some(WindowEvent::Modal(
+                        ModalWindowType::ConversationList,
+                    )),
                     _ => None,
                 };
                 key_track.set_leader_key(false);

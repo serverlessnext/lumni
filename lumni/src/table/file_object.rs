@@ -145,7 +145,7 @@ fn print_row(row: &TableRow) {
     let modified = row_data
         .iter()
         .find(|(key, _)| key == "modified")
-        .map(|(_, value)| extract_u64_value(value))
+        .map(|(_, value)| extract_i64_value(value))
         .flatten();
 
     let name_without_trailing_slash = name.trim_end_matches('/');
@@ -238,6 +238,19 @@ fn extract_u64_value(modified: &TableColumnValue) -> Option<u64> {
         _ => panic!(
             "Unexpected column type; expected Uint64Column or \
              OptionalUint64Column"
+        ),
+    }
+}
+
+fn extract_i64_value(modified: &TableColumnValue) -> Option<i64> {
+    match modified {
+        TableColumnValue::Int64Column(value) => Some(*value),
+        TableColumnValue::OptionalInt64Column(Some(value)) => Some(*value),
+        TableColumnValue::OptionalInt64Column(None) => None,
+        // this should never happen, and if it does, it's a programming error
+        _ => panic!(
+            "Unexpected column type; expected Int64Column or \
+             OptionalInt64Column"
         ),
     }
 }

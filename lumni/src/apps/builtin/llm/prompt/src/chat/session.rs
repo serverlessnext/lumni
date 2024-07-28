@@ -12,24 +12,38 @@ use super::{
 use crate::api::error::ApplicationError;
 
 pub struct ChatSession {
-    server: Box<dyn ServerManager>,
+    server: Option<Box<dyn ServerManager>>,
     prompt_instruction: PromptInstruction,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
 impl ChatSession {
     pub async fn new(
-        server_name: &str,
+        server_name: Option<&str>,
         prompt_instruction: PromptInstruction,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        let mut server = Box::new(ModelServer::from_str(&server_name)?);
-
-        if let Some(conversation_id) = prompt_instruction.get_conversation_id()
-        {
-            let reader = db_conn.get_conversation_reader(conversation_id);
-            server.setup_and_initialize(&reader).await?;
-        }
+        let server = if let Some(name) = server_name {
+            let mut server: Box<dyn ServerManager> =
+                Box::new(ModelServer::from_str(name)?);
+            // try to initialize the server
+            let reader = db_conn.get_conversation_reader(
+                prompt_instruction.get_conversation_id(),
+            );
+            match server.setup_and_initialize(&reader).await {
+                Ok(_) => (),
+                Err(ApplicationError::NotReady(e)) => {
+                    // warn only, allow to continue
+                    log::warn!("Can't initialize server: {}", e);
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+            Some(server)
+        } else {
+            None
+        };
 
         Ok(ChatSession {
             server,
@@ -38,8 +52,13 @@ impl ChatSession {
         })
     }
 
-    pub fn server_name(&self) -> String {
-        self.server.server_name().to_string()
+    pub fn server_name(&self) -> Result<String, ApplicationError> {
+        self.server
+            .as_ref()
+            .map(|s| s.server_name().to_string())
+            .ok_or_else(|| {
+                ApplicationError::NotReady("Server not initialized".to_string())
+            })
     }
 
     pub fn get_conversation_id(&self) -> Option<ConversationId> {
@@ -84,17 +103,26 @@ impl ChatSession {
         tx: mpsc::Sender<Bytes>,
         question: &str,
     ) -> Result<(), ApplicationError> {
+        // First, let's handle all operations that don't require mutable access to server
         let model =
-            if let Some(model) = self.prompt_instruction.get_model().cloned() {
-                model
-            } else {
-                return Err(ApplicationError::NotReady(
-                    "Model not available".to_string(),
-                ));
-            };
+            self.prompt_instruction
+                .get_model()
+                .cloned()
+                .ok_or_else(|| {
+                    ApplicationError::NotReady(
+                        "Model not available".to_string(),
+                    )
+                })?;
 
-        let max_token_length = self.server.get_max_context_size().await?;
         let user_question = self.initiate_new_exchange(question).await?;
+
+        // Now, let's get the server and perform operations that require it
+        let server = self.server.as_mut().ok_or_else(|| {
+            ApplicationError::NotReady("Server not initialized".to_string())
+        })?;
+
+        let max_token_length = server.get_max_context_size().await?;
+
         let messages = self
             .prompt_instruction
             .new_question(&user_question, max_token_length);
@@ -102,7 +130,7 @@ impl ChatSession {
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel
 
-        self.server
+        server
             .completion(&messages, &model, Some(tx), Some(cancel_rx))
             .await?;
         Ok(())
@@ -139,8 +167,15 @@ impl ChatSession {
         &mut self,
         response: Bytes,
         start_of_stream: bool,
-    ) -> Option<CompletionResponse> {
-        self.server.process_response(response, start_of_stream)
+    ) -> Result<Option<CompletionResponse>, ApplicationError> {
+        self.server
+            .as_mut()
+            .ok_or_else(|| {
+                ApplicationError::NotReady("Server not initialized".to_string())
+            })
+            .and_then(|server| {
+                Ok(server.process_response(response, start_of_stream))
+            })
     }
 
     // used in non-interactive mode
@@ -179,12 +214,16 @@ impl ChatSession {
 
             let response = self.process_response(response, start_of_stream);
             final_received = match response {
-                Some(response) => {
+                Ok(Some(response)) => {
                     print!("{}", response.get_content());
                     io::stdout().flush().expect("Failed to flush stdout");
                     response.is_final
                 }
-                None => true, // stop if no response
+                Ok(None) => true, // stop if no response
+                Err(e) => {
+                    log::error!("Error processing response: {}", e);
+                    true
+                }
             };
 
             start_of_stream = false;

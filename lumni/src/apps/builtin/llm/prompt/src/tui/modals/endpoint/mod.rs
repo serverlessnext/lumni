@@ -1,25 +1,25 @@
+mod select;
+
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::widgets::Clear;
 use ratatui::Frame;
+use select::SelectEndpoint;
 
-
-use super::config_modal::SelectEndpoint;
 use super::{
-    ModalWindowTrait, ModalWindowType,
     ApplicationError, ChatSession, ConversationEvent, ConversationReader,
-    ModelServer, NewConversation, ServerManager, ServerTrait, WindowEvent,
-    KeyTrack, Scroller,
+    KeyTrack, ModalWindowTrait, ModalWindowType, ModelServer, NewConversation,
+    Scroller, ServerManager, ServerTrait, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
-
-pub struct ModalConfigWindow {
+pub struct SelectEndpointModal {
     widget: SelectEndpoint,
     _scroller: Option<Scroller>,
 }
 
-impl ModalConfigWindow {
+impl SelectEndpointModal {
     pub fn new() -> Self {
         Self {
             widget: SelectEndpoint::new(),
@@ -29,9 +29,9 @@ impl ModalConfigWindow {
 }
 
 #[async_trait]
-impl ModalWindowTrait for ModalConfigWindow {
+impl ModalWindowTrait for SelectEndpointModal {
     fn get_type(&self) -> ModalWindowType {
-        ModalWindowType::Config
+        ModalWindowType::SelectEndpoint
     }
 
     fn render_on_frame(&mut self, frame: &mut Frame, mut area: Rect) {
@@ -51,7 +51,7 @@ impl ModalWindowTrait for ModalConfigWindow {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: Option<&ConversationReader<'_>>,
+        reader: &mut ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
@@ -59,38 +59,47 @@ impl ModalWindowTrait for ModalConfigWindow {
             KeyCode::Enter => {
                 let selected_server = self.widget.current_endpoint();
                 // TODO: allow model selection, + check if model changes
-                if selected_server != tab_chat.server_name() {
-                    let server = ModelServer::from_str(selected_server)?;
+                // TODO: catch ApplicationError::NotReady, if it is assume selected_server != tab_chat.server_name()
+                let should_create_new_conversation =
+                    match tab_chat.server_name() {
+                        Ok(current_server_name) => {
+                            selected_server != current_server_name
+                        }
+                        Err(ApplicationError::NotReady(_)) => true, // Assume new server if NotReady
+                        Err(e) => return Err(e), // Propagate other errors
+                    };
 
+                let event = if should_create_new_conversation {
+                    let server = ModelServer::from_str(selected_server)?;
                     match server.get_default_model().await {
                         Ok(model) => {
                             let new_conversation = NewConversation::new(
                                 server.server_name(),
                                 model,
-                                reader,
+                                &reader,
                             )?;
                             // Return the new conversation event
-                            return Ok(Some(WindowEvent::PromptWindow(Some(
+                            Ok(Some(WindowEvent::PromptWindow(Some(
                                 ConversationEvent::NewConversation(
                                     new_conversation,
                                 ),
-                            ))));
+                            ))))
                         }
                         Err(ApplicationError::NotReady(e)) => {
                             // already a NotReady error
-                            return Err(ApplicationError::NotReady(e));
+                            Err(ApplicationError::NotReady(e))
                         }
                         Err(e) => {
                             // ensure each error is converted to NotReady,
                             // with additional logging as its unexpected
                             log::error!("Error: {}", e);
-                            return Err(ApplicationError::NotReady(
-                                e.to_string(),
-                            ));
+                            Err(ApplicationError::NotReady(e.to_string()))
                         }
                     }
-                }
-                return Ok(Some(WindowEvent::PromptWindow(None)));
+                } else {
+                    Ok(Some(WindowEvent::PromptWindow(None)))
+                };
+                return event;
             }
             KeyCode::Left => {
                 let server =
@@ -100,6 +109,6 @@ impl ModalWindowTrait for ModalConfigWindow {
             _ => {} // Ignore other keys
         }
         // stay in the modal window
-        Ok(Some(WindowEvent::Modal(ModalWindowType::Config)))
+        Ok(Some(WindowEvent::Modal(ModalWindowType::SelectEndpoint)))
     }
 }

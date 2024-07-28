@@ -55,36 +55,51 @@ impl Llama {
     ) -> Result<(), ApplicationError> {
         let options = reader
             .get_completion_options()
-            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+            .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
         // TODO: should map generic options to Llama-specific options
         self.completion_options = Some(options);
         Ok(())
     }
 
-    fn system_prompt_payload(&self, instruction: String) -> Option<String> {
+    fn system_prompt_payload(
+        &self,
+        instruction: String,
+    ) -> Result<Option<String>, ApplicationError> {
         let system_prompt = LlamaServerSystemPrompt::new(
             instruction.to_string(),
             format!("### {}", PromptRole::User.to_string()),
             format!("### {}", PromptRole::Assistant.to_string()),
         );
+        let completion_options =
+            self.completion_options.as_ref().ok_or_else(|| {
+                ApplicationError::NotReady(
+                    "Completion options not set".to_string(),
+                )
+            })?;
         let payload = LlamaServerPayload {
             prompt: "",
             system_prompt: Some(&system_prompt),
-            options: self.completion_options.clone().unwrap_or_default(),
+            options: completion_options.clone(),
         };
-        payload.serialize()
+        Ok(payload.serialize())
     }
 
     fn completion_api_payload(
         &self,
         prompt: String,
-    ) -> Result<String, serde_json::Error> {
+    ) -> Result<String, ApplicationError> {
+        let completion_options =
+            self.completion_options.as_ref().ok_or_else(|| {
+                ApplicationError::NotReady(
+                    "Completion options not set".to_string(),
+                )
+            })?;
         let payload = LlamaServerPayload {
             prompt: &prompt,
             system_prompt: None,
-            options: self.completion_options.clone().unwrap_or_default(),
+            options: completion_options.clone(),
         };
-        serde_json::to_string(&payload)
+        Ok(serde_json::to_string(&payload)?)
     }
 
     async fn get_props(
@@ -153,20 +168,18 @@ impl ServerTrait for Llama {
             .collect::<Vec<String>>()
             .join("\n");
 
-        let data_payload = self.completion_api_payload(prompt);
+        let data_payload = self.completion_api_payload(prompt)?;
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
-        if let Ok(payload) = data_payload {
-            http_post(
-                completion_endpoint,
-                self.http_client.clone(),
-                tx,
-                payload,
-                None,
-                cancel_rx,
-            )
-            .await;
-        }
+        http_post(
+            completion_endpoint,
+            self.http_client.clone(),
+            tx,
+            data_payload,
+            None,
+            cancel_rx,
+        )
+        .await;
         Ok(())
     }
 
@@ -186,12 +199,19 @@ impl ServerTrait for Llama {
         &mut self,
         reader: &ConversationReader,
     ) -> Result<(), ApplicationError> {
-        let identifier = reader.get_model_identifier()?;
-        let model_name = identifier.get_model_name().to_string();
+        let identifier = reader
+            .get_model_identifier()
+            .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
+        let system_prompt = reader
+            .get_system_prompt()
+            .map_err(|e| ApplicationError::NotReady(e.to_string()))?
+            .unwrap_or_default();
         // Send the system prompt to the completion endpoint at initialization
         self.set_completion_options(reader)?;
-        let system_prompt = reader.get_system_prompt()?.unwrap_or_default();
-        let system_prompt_payload = self.system_prompt_payload(system_prompt);
+
+        let model_name = identifier.get_model_name().to_string();
+        let system_prompt_payload =
+            self.system_prompt_payload(system_prompt)?;
 
         self.formatter = Some(Box::new(ModelFormatter::from_str(&model_name)));
 

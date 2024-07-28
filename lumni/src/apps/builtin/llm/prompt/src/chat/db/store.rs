@@ -24,7 +24,7 @@ impl ConversationDatabaseStore {
 
     pub fn get_conversation_reader(
         &self,
-        conversation_id: ConversationId,
+        conversation_id: Option<ConversationId>,
     ) -> ConversationReader {
         ConversationReader::new(conversation_id, &self.db)
     }
@@ -86,6 +86,8 @@ impl ConversationDatabaseStore {
                 completion_options,
                 created_at: timestamp,
                 updated_at: timestamp,
+                message_count: None,
+                total_tokens: None,
                 is_deleted: false,
                 status: ConversationStatus::Active,
             };
@@ -229,7 +231,6 @@ impl ConversationDatabaseStore {
                 .map_or(String::new(), |id| format!("AND id = {}", id.0)),
             limit.map_or(String::new(), |l| format!("LIMIT {}", l))
         );
-
         let mut db = self.db.lock().unwrap();
         db.process_queue_with_result(|tx| {
             let mut stmt = tx.prepare(&query)?;
@@ -247,6 +248,8 @@ impl ConversationDatabaseStore {
                         .map(|s| serde_json::from_str(&s).unwrap_or_default()),
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
+                    message_count: row.get(9)?,
+                    total_tokens: row.get(10)?,
                     is_deleted: row.get::<_, i64>(11)? != 0,
                     status: match row.get::<_, String>(12)?.as_str() {
                         "active" => ConversationStatus::Active,
@@ -255,7 +258,6 @@ impl ConversationDatabaseStore {
                         _ => ConversationStatus::Active,
                     },
                 };
-
                 let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
                     Some(Message {
                         id: MessageId(row.get(13)?),
@@ -277,10 +279,8 @@ impl ConversationDatabaseStore {
                 };
                 Ok((conversation, message))
             })?;
-
             let mut conversation = None;
             let mut messages = Vec::new();
-
             for row in rows {
                 let (conv, message) = row?;
                 if conversation.is_none() {
@@ -290,7 +290,6 @@ impl ConversationDatabaseStore {
                     messages.push(msg);
                 }
             }
-
             Ok(conversation.map(|c| (c, messages)))
         })
     }
@@ -299,8 +298,7 @@ impl ConversationDatabaseStore {
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
-        // Create a temporary ConversationReader with a dummy ConversationId
-        let reader = self.get_conversation_reader(ConversationId(0));
+        let reader = self.get_conversation_reader(None);
         reader.fetch_conversation_list(limit)
     }
 }

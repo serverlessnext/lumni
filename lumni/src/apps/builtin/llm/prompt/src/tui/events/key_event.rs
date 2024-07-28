@@ -76,10 +76,6 @@ impl KeyTrack {
                     // <leader> is enabled (e.g. with a popup to show matching commands)
                     self.set_leader_key(false);
                 }
-                'v' => {
-                    // idem with 'i'
-                    self.set_leader_key(false);
-                }
                 _ => {
                     // append the current key to the previous key str
                     if let Some(prev_str) = &mut self.previous_key_str {
@@ -163,7 +159,7 @@ impl KeyEventHandler {
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-        reader: Option<&ConversationReader<'_>>,
+        reader: &mut ConversationReader<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self

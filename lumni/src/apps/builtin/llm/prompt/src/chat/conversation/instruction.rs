@@ -10,7 +10,7 @@ use super::{
 };
 pub use crate::external as lumni;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PromptInstruction {
     cache: ConversationCache,
     model: Option<ModelSpec>,
@@ -98,7 +98,13 @@ impl PromptInstruction {
     pub fn from_reader(
         reader: &ConversationReader<'_>,
     ) -> Result<Self, ApplicationError> {
-        let conversation_id = reader.get_conversation_id();
+        // if conversation_id is none, it should err
+        let conversation_id =
+            reader.get_conversation_id().ok_or_else(|| {
+                ApplicationError::DatabaseError(
+                    "No conversation found in the reader".to_string(),
+                )
+            })?;
         let model_spec = reader
             .get_model_spec()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;

@@ -5,7 +5,7 @@ use regex::Regex;
 use super::glob_matcher::GlobMatcher;
 use super::ignore_contents::IgnoreContents;
 use super::{Conditions, ParseFilterCondition};
-use crate::utils::time::system_time_in_seconds;
+use crate::utils::time::Timestamp;
 use crate::{FileObject, LumniError};
 
 #[derive(Debug, Clone)]
@@ -39,8 +39,9 @@ impl FileObjectFilter {
             None => (None, None),
         };
 
+        let system_time_seconds = Timestamp::from_system_time()?.as_seconds();
         let (min_mtime, max_mtime) = match mtime {
-            Some(m) => ParseFilterCondition::time(m, system_time_in_seconds())?,
+            Some(m) => ParseFilterCondition::time(m, system_time_seconds)?,
             None => (None, None),
         };
 

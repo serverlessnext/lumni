@@ -33,7 +33,10 @@ pub fn draw_ui<B: Backend>(
 
         // add borders to main_window[0]
         frame.render_widget(
-            main_widget(&tab.chat.server_name().to_string(), window_hint()),
+            main_widget(
+                &tab.chat.server_name().unwrap_or_default(),
+                window_hint(),
+            ),
             main_window[0],
         );
 

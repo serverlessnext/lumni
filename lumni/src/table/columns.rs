@@ -5,10 +5,12 @@ use std::fmt::Debug;
 pub enum TableColumnValue {
     Int32Column(i32),
     Uint64Column(u64),
+    Int64Column(i64),
     FloatColumn(f64),
     StringColumn(String),
     OptionalInt32Column(Option<i32>),
     OptionalUint64Column(Option<u64>),
+    OptionalInt64Column(Option<i64>),
     OptionalFloatColumn(Option<f64>),
     OptionalStringColumn(Option<String>),
 }

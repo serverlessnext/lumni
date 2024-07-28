@@ -39,6 +39,7 @@ pub mod external {
     };
     #[cfg(feature = "http_client")]
     pub use crate::s3::{AWSCredentials, AWSRequestBuilder};
+    pub use crate::utils::timestamp::Timestamp;
 }
 pub use default::*;
 pub use external::*;

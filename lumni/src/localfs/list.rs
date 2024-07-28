@@ -196,7 +196,7 @@ fn handle_file(
         mtime
             .duration_since(std::time::UNIX_EPOCH)
             .map(|duration| duration.as_secs())
-            .unwrap_or(0)
+            .unwrap_or(0) as i64
     });
 
     // Check if the file_object satisfies the filter conditions
@@ -233,7 +233,7 @@ fn handle_file(
     {
         row_data.insert(
             "modified".to_string(),
-            TableColumnValue::OptionalUint64Column(modified),
+            TableColumnValue::OptionalInt64Column(modified),
         );
     }
 

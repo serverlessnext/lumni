@@ -1,8 +1,12 @@
+use lumni::api::error::ApplicationError;
+
+use super::modals::{ConversationListModal, SelectEndpointModal};
 use super::{
-    CommandLine, ModalConfigWindow, ModalWindowTrait, ModalWindowType,
+    CommandLine, ConversationReader, ModalWindowTrait, ModalWindowType,
     PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowEvent,
     WindowKind,
 };
+pub use crate::external as lumni;
 
 pub struct TabUi<'a> {
     pub prompt: PromptWindow<'a>,
@@ -29,10 +33,20 @@ impl TabUi<'_> {
         self.command_line.init(); // initialize with defaults
     }
 
-    pub fn set_new_modal(&mut self, modal_type: ModalWindowType) {
+    pub fn set_new_modal(
+        &mut self,
+        modal_type: ModalWindowType,
+        reader: &ConversationReader<'_>,
+    ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
-            ModalWindowType::Config => Some(Box::new(ModalConfigWindow::new())),
+            ModalWindowType::SelectEndpoint => {
+                Some(Box::new(SelectEndpointModal::new()))
+            }
+            ModalWindowType::ConversationList => {
+                Some(Box::new(ConversationListModal::new(reader)?))
+            }
         };
+        Ok(())
     }
 
     pub fn needs_modal_update(&self, new_type: ModalWindowType) -> bool {

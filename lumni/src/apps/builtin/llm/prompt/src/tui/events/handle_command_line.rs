@@ -60,7 +60,7 @@ pub fn handle_command_line_event(
             // double-colon opens Modal (Config) window
             tab_ui.command_line.text_empty();
             tab_ui.command_line.set_status_inactive();
-            Ok(Some(WindowEvent::Modal(ModalWindowType::Config)))
+            Ok(Some(WindowEvent::Modal(ModalWindowType::SelectEndpoint)))
         }
         _ => handle_text_window_event(
             key_track,

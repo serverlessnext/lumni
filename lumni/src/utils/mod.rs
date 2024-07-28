@@ -2,6 +2,7 @@ pub mod formatters;
 pub mod string_replace;
 pub mod time;
 pub mod time_parse;
+pub mod timestamp;
 mod uri_parse;
 pub use uri_parse::{ParsedUri, UriScheme};
 

@@ -31,9 +31,8 @@ use super::chat::{
 use super::server::{ModelServer, ModelServerName, ServerTrait};
 use super::session::{AppSession, TabSession};
 use super::tui::{
-    ColorScheme, CommandLineAction, ConversationEvent, ConversationReader,
-    KeyEventHandler, PromptAction, TabUi, TextWindowTrait, WindowEvent,
-    WindowKind,
+    ColorScheme, CommandLineAction, ConversationEvent, KeyEventHandler,
+    PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -58,12 +57,8 @@ async fn prompt_app<B: Backend>(
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
-    let mut reader: Option<ConversationReader> =
-        if let Some(conversation_id) = tab.chat.get_conversation_id() {
-            Some(db_conn.get_conversation_reader(conversation_id))
-        } else {
-            None
-        };
+    let mut reader =
+        db_conn.get_conversation_reader(tab.chat.get_conversation_id());
 
     // Buffer to store the trimmed trailing newlines or empty spaces
     let mut trim_buffer: Option<String> = None;
@@ -88,7 +83,7 @@ async fn prompt_app<B: Backend>(
                                     &mut tab.chat,
                                     mode,
                                     keep_running.clone(),
-                                    reader.as_ref(),
+                                    &mut reader,
                                 ).await?
                             } else {
                                 None
@@ -132,8 +127,9 @@ async fn prompt_app<B: Backend>(
                                     }
                                 }
                                 Some(WindowEvent::Modal(modal_window_type)) => {
+
                                     if tab.ui.needs_modal_update(modal_window_type) {
-                                        tab.ui.set_new_modal(modal_window_type);
+                                        tab.ui.set_new_modal(modal_window_type, &reader)?;
                                     }
                                 }
                                 Some(WindowEvent::PromptWindow(ref event)) => {
@@ -144,7 +140,7 @@ async fn prompt_app<B: Backend>(
                                                 &db_conn,
                                             )?;
                                             let chat_session = ChatSession::new(
-                                                &new_conversation.server.to_string(),
+                                                Some(&new_conversation.server.to_string()),
                                                 prompt_instruction,
                                                 &db_conn,
                                             ).await?;
@@ -152,13 +148,23 @@ async fn prompt_app<B: Backend>(
                                             tab.chat.stop();
                                             // update tab with new chat session
                                             tab.new_conversation(chat_session);
-                                            reader = if let Some(conversation_id) = tab.chat.get_conversation_id() {
-                                                Some(db_conn.get_conversation_reader(conversation_id))
-                                            } else {
-                                                None
-                                            };
+                                            reader = db_conn.get_conversation_reader(tab.chat.get_conversation_id());
                                         }
-                                        _ => {},
+                                        Some(ConversationEvent::ContinueConversation(prompt_instruction)) => {
+                                            let chat_session = ChatSession::new(
+                                                None,
+                                                (*prompt_instruction).clone(),
+                                                &db_conn,
+                                            ).await?;
+                                            // stop current chat session
+                                            tab.chat.stop();
+                                            // update tab with new chat session
+                                            tab.new_conversation(chat_session);
+                                            reader = db_conn.get_conversation_reader(tab.chat.get_conversation_id());
+                                        }
+                                        _ => {
+                                            log::debug!("Prompt window event not handled");
+                                        }
                                     }
                                 }
                                 _ => {}
@@ -195,7 +201,6 @@ async fn prompt_app<B: Backend>(
                 log::debug!("Received response with length {:?}", response_bytes.len());
                 let mut tab_ui = &mut tab.ui;
                 let mut chat = &mut tab.chat;
-
                 let start_of_stream = if trim_buffer.is_none() {
                     // new response stream started
                     log::debug!("New response stream started");
@@ -204,9 +209,13 @@ async fn prompt_app<B: Backend>(
                 } else {
                     false
                 };
-
-                let response = chat.process_response(response_bytes, start_of_stream);
-
+                let response = match chat.process_response(response_bytes, start_of_stream) {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        log::error!("Error processing response: {}", e);
+                        None
+                    }
+                };
                 let trimmed_response = match response {
                     Some(ref response) => {
                         let trimmed_response = response.get_content().trim_end().to_string();
@@ -218,54 +227,54 @@ async fn prompt_app<B: Backend>(
                         "".to_string()
                     }
                 };
-
                 // display content should contain previous trimmed parts,
                 // with a trimmed version of the new response content
                 let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response);
-
                 if !display_content.is_empty() {
                     chat.update_last_exchange(&display_content);
                     tab_ui.response.text_append(&display_content, Some(color_scheme.get_secondary_style()))?;
                 }
-
-                // response is final is is_final is true or response is None
+                // response is final if is_final is true or response is None
                 if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
-                log::debug!("Final response received");
-                let mut final_stats = response.and_then(|r| r.stats);
-
-                // Process post-response messages
-                while let Ok(post_bytes) = rx.try_recv() {
-                    log::debug!("Received post-response message");
-                    if let Some(post_response) = chat.process_response(post_bytes, false) {
-                        if let Some(post_stats) = post_response.stats {
-                            // Merge stats
-                            final_stats = Some(match final_stats {
-                                Some(mut stats) => {
-                                    stats.merge(&post_stats);
-                                    stats
+                    log::debug!("Final response received");
+                    let mut final_stats = response.and_then(|r| r.stats);
+                    // Process post-response messages
+                    while let Ok(post_bytes) = rx.try_recv() {
+                        log::debug!("Received post-response message");
+                        match chat.process_response(post_bytes, false) {
+                            Ok(Some(post_response)) => {
+                                if let Some(post_stats) = post_response.stats {
+                                    // Merge stats
+                                    final_stats = Some(match final_stats {
+                                        Some(mut stats) => {
+                                            stats.merge(&post_stats);
+                                            stats
+                                        }
+                                        None => post_stats,
+                                    });
                                 }
-                                None => post_stats,
-                            });
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                log::error!("Error processing post-response: {}", e);
+                            }
                         }
                     }
-                }
-
-                finalize_response(
-                    &mut chat,
-                    &mut tab_ui,
-                    &db_conn,
-                    final_stats.as_ref().and_then(|s| s.tokens_predicted),
-                    &color_scheme
-                ).await?;
-                trim_buffer = None;
-               } else {
+                    finalize_response(
+                        &mut chat,
+                        &mut tab_ui,
+                        &db_conn,
+                        final_stats.as_ref().and_then(|s| s.tokens_predicted),
+                        &color_scheme
+                    ).await?;
+                    trim_buffer = None;
+                } else {
                     // Capture trailing whitespaces or newlines to the trim_buffer
                     // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
                     let text = match response {
                         Some(response) => response.get_content(),
                         None => "".to_string(),
                     };
-
                     if !text.is_empty() {
                         let trailing_whitespace_start = trimmed_response.len();
                         trim_buffer = Some(text[trailing_whitespace_start..].to_string());
@@ -428,7 +437,7 @@ pub async fn run_cli(
     let prompt_instruction = db_conn
         .fetch_last_conversation_id()?
         .and_then(|conversation_id| {
-            let reader = db_conn.get_conversation_reader(conversation_id);
+            let reader = db_conn.get_conversation_reader(Some(conversation_id));
             // Convert Result to Option using .ok()
             if new_conversation.is_equal(&reader).ok()? {
                 log::debug!("Continuing last conversation");
@@ -443,7 +452,8 @@ pub async fn run_cli(
         })?;
 
     let chat_session =
-        ChatSession::new(&server_name, prompt_instruction, &db_conn).await?;
+        ChatSession::new(Some(&server_name), prompt_instruction, &db_conn)
+            .await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

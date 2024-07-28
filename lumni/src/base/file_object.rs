@@ -6,7 +6,8 @@ use crate::table::TableColumnValue;
 pub struct FileObject {
     name: String,
     size: u64,
-    modified: Option<u64>,
+    // modified time is i64 to align with db, also allows pre-epoch timestamps
+    modified: Option<i64>,
     tags: Option<HashMap<String, String>>,
 }
 
@@ -14,7 +15,7 @@ impl FileObject {
     pub fn new(
         name: String,
         size: u64,
-        modified: Option<u64>,
+        modified: Option<i64>,
         tags: Option<HashMap<String, String>>,
     ) -> Self {
         FileObject {
@@ -33,7 +34,7 @@ impl FileObject {
         self.size
     }
 
-    pub fn modified(&self) -> Option<u64> {
+    pub fn modified(&self) -> Option<i64> {
         self.modified
     }
 
@@ -50,7 +51,7 @@ impl FileObject {
             "size" => Some(TableColumnValue::Uint64Column(self.size)),
             "modified" => self
                 .modified
-                .map(|val| TableColumnValue::OptionalUint64Column(Some(val))),
+                .map(|val| TableColumnValue::OptionalInt64Column(Some(val))),
             _ => None,
         }
     }

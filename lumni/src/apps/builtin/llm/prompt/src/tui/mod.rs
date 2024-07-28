@@ -1,24 +1,22 @@
 mod clipboard;
 mod colorscheme;
-mod components;
+mod window;
 mod draw;
 mod events;
-mod modal;
+mod modals;
 mod ui;
-mod widgets;
-mod windows;
 
 pub use colorscheme::{ColorScheme, ColorSchemeType};
-pub use components::{TextLine, TextSegment, TextWindowTrait, WindowKind};
+pub use window::{TextLine, TextSegment, TextWindowTrait, WindowKind, Scroller};
 pub use draw::draw_ui;
 pub use events::{
     CommandLineAction, ConversationEvent, KeyEventHandler, PromptAction,
-    WindowEvent,
+    WindowEvent, KeyTrack,
 };
-use lumni::api::error::ApplicationError;
-pub use modal::{ModalConfigWindow, ModalWindowTrait, ModalWindowType};
+pub use lumni::api::error::ApplicationError;
+pub use modals::{ModalConfigWindow, ModalWindowTrait, ModalWindowType};
 pub use ui::TabUi;
-pub use windows::{CommandLine, PromptWindow, ResponseWindow};
+pub use window::{CommandLine, PromptWindow, ResponseWindow};
 
 pub use super::chat::db::{ConversationReader, ModelSpec};
 pub use super::chat::{ChatSession, NewConversation};

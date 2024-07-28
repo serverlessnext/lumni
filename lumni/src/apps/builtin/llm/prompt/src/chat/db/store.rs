@@ -299,46 +299,9 @@ impl ConversationDatabaseStore {
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
-        let query = format!(
-            "SELECT id, name, info, completion_options, model_identifier, \
-             parent_conversation_id, 
-             fork_message_id, created_at, updated_at, is_deleted, status
-             FROM conversations
-             WHERE is_deleted = FALSE
-             ORDER BY updated_at DESC
-             LIMIT {}",
-            limit
-        );
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            let mut stmt = tx.prepare(&query)?;
-            let rows = stmt.query_map([], |row| {
-                Ok(Conversation {
-                    id: ConversationId(row.get(0)?),
-                    name: row.get(1)?,
-                    info: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or_default(),
-                    completion_options: row
-                        .get::<_, Option<String>>(3)?
-                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
-                    model_identifier: ModelIdentifier(row.get(4)?),
-                    parent_conversation_id: row
-                        .get::<_, Option<i64>>(5)?
-                        .map(ConversationId),
-                    fork_message_id: row
-                        .get::<_, Option<i64>>(6)?
-                        .map(MessageId),
-                    created_at: row.get(7)?,
-                    updated_at: row.get(8)?,
-                    is_deleted: row.get::<_, i64>(9)? != 0,
-                    status: ConversationStatus::from_str(
-                        &row.get::<_, String>(10)?,
-                    )
-                    .unwrap_or(ConversationStatus::Active),
-                })
-            })?;
-            rows.collect()
-        })
+        // Create a temporary ConversationReader with a dummy ConversationId
+        let reader = self.get_conversation_reader(ConversationId(0));
+        reader.fetch_conversation_list(limit)
     }
 }
 

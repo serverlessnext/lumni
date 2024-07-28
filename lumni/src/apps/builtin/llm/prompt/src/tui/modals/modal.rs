@@ -4,30 +4,15 @@ use ratatui::layout::Rect;
 use ratatui::widgets::Clear;
 use ratatui::Frame;
 
-use super::components::Scroller;
-use super::events::KeyTrack;
-use super::widgets::SelectEndpoint;
+
+use super::config_modal::SelectEndpoint;
 use super::{
+    ModalWindowTrait, ModalWindowType,
     ApplicationError, ChatSession, ConversationEvent, ConversationReader,
     ModelServer, NewConversation, ServerManager, ServerTrait, WindowEvent,
+    KeyTrack, Scroller,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ModalWindowType {
-    Config,
-}
-
-#[async_trait]
-pub trait ModalWindowTrait {
-    fn get_type(&self) -> ModalWindowType;
-    fn render_on_frame(&mut self, frame: &mut Frame, area: Rect);
-    async fn handle_key_event<'a>(
-        &'a mut self,
-        key_event: &'a mut KeyTrack,
-        tab_chat: &'a mut ChatSession,
-        reader: Option<&ConversationReader<'_>>,
-    ) -> Result<Option<WindowEvent>, ApplicationError>;
-}
 
 pub struct ModalConfigWindow {
     widget: SelectEndpoint,

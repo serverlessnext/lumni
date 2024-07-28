@@ -9,12 +9,12 @@ pub use key_event::{KeyEventHandler, KeyTrack};
 use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
-use super::components::{
+use super::window::{
     LineType, MoveCursor, TextDocumentTrait, TextWindowTrait, WindowKind,
 };
-use super::modal::ModalWindowType;
+use super::modals::ModalWindowType;
 use super::ui::TabUi;
-use super::windows::PromptWindow;
+use super::window::PromptWindow;
 use super::{ChatSession, ConversationReader, NewConversation};
 pub use crate::external as lumni;
 

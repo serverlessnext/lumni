@@ -240,20 +240,15 @@ async fn handle_prompt_window_event(
         Some(ConversationEvent::NewConversation(new_conversation)) => {
             let prompt_instruction =
                 PromptInstruction::new(new_conversation.clone(), db_conn)?;
-            let chat_session = ChatSession::new(
-                Some(&new_conversation.server.to_string()),
-                prompt_instruction,
-                db_conn,
-            )
-            .await?;
+            let chat_session =
+                ChatSession::new(prompt_instruction, db_conn).await?;
             tab.chat.stop();
             tab.new_conversation(chat_session);
             Ok(true)
         }
         Some(ConversationEvent::ContinueConversation(prompt_instruction)) => {
             let chat_session =
-                ChatSession::new(None, prompt_instruction.clone(), db_conn)
-                    .await?;
+                ChatSession::new(prompt_instruction.clone(), db_conn).await?;
             tab.chat.stop();
             tab.new_conversation(chat_session);
             Ok(true)

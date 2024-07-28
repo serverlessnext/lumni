@@ -19,13 +19,16 @@ pub struct ChatSession {
 
 impl ChatSession {
     pub async fn new(
-        server_name: Option<&str>,
         prompt_instruction: PromptInstruction,
         db_conn: &ConversationDatabaseStore,
     ) -> Result<Self, ApplicationError> {
-        let server = if let Some(name) = server_name {
+        let server = if let Some(model_server) = prompt_instruction
+            .get_completion_options()
+            .model_server
+            .as_ref()
+        {
             let mut server: Box<dyn ServerManager> =
-                Box::new(ModelServer::from_str(name)?);
+                Box::new(ModelServer::from_str(&model_server.to_string())?);
             // try to initialize the server
             let reader = db_conn.get_conversation_reader(
                 prompt_instruction.get_conversation_id(),
@@ -44,7 +47,6 @@ impl ChatSession {
         } else {
             None
         };
-
         Ok(ChatSession {
             server,
             prompt_instruction,

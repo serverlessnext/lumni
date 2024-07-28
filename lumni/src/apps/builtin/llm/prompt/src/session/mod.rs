@@ -1,11 +1,26 @@
+mod conversation_loop;
+
 use std::io;
 
+pub use conversation_loop::prompt_app;
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
 use ratatui::Terminal;
 
-use super::chat::ChatSession;
-use super::tui::{draw_ui, ColorScheme, ColorSchemeType, TabUi};
+use super::chat::db::{
+    ConversationDatabaseStore, ConversationId, ConversationReader,
+};
+use super::chat::{
+    AssistantManager, ChatSession, NewConversation, PromptInstruction,
+};
+use super::server::{
+    CompletionResponse, ModelServer, ModelServerName, ServerTrait,
+};
+use super::tui::{
+    draw_ui, ColorScheme, ColorSchemeType, CommandLineAction,
+    ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction, TabUi,
+    TextWindowTrait, WindowEvent, WindowKind,
+};
 pub use crate::external as lumni;
 
 pub struct AppSession<'a> {

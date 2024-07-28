@@ -42,7 +42,7 @@ pub enum CommandLineAction {
     Write(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConversationEvent {
     NewConversation(NewConversation),
     ContinueConversation(PromptInstruction),

@@ -1,13 +1,9 @@
 use std::io;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use clap::{Arg, Command};
 use crossterm::cursor::Show;
-use crossterm::event::{
-    poll, read, DisableMouseCapture, EnableMouseCapture, Event, MouseEventKind,
-};
+use crossterm::event::{poll, DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
@@ -16,299 +12,20 @@ use crossterm::terminal::{
 use lumni::api::env::ApplicationEnv;
 use lumni::api::error::ApplicationError;
 use lumni::api::spec::ApplicationSpec;
-use ratatui::backend::{Backend, CrosstermBackend};
-use ratatui::style::Style;
+use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::signal;
-use tokio::sync::{mpsc, Mutex};
-use tokio::time::{interval, timeout, Duration};
+use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 
 use super::chat::db::ConversationDatabaseStore;
 use super::chat::{
     AssistantManager, ChatSession, NewConversation, PromptInstruction,
 };
 use super::server::{ModelServer, ModelServerName, ServerTrait};
-use super::session::{AppSession, TabSession};
-use super::tui::{
-    ColorScheme, CommandLineAction, ConversationEvent, KeyEventHandler,
-    PromptAction, TabUi, TextWindowTrait, WindowEvent, WindowKind,
-};
+use super::session::{prompt_app, AppSession};
 pub use crate::external as lumni;
-
-// max number of messages to hold before backpressure is applied
-// only applies to interactive mode
-const CHANNEL_QUEUE_SIZE: usize = 32;
-
-async fn prompt_app<B: Backend>(
-    terminal: &mut Terminal<B>,
-    mut app_session: AppSession<'_>,
-    db_conn: ConversationDatabaseStore,
-) -> Result<(), ApplicationError> {
-    let tab = app_session.get_tab_mut(0).expect("No tab found");
-    let color_scheme = tab.color_scheme;
-
-    // add types
-    let (tx, mut rx): (mpsc::Sender<Bytes>, mpsc::Receiver<Bytes>) =
-        mpsc::channel(CHANNEL_QUEUE_SIZE);
-    let mut tick = interval(Duration::from_millis(1));
-    let keep_running = Arc::new(AtomicBool::new(false));
-    let mut current_mode = Some(WindowEvent::ResponseWindow);
-    let mut key_event_handler = KeyEventHandler::new();
-    let mut redraw_ui = true;
-
-    let mut reader =
-        db_conn.get_conversation_reader(tab.chat.get_conversation_id());
-
-    // Buffer to store the trimmed trailing newlines or empty spaces
-    let mut trim_buffer: Option<String> = None;
-
-    loop {
-        tokio::select! {
-            _ = tick.tick() => {
-                if redraw_ui {
-                    tab.draw_ui(terminal)?;
-                    redraw_ui = false;
-                }
-
-                // set timeout to 1ms to allow for non-blocking polling
-                if poll(Duration::from_millis(1))? {
-                    let event = read()?;
-                    match event {
-                        Event::Key(key_event) => {
-                            current_mode = if let Some(mode) = current_mode {
-                                key_event_handler.process_key(
-                                    key_event,
-                                    &mut tab.ui,
-                                    &mut tab.chat,
-                                    mode,
-                                    keep_running.clone(),
-                                    &mut reader,
-                                ).await?
-                            } else {
-                                None
-                            };
-
-                            match current_mode {
-                                Some(WindowEvent::Quit) => {
-                                    break;
-                                }
-                                Some(WindowEvent::Prompt(prompt_action)) => {
-                                    match prompt_action {
-                                        PromptAction::Write(prompt) => {
-                                            send_prompt(tab, &prompt, &color_scheme, tx.clone()).await?;
-                                        }
-                                        PromptAction::Clear => {
-                                            tab.ui.response.text_empty();
-                                            tab.chat.reset(&db_conn);
-                                            trim_buffer = None;
-                                        }
-                                        PromptAction::Stop => {
-                                            tab.chat.stop();
-                                            finalize_response(&mut tab.chat, &mut tab.ui, &db_conn, None, &color_scheme).await?;
-                                            trim_buffer = None;
-                                        }
-                                    }
-                                    current_mode = Some(tab.ui.set_prompt_window(false));
-                                }
-                                Some(WindowEvent::CommandLine(ref action)) => {
-                                    // enter command line mode
-                                    if tab.ui.prompt.is_active() {
-                                        tab.ui.prompt.set_status_background();
-                                    } else {
-                                        tab.ui.response.set_status_background();
-                                    }
-                                    match action {
-                                        Some(CommandLineAction::Write(prefix)) => {
-                                            tab.ui.command_line.set_status_insert();
-                                            tab.ui.command_line.text_set(prefix, None)?;
-                                        }
-                                        None => {}
-                                    }
-                                }
-                                Some(WindowEvent::Modal(modal_window_type)) => {
-
-                                    if tab.ui.needs_modal_update(modal_window_type) {
-                                        tab.ui.set_new_modal(modal_window_type, &reader)?;
-                                    }
-                                }
-                                Some(WindowEvent::PromptWindow(ref event)) => {
-                                    match event {
-                                        Some(ConversationEvent::NewConversation(new_conversation)) => {
-                                            let prompt_instruction = PromptInstruction::new(
-                                                new_conversation.clone(),
-                                                &db_conn,
-                                            )?;
-                                            let chat_session = ChatSession::new(
-                                                Some(&new_conversation.server.to_string()),
-                                                prompt_instruction,
-                                                &db_conn,
-                                            ).await?;
-                                            // stop current chat session
-                                            tab.chat.stop();
-                                            // update tab with new chat session
-                                            tab.new_conversation(chat_session);
-                                            reader = db_conn.get_conversation_reader(tab.chat.get_conversation_id());
-                                        }
-                                        Some(ConversationEvent::ContinueConversation(prompt_instruction)) => {
-                                            let chat_session = ChatSession::new(
-                                                None,
-                                                (*prompt_instruction).clone(),
-                                                &db_conn,
-                                            ).await?;
-                                            // stop current chat session
-                                            tab.chat.stop();
-                                            // update tab with new chat session
-                                            tab.new_conversation(chat_session);
-                                            reader = db_conn.get_conversation_reader(tab.chat.get_conversation_id());
-                                        }
-                                        _ => {
-                                            log::debug!("Prompt window event not handled");
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        },
-                        Event::Mouse(mouse_event) => {
-                            // TODO: should track on which window the cursor actually is
-                            let window = &mut tab.ui.response;
-                            match mouse_event.kind {
-                                MouseEventKind::ScrollUp => {
-                                    window.scroll_up();
-                                },
-                                MouseEventKind::ScrollDown => {
-                                    window.scroll_down();
-                                },
-                                MouseEventKind::Down(_) => {
-                                    // mouse click is ignored currently
-                                    // TODO: implement mouse click for certain actions
-                                    // i.e. close modal, scroll to position, set cursor, etc.
-                                    continue;   // skip redraw_ui
-                                },
-                                _ => {
-                                    // other mouse events are ignored
-                                    continue;   // skip redraw_ui
-                                }
-                            }
-                        },
-                        _ => {} // Other events are ignored
-                    }
-                    redraw_ui = true;   // redraw the UI after each type of event
-                }
-            },
-            Some(response_bytes) = rx.recv() => {
-                log::debug!("Received response with length {:?}", response_bytes.len());
-                let mut tab_ui = &mut tab.ui;
-                let mut chat = &mut tab.chat;
-                let start_of_stream = if trim_buffer.is_none() {
-                    // new response stream started
-                    log::debug!("New response stream started");
-                    tab_ui.response.enable_auto_scroll();
-                    true
-                } else {
-                    false
-                };
-                let response = match chat.process_response(response_bytes, start_of_stream) {
-                    Ok(resp) => resp,
-                    Err(e) => {
-                        log::error!("Error processing response: {}", e);
-                        None
-                    }
-                };
-                let trimmed_response = match response {
-                    Some(ref response) => {
-                        let trimmed_response = response.get_content().trim_end().to_string();
-                        log::debug!("Trimmed response: {:?}", trimmed_response);
-                        trimmed_response
-                    }
-                    None => {
-                        log::debug!("No response content");
-                        "".to_string()
-                    }
-                };
-                // display content should contain previous trimmed parts,
-                // with a trimmed version of the new response content
-                let display_content = format!("{}{}", trim_buffer.unwrap_or("".to_string()), trimmed_response);
-                if !display_content.is_empty() {
-                    chat.update_last_exchange(&display_content);
-                    tab_ui.response.text_append(&display_content, Some(color_scheme.get_secondary_style()))?;
-                }
-                // response is final if is_final is true or response is None
-                if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
-                    log::debug!("Final response received");
-                    let mut final_stats = response.and_then(|r| r.stats);
-                    // Process post-response messages
-                    while let Ok(post_bytes) = rx.try_recv() {
-                        log::debug!("Received post-response message");
-                        match chat.process_response(post_bytes, false) {
-                            Ok(Some(post_response)) => {
-                                if let Some(post_stats) = post_response.stats {
-                                    // Merge stats
-                                    final_stats = Some(match final_stats {
-                                        Some(mut stats) => {
-                                            stats.merge(&post_stats);
-                                            stats
-                                        }
-                                        None => post_stats,
-                                    });
-                                }
-                            }
-                            Ok(None) => {}
-                            Err(e) => {
-                                log::error!("Error processing post-response: {}", e);
-                            }
-                        }
-                    }
-                    finalize_response(
-                        &mut chat,
-                        &mut tab_ui,
-                        &db_conn,
-                        final_stats.as_ref().and_then(|s| s.tokens_predicted),
-                        &color_scheme
-                    ).await?;
-                    trim_buffer = None;
-                } else {
-                    // Capture trailing whitespaces or newlines to the trim_buffer
-                    // in case the trimmed part is empty space, still capture it into trim_buffer (Some("")), to indicate a stream is running
-                    let text = match response {
-                        Some(response) => response.get_content(),
-                        None => "".to_string(),
-                    };
-                    if !text.is_empty() {
-                        let trailing_whitespace_start = trimmed_response.len();
-                        trim_buffer = Some(text[trailing_whitespace_start..].to_string());
-                    } else {
-                        trim_buffer = Some("".to_string());
-                    }
-                }
-                redraw_ui = true;
-            },
-        }
-    }
-    Ok(())
-}
-
-async fn finalize_response(
-    chat: &mut ChatSession,
-    tab_ui: &mut TabUi<'_>,
-    db_conn: &ConversationDatabaseStore,
-    tokens_predicted: Option<usize>,
-    color_scheme: &ColorScheme,
-) -> Result<(), ApplicationError> {
-    // stop trying to get more responses
-    chat.stop();
-    // finalize with newline for in display
-    tab_ui
-        .response
-        .text_append("\n", Some(color_scheme.get_secondary_style()))?;
-    // add an empty unstyled line
-    tab_ui.response.text_append("\n", Some(Style::reset()))?;
-    // trim exchange + update token length
-    chat.finalize_last_exchange(db_conn, tokens_predicted)
-        .await?;
-    Ok(())
-}
 
 fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
     let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
@@ -630,34 +347,4 @@ async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {
             std::process::exit(1); // Force exit immediately
         }
     }
-}
-
-async fn send_prompt<'a>(
-    tab: &mut TabSession<'a>,
-    prompt: &str,
-    color_scheme: &ColorScheme,
-    tx: mpsc::Sender<Bytes>,
-) -> Result<(), ApplicationError> {
-    // prompt should end with single newline
-    let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = tab.chat.message(tx.clone(), &formatted_prompt).await;
-
-    match result {
-        Ok(_) => {
-            // clear prompt
-            tab.ui.prompt.text_empty();
-            tab.ui.prompt.set_status_normal();
-            tab.ui.response.text_append(
-                &formatted_prompt,
-                Some(color_scheme.get_primary_style()),
-            )?;
-            tab.ui.set_primary_window(WindowKind::ResponseWindow);
-            tab.ui.response.text_append("\n", Some(Style::reset()))?;
-        }
-        Err(e) => {
-            log::error!("Error sending message: {:?}", e);
-            tab.ui.command_line.set_alert(&e.to_string())?;
-        }
-    }
-    Ok(())
 }

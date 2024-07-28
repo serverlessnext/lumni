@@ -53,6 +53,25 @@ impl ConversationListModal {
     fn max_area_size(&self) -> (u16, u16) {
         (MAX_WIDTH, MAX_HEIGHT)
     }
+
+    async fn load_conversation(
+        &self,
+        reader: &mut ConversationReader<'_>,
+    ) -> Result<Option<WindowEvent>, ApplicationError> {
+        if let Some(conversation) = self.conversations.get(self.current_index) {
+            reader.set_conversation_id(conversation.id);
+            match PromptInstruction::from_reader(reader) {
+                Ok(prompt_instruction) => Ok(Some(WindowEvent::PromptWindow(
+                    Some(ConversationEvent::ContinueConversation(
+                        prompt_instruction,
+                    )),
+                ))),
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[async_trait]
@@ -222,21 +241,7 @@ impl ModalWindowTrait for ConversationListModal {
                 }
             }
             KeyCode::Enter => {
-                if let Some(conversation) =
-                    self.conversations.get(self.current_index)
-                {
-                    reader.set_conversation_id(conversation.id);
-                    match PromptInstruction::from_reader(reader) {
-                        Ok(prompt_instruction) => {
-                            return Ok(Some(WindowEvent::PromptWindow(Some(
-                                ConversationEvent::ContinueConversation(
-                                    prompt_instruction,
-                                ),
-                            ))));
-                        }
-                        Err(e) => return Err(e),
-                    }
-                }
+                return self.load_conversation(reader).await;
             }
             KeyCode::Esc => {
                 return Ok(Some(WindowEvent::PromptWindow(None)));

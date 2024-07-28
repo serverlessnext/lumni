@@ -26,6 +26,7 @@ CREATE TABLE conversations (
     message_count INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     is_deleted BOOLEAN DEFAULT FALSE,
+    is_pinned BOOLEAN DEFAULT FALSE,
     status TEXT CHECK(status IN ('active', 'archived', 'deleted')) DEFAULT 'active',
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (model_identifier) REFERENCES models(identifier),
@@ -86,3 +87,4 @@ CREATE INDEX idx_conversation_is_deleted_updated ON conversations(is_deleted, up
 CREATE INDEX idx_message_conversation_created ON messages(conversation_id, created_at);
 CREATE INDEX idx_message_previous ON messages(previous_message_id);
 CREATE INDEX idx_attachment_conversation ON attachments(conversation_id);
+CREATE INDEX idx_conversation_pinned_updated ON conversations(is_pinned DESC, updated_at DESC);

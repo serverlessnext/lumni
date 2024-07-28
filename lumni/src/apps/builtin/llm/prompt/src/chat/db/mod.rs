@@ -71,6 +71,7 @@ pub struct Conversation {
     pub message_count: Option<i64>,
     pub total_tokens: Option<i64>,
     pub is_deleted: bool,
+    pub is_pinned: bool,
     pub status: ConversationStatus,
 }
 

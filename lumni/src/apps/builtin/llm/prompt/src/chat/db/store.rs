@@ -89,6 +89,7 @@ impl ConversationDatabaseStore {
                 message_count: None,
                 total_tokens: None,
                 is_deleted: false,
+                is_pinned: false,
                 status: ConversationStatus::Active,
             };
 
@@ -97,9 +98,9 @@ impl ConversationDatabaseStore {
                     name, info, model_identifier, parent_conversation_id, 
                     fork_message_id, completion_options, created_at, \
                  updated_at, 
-                    message_count, total_tokens, is_deleted, status
+                    message_count, total_tokens, is_deleted, is_pinned, status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
                 params![
                     conversation.name,
                     serde_json::to_string(&conversation.info)
@@ -114,6 +115,7 @@ impl ConversationDatabaseStore {
                     conversation.created_at,
                     conversation.updated_at,
                     conversation.is_deleted,
+                    conversation.is_pinned,
                     match conversation.status {
                         ConversationStatus::Active => "active",
                         ConversationStatus::Archived => "archived",
@@ -251,28 +253,29 @@ impl ConversationDatabaseStore {
                     message_count: row.get(9)?,
                     total_tokens: row.get(10)?,
                     is_deleted: row.get::<_, i64>(11)? != 0,
-                    status: match row.get::<_, String>(12)?.as_str() {
+                    is_pinned: row.get::<_, i64>(12)? != 0,
+                    status: match row.get::<_, String>(13)?.as_str() {
                         "active" => ConversationStatus::Active,
                         "archived" => ConversationStatus::Archived,
                         "deleted" => ConversationStatus::Deleted,
                         _ => ConversationStatus::Active,
                     },
                 };
-                let message = if !row.get::<_, Option<i64>>(13)?.is_none() {
+                let message = if !row.get::<_, Option<i64>>(14)?.is_none() {
                     Some(Message {
-                        id: MessageId(row.get(13)?),
+                        id: MessageId(row.get(14)?),
                         conversation_id: conversation.id,
-                        role: row.get(14)?,
-                        message_type: row.get(15)?,
-                        content: row.get(16)?,
-                        has_attachments: row.get::<_, i64>(17)? != 0,
-                        token_length: row.get(18)?,
-                        previous_message_id: row.get(19).map(MessageId).ok(),
-                        created_at: row.get(20)?,
-                        vote: row.get(21)?,
-                        include_in_prompt: row.get::<_, i64>(22)? != 0,
-                        is_hidden: row.get::<_, i64>(23)? != 0,
-                        is_deleted: row.get::<_, i64>(24)? != 0,
+                        role: row.get(15)?,
+                        message_type: row.get(16)?,
+                        content: row.get(17)?,
+                        has_attachments: row.get::<_, i64>(18)? != 0,
+                        token_length: row.get(19)?,
+                        previous_message_id: row.get(20).map(MessageId).ok(),
+                        created_at: row.get(21)?,
+                        vote: row.get(22)?,
+                        include_in_prompt: row.get::<_, i64>(23)? != 0,
+                        is_hidden: row.get::<_, i64>(24)? != 0,
+                        is_deleted: row.get::<_, i64>(25)? != 0,
                     })
                 } else {
                     None
@@ -433,6 +436,19 @@ impl ConversationDatabaseStore {
             )?;
 
             Ok(new_message_ids)
+        })
+    }
+
+    pub fn update_conversation_pin_status(
+        &self,
+        conversation_id: ConversationId,
+        is_pinned: bool,
+    ) -> Result<(), SqliteError> {
+        let query = "UPDATE conversations SET is_pinned = ? WHERE id = ?";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            tx.execute(query, params![is_pinned, conversation_id.0])?;
+            Ok(())
         })
     }
 

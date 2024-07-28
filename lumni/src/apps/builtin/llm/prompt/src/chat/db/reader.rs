@@ -1,4 +1,3 @@
-use std::f64::consts::E;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
@@ -315,10 +314,10 @@ impl<'a> ConversationReader<'a> {
         let query = format!(
             "SELECT id, name, info, completion_options, model_identifier, 
              parent_conversation_id, fork_message_id, created_at, updated_at, 
-             is_deleted, status, message_count, total_tokens
+             is_deleted, is_pinned, status, message_count, total_tokens
              FROM conversations
              WHERE is_deleted = FALSE
-             ORDER BY updated_at DESC
+             ORDER BY is_pinned DESC, updated_at DESC
              LIMIT {}",
             limit
         );
@@ -344,12 +343,13 @@ impl<'a> ConversationReader<'a> {
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
                     is_deleted: row.get::<_, i64>(9)? != 0,
+                    is_pinned: row.get::<_, i64>(10)? != 0,
                     status: ConversationStatus::from_str(
-                        &row.get::<_, String>(10)?,
+                        &row.get::<_, String>(11)?,
                     )
                     .unwrap_or(ConversationStatus::Active),
-                    message_count: row.get(11)?,
-                    total_tokens: row.get(12)?,
+                    message_count: row.get(12)?,
+                    total_tokens: row.get(13)?,
                 })
             })?;
             rows.collect()

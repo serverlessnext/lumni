@@ -71,9 +71,9 @@ impl ServerTrait for Ollama {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationDbHandler,
+        handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        let identifier = reader.get_model_identifier().map_err(|e| {
+        let identifier = handler.fetch_model_identifier().map_err(|e| {
             ApplicationError::NotReady(format!(
                 "Cannot get model identifier: {}",
                 e.to_string()

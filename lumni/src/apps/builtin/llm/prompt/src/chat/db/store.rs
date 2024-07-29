@@ -4,11 +4,11 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
-use super::helpers::system_time_in_milliseconds;
 use super::handler::ConversationDbHandler;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
+    Timestamp,
 };
 
 pub struct ConversationDatabase {
@@ -37,9 +37,8 @@ impl ConversationDatabase {
         completion_options: Option<serde_json::Value>,
         model: &ModelSpec,
     ) -> Result<ConversationId, SqliteError> {
+        let timestamp = Timestamp::from_system_time().unwrap().as_millis();
         let mut db = self.db.lock().unwrap();
-
-        let timestamp = system_time_in_milliseconds();
 
         db.process_queue_with_result(|tx| {
             // Ensure the model exists
@@ -436,19 +435,6 @@ impl ConversationDatabase {
             )?;
 
             Ok(new_message_ids)
-        })
-    }
-
-    pub fn update_conversation_pin_status(
-        &self,
-        conversation_id: ConversationId,
-        is_pinned: bool,
-    ) -> Result<(), SqliteError> {
-        let query = "UPDATE conversations SET is_pinned = ? WHERE id = ?";
-        let mut db = self.db.lock().unwrap();
-        db.process_queue_with_result(|tx| {
-            tx.execute(query, params![is_pinned, conversation_id.0])?;
-            Ok(())
         })
     }
 

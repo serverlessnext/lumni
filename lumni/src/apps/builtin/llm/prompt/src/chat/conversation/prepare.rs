@@ -24,11 +24,11 @@ impl NewConversation {
             Some(current_conversation_id) => {
                 // Fork from an existing conversation
                 let mut current_completion_options =
-                    conversation_handler.get_completion_options()?;
+                    conversation_handler.fetch_completion_options()?;
                 current_completion_options["model_server"] =
                     serde_json::to_value(new_server.clone())?;
 
-                let parent = conversation_handler.get_last_message_id()?.map(
+                let parent = conversation_handler.fetch_last_message_id()?.map(
                     |last_message_id| ParentConversation {
                         id: current_conversation_id,
                         fork_message_id: last_message_id,
@@ -59,18 +59,18 @@ impl NewConversation {
 
     pub fn is_equal(
         &self,
-        reader: &ConversationDbHandler,
+        handler: &ConversationDbHandler,
     ) -> Result<bool, ApplicationError> {
         // check if conversation settings are equal to the conversation stored in the database
 
         // Compare model
-        let last_model = reader.get_model_spec()?;
+        let last_model = handler.fetch_model_spec()?;
         if self.model.as_ref() != Some(&last_model) {
             return Ok(false);
         }
 
         // Compare completion options (which includes server name and assistant)
-        let last_options = reader.get_completion_options()?;
+        let last_options = handler.fetch_completion_options()?;
         let new_options = match &self.options {
             Some(opts) => opts.clone(),
             None => serde_json::json!({}),
@@ -79,7 +79,7 @@ impl NewConversation {
             return Ok(false);
         }
         // Compare system prompt. If the system prompt is not set in the new conversation, we check by first system prompt in the initial messages
-        let last_system_prompt = reader.get_system_prompt()?;
+        let last_system_prompt = handler.fetch_system_prompt()?;
         let new_system_prompt = match &self.system_prompt {
             Some(prompt) => Some(prompt.as_str()),
             None => self.initial_messages.as_ref().and_then(|messages| {

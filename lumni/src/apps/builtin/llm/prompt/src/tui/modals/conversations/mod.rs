@@ -27,9 +27,9 @@ pub struct ConversationListModal {
 
 impl ConversationListModal {
     pub fn new(
-        reader: &ConversationDbHandler<'_>,
+        handler: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
-        let conversations = reader.fetch_conversation_list(100)?;
+        let conversations = handler.fetch_conversation_list(100)?;
         Ok(Self {
             conversations,
             current_index: 0,
@@ -71,6 +71,32 @@ impl ConversationListModal {
         } else {
             Ok(None)
         }
+    }
+
+    async fn toggle_pin_status(
+        &mut self,
+        handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(conversation) = self.conversations.get(self.current_index).cloned() {
+            let new_pin_status = !conversation.is_pinned;
+            handler.update_conversation_pin_status(new_pin_status, Some(conversation.id))?;
+            
+            // Update the local list
+            if let Some(conv) = self.conversations.get_mut(self.current_index) {
+                conv.is_pinned = new_pin_status;
+            }
+            
+            // Re-sort the conversations list
+            self.conversations.sort_by(|a, b| {
+                b.is_pinned.cmp(&a.is_pinned).then(b.updated_at.cmp(&a.updated_at))
+            });
+            
+            // Update the current_index to match the moved conversation
+            self.current_index = self.conversations.iter()
+                .position(|c| c.id == conversation.id)
+                .unwrap_or(0);
+        }
+        Ok(())
     }
 }
 
@@ -162,13 +188,15 @@ impl ModalWindowTrait for ConversationListModal {
                 } else {
                     Style::default()
                 };
+                let pin_indicator = if conversation.is_pinned { "📌 " } else { "  " };
                 ListItem::new(vec![
                     Line::from(vec![
+                        Span::styled(pin_indicator, style),
                         Span::styled(format!("{}: ", conversation.id.0), style),
                         Span::styled(
                             Self::truncate_text(
                                 &conversation.name,
-                                max_width as usize - 5,
+                                max_width as usize - 7 - pin_indicator.len(),
                             ),
                             style,
                         ),
@@ -242,6 +270,9 @@ impl ModalWindowTrait for ConversationListModal {
             }
             KeyCode::Enter => {
                 return self.load_conversation(handler).await;
+            }
+            KeyCode::Char('p') | KeyCode::Char('P') => {
+                self.toggle_pin_status(handler).await?;
             }
             KeyCode::Esc => {
                 return Ok(Some(WindowEvent::PromptWindow(None)));

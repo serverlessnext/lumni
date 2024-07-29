@@ -1,7 +1,7 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    system_time_in_milliseconds, ConversationCache, ConversationDatabase,
+    ConversationCache, ConversationDatabase, Timestamp,
     ConversationId, ConversationDbHandler, Message, MessageId, ModelSpec,
 };
 use super::prepare::NewConversation;
@@ -62,7 +62,7 @@ impl PromptInstruction {
             if let Some(messages) = new_conversation.initial_messages {
                 let mut messages_to_insert = Vec::new();
 
-                let timestamp = system_time_in_milliseconds();
+                let timestamp = Timestamp::from_system_time()?.as_millis();
 
                 for (index, mut message) in messages.into_iter().enumerate() {
                     message.id = MessageId(index as i64);
@@ -106,11 +106,11 @@ impl PromptInstruction {
                 )
             })?;
         let model_spec = reader
-            .get_model_spec()
+            .fetch_model_spec()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
         let completion_options = reader
-            .get_completion_options()
+            .fetch_completion_options()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
         let completion_options: ChatCompletionOptions =
@@ -137,7 +137,7 @@ impl PromptInstruction {
 
         // Load messages
         let messages = reader
-            .get_all_messages()
+            .fetch_messages()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
         for message in messages {
             prompt_instruction.cache.add_message(message);
@@ -145,7 +145,7 @@ impl PromptInstruction {
 
         // Load attachments
         let attachments = reader
-            .get_all_attachments()
+            .fetch_attachments()
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
         for attachment in attachments {
             prompt_instruction.cache.add_attachment(attachment);
@@ -174,6 +174,7 @@ impl PromptInstruction {
         content: String,
         db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
+        let timestamp = Timestamp::from_system_time()?.as_millis();
         let message = Message {
             id: MessageId(0), // system message is first message in the conversation
             conversation_id: self.cache.get_conversation_id(),
@@ -183,7 +184,7 @@ impl PromptInstruction {
             token_length: Some(simple_token_estimator(&content, None)),
             content,
             previous_message_id: None,
-            created_at: system_time_in_milliseconds(),
+            created_at: timestamp,
             vote: 0,
             include_in_prompt: true,
             is_hidden: false,
@@ -245,7 +246,7 @@ impl PromptInstruction {
         db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
         let (user_message, assistant_message) =
-            self.finalize_last_messages(answer, tokens_predicted);
+            self.finalize_last_messages(answer, tokens_predicted)?;
 
         // Prepare messages for database insertion
         let mut messages_to_insert = Vec::new();
@@ -270,12 +271,15 @@ impl PromptInstruction {
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
-    ) -> (Option<Message>, Option<Message>) {
+    ) -> Result<(Option<Message>, Option<Message>), ApplicationError> {
         // Get the last message, which should be an unfinished assistant message
         let last_message = match self.cache.get_last_message() {
             Some(msg) if msg.role == PromptRole::Assistant => msg.clone(),
-            _ => return (None, None),
+            _ => {
+                return Ok((None, None));
+            }
         };
+        let timestamp = Timestamp::from_system_time()?.as_millis();
 
         let assistant_message = Message {
             id: last_message.id,
@@ -284,7 +288,7 @@ impl PromptInstruction {
             message_type: last_message.message_type,
             has_attachments: last_message.has_attachments,
             previous_message_id: last_message.previous_message_id,
-            created_at: system_time_in_milliseconds(),
+            created_at: timestamp,
             vote: last_message.vote,
             include_in_prompt: last_message.include_in_prompt,
             is_hidden: last_message.is_hidden,
@@ -323,7 +327,7 @@ impl PromptInstruction {
                 msg
             });
 
-        (user_message, Some(assistant_message))
+        Ok((user_message, Some(assistant_message)))
     }
 
     fn add_assistant_message(&mut self, content: &str) {
@@ -349,7 +353,8 @@ impl PromptInstruction {
         &mut self,
         question: &str,
         max_token_length: usize,
-    ) -> Vec<ChatMessage> {
+    ) -> Result<Vec<ChatMessage>, ApplicationError> {
+        let timestamp = Timestamp::from_system_time()?.as_millis();
         let message = Message {
             id: self.cache.new_message_id(),
             conversation_id: self.cache.get_conversation_id(),
@@ -359,7 +364,7 @@ impl PromptInstruction {
             has_attachments: false,
             token_length: None, // token length is computed after completion
             previous_message_id: self.cache.get_last_message_id(),
-            created_at: system_time_in_milliseconds(),
+            created_at: timestamp,
             vote: 0,
             include_in_prompt: true,
             is_hidden: false,
@@ -406,7 +411,7 @@ impl PromptInstruction {
         }
         // Reverse the messages to maintain chronological order
         messages.reverse();
-        messages
+        Ok(messages)
     }
 
     pub fn export_conversation(

@@ -3,16 +3,18 @@ use std::fmt;
 
 mod connector;
 mod display;
-mod helpers;
 mod model;
 mod handler;
 mod store;
 
-pub use helpers::system_time_in_milliseconds;
+pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 pub use handler::ConversationDbHandler;
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
+
+pub use crate::external as lumni;
+
 
 pub use super::ConversationCache;
 use super::PromptRole;

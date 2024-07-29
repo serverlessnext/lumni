@@ -127,7 +127,7 @@ impl ChatSession {
 
         let messages = self
             .prompt_instruction
-            .new_question(&user_question, max_token_length);
+            .new_question(&user_question, max_token_length)?;
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.cancel_tx = Some(cancel_tx); // channel to cancel

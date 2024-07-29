@@ -25,6 +25,10 @@ impl Timestamp {
             })
     }
 
+    pub fn as_millis(&self) -> i64 {
+        self.timestamp
+    }
+
     pub fn as_seconds(&self) -> i64 {
         self.timestamp / 1000
     }

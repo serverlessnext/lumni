@@ -51,10 +51,10 @@ impl Llama {
 
     fn set_completion_options(
         &mut self,
-        reader: &ConversationDbHandler,
+        handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        let options = reader
-            .get_completion_options()
+        let options = handler
+            .fetch_completion_options()
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
         // TODO: should map generic options to Llama-specific options
         self.completion_options = Some(options);
@@ -197,17 +197,17 @@ impl ServerTrait for Llama {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationDbHandler,
+        handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        let identifier = reader
-            .get_model_identifier()
+        let identifier = handler
+            .fetch_model_identifier()
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
-        let system_prompt = reader
-            .get_system_prompt()
+        let system_prompt = handler
+            .fetch_system_prompt()
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?
             .unwrap_or_default();
         // Send the system prompt to the completion endpoint at initialization
-        self.set_completion_options(reader)?;
+        self.set_completion_options(handler)?;
 
         let model_name = identifier.get_model_name().to_string();
         let system_prompt_payload =

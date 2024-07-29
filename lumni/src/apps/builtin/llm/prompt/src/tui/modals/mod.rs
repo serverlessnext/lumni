@@ -8,8 +8,8 @@ use ratatui::layout::Rect;
 use ratatui::Frame;
 
 pub use super::{
-    ApplicationError, ChatSession, Conversation, ConversationEvent,
-    ConversationDbHandler, KeyTrack, ModelServer, NewConversation,
+    ApplicationError, ChatSession, Conversation, ConversationDbHandler,
+    ConversationEvent, KeyTrack, ModelServer, NewConversation,
     PromptInstruction, Scroller, ServerManager, ServerTrait, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };

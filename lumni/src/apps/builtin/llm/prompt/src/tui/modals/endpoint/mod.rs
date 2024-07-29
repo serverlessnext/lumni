@@ -8,7 +8,7 @@ use ratatui::Frame;
 use select::SelectEndpoint;
 
 use super::{
-    ApplicationError, ChatSession, ConversationEvent, ConversationDbHandler,
+    ApplicationError, ChatSession, ConversationDbHandler, ConversationEvent,
     KeyTrack, ModalWindowTrait, ModalWindowType, ModelServer, NewConversation,
     Scroller, ServerManager, ServerTrait, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,

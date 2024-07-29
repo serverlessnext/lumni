@@ -154,7 +154,8 @@ pub async fn run_cli(
     let prompt_instruction = db_conn
         .fetch_last_conversation_id()?
         .and_then(|conversation_id| {
-            let handler = db_conn.get_conversation_handler(Some(conversation_id));
+            let handler =
+                db_conn.get_conversation_handler(Some(conversation_id));
             // Convert Result to Option using .ok()
             if new_conversation.is_equal(&handler).ok()? {
                 log::debug!("Continuing last conversation");

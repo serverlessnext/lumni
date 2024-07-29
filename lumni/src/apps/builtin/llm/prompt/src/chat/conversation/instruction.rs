@@ -1,8 +1,8 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationCache, ConversationDatabase, Timestamp,
-    ConversationId, ConversationDbHandler, Message, MessageId, ModelSpec,
+    ConversationCache, ConversationDatabase, ConversationDbHandler,
+    ConversationId, Message, MessageId, ModelSpec, Timestamp,
 };
 use super::prepare::NewConversation;
 use super::{

@@ -29,7 +29,9 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_model_identifier(&self) -> Result<ModelIdentifier, SqliteError> {
+    pub fn fetch_model_identifier(
+        &self,
+    ) -> Result<ModelIdentifier, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT m.identifier
@@ -56,27 +58,27 @@ impl<'a> ConversationDbHandler<'a> {
     }
 
     pub fn fetch_conversation_status(
-            &self,
-        ) -> Result<ConversationStatus, SqliteError> {
-            if let Some(conversation_id) = self.conversation_id {
-                let query = "SELECT status FROM conversations WHERE id = ?";
-                let mut db = self.db.lock().unwrap();
-                db.process_queue_with_result(|tx| {
-                    tx.query_row(query, params![conversation_id.0], |row| {
-                        let status: String = row.get(0)?;
-                        ConversationStatus::from_str(&status).map_err(|e| {
-                            SqliteError::FromSqlConversionFailure(
-                                0,
-                                rusqlite::types::Type::Text,
-                                Box::new(e),
-                            )
-                        })
+        &self,
+    ) -> Result<ConversationStatus, SqliteError> {
+        if let Some(conversation_id) = self.conversation_id {
+            let query = "SELECT status FROM conversations WHERE id = ?";
+            let mut db = self.db.lock().unwrap();
+            db.process_queue_with_result(|tx| {
+                tx.query_row(query, params![conversation_id.0], |row| {
+                    let status: String = row.get(0)?;
+                    ConversationStatus::from_str(&status).map_err(|e| {
+                        SqliteError::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
                     })
                 })
-            } else {
-                Err(SqliteError::QueryReturnedNoRows)
-            }
+            })
+        } else {
+            Err(SqliteError::QueryReturnedNoRows)
         }
+    }
 
     pub fn fetch_conversation_tags(&self) -> Result<Vec<String>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
@@ -322,6 +324,4 @@ impl<'a> ConversationDbHandler<'a> {
             Err(SqliteError::QueryReturnedNoRows)
         }
     }
-
-
 }

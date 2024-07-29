@@ -8,7 +8,7 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use super::chat::db::{
-    ConversationDatabase, ConversationId, ConversationDbHandler,
+    ConversationDatabase, ConversationDbHandler, ConversationId,
 };
 use super::chat::{
     AssistantManager, ChatSession, NewConversation, PromptInstruction,

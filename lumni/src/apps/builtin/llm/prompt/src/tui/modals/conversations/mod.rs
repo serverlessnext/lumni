@@ -10,14 +10,14 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, ChatSession, Conversation, ConversationEvent,
-    ConversationDbHandler, KeyTrack, ModalWindowTrait, ModalWindowType,
+    ApplicationError, ChatSession, Conversation, ConversationDbHandler,
+    ConversationEvent, KeyTrack, ModalWindowTrait, ModalWindowType,
     PromptInstruction, WindowEvent,
 };
 pub use crate::external as lumni;
 
-const MAX_WIDTH: u16 = 32;
-const MAX_HEIGHT: u16 = 20;
+const MAX_WIDTH: u16 = 40;
+const MAX_HEIGHT: u16 = 60;
 
 pub struct ConversationListModal {
     conversations: Vec<Conversation>,
@@ -77,24 +77,47 @@ impl ConversationListModal {
         &mut self,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        if let Some(conversation) = self.conversations.get(self.current_index).cloned() {
+        if let Some(conversation) =
+            self.conversations.get(self.current_index).cloned()
+        {
             let new_pin_status = !conversation.is_pinned;
-            handler.update_conversation_pin_status(new_pin_status, Some(conversation.id))?;
-            
+            handler.update_conversation_pin_status(
+                new_pin_status,
+                Some(conversation.id),
+            )?;
+
             // Update the local list
             if let Some(conv) = self.conversations.get_mut(self.current_index) {
                 conv.is_pinned = new_pin_status;
             }
-            
+
             // Re-sort the conversations list
             self.conversations.sort_by(|a, b| {
-                b.is_pinned.cmp(&a.is_pinned).then(b.updated_at.cmp(&a.updated_at))
+                b.is_pinned
+                    .cmp(&a.is_pinned)
+                    .then(b.updated_at.cmp(&a.updated_at))
             });
-            
+
             // Update the current_index to match the moved conversation
-            self.current_index = self.conversations.iter()
+            self.current_index = self
+                .conversations
+                .iter()
                 .position(|c| c.id == conversation.id)
                 .unwrap_or(0);
+        }
+        Ok(())
+    }
+
+    async fn soft_delete_conversation(
+        &mut self,
+        handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(conversation) = self.conversations.get(self.current_index) {
+            handler.soft_delete_conversation(Some(conversation.id))?;
+            self.conversations.remove(self.current_index);
+            if self.current_index >= self.conversations.len() && self.current_index > 0 {
+                self.current_index -= 1;
+            }
         }
         Ok(())
     }
@@ -188,7 +211,11 @@ impl ModalWindowTrait for ConversationListModal {
                 } else {
                     Style::default()
                 };
-                let pin_indicator = if conversation.is_pinned { "📌 " } else { "  " };
+                let pin_indicator = if conversation.is_pinned {
+                    "📌 "
+                } else {
+                    "  "
+                };
                 ListItem::new(vec![
                     Line::from(vec![
                         Span::styled(pin_indicator, style),
@@ -273,6 +300,9 @@ impl ModalWindowTrait for ConversationListModal {
             }
             KeyCode::Char('p') | KeyCode::Char('P') => {
                 self.toggle_pin_status(handler).await?;
+            }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                self.soft_delete_conversation(handler).await?;
             }
             KeyCode::Esc => {
                 return Ok(Some(WindowEvent::PromptWindow(None)));

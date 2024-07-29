@@ -3,21 +3,19 @@ use std::fmt;
 
 mod connector;
 mod display;
-mod model;
 mod handler;
+mod model;
 mod store;
 
+pub use handler::ConversationDbHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
-pub use handler::ConversationDbHandler;
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
 
-pub use crate::external as lumni;
-
-
 pub use super::ConversationCache;
 use super::PromptRole;
+pub use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelServerName(pub String);

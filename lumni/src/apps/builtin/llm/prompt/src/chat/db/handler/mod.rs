@@ -1,3 +1,4 @@
+mod delete;
 mod fetch;
 mod update;
 
@@ -37,4 +38,3 @@ impl<'a> ConversationDbHandler<'a> {
         self.conversation_id = Some(conversation_id);
     }
 }
-

@@ -14,8 +14,8 @@ use tokio::time::{interval, Duration};
 
 use super::{
     AppSession, ChatSession, ColorScheme, CommandLineAction,
-    CompletionResponse, ConversationDatabase, ConversationEvent,
-    ConversationDbHandler, KeyEventHandler, ModalWindowType, PromptAction,
+    CompletionResponse, ConversationDatabase, ConversationDbHandler,
+    ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction,
     PromptInstruction, TabSession, TabUi, TextWindowTrait, WindowEvent,
     WindowKind,
 };

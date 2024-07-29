@@ -20,7 +20,9 @@ pub use window::{
     TextWindowTrait, WindowKind,
 };
 
-pub use super::chat::db::{Conversation, ConversationDbHandler, ModelSpec};
+pub use super::chat::db::{
+    Conversation, ConversationDbHandler, ConversationStatus, ModelSpec,
+};
 pub use super::chat::{ChatSession, NewConversation, PromptInstruction};
 pub use super::server::{
     ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,

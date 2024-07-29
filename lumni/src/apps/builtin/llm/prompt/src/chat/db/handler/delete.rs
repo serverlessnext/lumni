@@ -1,7 +1,7 @@
 use super::*;
 
 impl<'a> ConversationDbHandler<'a> {
-    pub fn hard_delete_conversation(
+    pub fn permanent_delete_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {

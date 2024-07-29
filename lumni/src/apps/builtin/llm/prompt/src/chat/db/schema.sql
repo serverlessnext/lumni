@@ -25,7 +25,7 @@ CREATE TABLE conversations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     message_count INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
-    is_deleted BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,  -- NOTE, will be removed given that we have status
     is_pinned BOOLEAN DEFAULT FALSE,
     status TEXT CHECK(status IN ('active', 'archived', 'deleted')) DEFAULT 'active',
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),

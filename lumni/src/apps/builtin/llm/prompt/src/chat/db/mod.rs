@@ -47,6 +47,16 @@ pub enum ConversationStatus {
 }
 
 impl ConversationStatus {
+    pub fn to_string(&self) -> String {
+        match self {
+            ConversationStatus::Active => "active".to_string(),
+            ConversationStatus::Archived => "archived".to_string(),
+            ConversationStatus::Deleted => "deleted".to_string(),
+        }
+    }
+}
+
+impl ConversationStatus {
     pub fn from_str(s: &str) -> Result<Self, ConversionError> {
         match s {
             "active" => Ok(ConversationStatus::Active),

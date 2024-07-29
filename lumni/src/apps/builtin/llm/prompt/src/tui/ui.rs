@@ -2,7 +2,7 @@ use lumni::api::error::ApplicationError;
 
 use super::modals::{ConversationListModal, SelectEndpointModal};
 use super::{
-    CommandLine, ConversationReader, ModalWindowTrait, ModalWindowType,
+    CommandLine, ConversationDbHandler, ModalWindowTrait, ModalWindowType,
     PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowEvent,
     WindowKind,
 };
@@ -36,14 +36,14 @@ impl TabUi<'_> {
     pub fn set_new_modal(
         &mut self,
         modal_type: ModalWindowType,
-        reader: &ConversationReader<'_>,
+        handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
             ModalWindowType::SelectEndpoint => {
                 Some(Box::new(SelectEndpointModal::new()))
             }
             ModalWindowType::ConversationList => {
-                Some(Box::new(ConversationListModal::new(reader)?))
+                Some(Box::new(ConversationListModal::new(handler)?))
             }
         };
         Ok(())

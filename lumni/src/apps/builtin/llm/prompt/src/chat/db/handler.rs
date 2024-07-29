@@ -8,24 +8,24 @@ use super::{
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
 };
 
-pub struct ConversationReader<'a> {
+pub struct ConversationDbHandler<'a> {
     conversation_id: Option<ConversationId>,
     db: &'a Arc<Mutex<DatabaseConnector>>,
 }
 
-impl<'a> ConversationReader<'a> {
+impl<'a> ConversationDbHandler<'a> {
     pub fn new(
         conversation_id: Option<ConversationId>,
         db: &'a Arc<Mutex<DatabaseConnector>>,
     ) -> Self {
-        ConversationReader {
+        ConversationDbHandler {
             conversation_id,
             db,
         }
     }
 }
 
-impl<'a> ConversationReader<'a> {
+impl<'a> ConversationDbHandler<'a> {
     pub fn get_conversation_id(&self) -> Option<ConversationId> {
         self.conversation_id
     }
@@ -306,7 +306,7 @@ impl<'a> ConversationReader<'a> {
     }
 }
 
-impl<'a> ConversationReader<'a> {
+impl<'a> ConversationDbHandler<'a> {
     pub fn fetch_conversation_list(
         &self,
         limit: usize,

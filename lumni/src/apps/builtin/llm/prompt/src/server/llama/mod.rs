@@ -13,7 +13,7 @@ use url::Url;
 pub use super::PromptRole;
 use super::{
     http_get_with_response, http_post, ChatMessage, CompletionResponse,
-    CompletionStats, ConversationReader, Endpoints, HttpClient, ModelSpec,
+    CompletionStats, ConversationDbHandler, Endpoints, HttpClient, ModelSpec,
     ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
@@ -51,7 +51,7 @@ impl Llama {
 
     fn set_completion_options(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let options = reader
             .get_completion_options()
@@ -197,7 +197,7 @@ impl ServerTrait for Llama {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let identifier = reader
             .get_model_identifier()

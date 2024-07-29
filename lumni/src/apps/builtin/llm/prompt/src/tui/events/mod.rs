@@ -16,7 +16,7 @@ use super::window::{
     WindowKind,
 };
 use super::{
-    ChatSession, ConversationReader, NewConversation, PromptInstruction,
+    ChatSession, ConversationDbHandler, NewConversation, PromptInstruction,
 };
 pub use crate::external as lumni;
 

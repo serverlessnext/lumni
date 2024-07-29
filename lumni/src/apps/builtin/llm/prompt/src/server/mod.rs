@@ -22,7 +22,7 @@ pub use response::{CompletionResponse, CompletionStats};
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
-pub use super::chat::db::{ConversationReader, ModelServerName, ModelSpec};
+pub use super::chat::db::{ConversationDbHandler, ModelServerName, ModelSpec};
 pub use super::chat::{
     http_get_with_response, http_post, http_post_with_response, ChatMessage,
     PromptRole,
@@ -84,7 +84,7 @@ impl ServerTrait for ModelServer {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
@@ -173,7 +173,7 @@ pub trait ServerTrait: Send + Sync {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError>;
 
     async fn completion(
@@ -224,7 +224,7 @@ pub trait ServerTrait: Send + Sync {
 pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         self.initialize_with_model(reader).await
     }

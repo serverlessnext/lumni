@@ -5,14 +5,14 @@ mod connector;
 mod display;
 mod helpers;
 mod model;
-mod reader;
+mod handler;
 mod store;
 
 pub use helpers::system_time_in_milliseconds;
 pub use model::{ModelIdentifier, ModelSpec};
-pub use reader::ConversationReader;
+pub use handler::ConversationDbHandler;
 use serde::{Deserialize, Serialize};
-pub use store::ConversationDatabaseStore;
+pub use store::ConversationDatabase;
 
 pub use super::ConversationCache;
 use super::PromptRole;

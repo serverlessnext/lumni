@@ -1,6 +1,6 @@
 use lumni::api::error::ApplicationError;
 
-use super::db::{ConversationReader, Message, ModelServerName, ModelSpec};
+use super::db::{ConversationDbHandler, Message, ModelServerName, ModelSpec};
 use super::{ParentConversation, PromptRole};
 pub use crate::external as lumni;
 
@@ -18,17 +18,17 @@ impl NewConversation {
     pub fn new(
         new_server: ModelServerName,
         new_model: ModelSpec,
-        conversation_reader: &ConversationReader<'_>,
+        conversation_handler: &ConversationDbHandler<'_>,
     ) -> Result<NewConversation, ApplicationError> {
-        match conversation_reader.get_conversation_id() {
+        match conversation_handler.get_conversation_id() {
             Some(current_conversation_id) => {
                 // Fork from an existing conversation
                 let mut current_completion_options =
-                    conversation_reader.get_completion_options()?;
+                    conversation_handler.get_completion_options()?;
                 current_completion_options["model_server"] =
                     serde_json::to_value(new_server.clone())?;
 
-                let parent = conversation_reader.get_last_message_id()?.map(
+                let parent = conversation_handler.get_last_message_id()?.map(
                     |last_message_id| ParentConversation {
                         id: current_conversation_id,
                         fork_message_id: last_message_id,
@@ -59,7 +59,7 @@ impl NewConversation {
 
     pub fn is_equal(
         &self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<bool, ApplicationError> {
         // check if conversation settings are equal to the conversation stored in the database
 

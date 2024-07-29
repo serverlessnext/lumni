@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::db::{ConversationDatabaseStore, ConversationId};
+use super::db::{ConversationDatabase, ConversationId};
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
@@ -20,7 +20,7 @@ pub struct ChatSession {
 impl ChatSession {
     pub async fn new(
         prompt_instruction: PromptInstruction,
-        db_conn: &ConversationDatabaseStore,
+        db_conn: &ConversationDatabase,
     ) -> Result<Self, ApplicationError> {
         let server = if let Some(model_server) = prompt_instruction
             .get_completion_options()
@@ -30,10 +30,10 @@ impl ChatSession {
             let mut server: Box<dyn ServerManager> =
                 Box::new(ModelServer::from_str(&model_server.to_string())?);
             // try to initialize the server
-            let reader = db_conn.get_conversation_reader(
+            let handler = db_conn.get_conversation_handler(
                 prompt_instruction.get_conversation_id(),
             );
-            match server.setup_and_initialize(&reader).await {
+            match server.setup_and_initialize(&handler).await {
                 Ok(_) => (),
                 Err(ApplicationError::NotReady(e)) => {
                     // warn only, allow to continue
@@ -74,7 +74,7 @@ impl ChatSession {
         }
     }
 
-    pub fn reset(&mut self, db: &ConversationDatabaseStore) {
+    pub fn reset(&mut self, db: &ConversationDatabase) {
         self.stop();
         _ = self.prompt_instruction.reset_history(db);
     }
@@ -85,7 +85,7 @@ impl ChatSession {
 
     pub async fn finalize_last_exchange(
         &mut self,
-        db: &ConversationDatabaseStore,
+        db: &ConversationDatabase,
         tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
         let last_answer = self.prompt_instruction.get_last_response();

@@ -9,7 +9,7 @@ use ratatui::Frame;
 
 pub use super::{
     ApplicationError, ChatSession, Conversation, ConversationEvent,
-    ConversationReader, KeyTrack, ModelServer, NewConversation,
+    ConversationDbHandler, KeyTrack, ModelServer, NewConversation,
     PromptInstruction, Scroller, ServerManager, ServerTrait, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
@@ -28,6 +28,6 @@ pub trait ModalWindowTrait {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: &mut ConversationReader<'_>,
+        handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError>;
 }

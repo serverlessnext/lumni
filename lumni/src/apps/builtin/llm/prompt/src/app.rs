@@ -19,7 +19,7 @@ use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::ConversationDatabaseStore;
+use super::chat::db::ConversationDatabase;
 use super::chat::{
     AssistantManager, ChatSession, NewConversation, PromptInstruction,
 };
@@ -91,7 +91,7 @@ pub async fn run_cli(
     let config_dir =
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
-    let db_conn = ConversationDatabaseStore::new(&sqlite_file)?;
+    let db_conn = ConversationDatabase::new(&sqlite_file)?;
 
     if let Some(db_matches) = matches.subcommand_matches("db") {
         if db_matches.contains_id("list") {
@@ -154,11 +154,11 @@ pub async fn run_cli(
     let prompt_instruction = db_conn
         .fetch_last_conversation_id()?
         .and_then(|conversation_id| {
-            let reader = db_conn.get_conversation_reader(Some(conversation_id));
+            let handler = db_conn.get_conversation_handler(Some(conversation_id));
             // Convert Result to Option using .ok()
-            if new_conversation.is_equal(&reader).ok()? {
+            if new_conversation.is_equal(&handler).ok()? {
                 log::debug!("Continuing last conversation");
-                Some(PromptInstruction::from_reader(&reader))
+                Some(PromptInstruction::from_reader(&handler))
             } else {
                 None
             }
@@ -187,7 +187,7 @@ pub async fn run_cli(
 
 async fn interactive_mode(
     app_session: AppSession<'_>,
-    db_conn: ConversationDatabaseStore,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
@@ -233,7 +233,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
-    _db_conn: ConversationDatabaseStore,
+    _db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();

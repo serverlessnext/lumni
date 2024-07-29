@@ -1,8 +1,8 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    system_time_in_milliseconds, ConversationCache, ConversationDatabaseStore,
-    ConversationId, ConversationReader, Message, MessageId, ModelSpec,
+    system_time_in_milliseconds, ConversationCache, ConversationDatabase,
+    ConversationId, ConversationDbHandler, Message, MessageId, ModelSpec,
 };
 use super::prepare::NewConversation;
 use super::{
@@ -21,7 +21,7 @@ pub struct PromptInstruction {
 impl PromptInstruction {
     pub fn new(
         new_conversation: NewConversation,
-        db_conn: &ConversationDatabaseStore,
+        db_conn: &ConversationDatabase,
     ) -> Result<Self, ApplicationError> {
         let completion_options = match new_conversation.options {
             Some(opts) => {
@@ -96,7 +96,7 @@ impl PromptInstruction {
     }
 
     pub fn from_reader(
-        reader: &ConversationReader<'_>,
+        reader: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
         // if conversation_id is none, it should err
         let conversation_id =
@@ -172,7 +172,7 @@ impl PromptInstruction {
     fn add_system_message(
         &mut self,
         content: String,
-        db_conn: &ConversationDatabaseStore,
+        db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
         let message = Message {
             id: MessageId(0), // system message is first message in the conversation
@@ -197,7 +197,7 @@ impl PromptInstruction {
 
     pub fn reset_history(
         &mut self,
-        db_conn: &ConversationDatabaseStore,
+        db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
@@ -242,7 +242,7 @@ impl PromptInstruction {
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
-        db_conn: &ConversationDatabaseStore,
+        db_conn: &ConversationDatabase,
     ) -> Result<(), ApplicationError> {
         let (user_message, assistant_message) =
             self.finalize_last_messages(answer, tokens_predicted);

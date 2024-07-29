@@ -8,7 +8,7 @@ use ratatui::Frame;
 use select::SelectEndpoint;
 
 use super::{
-    ApplicationError, ChatSession, ConversationEvent, ConversationReader,
+    ApplicationError, ChatSession, ConversationEvent, ConversationDbHandler,
     KeyTrack, ModalWindowTrait, ModalWindowType, ModelServer, NewConversation,
     Scroller, ServerManager, ServerTrait, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
@@ -51,7 +51,7 @@ impl ModalWindowTrait for SelectEndpointModal {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: &'a mut ChatSession,
-        reader: &mut ConversationReader<'_>,
+        handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
@@ -76,7 +76,7 @@ impl ModalWindowTrait for SelectEndpointModal {
                             let new_conversation = NewConversation::new(
                                 server.server_name(),
                                 model,
-                                &reader,
+                                &handler,
                             )?;
                             // Return the new conversation event
                             Ok(Some(WindowEvent::PromptWindow(Some(

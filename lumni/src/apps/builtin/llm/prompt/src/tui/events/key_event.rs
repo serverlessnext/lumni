@@ -7,7 +7,7 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    ApplicationError, ChatSession, ConversationReader, TabUi, WindowEvent,
+    ApplicationError, ChatSession, ConversationDbHandler, TabUi, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -159,7 +159,7 @@ impl KeyEventHandler {
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-        reader: &mut ConversationReader<'_>,
+        handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self
@@ -201,7 +201,7 @@ impl KeyEventHandler {
                             .handle_key_event(
                                 &mut self.key_track,
                                 tab_chat,
-                                reader,
+                                handler,
                             )
                             .await
                         {

@@ -5,28 +5,28 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 
 use super::connector::DatabaseConnector;
 use super::helpers::system_time_in_milliseconds;
-use super::reader::ConversationReader;
+use super::handler::ConversationDbHandler;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
 };
 
-pub struct ConversationDatabaseStore {
+pub struct ConversationDatabase {
     db: Arc<Mutex<DatabaseConnector>>,
 }
 
-impl ConversationDatabaseStore {
+impl ConversationDatabase {
     pub fn new(sqlite_file: &PathBuf) -> Result<Self, SqliteError> {
         Ok(Self {
             db: Arc::new(Mutex::new(DatabaseConnector::new(sqlite_file)?)),
         })
     }
 
-    pub fn get_conversation_reader(
+    pub fn get_conversation_handler(
         &self,
         conversation_id: Option<ConversationId>,
-    ) -> ConversationReader {
-        ConversationReader::new(conversation_id, &self.db)
+    ) -> ConversationDbHandler {
+        ConversationDbHandler::new(conversation_id, &self.db)
     }
 
     pub fn new_conversation(
@@ -301,12 +301,12 @@ impl ConversationDatabaseStore {
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
-        let reader = self.get_conversation_reader(None);
+        let reader = self.get_conversation_handler(None);
         reader.fetch_conversation_list(limit)
     }
 }
 
-impl ConversationDatabaseStore {
+impl ConversationDatabase {
     pub fn put_new_message(
         &self,
         message: &Message,

@@ -1,9 +1,9 @@
 use lumni::api::error::ApplicationError;
 
-use super::{Conversation, ConversationDatabaseStore, ConversationId, Message};
+use super::{Conversation, ConversationDatabase, ConversationId, Message};
 pub use crate::external as lumni;
 
-impl ConversationDatabaseStore {
+impl ConversationDatabase {
     pub async fn print_last_conversation(
         &self,
     ) -> Result<(), ApplicationError> {

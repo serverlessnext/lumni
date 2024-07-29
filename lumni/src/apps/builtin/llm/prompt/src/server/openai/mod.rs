@@ -20,7 +20,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, ModelSpec, ServerSpecTrait, ServerTrait,
+    ConversationDbHandler, Endpoints, ModelSpec, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
 
@@ -93,7 +93,7 @@ impl ServerTrait for OpenAI {
 
     async fn initialize_with_model(
         &mut self,
-        _reader: &ConversationReader,
+        _reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         Ok(())
     }

@@ -19,7 +19,7 @@ use url::Url;
 
 use super::{
     http_post, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, ModelSpec, PromptRole, ServerSpecTrait,
+    ConversationDbHandler, Endpoints, ModelSpec, PromptRole, ServerSpecTrait,
     ServerTrait,
 };
 pub use crate::external as lumni;
@@ -123,7 +123,7 @@ impl ServerTrait for Bedrock {
 
     async fn initialize_with_model(
         &mut self,
-        _reader: &ConversationReader,
+        _reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         Ok(())
     }

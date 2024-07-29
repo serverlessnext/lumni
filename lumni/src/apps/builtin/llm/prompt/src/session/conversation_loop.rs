@@ -14,8 +14,8 @@ use tokio::time::{interval, Duration};
 
 use super::{
     AppSession, ChatSession, ColorScheme, CommandLineAction,
-    CompletionResponse, ConversationDatabaseStore, ConversationEvent,
-    ConversationReader, KeyEventHandler, ModalWindowType, PromptAction,
+    CompletionResponse, ConversationDatabase, ConversationEvent,
+    ConversationDbHandler, KeyEventHandler, ModalWindowType, PromptAction,
     PromptInstruction, TabSession, TabUi, TextWindowTrait, WindowEvent,
     WindowKind,
 };
@@ -28,7 +28,7 @@ const CHANNEL_QUEUE_SIZE: usize = 100;
 pub async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app_session: AppSession<'_>,
-    db_conn: ConversationDatabaseStore,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let tab = app_session.get_tab_mut(0).expect("No tab found");
     let color_scheme = tab.color_scheme.clone();
@@ -40,16 +40,16 @@ pub async fn prompt_app<B: Backend>(
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
-    let mut reader =
-        db_conn.get_conversation_reader(tab.chat.get_conversation_id());
+    let mut db_handler =
+        db_conn.get_conversation_handler(tab.chat.get_conversation_id());
     let mut trim_buffer: Option<String> = None;
 
     loop {
         tokio::select! {
             _ = tick.tick() => {
-                let reader_needs_update = handle_tick(terminal, tab, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut reader, &color_scheme, tx.clone(), &db_conn).await?;
-                if reader_needs_update {
-                    reader = db_conn.get_conversation_reader(tab.chat.get_conversation_id());
+                let handler_needs_update = handle_tick(terminal, tab, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme, tx.clone(), &db_conn).await?;
+                if handler_needs_update {
+                    db_handler = db_conn.get_conversation_handler(tab.chat.get_conversation_id());
                 }
             },
             Some(response_bytes) = rx.recv() => {
@@ -71,29 +71,29 @@ async fn handle_tick<B: Backend>(
     current_mode: &mut Option<WindowEvent>,
     key_event_handler: &mut KeyEventHandler,
     keep_running: &Arc<AtomicBool>,
-    reader: &mut ConversationReader<'_>,
+    handler: &mut ConversationDbHandler<'_>,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
 ) -> Result<bool, ApplicationError> {
     if *redraw_ui {
         tab.draw_ui(terminal)?;
         *redraw_ui = false;
     }
 
-    let mut reader_needs_update = false;
+    let mut handler_needs_update = false;
 
     if poll(Duration::from_millis(1))? {
         let event = read()?;
         match event {
             Event::Key(key_event) => {
-                reader_needs_update = handle_key_event(
+                handler_needs_update = handle_key_event(
                     tab,
                     current_mode,
                     key_event_handler,
                     key_event,
                     keep_running,
-                    reader,
+                    handler,
                     color_scheme,
                     tx,
                     db_conn,
@@ -105,7 +105,7 @@ async fn handle_tick<B: Backend>(
         }
         *redraw_ui = true;
     }
-    Ok(reader_needs_update)
+    Ok(handler_needs_update)
 }
 
 async fn handle_key_event(
@@ -114,10 +114,10 @@ async fn handle_key_event(
     key_event_handler: &mut KeyEventHandler,
     key_event: KeyEvent,
     keep_running: &Arc<AtomicBool>,
-    reader: &mut ConversationReader<'_>,
+    handler: &mut ConversationDbHandler<'_>,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
 ) -> Result<bool, ApplicationError> {
     *current_mode = if let Some(mode) = current_mode.take() {
         key_event_handler
@@ -127,13 +127,13 @@ async fn handle_key_event(
                 &mut tab.chat,
                 mode,
                 keep_running.clone(),
-                reader,
+                handler,
             )
             .await?
     } else {
         None
     };
-    let mut reader_needs_update = false;
+    let mut handler_needs_update = false;
     match current_mode.as_mut() {
         Some(WindowEvent::Prompt(prompt_action)) => {
             handle_prompt_action(
@@ -150,16 +150,16 @@ async fn handle_key_event(
             handle_command_line_action(tab, action.clone());
         }
         Some(WindowEvent::Modal(modal_window_type)) => {
-            handle_modal_window(tab, *modal_window_type, reader)?;
+            handle_modal_window(tab, *modal_window_type, handler)?;
         }
         Some(WindowEvent::PromptWindow(event)) => {
-            reader_needs_update =
+            handler_needs_update =
                 handle_prompt_window_event(tab, event.clone(), db_conn).await?;
         }
         _ => {}
     }
 
-    Ok(reader_needs_update)
+    Ok(handler_needs_update)
 }
 
 fn handle_mouse_event(tab: &mut TabSession, mouse_event: MouseEvent) {
@@ -177,7 +177,7 @@ async fn handle_prompt_action(
     prompt_action: PromptAction,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     match prompt_action {
         PromptAction::Write(prompt) => {
@@ -223,10 +223,10 @@ fn handle_command_line_action(
 fn handle_modal_window(
     tab: &mut TabSession,
     modal_window_type: ModalWindowType,
-    reader: &ConversationReader,
+    handler: &ConversationDbHandler,
 ) -> Result<(), ApplicationError> {
     if tab.ui.needs_modal_update(modal_window_type) {
-        tab.ui.set_new_modal(modal_window_type, reader)?;
+        tab.ui.set_new_modal(modal_window_type, handler)?;
     }
     Ok(())
 }
@@ -234,7 +234,7 @@ fn handle_modal_window(
 async fn handle_prompt_window_event(
     tab: &mut TabSession<'_>,
     event: Option<ConversationEvent>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
 ) -> Result<bool, ApplicationError> {
     match event {
         Some(ConversationEvent::NewConversation(new_conversation)) => {
@@ -264,7 +264,7 @@ async fn process_response(
     tab: &mut TabSession<'_>,
     trim_buffer: &mut Option<String>,
     response_bytes: Bytes,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
     color_scheme: &ColorScheme,
     rx: &mut mpsc::Receiver<Bytes>,
     redraw_ui: &mut bool,
@@ -338,7 +338,7 @@ fn update_trim_buffer(
 async fn finalize_response_stream(
     tab: &mut TabSession<'_>,
     response: Option<CompletionResponse>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
     color_scheme: &ColorScheme,
     rx: &mut mpsc::Receiver<Bytes>,
 ) -> Result<(), ApplicationError> {
@@ -376,7 +376,7 @@ async fn finalize_response_stream(
 async fn finalize_response(
     chat: &mut ChatSession,
     tab_ui: &mut TabUi<'_>,
-    db_conn: &ConversationDatabaseStore,
+    db_conn: &ConversationDatabase,
     tokens_predicted: Option<usize>,
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {

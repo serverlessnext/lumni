@@ -11,7 +11,7 @@ use ratatui::Frame;
 
 use super::{
     ApplicationError, ChatSession, Conversation, ConversationEvent,
-    ConversationReader, KeyTrack, ModalWindowTrait, ModalWindowType,
+    ConversationDbHandler, KeyTrack, ModalWindowTrait, ModalWindowType,
     PromptInstruction, WindowEvent,
 };
 pub use crate::external as lumni;
@@ -27,7 +27,7 @@ pub struct ConversationListModal {
 
 impl ConversationListModal {
     pub fn new(
-        reader: &ConversationReader<'_>,
+        reader: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
         let conversations = reader.fetch_conversation_list(100)?;
         Ok(Self {
@@ -56,11 +56,11 @@ impl ConversationListModal {
 
     async fn load_conversation(
         &self,
-        reader: &mut ConversationReader<'_>,
+        handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if let Some(conversation) = self.conversations.get(self.current_index) {
-            reader.set_conversation_id(conversation.id);
-            match PromptInstruction::from_reader(reader) {
+            handler.set_conversation_id(conversation.id);
+            match PromptInstruction::from_reader(handler) {
                 Ok(prompt_instruction) => Ok(Some(WindowEvent::PromptWindow(
                     Some(ConversationEvent::ContinueConversation(
                         prompt_instruction,
@@ -227,7 +227,7 @@ impl ModalWindowTrait for ConversationListModal {
         &'a mut self,
         key_event: &'a mut KeyTrack,
         _tab_chat: &'a mut ChatSession,
-        reader: &mut ConversationReader<'_>,
+        handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => {
@@ -241,7 +241,7 @@ impl ModalWindowTrait for ConversationListModal {
                 }
             }
             KeyCode::Enter => {
-                return self.load_conversation(reader).await;
+                return self.load_conversation(handler).await;
             }
             KeyCode::Esc => {
                 return Ok(Some(WindowEvent::PromptWindow(None)));

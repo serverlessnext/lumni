@@ -9,7 +9,7 @@ use url::Url;
 use super::{
     http_get_with_response, http_post, http_post_with_response,
     ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationReader, Endpoints, HttpClient, ModelSpec, ServerSpecTrait,
+    ConversationDbHandler, Endpoints, HttpClient, ModelSpec, ServerSpecTrait,
     ServerTrait,
 };
 
@@ -71,7 +71,7 @@ impl ServerTrait for Ollama {
 
     async fn initialize_with_model(
         &mut self,
-        reader: &ConversationReader,
+        reader: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let identifier = reader.get_model_identifier().map_err(|e| {
             ApplicationError::NotReady(format!(

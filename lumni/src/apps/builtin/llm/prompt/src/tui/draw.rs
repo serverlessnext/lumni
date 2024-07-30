@@ -40,7 +40,7 @@ pub fn draw_ui<B: Backend>(
             main_window[0],
         );
 
-        let command_line_area = main_window[1];
+        let command_line_area: Rect = main_window[1];
 
         // first element is response text, second is prompt editor
         // editor: min 3 lines + 2 to account for border

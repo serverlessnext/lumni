@@ -11,23 +11,26 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, ChatSession, Conversation, ConversationDbHandler,
-    ConversationEvent, ConversationStatus, KeyTrack, ModalWindowTrait,
-    ModalWindowType, PromptInstruction, WindowEvent,
+    ApplicationError, ChatSession, CommandLine, Conversation,
+    ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
+    ModalWindowTrait, ModalWindowType, PromptInstruction, TextWindowTrait,
+    WindowEvent,
 };
 pub use crate::external as lumni;
 
 const MAX_WIDTH: u16 = 40;
 const MAX_HEIGHT: u16 = 60;
 
-pub struct ConversationListModal {
+pub struct ConversationListModal<'a> {
     conversations: Vec<Conversation>,
     current_index: usize,
     scroll_offset: usize,
     current_tab: ConversationStatus,
+    edit_name_line: Option<CommandLine<'a>>,
+    editing_index: Option<usize>,
 }
 
-impl ConversationListModal {
+impl<'a> ConversationListModal<'a> {
     pub fn new(
         handler: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
@@ -37,11 +40,14 @@ impl ConversationListModal {
             current_index: 0,
             scroll_offset: 0,
             current_tab: ConversationStatus::Active,
+            edit_name_line: None,
+            editing_index: None,
         })
     }
 
     fn format_timestamp(timestamp: i64) -> String {
-        Timestamp::epoch_to_rfc3339(timestamp / 1000)
+        Timestamp::new(timestamp)
+            .format("[year]-[month]-[day] [hour]:[minute]:[second]")
             .unwrap_or_else(|_| "Invalid timestamp".to_string())
     }
 
@@ -80,30 +86,36 @@ impl ConversationListModal {
         &mut self,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        let conversation_id = self.get_current_conversation()
+        let conversation_id = self
+            .get_current_conversation()
             .map(|conv| (conv.id, conv.is_pinned));
-    
+
         if let Some((id, is_pinned)) = conversation_id {
             let new_pin_status = !is_pinned;
             handler.update_conversation_pin_status(new_pin_status, Some(id))?;
-        
+
             // Update the local list
-            if let Some(conv) = self.conversations.iter_mut().find(|c| c.id == id) {
+            if let Some(conv) =
+                self.conversations.iter_mut().find(|c| c.id == id)
+            {
                 conv.is_pinned = new_pin_status;
             }
-        
+
             // Sort only conversations in the current tab
             let current_tab = self.current_tab;
             self.conversations.sort_by(|a, b| {
                 if a.status == current_tab && b.status == current_tab {
-                    b.is_pinned.cmp(&a.is_pinned).then(b.updated_at.cmp(&a.updated_at))
+                    b.is_pinned
+                        .cmp(&a.is_pinned)
+                        .then(b.updated_at.cmp(&a.updated_at))
                 } else {
                     std::cmp::Ordering::Equal
                 }
             });
-        
+
             // Update the current_index to match the moved conversation
-            self.current_index = self.conversations
+            self.current_index = self
+                .conversations
                 .iter()
                 .position(|c| c.id == id)
                 .unwrap_or(0);
@@ -159,13 +171,16 @@ impl ConversationListModal {
         &mut self,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        let conversation_id = self.get_current_conversation().map(|conv| conv.id);
+        let conversation_id =
+            self.get_current_conversation().map(|conv| conv.id);
 
         if let Some(id) = conversation_id {
             handler.permanent_delete_conversation(Some(id))?;
             self.conversations.retain(|c| c.id != id);
 
-            let filtered_count = self.conversations.iter()
+            let filtered_count = self
+                .conversations
+                .iter()
                 .filter(|conv| conv.status == self.current_tab)
                 .count();
 
@@ -174,7 +189,8 @@ impl ConversationListModal {
                 self.current_tab = ConversationStatus::Active;
             }
 
-            self.current_index = self.current_index.min(filtered_count.saturating_sub(1));
+            self.current_index =
+                self.current_index.min(filtered_count.saturating_sub(1));
         }
         Ok(())
     }
@@ -192,10 +208,24 @@ impl ConversationListModal {
             .filter(|conv| conv.status == self.current_tab)
             .nth(self.current_index)
     }
+
+    async fn edit_conversation_name(
+        &mut self,
+        handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(conversation) = self.get_current_conversation() {
+            let mut command_line = CommandLine::new();
+            command_line.text_set(&conversation.name, None)?;
+            command_line.set_status_insert();
+            self.edit_name_line = Some(command_line);
+            self.editing_index = Some(self.current_index);
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
-impl ModalWindowTrait for ConversationListModal {
+impl<'a> ModalWindowTrait for ConversationListModal<'a> {
     fn get_type(&self) -> ModalWindowType {
         ModalWindowType::ConversationList
     }
@@ -223,9 +253,7 @@ impl ModalWindowTrait for ConversationListModal {
         frame.render_widget(Clear, area);
 
         // Render Details box
-        if let Some(selected_conversation) =
-            self.conversations.get(self.current_index)
-        {
+        if let Some(selected_conversation) = self.get_current_conversation() {
             let details = vec![
                 Line::from(vec![
                     Span::styled("Name: ", Style::default().fg(Color::Cyan)),
@@ -377,19 +405,31 @@ impl ModalWindowTrait for ConversationListModal {
                 .position(self.current_index),
         );
 
+        // Render edit line at the bottom of Conversations list if editing
+        if let Some(edit_line) = &mut self.edit_name_line {
+            let edit_area = Rect::new(
+                conversations_area.x,
+                conversations_area.y + conversations_area.height - 1,
+                conversations_area.width,
+                1,
+            );
+            frame.render_widget(Clear, edit_area);
+            frame.render_widget(edit_line.widget(&edit_area), edit_area);
+        }
+
         // Render key bindings info
         let key_info = match self.current_tab {
             ConversationStatus::Active => {
                 "↑↓: Navigate | Enter: Select | P: Toggle Pin | A: Archive | \
-                 D: Delete | Tab: Switch Tab | Esc: Close"
+                 D: Delete | E: Edit Name | Tab: Switch Tab | Esc: Close"
             }
             ConversationStatus::Archived => {
-                "↑↓: Navigate | Enter: Select | U: Unarchive | Tab: Switch Tab \
-                 | Esc: Close"
+                "↑↓: Navigate | Enter: Select | U: Unarchive | E: Edit Name | \
+                 Tab: Switch Tab | Esc: Close"
             }
             ConversationStatus::Deleted => {
                 "↑↓: Navigate | Enter: Select | U: Undo Delete | D: Permanent \
-                 Delete | Tab: Switch Tab | Esc: Close"
+                 Delete | E: Edit Name | Tab: Switch Tab | Esc: Close"
             }
         };
         let key_info =
@@ -397,80 +437,132 @@ impl ModalWindowTrait for ConversationListModal {
         frame.render_widget(key_info, chunks[3]);
     }
 
-    async fn handle_key_event<'a>(
-        &'a mut self,
-        key_event: &'a mut KeyTrack,
-        _tab_chat: &'a mut ChatSession,
+    async fn handle_key_event<'b>(
+        &'b mut self,
+        key_event: &'b mut KeyTrack,
+        _tab_chat: &'b mut ChatSession,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
-        match key_event.current_key().code {
-            KeyCode::Up => {
-                if self.current_index > 0 {
-                    self.current_index -= 1;
-                    while self.current_index > 0 && 
-                          self.conversations.get(self.current_index)
-                              .map_or(true, |conv| conv.status != self.current_tab) {
+        if self.edit_name_line.is_some() {
+            match key_event.current_key().code {
+                KeyCode::Enter => {
+                    if let Some(mut edit_line) = self.edit_name_line.take() {
+                        let new_name = edit_line.text_buffer().to_string();
+                        if let Some(index) = self.editing_index.take() {
+                            if let Some(conversation) =
+                                self.conversations.get_mut(index)
+                            {
+                                //handler.update_conversation_name(Some(conversation.id), &new_name)?;
+                                conversation.name = new_name;
+                            }
+                        }
+                    }
+                }
+                KeyCode::Esc => {
+                    self.edit_name_line = None;
+                    self.editing_index = None;
+                }
+                _ => {
+                    if let Some(edit_line) = &mut self.edit_name_line {
+                        //edit_line.handle_input(key_event);
+                    }
+                }
+            }
+        } else {
+            match key_event.current_key().code {
+                KeyCode::Up => {
+                    if self.current_index > 0 {
                         self.current_index -= 1;
+                        while self.current_index > 0
+                            && self
+                                .conversations
+                                .get(self.current_index)
+                                .map_or(true, |conv| {
+                                    conv.status != self.current_tab
+                                })
+                        {
+                            self.current_index -= 1;
+                        }
                     }
                 }
-            }
-            KeyCode::Down => {
-                let filtered_count = self.conversations.iter()
-                    .filter(|conv| conv.status == self.current_tab)
-                    .count();
-                if filtered_count > 0 && self.current_index < self.conversations.len() - 1 {
-                    self.current_index += 1;
-                    while self.current_index < self.conversations.len() && 
-                          self.conversations[self.current_index].status != self.current_tab {
+                KeyCode::Down => {
+                    let filtered_count = self
+                        .conversations
+                        .iter()
+                        .filter(|conv| conv.status == self.current_tab)
+                        .count();
+                    if filtered_count > 0
+                        && self.current_index < self.conversations.len() - 1
+                    {
                         self.current_index += 1;
+                        while self.current_index < self.conversations.len()
+                            && self.conversations[self.current_index].status
+                                != self.current_tab
+                        {
+                            self.current_index += 1;
+                        }
+                        if self.current_index >= self.conversations.len() {
+                            self.current_index = filtered_count - 1;
+                        }
                     }
-                    if self.current_index >= self.conversations.len() {
-                        self.current_index = filtered_count - 1;
+                }
+                KeyCode::Tab => {
+                    self.current_tab = match self.current_tab {
+                        ConversationStatus::Active => {
+                            ConversationStatus::Archived
+                        }
+                        ConversationStatus::Archived => {
+                            ConversationStatus::Deleted
+                        }
+                        ConversationStatus::Deleted => {
+                            ConversationStatus::Active
+                        }
+                    };
+                    self.current_index = 0;
+                }
+                KeyCode::Enter => {
+                    return self.load_conversation(handler).await;
+                }
+                KeyCode::Char('p') | KeyCode::Char('P') => {
+                    if self.current_tab == ConversationStatus::Active {
+                        self.toggle_pin_status(handler).await?;
                     }
                 }
-            }
-            KeyCode::Tab => {
-                self.current_tab = match self.current_tab {
-                    ConversationStatus::Active => ConversationStatus::Archived,
-                    ConversationStatus::Archived => ConversationStatus::Deleted,
-                    ConversationStatus::Deleted => ConversationStatus::Active,
-                };
-                self.current_index = 0;
-            }
-            KeyCode::Enter => {
-                return self.load_conversation(handler).await;
-            }
-            KeyCode::Char('p') | KeyCode::Char('P') => {
-                if self.current_tab == ConversationStatus::Active {
-                    self.toggle_pin_status(handler).await?;
+                KeyCode::Char('a') | KeyCode::Char('A') => {
+                    if self.current_tab == ConversationStatus::Active {
+                        self.archive_conversation(handler).await?;
+                    }
                 }
-            }
-            KeyCode::Char('a') | KeyCode::Char('A') => {
-                if self.current_tab == ConversationStatus::Active {
-                    self.archive_conversation(handler).await?;
+                KeyCode::Char('d') | KeyCode::Char('D') => {
+                    match self.current_tab {
+                        ConversationStatus::Active
+                        | ConversationStatus::Archived => {
+                            self.soft_delete_conversation(handler).await?
+                        }
+                        ConversationStatus::Deleted => {
+                            self.permanent_delete_conversation(handler).await?
+                        }
+                    }
                 }
-            }
-            KeyCode::Char('d') | KeyCode::Char('D') => match self.current_tab {
-                ConversationStatus::Active | ConversationStatus::Archived => {
-                    self.soft_delete_conversation(handler).await?
+                KeyCode::Char('u') | KeyCode::Char('U') => {
+                    match self.current_tab {
+                        ConversationStatus::Archived => {
+                            self.unarchive_conversation(handler).await?
+                        }
+                        ConversationStatus::Deleted => {
+                            self.undo_delete_conversation(handler).await?
+                        }
+                        _ => {}
+                    }
                 }
-                ConversationStatus::Deleted => {
-                    self.permanent_delete_conversation(handler).await?
+                KeyCode::Char('e') | KeyCode::Char('E') => {
+                    self.edit_conversation_name(handler).await?;
                 }
-            },
-            KeyCode::Char('u') | KeyCode::Char('U') => match self.current_tab {
-                ConversationStatus::Archived => {
-                    self.unarchive_conversation(handler).await?
-                }
-                ConversationStatus::Deleted => {
-                    self.undo_delete_conversation(handler).await?
+                KeyCode::Esc => {
+                    return Ok(Some(WindowEvent::PromptWindow(None)));
                 }
                 _ => {}
-            },
-            KeyCode::Esc => {
-                return Ok(Some(WindowEvent::PromptWindow(None)));
             }
-            _ => {}
         }
         Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList)))
     }

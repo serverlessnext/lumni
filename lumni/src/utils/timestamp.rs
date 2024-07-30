@@ -1,5 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use time::{format_description, OffsetDateTime};
+
 use super::time_parse_ext::{epoch_to_rfc3339, rfc3339_to_epoch};
 use crate::api::error::LumniError;
 
@@ -23,6 +25,22 @@ impl Timestamp {
                         LumniError::Any("Timestamp overflow".to_string())
                     })
             })
+    }
+
+    pub fn format(&self, format_str: &str) -> Result<String, LumniError> {
+        let datetime =
+            OffsetDateTime::from_unix_timestamp(self.timestamp / 1000)
+                .map_err(|e| {
+                    LumniError::Any(format!("Invalid timestamp: {}", e))
+                })?;
+
+        let format = format_description::parse(format_str).map_err(|e| {
+            LumniError::Any(format!("Invalid format string: {}", e))
+        })?;
+
+        datetime
+            .format(&format)
+            .map_err(|e| LumniError::Any(format!("Formatting error: {}", e)))
     }
 
     pub fn as_millis(&self) -> i64 {

@@ -12,7 +12,7 @@ use super::{
     TextSegment,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub struct ParentConversation {
     pub id: ConversationId,
     pub fork_message_id: MessageId,

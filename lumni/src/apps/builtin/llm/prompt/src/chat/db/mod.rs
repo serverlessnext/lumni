@@ -85,7 +85,7 @@ pub struct Conversation {
     pub status: ConversationStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub id: MessageId,
     pub conversation_id: ConversationId,

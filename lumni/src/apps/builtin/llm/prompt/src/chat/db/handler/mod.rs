@@ -1,6 +1,6 @@
-mod insert;
 mod delete;
 mod fetch;
+mod insert;
 mod update;
 
 use std::sync::{Arc, Mutex};

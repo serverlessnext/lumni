@@ -27,6 +27,13 @@ impl TabUi<'_> {
         }
     }
 
+    pub fn reload_conversation_text(
+        &mut self,
+        conversation_text: Vec<TextLine>,
+    ) {
+        self.response = ResponseWindow::new(Some(conversation_text));
+    }
+
     pub fn init(&mut self) {
         self.response.init(); //set_status_normal(); // initialize in normal mode
         self.prompt.set_status_normal(); // initialize with defaults
@@ -42,16 +49,16 @@ impl TabUi<'_> {
             ModalWindowType::SelectEndpoint => {
                 Some(Box::new(SelectEndpointModal::new()))
             }
-            ModalWindowType::ConversationList => {
+            ModalWindowType::ConversationList(_) => {
                 Some(Box::new(ConversationListModal::new(handler)?))
             }
         };
         Ok(())
     }
 
-    pub fn needs_modal_update(&self, new_type: ModalWindowType) -> bool {
+    pub fn needs_modal_update(&self, new_type: &ModalWindowType) -> bool {
         match self.modal.as_ref() {
-            Some(modal) => new_type != modal.get_type(),
+            Some(modal) => *new_type != modal.get_type(),
             None => true,
         }
     }

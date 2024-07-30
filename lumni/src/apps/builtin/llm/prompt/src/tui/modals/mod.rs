@@ -10,15 +10,14 @@ use ratatui::Frame;
 pub use super::{
     ApplicationError, ChatSession, CommandLine, Conversation,
     ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
-    ModelServer, MoveCursor, NewConversation, PromptInstruction, Scroller,
-    ServerManager, ServerTrait, TextWindowTrait, WindowEvent,
-    SUPPORTED_MODEL_ENDPOINTS,
+    ModelServer, NewConversation, PromptInstruction, Scroller, ServerManager,
+    ServerTrait, TextWindowTrait, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ModalWindowType {
     SelectEndpoint,
-    ConversationList,
+    ConversationList(Option<ConversationEvent>),
 }
 
 #[async_trait]

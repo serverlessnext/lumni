@@ -73,12 +73,8 @@ impl<'a> ConversationListModal<'a> {
     }
 
     pub fn render_conversations_list(&mut self, frame: &mut Frame, area: Rect) {
-        let filtered_conversations: Vec<&Conversation> = self
-            .conversations
-            .iter()
-            .filter(|conv| conv.status == self.current_tab)
-            .collect();
-
+        let filtered_conversations: Vec<&Conversation> =
+            self.conversations_in_current_tab().collect();
         let items: Vec<ListItem> = filtered_conversations
             .iter()
             .enumerate()
@@ -99,10 +95,11 @@ impl<'a> ConversationListModal<'a> {
             .highlight_symbol(">> ");
 
         let mut list_state = ListState::default();
-        list_state.select(Some(self.current_index));
+        list_state.select(Some(
+            *self.tab_indices.get(&self.current_tab).unwrap_or(&0),
+        ));
 
         frame.render_stateful_widget(list, area, &mut list_state);
-
         self.render_scrollbar(frame, area);
         self.render_edit_line(frame, area);
     }
@@ -112,7 +109,9 @@ impl<'a> ConversationListModal<'a> {
         conversation: &Conversation,
         index: usize,
     ) -> ListItem {
-        let style = if index == self.current_index {
+        let current_index =
+            *self.tab_indices.get(&self.current_tab).unwrap_or(&0);
+        let style = if index == current_index {
             Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
         } else {
             Style::default().bg(Color::Black).fg(Color::Cyan)
@@ -173,11 +172,15 @@ impl<'a> ConversationListModal<'a> {
             horizontal: 0,
         });
 
+        let conversations_count = self.conversations_in_current_tab().count();
+        let current_index =
+            *self.tab_indices.get(&self.current_tab).unwrap_or(&0);
+
         frame.render_stateful_widget(
             scrollbar,
             scrollbar_area,
-            &mut ScrollbarState::new(self.conversations.len())
-                .position(self.current_index),
+            &mut ScrollbarState::new(conversations_count)
+                .position(current_index),
         );
     }
 
@@ -201,8 +204,8 @@ impl<'a> ConversationListModal<'a> {
                  Tab: Switch Tab | Esc: Close"
             }
             ConversationStatus::Deleted => {
-                "↑↓: Navigate | Enter: Select | U: Undo Delete | D: Permanent \
-                 Delete | E: Edit Name | Tab: Switch Tab | Esc: Close"
+                "↑↓: Navigate | Enter: Undo & Select | U: Undo Delete | D: \
+                 Permanent Delete | E: Edit Name | Tab: Switch Tab | Esc: Close"
             }
         };
         let key_info =

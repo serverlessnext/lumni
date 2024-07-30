@@ -4,7 +4,9 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::db::{ConversationDatabase, ConversationDbHandler, ConversationId};
+use super::db::{
+    self, ConversationDatabase, ConversationDbHandler, ConversationId,
+};
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
@@ -22,6 +24,30 @@ impl ChatSession {
         prompt_instruction: PromptInstruction,
         db_handler: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
+        Ok(ChatSession {
+            server: Self::get_model_server(&prompt_instruction, db_handler)
+                .await?,
+            prompt_instruction,
+            cancel_tx: None,
+        })
+    }
+
+    pub async fn load_instruction(
+        &mut self,
+        prompt_instruction: PromptInstruction,
+        db_handler: &ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        self.stop();
+        self.server =
+            Self::get_model_server(&prompt_instruction, db_handler).await?;
+        self.prompt_instruction = prompt_instruction;
+        Ok(())
+    }
+
+    async fn get_model_server(
+        prompt_instruction: &PromptInstruction,
+        db_handler: &ConversationDbHandler<'_>,
+    ) -> Result<Option<Box<dyn ServerManager>>, ApplicationError> {
         let server = if let Some(model_server) = prompt_instruction
             .get_completion_options()
             .model_server
@@ -44,11 +70,7 @@ impl ChatSession {
         } else {
             None
         };
-        Ok(ChatSession {
-            server,
-            prompt_instruction,
-            cancel_tx: None,
-        })
+        Ok(server)
     }
 
     pub fn server_name(&self) -> Result<String, ApplicationError> {

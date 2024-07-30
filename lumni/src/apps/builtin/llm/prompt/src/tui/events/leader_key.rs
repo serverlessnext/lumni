@@ -56,7 +56,7 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
                         ModalWindowType::SelectEndpoint,
                     )),
                     "pc" => Some(WindowEvent::Modal(
-                        ModalWindowType::ConversationList,
+                        ModalWindowType::ConversationList(None),
                     )),
                     _ => None,
                 };

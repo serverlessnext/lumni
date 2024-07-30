@@ -171,7 +171,8 @@ pub async fn run_cli(
             PromptInstruction::new(new_conversation, &mut db_handler)
         })?;
 
-    let chat_session = ChatSession::new(prompt_instruction, &db_handler).await?;
+    let chat_session =
+        ChatSession::new(prompt_instruction, &db_handler).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {

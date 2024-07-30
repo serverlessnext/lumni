@@ -141,7 +141,7 @@ async fn handle_key_event(
             handle_command_line_action(tab, action.clone());
         }
         Some(WindowEvent::Modal(modal_window_type)) => {
-            handle_modal_window(tab, *modal_window_type, db_handler)?;
+            handle_modal_window(tab, modal_window_type, db_handler)?;
         }
         Some(WindowEvent::PromptWindow(event)) => {
             handle_prompt_window_event(tab, event.clone(), db_handler).await?;
@@ -211,11 +211,21 @@ fn handle_command_line_action(
 
 fn handle_modal_window(
     tab: &mut TabSession,
-    modal_window_type: ModalWindowType,
+    modal_window_type: &ModalWindowType,
     handler: &ConversationDbHandler,
 ) -> Result<(), ApplicationError> {
+    // switch to, or stay in modal window
+    match modal_window_type {
+        ModalWindowType::ConversationList(Some(_)) => {
+            // reload chat on any conversation event
+            tab.reload_conversation();
+            return Ok(());
+        }
+        _ => {}
+    }
+
     if tab.ui.needs_modal_update(modal_window_type) {
-        tab.ui.set_new_modal(modal_window_type, handler)?;
+        tab.ui.set_new_modal(modal_window_type.clone(), handler)?;
     }
     Ok(())
 }
@@ -225,26 +235,27 @@ async fn handle_prompt_window_event(
     event: Option<ConversationEvent>,
     db_handler: &mut ConversationDbHandler<'_>,
 ) -> Result<(), ApplicationError> {
+    // switch to prompt window
     match event {
         Some(ConversationEvent::NewConversation(new_conversation)) => {
+            // TODO: handle in modal
             let prompt_instruction =
                 PromptInstruction::new(new_conversation.clone(), db_handler)?;
-
-            let chat_session =
-                ChatSession::new(prompt_instruction, db_handler).await?;
-            tab.chat.stop();
-            tab.new_conversation(chat_session);
+            tab.chat
+                .load_instruction(prompt_instruction, db_handler)
+                .await?;
+            tab.reload_conversation();
         }
-        Some(ConversationEvent::ContinueConversation(prompt_instruction)) => {
-            let chat_session =
-                ChatSession::new(prompt_instruction.clone(), db_handler).await?;
-            tab.chat.stop();
-            tab.new_conversation(chat_session);
+        Some(_) => {
+            // any other ConversationEvent is a reload
+            tab.reload_conversation();
         }
         None => {
             log::debug!("No prompt window event to handle");
         }
     }
+    // ensure modal is closed
+    tab.ui.clear_modal();
     Ok(())
 }
 

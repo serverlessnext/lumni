@@ -87,10 +87,10 @@ impl TabSession<'_> {
         }
     }
 
-    pub fn new_conversation(&mut self, chat: ChatSession) {
-        self.chat = chat;
-        self.ui =
-            TabUi::new(Some(self.chat.export_conversation(&self.color_scheme)));
+    pub fn reload_conversation(&mut self) {
+        let conversation_text =
+            self.chat.export_conversation(&self.color_scheme);
+        self.ui.reload_conversation_text(conversation_text);
     }
 
     pub fn draw_ui<B: Backend>(

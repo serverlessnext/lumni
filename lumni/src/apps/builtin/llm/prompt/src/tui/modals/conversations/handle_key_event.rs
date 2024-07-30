@@ -15,34 +15,77 @@ impl<'a> ConversationListModal<'a> {
                 }
             }
         }
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList)))
+        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
+            None,
+        ))))
     }
 
     pub async fn handle_normal_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
         tab_chat: &mut ChatSession,
-        handler: &mut ConversationDbHandler<'_>,
+        db_handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
-            KeyCode::Up => self.move_selection_up(),
-            KeyCode::Down => self.move_selection_down(),
-            KeyCode::Tab => self.switch_tab(),
+            KeyCode::Up => {
+                self.move_selection_up();
+                self.last_selected_conversation_id = None;
+            }
+            KeyCode::Down => {
+                self.move_selection_down();
+                self.last_selected_conversation_id = None;
+            }
+            KeyCode::Tab => {
+                self.switch_tab();
+                self.last_selected_conversation_id = None;
+            }
             KeyCode::Enter => {
-                let conv = self.load_conversation(handler).await?;
-                return Ok(conv);
+                if let Some(conversation) = self.get_current_conversation() {
+                    if Some(conversation.id)
+                        == self.last_selected_conversation_id
+                    {
+                        // Double Enter press detected, close the modal
+                        return Ok(Some(WindowEvent::PromptWindow(None)));
+                    }
+                    // Update the last selected conversation ID
+                    eprintln!(
+                        "Last selected conversation: {:?}",
+                        self.last_selected_conversation_id
+                    );
+                    eprintln!("Selected conversation: {:?}", conversation.id);
+                    self.last_selected_conversation_id = Some(conversation.id);
+
+                    match self.current_tab {
+                        ConversationStatus::Deleted => {
+                            self.undo_delete_and_load_conversation(
+                                tab_chat, db_handler,
+                            )
+                            .await?
+                        }
+                        _ => {
+                            self.load_and_set_conversation(tab_chat, db_handler)
+                                .await?
+                        }
+                    }
+
+                    return Ok(Some(WindowEvent::Modal(
+                        ModalWindowType::ConversationList(Some(
+                            ConversationEvent::ReloadConversation,
+                        )),
+                    )));
+                }
             }
             KeyCode::Char('p') | KeyCode::Char('P') => {
-                self.handle_pin_action(handler).await?
+                self.handle_pin_action(db_handler).await?
             }
             KeyCode::Char('a') | KeyCode::Char('A') => {
-                self.handle_archive_action(handler).await?
+                self.handle_archive_action(db_handler).await?
             }
             KeyCode::Char('d') | KeyCode::Char('D') => {
-                self.handle_delete_action(handler).await?
+                self.handle_delete_action(db_handler).await?
             }
             KeyCode::Char('u') | KeyCode::Char('U') => {
-                self.handle_unarchive_undo_action(handler).await?
+                self.handle_unarchive_undo_action(db_handler).await?
             }
             KeyCode::Char('e') | KeyCode::Char('E') => {
                 self.edit_conversation_name().await?
@@ -50,7 +93,10 @@ impl<'a> ConversationListModal<'a> {
             KeyCode::Esc => return Ok(Some(WindowEvent::PromptWindow(None))),
             _ => {}
         }
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList)))
+        // stay in the Modal window
+        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
+            None,
+        ))))
     }
 
     async fn save_edited_name(
@@ -59,54 +105,41 @@ impl<'a> ConversationListModal<'a> {
     ) -> Result<(), ApplicationError> {
         if let Some(mut edit_line) = self.edit_name_line.take() {
             let new_name = edit_line.text_buffer().to_string();
-            if let Some(index) = self.editing_index.take() {
-                if let Some(conversation) = self.conversations.get_mut(index) {
-                    handler.update_conversation_name(Some(conversation.id), &new_name)?;
-                    conversation.name = new_name;
-                }
+            if let Some(conversation) = self.get_current_conversation_mut() {
+                handler.update_conversation_name(
+                    Some(conversation.id),
+                    &new_name,
+                )?;
+                conversation.name = new_name;
             }
         }
+        self.editing_index = None;
         Ok(())
     }
-
     fn cancel_edit_mode(&mut self) {
         self.edit_name_line = None;
         self.editing_index = None;
     }
 
     fn move_selection_up(&mut self) {
-        if self.current_index > 0 {
-            self.current_index -= 1;
-            while self.current_index > 0
-                && self
-                    .conversations
-                    .get(self.current_index)
-                    .map_or(true, |conv| conv.status != self.current_tab)
-            {
-                self.current_index -= 1;
+        let filtered_count = self.conversations_in_current_tab().count();
+        if filtered_count > 0 {
+            let current_index =
+                self.tab_indices.get_mut(&self.current_tab).unwrap();
+            if *current_index > 0 {
+                *current_index -= 1;
+            } else {
+                *current_index = filtered_count - 1;
             }
         }
     }
 
     fn move_selection_down(&mut self) {
-        let filtered_count = self
-            .conversations
-            .iter()
-            .filter(|conv| conv.status == self.current_tab)
-            .count();
-        if filtered_count > 0
-            && self.current_index < self.conversations.len() - 1
-        {
-            self.current_index += 1;
-            while self.current_index < self.conversations.len()
-                && self.conversations[self.current_index].status
-                    != self.current_tab
-            {
-                self.current_index += 1;
-            }
-            if self.current_index >= self.conversations.len() {
-                self.current_index = filtered_count - 1;
-            }
+        let filtered_count = self.conversations_in_current_tab().count();
+        if filtered_count > 0 {
+            let current_index =
+                self.tab_indices.get_mut(&self.current_tab).unwrap();
+            *current_index = (*current_index + 1) % filtered_count;
         }
     }
 
@@ -116,7 +149,15 @@ impl<'a> ConversationListModal<'a> {
             ConversationStatus::Archived => ConversationStatus::Deleted,
             ConversationStatus::Deleted => ConversationStatus::Active,
         };
-        self.current_index = 0;
+        self.adjust_indices();
+    }
+
+    pub fn conversations_in_current_tab(
+        &self,
+    ) -> impl Iterator<Item = &Conversation> {
+        self.conversations
+            .iter()
+            .filter(|conv| conv.status == self.current_tab)
     }
 
     async fn handle_pin_action(

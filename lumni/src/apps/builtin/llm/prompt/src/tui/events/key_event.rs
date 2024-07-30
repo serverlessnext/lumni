@@ -233,9 +233,6 @@ impl KeyEventHandler {
                             }
                         }
                     };
-                    // window change
-                    // close existing modal window
-                    tab_ui.clear_modal();
                     return Ok(Some(new_window_event));
                 } else {
                     Ok(Some(WindowEvent::Modal(window_type)))

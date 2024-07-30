@@ -42,8 +42,8 @@ pub enum CommandLineAction {
     Write(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConversationEvent {
     NewConversation(NewConversation),
-    ContinueConversation(PromptInstruction),
+    ReloadConversation, // only reload conversation
 }

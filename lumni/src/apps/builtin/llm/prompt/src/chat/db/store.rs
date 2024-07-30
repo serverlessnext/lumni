@@ -6,8 +6,8 @@ use rusqlite::{params, Error as SqliteError, OptionalExtension};
 use super::connector::DatabaseConnector;
 use super::handler::ConversationDbHandler;
 use super::{
-    Conversation, ConversationId,
-    ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
+    Conversation, ConversationId, ConversationStatus, Message, MessageId,
+    ModelIdentifier, ModelSpec,
 };
 
 pub struct ConversationDatabase {
@@ -204,4 +204,3 @@ impl ConversationDatabase {
         reader.fetch_conversation_list(limit)
     }
 }
-

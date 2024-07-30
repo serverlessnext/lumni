@@ -161,7 +161,6 @@ impl<'a> ConversationDbHandler<'a> {
         })
     }
 
-
     pub fn put_new_messages(
         &self,
         messages: &[Message],
@@ -232,6 +231,4 @@ impl<'a> ConversationDbHandler<'a> {
             Ok(new_message_ids)
         })
     }
-
-
 }

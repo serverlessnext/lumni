@@ -4,7 +4,7 @@ use super::db::{ConversationDbHandler, Message, ModelServerName, ModelSpec};
 use super::{ParentConversation, PromptRole};
 pub use crate::external as lumni;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NewConversation {
     pub server: ModelServerName,
     pub model: Option<ModelSpec>,

@@ -1,6 +1,8 @@
 mod handle_key_event;
 mod render_on_frame;
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
 pub use lumni::Timestamp;
@@ -16,9 +18,10 @@ use ratatui::Frame;
 use super::{
     ApplicationError, ChatSession, CommandLine, Conversation,
     ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
-    ModalWindowTrait, ModalWindowType, PromptInstruction,
-    TextWindowTrait, WindowEvent,
+    ModalWindowTrait, ModalWindowType, PromptInstruction, TextWindowTrait,
+    WindowEvent,
 };
+use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
 pub use crate::external as lumni;
 
 const MAX_WIDTH: u16 = 40;
@@ -26,10 +29,11 @@ const MAX_HEIGHT: u16 = 60;
 
 pub struct ConversationListModal<'a> {
     conversations: Vec<Conversation>,
-    current_index: usize,
     current_tab: ConversationStatus,
+    tab_indices: HashMap<ConversationStatus, usize>,
     edit_name_line: Option<CommandLine<'a>>,
     editing_index: Option<usize>,
+    last_selected_conversation_id: Option<ConversationId>,
 }
 
 impl<'a> ConversationListModal<'a> {
@@ -37,12 +41,19 @@ impl<'a> ConversationListModal<'a> {
         handler: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
         let conversations = handler.fetch_conversation_list(100)?;
+
+        let mut tab_indices = HashMap::new();
+        tab_indices.insert(ConversationStatus::Active, 0);
+        tab_indices.insert(ConversationStatus::Archived, 0);
+        tab_indices.insert(ConversationStatus::Deleted, 0);
+
         Ok(Self {
             conversations,
-            current_index: 0,
             current_tab: ConversationStatus::Active,
+            tab_indices,
             edit_name_line: None,
             editing_index: None,
+            last_selected_conversation_id: None,
         })
     }
 
@@ -66,19 +77,13 @@ impl<'a> ConversationListModal<'a> {
 
     async fn load_conversation(
         &self,
-        handler: &mut ConversationDbHandler<'_>,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+        db_handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<Option<PromptInstruction>, ApplicationError> {
         if let Some(conversation) = self.get_current_conversation() {
-            handler.set_conversation_id(conversation.id);
-            match PromptInstruction::from_reader(handler) {
-                Ok(prompt_instruction) => {
-                    Ok(Some(WindowEvent::PromptWindow(
-                        Some(ConversationEvent::ContinueConversation(
-                            prompt_instruction,
-                    )))))
-                }
-                Err(e) => Err(e),
-            }
+            db_handler.set_conversation_id(conversation.id);
+            let prompt_instruction =
+                PromptInstruction::from_reader(db_handler)?;
+            Ok(Some(prompt_instruction))
         } else {
             Ok(None)
         }
@@ -88,20 +93,13 @@ impl<'a> ConversationListModal<'a> {
         &mut self,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        let conversation_id = self
-            .get_current_conversation()
-            .map(|conv| (conv.id, conv.is_pinned));
-
-        if let Some((id, is_pinned)) = conversation_id {
-            let new_pin_status = !is_pinned;
-            handler.update_conversation_pin_status(Some(id), new_pin_status)?;
-
-            // Update the local list
-            if let Some(conv) =
-                self.conversations.iter_mut().find(|c| c.id == id)
-            {
-                conv.is_pinned = new_pin_status;
-            }
+        if let Some(conversation) = self.get_current_conversation_mut() {
+            let new_pin_status = !conversation.is_pinned;
+            handler.update_conversation_pin_status(
+                Some(conversation.id),
+                new_pin_status,
+            )?;
+            conversation.is_pinned = new_pin_status;
 
             // Sort only conversations in the current tab
             let current_tab = self.current_tab;
@@ -115,14 +113,34 @@ impl<'a> ConversationListModal<'a> {
                 }
             });
 
-            // Update the current_index to match the moved conversation
-            self.current_index = self
-                .conversations
-                .iter()
-                .position(|c| c.id == id)
-                .unwrap_or(0);
+            self.adjust_indices();
         }
         Ok(())
+    }
+
+    fn adjust_indices(&mut self) {
+        for status in &[
+            ConversationStatus::Active,
+            ConversationStatus::Archived,
+            ConversationStatus::Deleted,
+        ] {
+            let count = self.conversations_in_tab(*status).count();
+            let current_index = self.tab_indices.entry(*status).or_insert(0);
+            if count == 0 {
+                *current_index = 0;
+            } else {
+                *current_index = (*current_index).min(count - 1);
+            }
+        }
+    }
+
+    fn conversations_in_tab(
+        &self,
+        status: ConversationStatus,
+    ) -> impl Iterator<Item = &Conversation> {
+        self.conversations
+            .iter()
+            .filter(move |conv| conv.status == status)
     }
 
     async fn archive_conversation(
@@ -133,6 +151,7 @@ impl<'a> ConversationListModal<'a> {
             handler.archive_conversation(Some(conversation.id))?;
             conversation.status = ConversationStatus::Archived;
         }
+        self.adjust_indices();
         Ok(())
     }
 
@@ -144,6 +163,7 @@ impl<'a> ConversationListModal<'a> {
             handler.unarchive_conversation(Some(conversation.id))?;
             conversation.status = ConversationStatus::Active;
         }
+        self.adjust_indices();
         Ok(())
     }
 
@@ -155,6 +175,7 @@ impl<'a> ConversationListModal<'a> {
             handler.soft_delete_conversation(Some(conversation.id))?;
             conversation.status = ConversationStatus::Deleted;
         }
+        self.adjust_indices();
         Ok(())
     }
 
@@ -166,6 +187,7 @@ impl<'a> ConversationListModal<'a> {
             handler.undo_delete_conversation(Some(conversation.id))?;
             conversation.status = ConversationStatus::Active;
         }
+        self.adjust_indices();
         Ok(())
     }
 
@@ -173,53 +195,87 @@ impl<'a> ConversationListModal<'a> {
         &mut self,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        let conversation_id =
-            self.get_current_conversation().map(|conv| conv.id);
-
-        if let Some(id) = conversation_id {
+        if let Some(conversation) = self.get_current_conversation() {
+            let id = conversation.id;
             handler.permanent_delete_conversation(Some(id))?;
             self.conversations.retain(|c| c.id != id);
 
-            let filtered_count = self
-                .conversations
-                .iter()
-                .filter(|conv| conv.status == self.current_tab)
-                .count();
+            self.adjust_indices();
 
-            if filtered_count == 0 {
+            if self.conversations_in_current_tab().count() == 0 {
                 // Switch to Active tab if current tab is empty
                 self.current_tab = ConversationStatus::Active;
+                self.adjust_indices();
             }
-
-            self.current_index =
-                self.current_index.min(filtered_count.saturating_sub(1));
         }
         Ok(())
     }
 
     fn get_current_conversation(&self) -> Option<&Conversation> {
-        self.conversations
-            .iter()
-            .filter(|conv| conv.status == self.current_tab)
-            .nth(self.current_index)
+        let index = *self.tab_indices.get(&self.current_tab).unwrap_or(&0);
+        self.conversations_in_current_tab().nth(index)
     }
 
     fn get_current_conversation_mut(&mut self) -> Option<&mut Conversation> {
+        let index = *self.tab_indices.get(&self.current_tab).unwrap_or(&0);
         self.conversations
             .iter_mut()
             .filter(|conv| conv.status == self.current_tab)
-            .nth(self.current_index)
+            .nth(index)
     }
 
-    async fn edit_conversation_name(
-        &mut self,
-    ) -> Result<(), ApplicationError> {
+    async fn edit_conversation_name(&mut self) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation() {
             let mut command_line = CommandLine::new();
             command_line.text_set(&conversation.name, None)?;
             command_line.set_status_insert();
             self.edit_name_line = Some(command_line);
-            self.editing_index = Some(self.current_index);
+            self.editing_index =
+                Some(*self.tab_indices.get(&self.current_tab).unwrap_or(&0));
+        }
+        Ok(())
+    }
+
+    async fn load_and_set_conversation(
+        &mut self,
+        tab_chat: &mut ChatSession,
+        db_handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        let prompt_instruction = self.load_conversation(db_handler).await?;
+        match prompt_instruction {
+            Some(prompt_instruction) => {
+                tab_chat
+                    .load_instruction(prompt_instruction, db_handler)
+                    .await?;
+            }
+            None => {}
+        }
+        Ok(())
+    }
+
+    async fn undo_delete_and_load_conversation(
+        &mut self,
+        tab_chat: &mut ChatSession,
+        db_handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(conversation) = self.get_current_conversation_mut() {
+            let conversation_id = conversation.id;
+            db_handler.undo_delete_conversation(Some(conversation_id))?;
+            conversation.status = ConversationStatus::Active;
+            self.adjust_indices();
+
+            // Switch to Active tab
+            self.current_tab = ConversationStatus::Active;
+            self.adjust_indices();
+
+            // Now load the conversation
+            db_handler.set_conversation_id(conversation_id);
+            let prompt_instruction =
+                PromptInstruction::from_reader(db_handler)?;
+            tab_chat
+                .load_instruction(prompt_instruction, db_handler)
+                .await?;
+            self.last_selected_conversation_id = None;
         }
         Ok(())
     }
@@ -228,7 +284,7 @@ impl<'a> ConversationListModal<'a> {
 #[async_trait]
 impl<'a> ModalWindowTrait for ConversationListModal<'a> {
     fn get_type(&self) -> ModalWindowType {
-        ModalWindowType::ConversationList
+        ModalWindowType::ConversationList(None)
     }
 
     fn render_on_frame(&mut self, frame: &mut Frame, mut area: Rect) {

@@ -1,10 +1,33 @@
 use super::*;
 
 impl<'a> ConversationDbHandler<'a> {
+    pub fn update_conversation_name(
+        &self,
+        conversation_id: Option<ConversationId>,
+        new_name: &str,
+    ) -> Result<(), SqliteError> {
+        let target_conversation_id = conversation_id.or(self.conversation_id);
+        let system_time = Timestamp::from_system_time().unwrap().as_millis();
+
+        if let Some(id) = target_conversation_id {
+            let mut db = self.db.lock().unwrap();
+            db.process_queue_with_result(|tx| {
+                tx.execute(
+                    "UPDATE conversations SET name = ?, updated_at = ? WHERE \
+                     id = ?",
+                    params![new_name, system_time, id.0],
+                )?;
+                Ok(())
+            })
+        } else {
+            Err(SqliteError::QueryReturnedNoRows)
+        }
+    }
+
     pub fn update_conversation_pin_status(
         &self,
-        is_pinned: bool,
         conversation_id: Option<ConversationId>,
+        is_pinned: bool,
     ) -> Result<(), SqliteError> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 

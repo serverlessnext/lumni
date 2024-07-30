@@ -1,7 +1,7 @@
 use lumni::api::error::ApplicationError;
 
 use super::db::{
-    ConversationCache, ConversationDatabase, ConversationDbHandler,
+    ConversationCache, ConversationDbHandler,
     ConversationId, Message, MessageId, ModelSpec, Timestamp,
 };
 use super::prepare::NewConversation;
@@ -21,7 +21,7 @@ pub struct PromptInstruction {
 impl PromptInstruction {
     pub fn new(
         new_conversation: NewConversation,
-        db_conn: &ConversationDatabase,
+        db_handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
         let completion_options = match new_conversation.options {
             Some(opts) => {
@@ -33,7 +33,7 @@ impl PromptInstruction {
         };
 
         let conversation_id = if let Some(ref model) = new_conversation.model {
-            Some(db_conn.new_conversation(
+            Some(db_handler.new_conversation(
                 "New Conversation",
                 new_conversation.parent.as_ref().map(|p| p.id),
                 new_conversation.parent.as_ref().map(|p| p.fork_message_id),
@@ -85,11 +85,11 @@ impl PromptInstruction {
                     .set_preloaded_messages(messages_to_insert.len());
 
                 // Insert messages into the database
-                db_conn.put_new_messages(&messages_to_insert)?;
+                db_handler.put_new_messages(&messages_to_insert)?;
             } else if let Some(system_prompt) = new_conversation.system_prompt {
                 // add system_prompt as the first message
                 prompt_instruction
-                    .add_system_message(system_prompt, db_conn)?;
+                    .add_system_message(system_prompt, db_handler)?;
             }
         }
         Ok(prompt_instruction)
@@ -172,7 +172,7 @@ impl PromptInstruction {
     fn add_system_message(
         &mut self,
         content: String,
-        db_conn: &ConversationDatabase,
+        db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
         let timestamp = Timestamp::from_system_time()?.as_millis();
         let message = Message {
@@ -191,19 +191,19 @@ impl PromptInstruction {
             is_deleted: false,
         };
         // put system message directly into the database
-        db_conn.put_new_message(&message)?;
+        db_handler.put_new_message(&message)?;
         self.cache.add_message(message);
         Ok(())
     }
 
     pub fn reset_history(
         &mut self,
-        db_conn: &ConversationDatabase,
+        db_handler: &mut ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
         // reset by creating a new conversation
         // TODO: clone previous conversation settings
         if let Some(ref model) = &self.model {
-            let current_conversation_id = db_conn.new_conversation(
+            let current_conversation_id = db_handler.new_conversation(
                 "New Conversation",
                 None,
                 None,
@@ -243,7 +243,7 @@ impl PromptInstruction {
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
-        db_conn: &ConversationDatabase,
+        db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
         let (user_message, assistant_message) =
             self.finalize_last_messages(answer, tokens_predicted)?;
@@ -260,7 +260,7 @@ impl PromptInstruction {
         }
 
         // Insert messages into the database
-        db_conn
+        db_handler
             .put_new_messages(&messages_to_insert)
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 

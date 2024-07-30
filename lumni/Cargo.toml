@@ -66,7 +66,7 @@ arboard = { version = "3.2", default-features = false, optional = true }
 console_log = { version = "1", optional = true }
 
 
-#[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 time = { version = "0.3", features = ["parsing", "formatting"]}
 
 # feature: http-client 

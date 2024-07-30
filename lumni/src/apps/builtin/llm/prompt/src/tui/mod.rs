@@ -16,8 +16,8 @@ pub use lumni::api::error::ApplicationError;
 pub use modals::{ModalWindowTrait, ModalWindowType, SelectEndpointModal};
 pub use ui::TabUi;
 pub use window::{
-    CommandLine, PromptWindow, ResponseWindow, Scroller, TextLine, TextSegment,
-    TextWindowTrait, WindowKind,
+    CommandLine, MoveCursor, PromptWindow, ResponseWindow, Scroller, TextLine,
+    TextSegment, TextWindowTrait, WindowKind,
 };
 
 pub use super::chat::db::{

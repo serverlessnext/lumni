@@ -1,3 +1,4 @@
+mod insert;
 mod delete;
 mod fetch;
 mod update;
@@ -10,6 +11,7 @@ use super::connector::DatabaseConnector;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
+    Timestamp,
 };
 
 pub struct ConversationDbHandler<'a> {

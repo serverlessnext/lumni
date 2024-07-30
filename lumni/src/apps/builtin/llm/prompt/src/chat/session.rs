@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::db::{ConversationDatabase, ConversationId};
+use super::db::{ConversationDatabase, ConversationDbHandler, ConversationId};
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
@@ -20,7 +20,7 @@ pub struct ChatSession {
 impl ChatSession {
     pub async fn new(
         prompt_instruction: PromptInstruction,
-        db_conn: &ConversationDatabase,
+        db_handler: &ConversationDbHandler<'_>,
     ) -> Result<Self, ApplicationError> {
         let server = if let Some(model_server) = prompt_instruction
             .get_completion_options()
@@ -30,10 +30,7 @@ impl ChatSession {
             let mut server: Box<dyn ServerManager> =
                 Box::new(ModelServer::from_str(&model_server.to_string())?);
             // try to initialize the server
-            let handler = db_conn.get_conversation_handler(
-                prompt_instruction.get_conversation_id(),
-            );
-            match server.setup_and_initialize(&handler).await {
+            match server.setup_and_initialize(db_handler).await {
                 Ok(_) => (),
                 Err(ApplicationError::NotReady(e)) => {
                     // warn only, allow to continue
@@ -74,9 +71,9 @@ impl ChatSession {
         }
     }
 
-    pub fn reset(&mut self, db: &ConversationDatabase) {
+    pub fn reset(&mut self, db_handler: &mut ConversationDbHandler<'_>) {
         self.stop();
-        _ = self.prompt_instruction.reset_history(db);
+        _ = self.prompt_instruction.reset_history(db_handler);
     }
 
     pub fn update_last_exchange(&mut self, answer: &str) {
@@ -85,7 +82,7 @@ impl ChatSession {
 
     pub async fn finalize_last_exchange(
         &mut self,
-        db: &ConversationDatabase,
+        db_handler: &ConversationDbHandler<'_>,
         tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
         let last_answer = self.prompt_instruction.get_last_response();
@@ -94,7 +91,7 @@ impl ChatSession {
             _ = self.prompt_instruction.put_last_response(
                 trimmed_answer,
                 tokens_predicted,
-                db,
+                db_handler,
             );
         }
         Ok(())

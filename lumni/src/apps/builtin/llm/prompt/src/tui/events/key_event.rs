@@ -189,62 +189,56 @@ impl KeyEventHandler {
                 is_running,
             ),
             WindowEvent::Modal(window_type) => {
-                // get Escape key press to close modal window
-                if self.key_track.current_key().code == KeyCode::Esc
-                    || self.key_track.current_key().code == KeyCode::Char('q')
-                {
-                    tab_ui.clear_modal();
-                    Ok(Some(WindowEvent::PromptWindow(None)))
-                } else {
-                    if let Some(modal) = tab_ui.modal.as_mut() {
-                        let new_window_event = match modal
-                            .handle_key_event(
-                                &mut self.key_track,
-                                tab_chat,
-                                handler,
-                            )
-                            .await
-                        {
-                            Ok(Some(WindowEvent::Modal(next_window_type))) => {
-                                if next_window_type == window_type {
-                                    // window remains un-changed
+                // key event is handled by modal window
+                if let Some(modal) = tab_ui.modal.as_mut() {
+                    let new_window_event = match modal
+                        .handle_key_event(
+                            &mut self.key_track,
+                            tab_chat,
+                            handler,
+                        )
+                        .await
+                    {
+                        Ok(Some(WindowEvent::Modal(next_window_type))) => {
+                            if next_window_type == window_type {
+                                // window remains un-changed
+                                return Ok(Some(WindowEvent::Modal(
+                                    window_type,
+                                )));
+                            }
+                            WindowEvent::Modal(next_window_type)
+                        }
+                        Ok(Some(new_window_event)) => new_window_event,
+                        Ok(None) => WindowEvent::PromptWindow(None), // default
+                        Err(modal_error) => {
+                            match modal_error {
+                                ApplicationError::NotReady(message) => {
+                                    // pass as warning to the user
+                                    log::debug!("Not ready: {:?}", message);
+                                    tab_ui.command_line.set_alert(&format!(
+                                        "Not Ready: {}",
+                                        message
+                                    ))?;
                                     return Ok(Some(WindowEvent::Modal(
                                         window_type,
                                     )));
                                 }
-                                WindowEvent::Modal(next_window_type)
-                            }
-                            Ok(Some(new_window_event)) => new_window_event,
-                            Ok(None) => WindowEvent::PromptWindow(None), // default
-                            Err(modal_error) => {
-                                match modal_error {
-                                    ApplicationError::NotReady(message) => {
-                                        // pass as warning to the user
-                                        log::debug!("Not ready: {:?}", message);
-                                        tab_ui.command_line.set_alert(
-                                            &format!("Not Ready: {}", message),
-                                        )?;
-                                        return Ok(Some(WindowEvent::Modal(
-                                            window_type,
-                                        )));
-                                    }
-                                    _ => {
-                                        log::error!(
-                                            "Unexpected modal error: {:?}",
-                                            modal_error
-                                        );
-                                        return Err(modal_error);
-                                    }
+                                _ => {
+                                    log::error!(
+                                        "Unexpected modal error: {:?}",
+                                        modal_error
+                                    );
+                                    return Err(modal_error);
                                 }
                             }
-                        };
-                        // window change
-                        // close existing modal window
-                        tab_ui.clear_modal();
-                        return Ok(Some(new_window_event));
-                    } else {
-                        Ok(Some(WindowEvent::Modal(window_type)))
-                    }
+                        }
+                    };
+                    // window change
+                    // close existing modal window
+                    tab_ui.clear_modal();
+                    return Ok(Some(new_window_event));
+                } else {
+                    Ok(Some(WindowEvent::Modal(window_type)))
                 }
             }
             _ => Ok(Some(current_mode)),

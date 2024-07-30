@@ -10,8 +10,9 @@ use ratatui::Frame;
 pub use super::{
     ApplicationError, ChatSession, CommandLine, Conversation,
     ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
-    ModelServer, NewConversation, PromptInstruction, Scroller, ServerManager,
-    ServerTrait, TextWindowTrait, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ModelServer, MoveCursor, NewConversation, PromptInstruction, Scroller,
+    ServerManager, ServerTrait, TextWindowTrait, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

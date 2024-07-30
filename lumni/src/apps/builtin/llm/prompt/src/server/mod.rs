@@ -224,9 +224,9 @@ pub trait ServerTrait: Send + Sync {
 pub trait ServerManager: ServerTrait {
     async fn setup_and_initialize(
         &mut self,
-        reader: &ConversationDbHandler,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        self.initialize_with_model(reader).await
+        self.initialize_with_model(db_handler).await
     }
 
     fn server_name(&self) -> ModelServerName {

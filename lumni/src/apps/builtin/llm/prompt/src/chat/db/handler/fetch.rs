@@ -100,6 +100,37 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
+    pub fn fetch_message_attachments(
+        &self,
+        message_id: MessageId,
+    ) -> Result<Vec<Attachment>, SqliteError> {
+        let query = "SELECT * FROM attachments WHERE message_id = ? AND \
+                     is_deleted = FALSE";
+        let mut db = self.db.lock().unwrap();
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx.prepare(query)?;
+            let rows = stmt.query_map(params![message_id.0], |row| {
+                Ok(Attachment {
+                    attachment_id: AttachmentId(row.get(0)?),
+                    message_id: MessageId(row.get(1)?),
+                    conversation_id: ConversationId(row.get(2)?),
+                    data: if let Some(uri) = row.get::<_, Option<String>>(3)? {
+                        AttachmentData::Uri(uri)
+                    } else {
+                        AttachmentData::Data(row.get(4)?)
+                    },
+                    file_type: row.get(5)?,
+                    metadata: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| serde_json::from_str(&s).unwrap_or_default()),
+                    created_at: row.get(7)?,
+                    is_deleted: row.get(8)?,
+                })
+            })?;
+            rows.collect()
+        })
+    }
+
     pub fn fetch_model_spec(&self) -> Result<ModelSpec, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "

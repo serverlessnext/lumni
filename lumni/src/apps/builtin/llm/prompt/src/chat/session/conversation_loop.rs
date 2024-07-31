@@ -39,23 +39,21 @@ pub async fn prompt_app<B: Backend>(
             _ = tick.tick() => {
                 handle_tick(terminal, &mut app, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme).await?;
             },
-            result = app.chat_manager.get_active_session().receive_response() => {
+            result = app.chat_manager.get_active_session().receive_and_process_response(
+                &mut db_handler,
+                Some(&app.color_scheme),
+                Some(&mut app.ui)
+            ) => {
                 match result {
-                    Ok(Some(response)) => {
-                        app.chat_manager.get_active_session().process_chat_response(
-                            response,
-                            &mut db_handler,
-                            Some(&app.color_scheme),
-                            Some(&mut app.ui)
-                        ).await?;
+                    Ok(true) => {
                         redraw_ui = true;
                     },
-                    Ok(None) => {
+                    Ok(false) => {
                         log::debug!("Chat session channel closed");
                         tokio::time::sleep(Duration::from_millis(1)).await;
                     },
                     Err(e) => {
-                        log::error!("Error receiving response: {:?}", e);
+                        log::error!("Error receiving or processing response: {:?}", e);
                         tokio::time::sleep(Duration::from_millis(1)).await;
                     }
                 }

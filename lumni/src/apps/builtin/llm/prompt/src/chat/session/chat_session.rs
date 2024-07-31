@@ -197,15 +197,6 @@ impl ChatSession {
         Ok(())
     }
 
-    pub async fn receive_response(
-        &mut self,
-    ) -> Result<Option<CompletionResponse>, ApplicationError> {
-        if let Some(response_bytes) = self.response_receiver.recv().await {
-            self.process_response(response_bytes, true)
-        } else {
-            Ok(None) // Channel closed
-        }
-    }
 
     pub async fn initiate_new_exchange(
         &self,
@@ -306,7 +297,35 @@ impl ChatSession {
 }
 
 impl ChatSession {
-    pub async fn process_chat_response<'a>(
+    pub async fn receive_and_process_response<'a>(
+        &mut self,
+        db_handler: &mut ConversationDbHandler<'a>,
+        color_scheme: Option<&ColorScheme>,
+        ui: Option<&mut AppUi<'a>>,
+    ) -> Result<bool, ApplicationError> {
+        match self.receive_response().await? {
+            Some(response) => {
+                self.process_chat_response(response, db_handler, color_scheme, ui).await?;
+                Ok(true) // Indicates that a response was processed
+            }
+            None => {
+                log::debug!("No more responses");
+                Ok(false) // Indicates that no response was received (channel closed)
+            }
+        }
+    }
+
+    async fn receive_response(
+        &mut self,
+    ) -> Result<Option<CompletionResponse>, ApplicationError> {
+        if let Some(response_bytes) = self.response_receiver.recv().await {
+            self.process_response(response_bytes, true)
+        } else {
+            Ok(None) // Channel closed
+        }
+    }
+
+    async fn process_chat_response<'a>(
         &mut self,
         response: CompletionResponse,
         db_handler: &mut ConversationDbHandler<'a>,

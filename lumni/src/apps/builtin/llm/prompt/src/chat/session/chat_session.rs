@@ -7,8 +7,8 @@ use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::db::{ConversationDbHandler, ConversationId};
+use super::chat_session_manager::UiUpdate;
 use super::{
-    AppUi, TextWindowTrait,
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
 };
@@ -67,6 +67,7 @@ pub struct ChatSession {
     model_server_session: ModelServerSession,
     response_sender: mpsc::Sender<Bytes>,
     response_receiver: mpsc::Receiver<Bytes>,
+    ui_sender: Arc<Mutex<Option<mpsc::Sender<UiUpdate>>>>,
 }
 
 impl ChatSession {
@@ -78,7 +79,13 @@ impl ChatSession {
             model_server_session: ModelServerSession::new(),
             response_sender,
             response_receiver,
+            ui_sender: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub async fn set_ui_sender(&self, sender: Option<mpsc::Sender<UiUpdate>>) {
+        let mut ui_sender = self.ui_sender.lock().await;
+        *ui_sender = sender;
     }
 
     pub async fn load_instruction(
@@ -301,11 +308,10 @@ impl ChatSession {
         &mut self,
         db_handler: &mut ConversationDbHandler<'a>,
         color_scheme: Option<&ColorScheme>,
-        ui: Option<&mut AppUi<'a>>,
     ) -> Result<bool, ApplicationError> {
         match self.receive_response().await? {
             Some(response) => {
-                self.process_chat_response(response, db_handler, color_scheme, ui).await?;
+                self.process_chat_response(response, db_handler, color_scheme).await?;
                 Ok(true) // Indicates that a response was processed
             }
             None => {
@@ -330,12 +336,17 @@ impl ChatSession {
         response: CompletionResponse,
         db_handler: &mut ConversationDbHandler<'a>,
         color_scheme: Option<&ColorScheme>,
-        mut ui: Option<&mut AppUi<'a>>,
     ) -> Result<(), ApplicationError> {
         log::debug!(
             "Received response with length {:?}",
             response.get_content().len()
         );
+
+        let style = if let Some(color_scheme) = color_scheme {
+            color_scheme.get_secondary_style()
+        } else {
+            Style::default()
+        };
 
         let trimmed_response = response.get_content().trim_end().to_string();
         log::debug!("Trimmed response: {:?}", trimmed_response);
@@ -343,19 +354,19 @@ impl ChatSession {
         if !trimmed_response.is_empty() {
             self.update_last_exchange(&trimmed_response);
             
-            // Update UI if provided
-            if let (Some(ui), Some(color_scheme)) = (ui.as_mut(), color_scheme) {
-                ui.response
-                    .text_append(
-                        &trimmed_response,
-                        Some(color_scheme.get_secondary_style()),
-                    )
-                    .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+            // Send UI update if ui_sender is set
+            let ui_sender = self.ui_sender.lock().await;
+            if let Some(sender) = &*ui_sender {
+                let update = UiUpdate {
+                    content: trimmed_response.clone(),
+                    style: Some(style),
+                };
+                sender.send(update).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
             }
         }
 
         if response.is_final {
-            self.finalize_chat_response(response, db_handler, color_scheme, ui).await?;
+            self.finalize_chat_response(response, db_handler, color_scheme).await?;
         }
 
         Ok(())
@@ -366,22 +377,30 @@ impl ChatSession {
         response: CompletionResponse,
         db_handler: &mut ConversationDbHandler<'a>,
         color_scheme: Option<&ColorScheme>,
-        mut ui: Option<&mut AppUi<'a>>,
     ) -> Result<(), ApplicationError> {
         let tokens_predicted = response.stats.as_ref().and_then(|s| s.tokens_predicted);
 
+        // Send UI updates for newlines
+        {
+            let ui_sender = self.ui_sender.lock().await;
+            if let (Some(sender), Some(color_scheme)) = (&*ui_sender, color_scheme) {
+                // First newline with secondary style
+                let update1 = UiUpdate {
+                    content: "\n".to_string(),
+                    style: Some(color_scheme.get_secondary_style()),
+                };
+                sender.send(update1).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+
+                // Second newline with reset style
+                let update2 = UiUpdate {
+                    content: "\n".to_string(),
+                    style: Some(Style::reset()),
+                };
+                sender.send(update2).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+            }
+        } // The MutexGuard is dropped here, releasing the immutable borrow
+
         self.stop_chat_session();
-
-        if let (Some(ui), Some(color_scheme)) = (ui.as_mut(), color_scheme) {
-            ui.response
-                .text_append("\n", Some(color_scheme.get_secondary_style()))
-                .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-
-            ui.response
-                .text_append("\n", Some(Style::reset()))
-                .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-        }
-
         self.finalize_last_exchange(db_handler, tokens_predicted).await?;
 
         Ok(())

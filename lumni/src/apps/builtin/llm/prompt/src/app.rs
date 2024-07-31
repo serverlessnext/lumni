@@ -176,7 +176,7 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let app = App::new(chat_session)?;
+            let app = App::new(chat_session).await?;
             interactive_mode(app, db_conn).await
         }
         Err(_) => {

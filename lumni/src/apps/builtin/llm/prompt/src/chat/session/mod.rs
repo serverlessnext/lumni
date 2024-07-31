@@ -28,7 +28,7 @@ pub struct App<'a> {
 }
 
 impl App<'_> {
-    pub fn new(
+    pub async fn new(
         initial_chat_session: ChatSession,
     ) -> Result<Self, ApplicationError> {
         let color_scheme = ColorScheme::new(ColorSchemeType::Default);
@@ -42,7 +42,7 @@ impl App<'_> {
 
         Ok(App {
             ui,
-            chat_manager: ChatSessionManager::new(initial_chat_session),
+            chat_manager: ChatSessionManager::new(initial_chat_session).await,
             color_scheme,
         })
     }

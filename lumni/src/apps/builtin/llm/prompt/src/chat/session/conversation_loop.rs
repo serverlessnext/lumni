@@ -42,10 +42,13 @@ pub async fn prompt_app<B: Backend>(
             result = app.chat_manager.get_active_session().receive_and_process_response(
                 &mut db_handler,
                 Some(&app.color_scheme),
-                Some(&mut app.ui)
             ) => {
                 match result {
                     Ok(true) => {
+                        let updates = app.chat_manager.process_ui_updates();
+                        for update in updates {
+                            app.ui.response.text_append(&update.content, update.style)?;
+                        }
                         redraw_ui = true;
                     },
                     Ok(false) => {

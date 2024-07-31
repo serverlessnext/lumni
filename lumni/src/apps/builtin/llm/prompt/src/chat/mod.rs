@@ -1,21 +1,23 @@
 use std::error::Error;
+mod completion_options;
 mod conversation;
 pub mod db;
-mod completion_options;
 mod prompt;
-mod chat_session;
+mod session;
 
-pub use prompt::AssistantManager;
-pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 pub use completion_options::ChatCompletionOptions;
+pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
-pub use prompt::PromptRole;
-//pub use send::{http_get_with_response, http_post, http_post_with_response};
-pub use chat_session::ChatSession;
+pub use prompt::{AssistantManager, PromptRole};
+pub use session::{prompt_app, App, ChatSession};
 
 pub use super::defaults::*;
 pub use super::server::{CompletionResponse, ModelServer, ServerManager};
-pub use super::tui::{ColorScheme, TextLine, TextSegment};
+use super::tui::{
+    draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
+    ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction,
+    TextLine, TextSegment, TextWindowTrait, WindowEvent, WindowKind,
+};
 
 // gets PERSONAS from the generated code
 include!(concat!(env!("OUT_DIR"), "/llm/prompt/templates.rs"));

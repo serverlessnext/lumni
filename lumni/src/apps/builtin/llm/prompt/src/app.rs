@@ -21,10 +21,10 @@ use tokio::time::{timeout, Duration};
 
 use super::chat::db::ConversationDatabase;
 use super::chat::{
-    AssistantManager, ChatSession, NewConversation, PromptInstruction,
+    prompt_app, App, AssistantManager, ChatSession, NewConversation,
+    PromptInstruction,
 };
 use super::server::{ModelServer, ModelServerName, ServerTrait};
-use super::session::{App, prompt_app};
 pub use crate::external as lumni;
 
 fn parse_cli_arguments(spec: ApplicationSpec) -> Command {

@@ -5,7 +5,6 @@ pub mod src {
     mod defaults;
     mod handler;
     mod server;
-    mod session;
     mod tui;
     pub use handler::Handler;
 }

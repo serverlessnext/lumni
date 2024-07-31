@@ -4,9 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
-use super::db::{
-    ConversationDbHandler, ConversationId,
-};
+use super::db::{ConversationDbHandler, ConversationId};
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
@@ -82,7 +80,8 @@ impl ChatSession {
     }
 
     pub fn server_name(&self) -> Result<String, ApplicationError> {
-        self.model_server_session.server
+        self.model_server_session
+            .server
             .as_ref()
             .map(|s| s.server_name().to_string())
             .ok_or_else(|| {
@@ -141,10 +140,9 @@ impl ChatSession {
     ) -> Result<(), ApplicationError> {
         // Initialize the server if it's not already initialized
         if self.model_server_session.server.is_none() {
-            self.model_server_session.initialize_model_server(
-                &self.prompt_instruction,
-                db_handler,
-            ).await?;
+            self.model_server_session
+                .initialize_model_server(&self.prompt_instruction, db_handler)
+                .await?;
         }
 
         let model =
@@ -158,9 +156,10 @@ impl ChatSession {
                 })?;
 
         let user_question = self.initiate_new_exchange(question).await?;
-        let server = self.model_server_session.server.as_mut().ok_or_else(|| {
-            ApplicationError::NotReady("Server not initialized".to_string())
-        })?;
+        let server =
+            self.model_server_session.server.as_mut().ok_or_else(|| {
+                ApplicationError::NotReady("Server not initialized".to_string())
+            })?;
 
         let max_token_length = server.get_max_context_size().await?;
 
@@ -209,7 +208,8 @@ impl ChatSession {
         response: Bytes,
         start_of_stream: bool,
     ) -> Result<Option<CompletionResponse>, ApplicationError> {
-        self.model_server_session.server
+        self.model_server_session
+            .server
             .as_mut()
             .ok_or_else(|| {
                 ApplicationError::NotReady("Server not initialized".to_string())

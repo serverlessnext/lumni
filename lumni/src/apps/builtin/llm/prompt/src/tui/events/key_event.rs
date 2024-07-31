@@ -7,7 +7,7 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    ApplicationError, ChatSession, ConversationDbHandler, AppUi, WindowEvent,
+    AppUi, ApplicationError, ChatSession, ConversationDbHandler, WindowEvent,
 };
 
 #[derive(Debug, Clone)]

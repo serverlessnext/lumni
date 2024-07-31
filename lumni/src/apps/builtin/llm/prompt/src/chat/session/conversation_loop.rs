@@ -12,13 +12,11 @@ use ratatui::Terminal;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
+use super::db::{ConversationDatabase, ConversationDbHandler};
 use super::{
-    ChatSession, ColorScheme, CommandLineAction,
-    CompletionResponse, ConversationDatabase, ConversationDbHandler,
-    ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction,
-    PromptInstruction, TextWindowTrait, WindowEvent,
-    App, AppUi,
-    WindowKind,
+    App, AppUi, ChatSession, ColorScheme, CommandLineAction,
+    CompletionResponse, ConversationEvent, KeyEventHandler, ModalWindowType,
+    PromptAction, PromptInstruction, TextWindowTrait, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -31,7 +29,6 @@ pub async fn prompt_app<B: Backend>(
     mut app: App<'_>,
     db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
-    //let tab = _app_session.get_tab_mut(0).expect("No tab found");
     let color_scheme = app.color_scheme.clone();
 
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
@@ -41,8 +38,9 @@ pub async fn prompt_app<B: Backend>(
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
-    let mut db_handler =
-        db_conn.get_conversation_handler(app.chat.get_conversation_id());
+    let mut db_handler = db_conn.get_conversation_handler(
+        app.get_conversation_id_for_active_session(),
+    );
     let mut trim_buffer: Option<String> = None;
 
     loop {
@@ -117,7 +115,7 @@ async fn handle_key_event(
             .process_key(
                 key_event,
                 &mut app.ui,
-                &mut app.chat,
+                app.chat_manager.get_active_session(),
                 mode,
                 keep_running.clone(),
                 db_handler,
@@ -175,12 +173,12 @@ async fn handle_prompt_action(
         }
         PromptAction::Clear => {
             app.ui.response.text_empty();
-            app.chat.reset(db_handler);
+            app.reset_active_session(db_handler)
         }
         PromptAction::Stop => {
-            app.chat.stop_chat_session();
+            app.stop_active_chat_session();
             finalize_response(
-                &mut app.chat,
+                &mut app.chat_manager.get_active_session(),
                 &mut app.ui,
                 db_handler,
                 None,
@@ -242,7 +240,8 @@ async fn handle_prompt_window_event(
             // TODO: handle in modal
             let prompt_instruction =
                 PromptInstruction::new(new_conversation.clone(), db_handler)?;
-            app.chat.load_instruction(prompt_instruction).await?;
+            app.load_instruction_for_active_session(prompt_instruction)
+                .await?;
             app.reload_conversation();
         }
         Some(_) => {
@@ -274,14 +273,7 @@ async fn process_response(
         app.ui.response.enable_auto_scroll();
     }
 
-    let response = app
-        .chat
-        .process_response(response_bytes, start_of_stream)
-        .map_err(|e| {
-        log::error!("Error processing response: {}", e);
-        ApplicationError::from(e)
-    })?;
-
+    let response = app.process_response_for_active_session(response_bytes, start_of_stream)?;
     let trimmed_response = response
         .as_ref()
         .map(|r| r.get_content().trim_end().to_string())
@@ -297,7 +289,7 @@ async fn process_response(
         trimmed_response
     );
     if !display_content.is_empty() {
-        app.chat.update_last_exchange(&display_content);
+        app.update_last_exchange_for_active_session(&display_content);
         app.ui.response.text_append(
             &display_content,
             Some(color_scheme.get_secondary_style()),
@@ -345,8 +337,7 @@ async fn finalize_response_stream(
     // Process post-response messages
     while let Ok(post_bytes) = rx.try_recv() {
         log::debug!("Received post-response message");
-        if let Ok(Some(post_response)) =
-            app.chat.process_response(post_bytes, false)
+        if let Ok(Some(post_response)) = app.process_response_for_active_session(post_bytes, false)
         {
             if let Some(post_stats) = post_response.stats {
                 final_stats = Some(match final_stats {
@@ -361,7 +352,7 @@ async fn finalize_response_stream(
     }
 
     finalize_response(
-        &mut app.chat,
+        &mut app.chat_manager.get_active_session(),
         &mut app.ui,
         db_handler,
         final_stats.as_ref().and_then(|s| s.tokens_predicted),
@@ -402,7 +393,8 @@ async fn send_prompt<'a>(
     // prompt should end with single newline
     let formatted_prompt = format!("{}\n", prompt.trim_end());
     let result = app
-        .chat
+        .chat_manager
+        .get_active_session()
         .message(tx.clone(), &formatted_prompt, db_handler)
         .await;
 

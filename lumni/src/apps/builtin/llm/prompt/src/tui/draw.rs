@@ -7,9 +7,7 @@ use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, Borders, Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 
-use super::{
-    App, TextWindowTrait, WindowKind
-};
+use super::{App, TextWindowTrait, WindowKind};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -36,7 +34,10 @@ pub fn draw_ui<B: Backend>(
         // add borders to main_window[0]
         frame.render_widget(
             main_widget(
-                &app.chat.server_name().unwrap_or_default(),
+                &app.chat_manager
+                    .get_active_session()
+                    .server_name()
+                    .unwrap_or_default(),
                 window_hint(),
             ),
             main_window[0],

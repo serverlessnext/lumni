@@ -1,14 +1,13 @@
-mod role;
 mod assistant;
+mod role;
 
-pub use role::PromptRole;
 pub use assistant::AssistantManager;
-
-pub use super::db::{ConversationId, Message, MessageId};
-pub use super::completion_options::{AssistantOptions, ChatCompletionOptions};
-pub use super::PERSONAS;
-
+pub use role::PromptRole;
 use serde::{Deserialize, Serialize};
+
+pub use super::completion_options::{AssistantOptions, ChatCompletionOptions};
+pub use super::db::{ConversationId, Message, MessageId};
+pub use super::PERSONAS;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Prompt {

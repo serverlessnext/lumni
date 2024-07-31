@@ -20,16 +20,12 @@ pub use lumni::HttpClient;
 pub use ollama::Ollama;
 pub use openai::OpenAI;
 pub use response::{CompletionResponse, CompletionStats};
+pub use send::{http_get_with_response, http_post, http_post_with_response};
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::db::{ConversationDbHandler, ModelServerName, ModelSpec};
-pub use super::chat::{
-    ChatMessage, PromptRole,
-};
-
-pub use send::{http_get_with_response, http_post, http_post_with_response};
-
+pub use super::chat::{ChatMessage, PromptRole};
 pub use super::defaults::*;
 use crate::external as lumni;
 

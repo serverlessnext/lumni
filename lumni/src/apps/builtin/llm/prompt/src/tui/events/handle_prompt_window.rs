@@ -7,7 +7,7 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    LineType, PromptAction, PromptWindow, AppUi, TextWindowTrait, WindowEvent,
+    AppUi, LineType, PromptAction, PromptWindow, TextWindowTrait, WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
 pub use crate::external as lumni;

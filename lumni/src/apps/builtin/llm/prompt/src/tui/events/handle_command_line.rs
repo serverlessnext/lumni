@@ -7,7 +7,7 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    ModalWindowType, PromptAction, AppUi, TextWindowTrait, WindowEvent,
+    AppUi, ModalWindowType, PromptAction, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 

@@ -1,10 +1,16 @@
 use lumni::api::error::ApplicationError;
 
-use super::db::{ConversationId, Message, MessageId};
-use super::options::{AssistantOptions, ChatCompletionOptions};
-use super::prompt::Prompt;
-use super::{PromptRole, PERSONAS};
+//use super::db::{ConversationId, Message, MessageId};
+//use super::completion_options::{AssistantOptions, ChatCompletionOptions};
+//use super::prompt::Prompt;
+//use super::{PromptRole, PERSONAS};
 pub use crate::external as lumni;
+
+pub use super::{
+    AssistantOptions, ChatCompletionOptions,
+    ConversationId, Message, MessageId, PromptRole,
+    PERSONAS, Prompt,
+};
 
 pub struct AssistantManager {
     initial_messages: Vec<Message>,

@@ -8,7 +8,7 @@ use super::{
 };
 pub use crate::external as lumni;
 
-pub struct TabUi<'a> {
+pub struct AppUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
@@ -16,7 +16,7 @@ pub struct TabUi<'a> {
     pub modal: Option<Box<dyn ModalWindowTrait>>,
 }
 
-impl TabUi<'_> {
+impl AppUi<'_> {
     pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
             prompt: PromptWindow::new(),

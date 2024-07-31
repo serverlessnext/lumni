@@ -24,7 +24,7 @@ use super::chat::{
     AssistantManager, ChatSession, NewConversation, PromptInstruction,
 };
 use super::server::{ModelServer, ModelServerName, ServerTrait};
-use super::session::{prompt_app, AppSession};
+use super::session::{App, prompt_app};
 pub use crate::external as lumni;
 
 fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
@@ -176,9 +176,8 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let mut app_session = AppSession::new()?;
-            app_session.add_tab(chat_session);
-            interactive_mode(app_session, db_conn).await
+            let app = App::new(chat_session)?;
+            interactive_mode(app, db_conn).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
@@ -189,7 +188,7 @@ pub async fn run_cli(
 }
 
 async fn interactive_mode(
-    app_session: AppSession<'_>,
+    app: App<'_>,
     db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
@@ -221,7 +220,7 @@ async fn interactive_mode(
     };
 
     // Run the application logic and capture the result
-    let result = prompt_app(&mut terminal, app_session, db_conn).await;
+    let result = prompt_app(&mut terminal, app, db_conn).await;
 
     // Regardless of the result, perform cleanup
     let _ = disable_raw_mode();

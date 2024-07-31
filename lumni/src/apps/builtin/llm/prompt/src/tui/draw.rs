@@ -7,11 +7,13 @@ use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, Borders, Scrollbar, ScrollbarOrientation};
 use ratatui::Terminal;
 
-use super::{TabSession, TextWindowTrait, WindowKind};
+use super::{
+    App, TextWindowTrait, WindowKind
+};
 
 pub fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
-    tab: &mut TabSession,
+    app: &mut App,
 ) -> Result<(), io::Error> {
     terminal.draw(|frame| {
         let terminal_area = frame.size();
@@ -34,7 +36,7 @@ pub fn draw_ui<B: Backend>(
         // add borders to main_window[0]
         frame.render_widget(
             main_widget(
-                &tab.chat.server_name().unwrap_or_default(),
+                &app.chat.server_name().unwrap_or_default(),
                 window_hint(),
             ),
             main_window[0],
@@ -45,7 +47,7 @@ pub fn draw_ui<B: Backend>(
         // first element is response text, second is prompt editor
         // editor: min 3 lines + 2 to account for border
         let tab_window_constraints =
-            if tab.ui.primary_window == WindowKind::ResponseWindow {
+            if app.ui.primary_window == WindowKind::ResponseWindow {
                 [Constraint::Percentage(80), Constraint::Min(5)]
             } else {
                 [Constraint::Percentage(20), Constraint::Min(5)]
@@ -79,11 +81,11 @@ pub fn draw_ui<B: Backend>(
         let prompt_text_area = prompt_window[0];
 
         frame.render_widget(
-            tab.ui.prompt.widget(&prompt_text_area),
+            app.ui.prompt.widget(&prompt_text_area),
             prompt_text_area,
         );
         frame.render_widget(
-            tab.ui.response.widget(&response_text_area),
+            app.ui.response.widget(&response_text_area),
             response_text_area,
         );
         frame.render_stateful_widget(
@@ -92,15 +94,15 @@ pub fn draw_ui<B: Backend>(
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓")),
             response_scrollbar,
-            &mut tab.ui.response.vertical_scroll_bar_state(),
+            &mut app.ui.response.vertical_scroll_bar_state(),
         );
 
         frame.render_widget(
-            tab.ui.command_line.widget(&command_line_area),
+            app.ui.command_line.widget(&command_line_area),
             command_line_area,
         );
 
-        if let Some(modal) = &mut tab.ui.modal {
+        if let Some(modal) = &mut app.ui.modal {
             let area = modal_area(main_window[0]);
             modal.render_on_frame(frame, area);
         }

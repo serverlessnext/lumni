@@ -10,7 +10,7 @@ use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
 use super::modals::ModalWindowType;
-use super::ui::TabUi;
+use super::ui::AppUi;
 use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
     WindowKind,

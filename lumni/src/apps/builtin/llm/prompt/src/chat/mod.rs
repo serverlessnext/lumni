@@ -1,20 +1,17 @@
 use std::error::Error;
-mod assistant;
 mod conversation;
 pub mod db;
-mod options;
+mod completion_options;
 mod prompt;
-mod prompt_role;
-mod send;
-mod session;
+mod chat_session;
 
-pub use assistant::AssistantManager;
+pub use prompt::AssistantManager;
 pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
-pub use options::ChatCompletionOptions;
+pub use completion_options::ChatCompletionOptions;
 use prompt::Prompt;
-pub use prompt_role::PromptRole;
-pub use send::{http_get_with_response, http_post, http_post_with_response};
-pub use session::ChatSession;
+pub use prompt::PromptRole;
+//pub use send::{http_get_with_response, http_post, http_post_with_response};
+pub use chat_session::ChatSession;
 
 pub use super::defaults::*;
 pub use super::server::{CompletionResponse, ModelServer, ServerManager};

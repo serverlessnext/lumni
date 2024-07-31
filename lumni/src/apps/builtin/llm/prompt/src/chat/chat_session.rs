@@ -5,7 +5,7 @@ use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::db::{
-    self, ConversationDatabase, ConversationDbHandler, ConversationId,
+    ConversationDbHandler, ConversationId,
 };
 use super::{
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,

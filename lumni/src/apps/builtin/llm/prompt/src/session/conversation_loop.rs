@@ -13,13 +13,13 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::{
-    AppSession, ChatSession, ColorScheme, CommandLineAction,
+    ChatSession, ColorScheme, CommandLineAction,
     CompletionResponse, ConversationDatabase, ConversationDbHandler,
     ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction,
-    PromptInstruction, TabSession, TabUi, TextWindowTrait, WindowEvent,
+    PromptInstruction, TextWindowTrait, WindowEvent,
+    App, AppUi,
     WindowKind,
 };
-use crate::apps::builtin::llm::prompt::src::chat::db;
 pub use crate::external as lumni;
 
 // max number of messages to hold before backpressure is applied
@@ -28,11 +28,11 @@ const CHANNEL_QUEUE_SIZE: usize = 32;
 
 pub async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    mut app_session: AppSession<'_>,
+    mut app: App<'_>,
     db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
-    let tab = app_session.get_tab_mut(0).expect("No tab found");
-    let color_scheme = tab.color_scheme.clone();
+    //let tab = _app_session.get_tab_mut(0).expect("No tab found");
+    let color_scheme = app.color_scheme.clone();
 
     let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
@@ -42,16 +42,16 @@ pub async fn prompt_app<B: Backend>(
     let mut redraw_ui = true;
 
     let mut db_handler =
-        db_conn.get_conversation_handler(tab.chat.get_conversation_id());
+        db_conn.get_conversation_handler(app.chat.get_conversation_id());
     let mut trim_buffer: Option<String> = None;
 
     loop {
         tokio::select! {
             _ = tick.tick() => {
-                handle_tick(terminal, tab, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme, tx.clone()).await?;
+                handle_tick(terminal, &mut app, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme, tx.clone()).await?;
             },
             Some(response_bytes) = rx.recv() => {
-                process_response(tab, &mut trim_buffer, response_bytes, &mut db_handler, &color_scheme, &mut rx, &mut redraw_ui).await?;
+                process_response(&mut app, &mut trim_buffer, response_bytes, &mut db_handler, &color_scheme, &mut rx, &mut redraw_ui).await?;
             },
         }
 
@@ -64,7 +64,7 @@ pub async fn prompt_app<B: Backend>(
 
 async fn handle_tick<B: Backend>(
     terminal: &mut Terminal<B>,
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     redraw_ui: &mut bool,
     current_mode: &mut Option<WindowEvent>,
     key_event_handler: &mut KeyEventHandler,
@@ -74,7 +74,7 @@ async fn handle_tick<B: Backend>(
     tx: mpsc::Sender<Bytes>,
 ) -> Result<(), ApplicationError> {
     if *redraw_ui {
-        tab.draw_ui(terminal)?;
+        app.draw_ui(terminal)?;
         *redraw_ui = false;
     }
 
@@ -83,7 +83,7 @@ async fn handle_tick<B: Backend>(
         match event {
             Event::Key(key_event) => {
                 handle_key_event(
-                    tab,
+                    app,
                     current_mode,
                     key_event_handler,
                     key_event,
@@ -94,7 +94,7 @@ async fn handle_tick<B: Backend>(
                 )
                 .await?;
             }
-            Event::Mouse(mouse_event) => handle_mouse_event(tab, mouse_event),
+            Event::Mouse(mouse_event) => handle_mouse_event(app, mouse_event),
             _ => {}
         }
         *redraw_ui = true;
@@ -103,7 +103,7 @@ async fn handle_tick<B: Backend>(
 }
 
 async fn handle_key_event(
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     current_mode: &mut Option<WindowEvent>,
     key_event_handler: &mut KeyEventHandler,
     key_event: KeyEvent,
@@ -116,8 +116,8 @@ async fn handle_key_event(
         key_event_handler
             .process_key(
                 key_event,
-                &mut tab.ui,
-                &mut tab.chat,
+                &mut app.ui,
+                &mut app.chat,
                 mode,
                 keep_running.clone(),
                 db_handler,
@@ -129,31 +129,31 @@ async fn handle_key_event(
     match current_mode.as_mut() {
         Some(WindowEvent::Prompt(prompt_action)) => {
             handle_prompt_action(
-                tab,
+                app,
                 prompt_action.clone(),
                 color_scheme,
                 tx,
                 db_handler,
             )
             .await?;
-            *current_mode = Some(tab.ui.set_prompt_window(false));
+            *current_mode = Some(app.ui.set_prompt_window(false));
         }
         Some(WindowEvent::CommandLine(action)) => {
-            handle_command_line_action(tab, action.clone());
+            handle_command_line_action(app, action.clone());
         }
         Some(WindowEvent::Modal(modal_window_type)) => {
-            handle_modal_window(tab, modal_window_type, db_handler)?;
+            handle_modal_window(app, modal_window_type, db_handler)?;
         }
         Some(WindowEvent::PromptWindow(event)) => {
-            handle_prompt_window_event(tab, event.clone(), db_handler).await?;
+            handle_prompt_window_event(app, event.clone(), db_handler).await?;
         }
         _ => {}
     }
     Ok(())
 }
 
-fn handle_mouse_event(tab: &mut TabSession, mouse_event: MouseEvent) {
-    let window = &mut tab.ui.response;
+fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) {
+    let window = &mut app.ui.response;
     match mouse_event.kind {
         MouseEventKind::ScrollUp => window.scroll_up(),
         MouseEventKind::ScrollDown => window.scroll_down(),
@@ -163,7 +163,7 @@ fn handle_mouse_event(tab: &mut TabSession, mouse_event: MouseEvent) {
 }
 
 async fn handle_prompt_action(
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     prompt_action: PromptAction,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
@@ -171,17 +171,17 @@ async fn handle_prompt_action(
 ) -> Result<(), ApplicationError> {
     match prompt_action {
         PromptAction::Write(prompt) => {
-            send_prompt(tab, &prompt, color_scheme, tx, db_handler).await?;
+            send_prompt(app, &prompt, color_scheme, tx, db_handler).await?;
         }
         PromptAction::Clear => {
-            tab.ui.response.text_empty();
-            tab.chat.reset(db_handler);
+            app.ui.response.text_empty();
+            app.chat.reset(db_handler);
         }
         PromptAction::Stop => {
-            tab.chat.stop_chat_session();
+            app.chat.stop_chat_session();
             finalize_response(
-                &mut tab.chat,
-                &mut tab.ui,
+                &mut app.chat,
+                &mut app.ui,
                 db_handler,
                 None,
                 color_scheme,
@@ -193,17 +193,17 @@ async fn handle_prompt_action(
 }
 
 fn handle_command_line_action(
-    tab: &mut TabSession,
+    app: &mut App,
     action: Option<CommandLineAction>,
 ) {
-    if tab.ui.prompt.is_active() {
-        tab.ui.prompt.set_status_background();
+    if app.ui.prompt.is_active() {
+        app.ui.prompt.set_status_background();
     } else {
-        tab.ui.response.set_status_background();
+        app.ui.response.set_status_background();
     }
     if let Some(CommandLineAction::Write(prefix)) = action {
-        tab.ui.command_line.set_status_insert();
-        tab.ui
+        app.ui.command_line.set_status_insert();
+        app.ui
             .command_line
             .text_set(&prefix, None)
             .expect("Failed to set command line text");
@@ -211,7 +211,7 @@ fn handle_command_line_action(
 }
 
 fn handle_modal_window(
-    tab: &mut TabSession,
+    app: &mut App,
     modal_window_type: &ModalWindowType,
     handler: &ConversationDbHandler,
 ) -> Result<(), ApplicationError> {
@@ -219,20 +219,20 @@ fn handle_modal_window(
     match modal_window_type {
         ModalWindowType::ConversationList(Some(_)) => {
             // reload chat on any conversation event
-            tab.reload_conversation();
+            app.reload_conversation();
             return Ok(());
         }
         _ => {}
     }
 
-    if tab.ui.needs_modal_update(modal_window_type) {
-        tab.ui.set_new_modal(modal_window_type.clone(), handler)?;
+    if app.ui.needs_modal_update(modal_window_type) {
+        app.ui.set_new_modal(modal_window_type.clone(), handler)?;
     }
     Ok(())
 }
 
 async fn handle_prompt_window_event(
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     event: Option<ConversationEvent>,
     db_handler: &mut ConversationDbHandler<'_>,
 ) -> Result<(), ApplicationError> {
@@ -242,24 +242,24 @@ async fn handle_prompt_window_event(
             // TODO: handle in modal
             let prompt_instruction =
                 PromptInstruction::new(new_conversation.clone(), db_handler)?;
-            tab.chat.load_instruction(prompt_instruction).await?;
-            tab.reload_conversation();
+            app.chat.load_instruction(prompt_instruction).await?;
+            app.reload_conversation();
         }
         Some(_) => {
             // any other ConversationEvent is a reload
-            tab.reload_conversation();
+            app.reload_conversation();
         }
         None => {
             log::debug!("No prompt window event to handle");
         }
     }
     // ensure modal is closed
-    tab.ui.clear_modal();
+    app.ui.clear_modal();
     Ok(())
 }
 
 async fn process_response(
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     trim_buffer: &mut Option<String>,
     response_bytes: Bytes,
     db_handler: &mut ConversationDbHandler<'_>,
@@ -271,10 +271,10 @@ async fn process_response(
     let start_of_stream = trim_buffer.is_none();
     if start_of_stream {
         log::debug!("New response stream started");
-        tab.ui.response.enable_auto_scroll();
+        app.ui.response.enable_auto_scroll();
     }
 
-    let response = tab
+    let response = app
         .chat
         .process_response(response_bytes, start_of_stream)
         .map_err(|e| {
@@ -297,15 +297,15 @@ async fn process_response(
         trimmed_response
     );
     if !display_content.is_empty() {
-        tab.chat.update_last_exchange(&display_content);
-        tab.ui.response.text_append(
+        app.chat.update_last_exchange(&display_content);
+        app.ui.response.text_append(
             &display_content,
             Some(color_scheme.get_secondary_style()),
         )?;
     }
 
     if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
-        finalize_response_stream(tab, response, db_handler, color_scheme, rx)
+        finalize_response_stream(app, response, db_handler, color_scheme, rx)
             .await?;
         *trim_buffer = None;
     } else {
@@ -334,20 +334,19 @@ fn update_trim_buffer(
 }
 
 async fn finalize_response_stream(
-    tab: &mut TabSession<'_>,
+    app: &mut App<'_>,
     response: Option<CompletionResponse>,
     db_handler: &mut ConversationDbHandler<'_>,
     color_scheme: &ColorScheme,
     rx: &mut mpsc::Receiver<Bytes>,
 ) -> Result<(), ApplicationError> {
-    log::debug!("Final response received");
     let mut final_stats = response.and_then(|r| r.stats);
 
     // Process post-response messages
     while let Ok(post_bytes) = rx.try_recv() {
         log::debug!("Received post-response message");
         if let Ok(Some(post_response)) =
-            tab.chat.process_response(post_bytes, false)
+            app.chat.process_response(post_bytes, false)
         {
             if let Some(post_stats) = post_response.stats {
                 final_stats = Some(match final_stats {
@@ -362,8 +361,8 @@ async fn finalize_response_stream(
     }
 
     finalize_response(
-        &mut tab.chat,
-        &mut tab.ui,
+        &mut app.chat,
+        &mut app.ui,
         db_handler,
         final_stats.as_ref().and_then(|s| s.tokens_predicted),
         color_scheme,
@@ -373,7 +372,7 @@ async fn finalize_response_stream(
 
 async fn finalize_response(
     chat: &mut ChatSession,
-    tab_ui: &mut TabUi<'_>,
+    app_ui: &mut AppUi<'_>,
     //db_conn: &ConversationDatabase,
     db_handler: &mut ConversationDbHandler<'_>,
     tokens_predicted: Option<usize>,
@@ -382,11 +381,11 @@ async fn finalize_response(
     // stop trying to get more responses
     chat.stop_chat_session();
     // finalize with newline for in display
-    tab_ui
+    app_ui
         .response
         .text_append("\n", Some(color_scheme.get_secondary_style()))?;
     // add an empty unstyled line
-    tab_ui.response.text_append("\n", Some(Style::reset()))?;
+    app_ui.response.text_append("\n", Some(Style::reset()))?;
     // trim exchange + update token length
     chat.finalize_last_exchange(db_handler, tokens_predicted)
         .await?;
@@ -394,7 +393,7 @@ async fn finalize_response(
 }
 
 async fn send_prompt<'a>(
-    tab: &mut TabSession<'a>,
+    app: &mut App<'a>,
     prompt: &str,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
@@ -402,7 +401,7 @@ async fn send_prompt<'a>(
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
     let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = tab
+    let result = app
         .chat
         .message(tx.clone(), &formatted_prompt, db_handler)
         .await;
@@ -410,18 +409,18 @@ async fn send_prompt<'a>(
     match result {
         Ok(_) => {
             // clear prompt
-            tab.ui.prompt.text_empty();
-            tab.ui.prompt.set_status_normal();
-            tab.ui.response.text_append(
+            app.ui.prompt.text_empty();
+            app.ui.prompt.set_status_normal();
+            app.ui.response.text_append(
                 &formatted_prompt,
                 Some(color_scheme.get_primary_style()),
             )?;
-            tab.ui.set_primary_window(WindowKind::ResponseWindow);
-            tab.ui.response.text_append("\n", Some(Style::reset()))?;
+            app.ui.set_primary_window(WindowKind::ResponseWindow);
+            app.ui.response.text_append("\n", Some(Style::reset()))?;
         }
         Err(e) => {
             log::error!("Error sending message: {:?}", e);
-            tab.ui.command_line.set_alert(&e.to_string())?;
+            app.ui.command_line.set_alert(&e.to_string())?;
         }
     }
     Ok(())

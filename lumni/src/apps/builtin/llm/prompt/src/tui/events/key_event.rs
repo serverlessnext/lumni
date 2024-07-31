@@ -7,7 +7,7 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    ApplicationError, ChatSession, ConversationDbHandler, TabUi, WindowEvent,
+    ApplicationError, ChatSession, ConversationDbHandler, AppUi, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -155,7 +155,7 @@ impl KeyEventHandler {
     pub async fn process_key(
         &mut self,
         key_event: KeyEvent,
-        tab_ui: &mut TabUi<'_>,
+        app_ui: &mut AppUi<'_>,
         tab_chat: &mut ChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
@@ -174,23 +174,23 @@ impl KeyEventHandler {
         // try to catch Shift+Enter key press in prompt window
         match current_mode {
             WindowEvent::CommandLine(_) => handle_command_line_event(
-                tab_ui,
+                app_ui,
                 &mut self.key_track,
                 is_running,
             ),
             WindowEvent::ResponseWindow => handle_response_window_event(
-                tab_ui,
+                app_ui,
                 &mut self.key_track,
                 is_running,
             ),
             WindowEvent::PromptWindow(_) => handle_prompt_window_event(
-                tab_ui,
+                app_ui,
                 &mut self.key_track,
                 is_running,
             ),
             WindowEvent::Modal(window_type) => {
                 // key event is handled by modal window
-                if let Some(modal) = tab_ui.modal.as_mut() {
+                if let Some(modal) = app_ui.modal.as_mut() {
                     let new_window_event = match modal
                         .handle_key_event(
                             &mut self.key_track,
@@ -215,7 +215,7 @@ impl KeyEventHandler {
                                 ApplicationError::NotReady(message) => {
                                     // pass as warning to the user
                                     log::debug!("Not ready: {:?}", message);
-                                    tab_ui.command_line.set_alert(&format!(
+                                    app_ui.command_line.set_alert(&format!(
                                         "Not Ready: {}",
                                         message
                                     ))?;

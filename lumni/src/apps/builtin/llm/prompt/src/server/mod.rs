@@ -8,6 +8,7 @@ mod llama;
 mod ollama;
 mod openai;
 mod response;
+mod send;
 
 use async_trait::async_trait;
 pub use bedrock::Bedrock;
@@ -24,9 +25,11 @@ use tokio::sync::{mpsc, oneshot};
 
 pub use super::chat::db::{ConversationDbHandler, ModelServerName, ModelSpec};
 pub use super::chat::{
-    http_get_with_response, http_post, http_post_with_response, ChatMessage,
-    PromptRole,
+    ChatMessage, PromptRole,
 };
+
+pub use send::{http_get_with_response, http_post, http_post_with_response};
+
 pub use super::defaults::*;
 use crate::external as lumni;
 

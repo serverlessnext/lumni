@@ -1,3 +1,13 @@
+mod role;
+mod assistant;
+
+pub use role::PromptRole;
+pub use assistant::AssistantManager;
+
+pub use super::db::{ConversationId, Message, MessageId};
+pub use super::completion_options::{AssistantOptions, ChatCompletionOptions};
+pub use super::PERSONAS;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -7,12 +7,12 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    ModalWindowType, PromptAction, TabUi, TextWindowTrait, WindowEvent,
+    ModalWindowType, PromptAction, AppUi, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 
 pub fn handle_command_line_event(
-    tab_ui: &mut TabUi,
+    app_ui: &mut AppUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
 ) -> Result<Option<WindowEvent>, ApplicationError> {
@@ -22,21 +22,21 @@ pub fn handle_command_line_event(
         // Escape key
         KeyCode::Esc => {
             // exit command line
-            tab_ui.command_line.text_empty();
-            tab_ui.command_line.set_status_inactive();
+            app_ui.command_line.text_empty();
+            app_ui.command_line.set_status_inactive();
 
-            Ok(Some(tab_ui.set_response_window()))
+            Ok(Some(app_ui.set_response_window()))
         }
         KeyCode::Enter => {
-            let command = tab_ui.command_line.text_buffer().to_string();
-            tab_ui.command_line.text_empty();
-            tab_ui.command_line.set_status_inactive();
+            let command = app_ui.command_line.text_buffer().to_string();
+            app_ui.command_line.text_empty();
+            app_ui.command_line.set_status_inactive();
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
                     "q" => return Ok(Some(WindowEvent::Quit)),
                     "w" => {
-                        let question = tab_ui.prompt.text_buffer().to_string();
-                        tab_ui.prompt.text_empty();
+                        let question = app_ui.prompt.text_buffer().to_string();
+                        app_ui.prompt.text_empty();
                         return Ok(Some(WindowEvent::Prompt(
                             PromptAction::Write(question),
                         )));
@@ -58,13 +58,13 @@ pub fn handle_command_line_event(
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window
-            tab_ui.command_line.text_empty();
-            tab_ui.command_line.set_status_inactive();
+            app_ui.command_line.text_empty();
+            app_ui.command_line.set_status_inactive();
             Ok(Some(WindowEvent::Modal(ModalWindowType::SelectEndpoint)))
         }
         _ => handle_text_window_event(
             key_track,
-            &mut tab_ui.command_line,
+            &mut app_ui.command_line,
             is_running,
         ),
     }

@@ -13,42 +13,25 @@ use super::{
 };
 use crate::api::error::ApplicationError;
 
-pub struct ChatSession {
+pub struct ModelServerSession {
     server: Option<Box<dyn ServerManager>>,
-    prompt_instruction: PromptInstruction,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
 
-impl ChatSession {
-    pub async fn new(
-        prompt_instruction: PromptInstruction,
-        db_handler: &ConversationDbHandler<'_>,
-    ) -> Result<Self, ApplicationError> {
-        Ok(ChatSession {
-            server: Self::get_model_server(&prompt_instruction, db_handler)
-                .await?,
-            prompt_instruction,
+impl ModelServerSession {
+    pub fn new() -> Self {
+        ModelServerSession {
+            server: None,
             cancel_tx: None,
-        })
+        }
     }
 
-    pub async fn load_instruction(
+    pub async fn initialize_model_server(
         &mut self,
-        prompt_instruction: PromptInstruction,
-        db_handler: &ConversationDbHandler<'_>,
-    ) -> Result<(), ApplicationError> {
-        self.stop();
-        self.server =
-            Self::get_model_server(&prompt_instruction, db_handler).await?;
-        self.prompt_instruction = prompt_instruction;
-        Ok(())
-    }
-
-    async fn get_model_server(
         prompt_instruction: &PromptInstruction,
         db_handler: &ConversationDbHandler<'_>,
-    ) -> Result<Option<Box<dyn ServerManager>>, ApplicationError> {
-        let server = if let Some(model_server) = prompt_instruction
+    ) -> Result<(), ApplicationError> {
+        self.server = if let Some(model_server) = prompt_instruction
             .get_completion_options()
             .model_server
             .as_ref()
@@ -70,11 +53,36 @@ impl ChatSession {
         } else {
             None
         };
-        Ok(server)
+        Ok(())
+    }
+}
+
+pub struct ChatSession {
+    prompt_instruction: PromptInstruction,
+    model_server_session: ModelServerSession,
+}
+
+impl ChatSession {
+    pub async fn new(
+        prompt_instruction: PromptInstruction,
+    ) -> Result<Self, ApplicationError> {
+        Ok(ChatSession {
+            prompt_instruction,
+            model_server_session: ModelServerSession::new(),
+        })
+    }
+
+    pub async fn load_instruction(
+        &mut self,
+        prompt_instruction: PromptInstruction,
+    ) -> Result<(), ApplicationError> {
+        self.stop_server_session(); // stop a running session (if any)
+        self.prompt_instruction = prompt_instruction;
+        Ok(())
     }
 
     pub fn server_name(&self) -> Result<String, ApplicationError> {
-        self.server
+        self.model_server_session.server
             .as_ref()
             .map(|s| s.server_name().to_string())
             .ok_or_else(|| {
@@ -86,15 +94,21 @@ impl ChatSession {
         self.prompt_instruction.get_conversation_id()
     }
 
-    pub fn stop(&mut self) {
+    fn stop_server_session(&mut self) {
+        self.stop_chat_session();
+        self.model_server_session.server = None;
+    }
+
+    pub fn stop_chat_session(&mut self) {
         // Stop the chat session by sending a cancel signal
-        if let Some(cancel_tx) = self.cancel_tx.take() {
+        if let Some(cancel_tx) = self.model_server_session.cancel_tx.take() {
             let _ = cancel_tx.send(());
+            self.model_server_session.cancel_tx = None;
         }
     }
 
     pub fn reset(&mut self, db_handler: &mut ConversationDbHandler<'_>) {
-        self.stop();
+        self.stop_server_session();
         _ = self.prompt_instruction.reset_history(db_handler);
     }
 
@@ -123,8 +137,16 @@ impl ChatSession {
         &mut self,
         tx: mpsc::Sender<Bytes>,
         question: &str,
+        db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        // First, let's handle all operations that don't require mutable access to server
+        // Initialize the server if it's not already initialized
+        if self.model_server_session.server.is_none() {
+            self.model_server_session.initialize_model_server(
+                &self.prompt_instruction,
+                db_handler,
+            ).await?;
+        }
+
         let model =
             self.prompt_instruction
                 .get_model()
@@ -136,9 +158,7 @@ impl ChatSession {
                 })?;
 
         let user_question = self.initiate_new_exchange(question).await?;
-
-        // Now, let's get the server and perform operations that require it
-        let server = self.server.as_mut().ok_or_else(|| {
+        let server = self.model_server_session.server.as_mut().ok_or_else(|| {
             ApplicationError::NotReady("Server not initialized".to_string())
         })?;
 
@@ -149,7 +169,7 @@ impl ChatSession {
             .new_question(&user_question, max_token_length)?;
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
-        self.cancel_tx = Some(cancel_tx); // channel to cancel
+        self.model_server_session.cancel_tx = Some(cancel_tx); // channel to cancel
 
         server
             .completion(&messages, &model, Some(tx), Some(cancel_rx))
@@ -189,7 +209,7 @@ impl ChatSession {
         response: Bytes,
         start_of_stream: bool,
     ) -> Result<Option<CompletionResponse>, ApplicationError> {
-        self.server
+        self.model_server_session.server
             .as_mut()
             .ok_or_else(|| {
                 ApplicationError::NotReady("Server not initialized".to_string())
@@ -204,11 +224,12 @@ impl ChatSession {
         &mut self,
         question: String,
         stop_signal: Arc<Mutex<bool>>,
+        db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
         let (tx, rx) = mpsc::channel(32);
-        let _ = self.message(tx, &question).await;
+        let _ = self.message(tx, &question, db_handler).await;
         self.handle_response(rx, stop_signal).await?;
-        self.stop();
+        self.stop_server_session();
         Ok(())
     }
 

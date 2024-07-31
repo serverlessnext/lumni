@@ -19,6 +19,7 @@ use super::{
     PromptInstruction, TabSession, TabUi, TextWindowTrait, WindowEvent,
     WindowKind,
 };
+use crate::apps::builtin::llm::prompt::src::chat::db;
 pub use crate::external as lumni;
 
 // max number of messages to hold before backpressure is applied
@@ -170,14 +171,14 @@ async fn handle_prompt_action(
 ) -> Result<(), ApplicationError> {
     match prompt_action {
         PromptAction::Write(prompt) => {
-            send_prompt(tab, &prompt, color_scheme, tx).await?;
+            send_prompt(tab, &prompt, color_scheme, tx, db_handler).await?;
         }
         PromptAction::Clear => {
             tab.ui.response.text_empty();
             tab.chat.reset(db_handler);
         }
         PromptAction::Stop => {
-            tab.chat.stop();
+            tab.chat.stop_chat_session();
             finalize_response(
                 &mut tab.chat,
                 &mut tab.ui,
@@ -241,9 +242,7 @@ async fn handle_prompt_window_event(
             // TODO: handle in modal
             let prompt_instruction =
                 PromptInstruction::new(new_conversation.clone(), db_handler)?;
-            tab.chat
-                .load_instruction(prompt_instruction, db_handler)
-                .await?;
+            tab.chat.load_instruction(prompt_instruction).await?;
             tab.reload_conversation();
         }
         Some(_) => {
@@ -381,7 +380,7 @@ async fn finalize_response(
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
     // stop trying to get more responses
-    chat.stop();
+    chat.stop_chat_session();
     // finalize with newline for in display
     tab_ui
         .response
@@ -399,10 +398,14 @@ async fn send_prompt<'a>(
     prompt: &str,
     color_scheme: &ColorScheme,
     tx: mpsc::Sender<Bytes>,
+    db_handler: &ConversationDbHandler<'_>,
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
     let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = tab.chat.message(tx.clone(), &formatted_prompt).await;
+    let result = tab
+        .chat
+        .message(tx.clone(), &formatted_prompt, db_handler)
+        .await;
 
     match result {
         Ok(_) => {

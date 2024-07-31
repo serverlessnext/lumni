@@ -244,9 +244,7 @@ impl<'a> ConversationListModal<'a> {
         let prompt_instruction = self.load_conversation(db_handler).await?;
         match prompt_instruction {
             Some(prompt_instruction) => {
-                tab_chat
-                    .load_instruction(prompt_instruction, db_handler)
-                    .await?;
+                tab_chat.load_instruction(prompt_instruction).await?;
             }
             None => {}
         }
@@ -272,9 +270,7 @@ impl<'a> ConversationListModal<'a> {
             db_handler.set_conversation_id(conversation_id);
             let prompt_instruction =
                 PromptInstruction::from_reader(db_handler)?;
-            tab_chat
-                .load_instruction(prompt_instruction, db_handler)
-                .await?;
+            tab_chat.load_instruction(prompt_instruction).await?;
             self.last_selected_conversation_id = None;
         }
         Ok(())
@@ -315,6 +311,11 @@ impl<'a> ModalWindowTrait for ConversationListModal<'a> {
         tab_chat: &'b mut ChatSession,
         handler: &mut ConversationDbHandler<'_>,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
+        log::debug!(
+            "Key: {:?}, Modifiers: {:?}",
+            key_event.current_key().code,
+            key_event.current_key().modifiers
+        );
         match self.edit_name_line {
             Some(_) => {
                 self.handle_edit_mode_key_event(key_event, handler).await

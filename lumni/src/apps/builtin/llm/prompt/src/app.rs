@@ -171,8 +171,7 @@ pub async fn run_cli(
             PromptInstruction::new(new_conversation, &mut db_handler)
         })?;
 
-    let chat_session =
-        ChatSession::new(prompt_instruction, &db_handler).await?;
+    let chat_session = ChatSession::new(prompt_instruction).await?;
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
@@ -237,7 +236,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
-    _db_conn: ConversationDatabase,
+    db_conn: ConversationDatabase,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();
@@ -270,8 +269,10 @@ async fn process_non_interactive_input(
         let input = stdin_input.trim_end().to_string();
         // Process the prompt
         let process_handle = tokio::spawn(async move {
+            let db_handler = db_conn.get_conversation_handler(None);
             let mut chat = chat_clone.lock().await;
-            chat.process_prompt(input, running.clone()).await
+            chat.process_prompt(input, running.clone(), &db_handler)
+                .await
         });
 
         // Wait for the process to complete or for a shutdown signal

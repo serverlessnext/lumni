@@ -1,6 +1,23 @@
 use super::*;
 
 impl<'a> ConversationListModal<'a> {
+    async fn reload_conversation(
+        &mut self,
+        tab_chat: &mut ChatSession,
+        db_handler: &mut ConversationDbHandler<'_>,
+    ) -> Result<Option<WindowEvent>, ApplicationError> {
+        match self.current_tab {
+            ConversationStatus::Deleted => {
+                self.undo_delete_and_load_conversation(tab_chat, db_handler)
+                    .await?
+            }
+            _ => self.load_and_set_conversation(tab_chat, db_handler).await?,
+        }
+        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
+            Some(ConversationEvent::ReloadConversation),
+        ))))
+    }
+
     pub async fn handle_edit_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
@@ -30,50 +47,19 @@ impl<'a> ConversationListModal<'a> {
             KeyCode::Up => {
                 self.move_selection_up();
                 self.last_selected_conversation_id = None;
+                return self.reload_conversation(tab_chat, db_handler).await;
             }
             KeyCode::Down => {
                 self.move_selection_down();
                 self.last_selected_conversation_id = None;
+                return self.reload_conversation(tab_chat, db_handler).await;
+            }
+            KeyCode::Enter => {
+                return Ok(Some(WindowEvent::PromptWindow(None)));
             }
             KeyCode::Tab => {
                 self.switch_tab();
                 self.last_selected_conversation_id = None;
-            }
-            KeyCode::Enter => {
-                if let Some(conversation) = self.get_current_conversation() {
-                    if Some(conversation.id)
-                        == self.last_selected_conversation_id
-                    {
-                        // Double Enter press detected, close the modal
-                        return Ok(Some(WindowEvent::PromptWindow(None)));
-                    }
-                    // Update the last selected conversation ID
-                    eprintln!(
-                        "Last selected conversation: {:?}",
-                        self.last_selected_conversation_id
-                    );
-                    eprintln!("Selected conversation: {:?}", conversation.id);
-                    self.last_selected_conversation_id = Some(conversation.id);
-
-                    match self.current_tab {
-                        ConversationStatus::Deleted => {
-                            self.undo_delete_and_load_conversation(
-                                tab_chat, db_handler,
-                            )
-                            .await?
-                        }
-                        _ => {
-                            self.load_and_set_conversation(tab_chat, db_handler)
-                                .await?
-                        }
-                    }
-
-                    return Ok(Some(WindowEvent::Modal(
-                        ModalWindowType::ConversationList(Some(
-                            ConversationEvent::ReloadConversation,
-                        )),
-                    )));
-                }
             }
             KeyCode::Char('p') | KeyCode::Char('P') => {
                 self.handle_pin_action(db_handler).await?

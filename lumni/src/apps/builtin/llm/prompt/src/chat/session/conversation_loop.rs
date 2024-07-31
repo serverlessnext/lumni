@@ -1,7 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use crossterm::event::{
     poll, read, Event, KeyEvent, MouseEvent, MouseEventKind,
 };
@@ -9,7 +8,6 @@ use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
 use ratatui::style::Style;
 use ratatui::Terminal;
-use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 
 use super::db::{ConversationDatabase, ConversationDbHandler};
@@ -20,10 +18,6 @@ use super::{
 };
 pub use crate::external as lumni;
 
-// max number of messages to hold before backpressure is applied
-// only applies to interactive mode
-const CHANNEL_QUEUE_SIZE: usize = 32;
-
 pub async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App<'_>,
@@ -31,25 +25,34 @@ pub async fn prompt_app<B: Backend>(
 ) -> Result<(), ApplicationError> {
     let color_scheme = app.color_scheme.clone();
 
-    let (tx, mut rx) = mpsc::channel(CHANNEL_QUEUE_SIZE);
     let mut tick = interval(Duration::from_millis(1));
     let keep_running = Arc::new(AtomicBool::new(false));
     let mut current_mode = Some(WindowEvent::ResponseWindow);
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
 
-    let mut db_handler = db_conn.get_conversation_handler(
-        app.get_conversation_id_for_active_session(),
-    );
-    let mut trim_buffer: Option<String> = None;
+    let mut db_handler = db_conn
+        .get_conversation_handler(app.get_conversation_id_for_active_session());
 
     loop {
         tokio::select! {
             _ = tick.tick() => {
-                handle_tick(terminal, &mut app, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme, tx.clone()).await?;
+                handle_tick(terminal, &mut app, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme).await?;
             },
-            Some(response_bytes) = rx.recv() => {
-                process_response(&mut app, &mut trim_buffer, response_bytes, &mut db_handler, &color_scheme, &mut rx, &mut redraw_ui).await?;
+            result = app.chat_manager.get_active_session().receive_response() => {
+                match result {
+                    Ok(Some(response)) => {
+                        process_chat_response(&mut app, response, &mut db_handler, &color_scheme, &mut redraw_ui).await?;
+                    },
+                    Ok(None) => {
+                        log::debug!("Chat session channel closed");
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    },
+                    Err(e) => {
+                        log::error!("Error receiving response: {:?}", e);
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                }
             },
         }
 
@@ -69,7 +72,6 @@ async fn handle_tick<B: Backend>(
     keep_running: &Arc<AtomicBool>,
     db_handler: &mut ConversationDbHandler<'_>,
     color_scheme: &ColorScheme,
-    tx: mpsc::Sender<Bytes>,
 ) -> Result<(), ApplicationError> {
     if *redraw_ui {
         app.draw_ui(terminal)?;
@@ -88,7 +90,6 @@ async fn handle_tick<B: Backend>(
                     keep_running,
                     db_handler,
                     color_scheme,
-                    tx,
                 )
                 .await?;
             }
@@ -108,7 +109,6 @@ async fn handle_key_event(
     keep_running: &Arc<AtomicBool>,
     db_handler: &mut ConversationDbHandler<'_>,
     color_scheme: &ColorScheme,
-    tx: mpsc::Sender<Bytes>,
 ) -> Result<(), ApplicationError> {
     *current_mode = if let Some(mode) = current_mode.take() {
         key_event_handler
@@ -130,7 +130,6 @@ async fn handle_key_event(
                 app,
                 prompt_action.clone(),
                 color_scheme,
-                tx,
                 db_handler,
             )
             .await?;
@@ -164,12 +163,11 @@ async fn handle_prompt_action(
     app: &mut App<'_>,
     prompt_action: PromptAction,
     color_scheme: &ColorScheme,
-    tx: mpsc::Sender<Bytes>,
     db_handler: &mut ConversationDbHandler<'_>,
 ) -> Result<(), ApplicationError> {
     match prompt_action {
         PromptAction::Write(prompt) => {
-            send_prompt(app, &prompt, color_scheme, tx, db_handler).await?;
+            send_prompt(app, &prompt, color_scheme, db_handler).await?;
         }
         PromptAction::Clear => {
             app.ui.response.text_empty();
@@ -257,110 +255,6 @@ async fn handle_prompt_window_event(
     Ok(())
 }
 
-async fn process_response(
-    app: &mut App<'_>,
-    trim_buffer: &mut Option<String>,
-    response_bytes: Bytes,
-    db_handler: &mut ConversationDbHandler<'_>,
-    color_scheme: &ColorScheme,
-    rx: &mut mpsc::Receiver<Bytes>,
-    redraw_ui: &mut bool,
-) -> Result<(), ApplicationError> {
-    log::debug!("Received response with length {:?}", response_bytes.len());
-    let start_of_stream = trim_buffer.is_none();
-    if start_of_stream {
-        log::debug!("New response stream started");
-        app.ui.response.enable_auto_scroll();
-    }
-
-    let response = app.process_response_for_active_session(response_bytes, start_of_stream)?;
-    let trimmed_response = response
-        .as_ref()
-        .map(|r| r.get_content().trim_end().to_string())
-        .unwrap_or_else(|| {
-            log::debug!("No response content");
-            String::new()
-        });
-    log::debug!("Trimmed response: {:?}", trimmed_response);
-
-    let display_content = format!(
-        "{}{}",
-        trim_buffer.as_deref().unwrap_or(""),
-        trimmed_response
-    );
-    if !display_content.is_empty() {
-        app.update_last_exchange_for_active_session(&display_content);
-        app.ui.response.text_append(
-            &display_content,
-            Some(color_scheme.get_secondary_style()),
-        )?;
-    }
-
-    if response.as_ref().map(|r| r.is_final).unwrap_or(true) {
-        finalize_response_stream(app, response, db_handler, color_scheme, rx)
-            .await?;
-        *trim_buffer = None;
-    } else {
-        update_trim_buffer(trim_buffer, &response, &trimmed_response);
-    }
-
-    *redraw_ui = true;
-    Ok(())
-}
-
-fn update_trim_buffer(
-    trim_buffer: &mut Option<String>,
-    response: &Option<CompletionResponse>,
-    trimmed_response: &str,
-) {
-    let text = response
-        .as_ref()
-        .map(|r| r.get_content())
-        .unwrap_or_default();
-    if !text.is_empty() {
-        let trailing_whitespace_start = trimmed_response.len();
-        *trim_buffer = Some(text[trailing_whitespace_start..].to_string());
-    } else {
-        *trim_buffer = Some(String::new());
-    }
-}
-
-async fn finalize_response_stream(
-    app: &mut App<'_>,
-    response: Option<CompletionResponse>,
-    db_handler: &mut ConversationDbHandler<'_>,
-    color_scheme: &ColorScheme,
-    rx: &mut mpsc::Receiver<Bytes>,
-) -> Result<(), ApplicationError> {
-    let mut final_stats = response.and_then(|r| r.stats);
-
-    // Process post-response messages
-    while let Ok(post_bytes) = rx.try_recv() {
-        log::debug!("Received post-response message");
-        if let Ok(Some(post_response)) = app.process_response_for_active_session(post_bytes, false)
-        {
-            if let Some(post_stats) = post_response.stats {
-                final_stats = Some(match final_stats {
-                    Some(mut stats) => {
-                        stats.merge(&post_stats);
-                        stats
-                    }
-                    None => post_stats,
-                });
-            }
-        }
-    }
-
-    finalize_response(
-        &mut app.chat_manager.get_active_session(),
-        &mut app.ui,
-        db_handler,
-        final_stats.as_ref().and_then(|s| s.tokens_predicted),
-        color_scheme,
-    )
-    .await
-}
-
 async fn finalize_response(
     chat: &mut ChatSession,
     app_ui: &mut AppUi<'_>,
@@ -387,7 +281,6 @@ async fn send_prompt<'a>(
     app: &mut App<'a>,
     prompt: &str,
     color_scheme: &ColorScheme,
-    tx: mpsc::Sender<Bytes>,
     db_handler: &ConversationDbHandler<'_>,
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
@@ -395,7 +288,7 @@ async fn send_prompt<'a>(
     let result = app
         .chat_manager
         .get_active_session()
-        .message(tx.clone(), &formatted_prompt, db_handler)
+        .message(&formatted_prompt, db_handler)
         .await;
 
     match result {
@@ -415,5 +308,74 @@ async fn send_prompt<'a>(
             app.ui.command_line.set_alert(&e.to_string())?;
         }
     }
+    Ok(())
+}
+
+async fn process_chat_response(
+    app: &mut App<'_>,
+    response: CompletionResponse,
+    db_handler: &mut ConversationDbHandler<'_>,
+    color_scheme: &ColorScheme,
+    redraw_ui: &mut bool,
+) -> Result<(), ApplicationError> {
+    log::debug!(
+        "Received response with length {:?}",
+        response.get_content().len()
+    );
+
+    let trimmed_response = response.get_content().trim_end().to_string();
+    log::debug!("Trimmed response: {:?}", trimmed_response);
+
+    if !trimmed_response.is_empty() {
+        app.chat_manager
+            .get_active_session()
+            .update_last_exchange(&trimmed_response);
+        app.ui
+            .response
+            .text_append(
+                &trimmed_response,
+                Some(color_scheme.get_secondary_style()),
+            )
+            .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+    }
+
+    if response.is_final {
+        finalize_chat_response(app, response, db_handler, color_scheme).await?;
+    }
+
+    *redraw_ui = true;
+    Ok(())
+}
+
+async fn finalize_chat_response(
+    app: &mut App<'_>,
+    response: CompletionResponse,
+    db_handler: &mut ConversationDbHandler<'_>,
+    color_scheme: &ColorScheme,
+) -> Result<(), ApplicationError> {
+    let tokens_predicted =
+        response.stats.as_ref().and_then(|s| s.tokens_predicted);
+
+    // stop trying to get more responses
+    app.chat_manager.get_active_session().stop_chat_session();
+
+    // finalize with newline for in display
+    app.ui
+        .response
+        .text_append("\n", Some(color_scheme.get_secondary_style()))
+        .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+
+    // add an empty unstyled line
+    app.ui
+        .response
+        .text_append("\n", Some(Style::reset()))
+        .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+
+    // trim exchange + update token length
+    app.chat_manager
+        .get_active_session()
+        .finalize_last_exchange(db_handler, tokens_predicted)
+        .await?;
+
     Ok(())
 }

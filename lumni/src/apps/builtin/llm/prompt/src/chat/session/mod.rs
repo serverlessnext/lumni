@@ -68,10 +68,10 @@ impl App<'_> {
         Ok(())
     }
 
-    pub fn get_conversation_id_for_active_session(&mut self) -> Option<ConversationId> {
-        self.chat_manager
-            .get_active_session()
-            .get_conversation_id()
+    pub fn get_conversation_id_for_active_session(
+        &mut self,
+    ) -> Option<ConversationId> {
+        self.chat_manager.get_active_session().get_conversation_id()
     }
 
     pub fn reset_active_session(

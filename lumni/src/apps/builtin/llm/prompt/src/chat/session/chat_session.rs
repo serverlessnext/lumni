@@ -11,6 +11,10 @@ use super::{
 };
 use crate::api::error::ApplicationError;
 
+// max number of messages to hold before backpressure is applied
+// only applies to interactive mode
+const CHANNEL_QUEUE_SIZE: usize = 32;
+
 pub struct ModelServerSession {
     server: Option<Box<dyn ServerManager>>,
     cancel_tx: Option<oneshot::Sender<()>>,
@@ -58,16 +62,20 @@ impl ModelServerSession {
 pub struct ChatSession {
     prompt_instruction: PromptInstruction,
     model_server_session: ModelServerSession,
+    response_sender: mpsc::Sender<Bytes>,
+    response_receiver: mpsc::Receiver<Bytes>,
 }
 
 impl ChatSession {
-    pub async fn new(
-        prompt_instruction: PromptInstruction,
-    ) -> Result<Self, ApplicationError> {
-        Ok(ChatSession {
+    pub fn new(prompt_instruction: PromptInstruction) -> Self {
+        let (response_sender, response_receiver) =
+            mpsc::channel(CHANNEL_QUEUE_SIZE);
+        ChatSession {
             prompt_instruction,
             model_server_session: ModelServerSession::new(),
-        })
+            response_sender,
+            response_receiver,
+        }
     }
 
     pub async fn load_instruction(
@@ -99,7 +107,6 @@ impl ChatSession {
     }
 
     pub fn stop_chat_session(&mut self) {
-        // Stop the chat session by sending a cancel signal
         if let Some(cancel_tx) = self.model_server_session.cancel_tx.take() {
             let _ = cancel_tx.send(());
             self.model_server_session.cancel_tx = None;
@@ -134,7 +141,6 @@ impl ChatSession {
 
     pub async fn message(
         &mut self,
-        tx: mpsc::Sender<Bytes>,
         question: &str,
         db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
@@ -142,7 +148,8 @@ impl ChatSession {
         if self.model_server_session.server.is_none() {
             self.model_server_session
                 .initialize_model_server(&self.prompt_instruction, db_handler)
-                .await?;
+                .await
+                .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
         }
 
         let model =
@@ -161,19 +168,40 @@ impl ChatSession {
                 ApplicationError::NotReady("Server not initialized".to_string())
             })?;
 
-        let max_token_length = server.get_max_context_size().await?;
+        let max_token_length =
+            server.get_max_context_size().await.map_err(|e| {
+                ApplicationError::ServerConfigurationError(e.to_string())
+            })?;
 
         let messages = self
             .prompt_instruction
-            .new_question(&user_question, max_token_length)?;
+            .new_question(&user_question, max_token_length)
+            .map_err(|e| ApplicationError::InvalidInput(e.to_string()))?;
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
-        self.model_server_session.cancel_tx = Some(cancel_tx); // channel to cancel
+        self.model_server_session.cancel_tx = Some(cancel_tx);
 
         server
-            .completion(&messages, &model, Some(tx), Some(cancel_rx))
-            .await?;
+            .completion(
+                &messages,
+                &model,
+                Some(self.response_sender.clone()),
+                Some(cancel_rx),
+            )
+            .await
+            .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+
         Ok(())
+    }
+
+    pub async fn receive_response(
+        &mut self,
+    ) -> Result<Option<CompletionResponse>, ApplicationError> {
+        if let Some(response_bytes) = self.response_receiver.recv().await {
+            self.process_response(response_bytes, true)
+        } else {
+            Ok(None) // Channel closed
+        }
     }
 
     pub async fn initiate_new_exchange(
@@ -219,57 +247,50 @@ impl ChatSession {
             })
     }
 
-    // used in non-interactive mode
     pub async fn process_prompt(
         &mut self,
         question: String,
         stop_signal: Arc<Mutex<bool>>,
         db_handler: &ConversationDbHandler<'_>,
     ) -> Result<(), ApplicationError> {
-        let (tx, rx) = mpsc::channel(32);
-        let _ = self.message(tx, &question, db_handler).await;
-        self.handle_response(rx, stop_signal).await?;
+        self.message(&question, db_handler).await?;
+        self.handle_response(stop_signal).await?;
         self.stop_server_session();
         Ok(())
     }
 
     async fn handle_response(
         &mut self,
-        mut rx: mpsc::Receiver<Bytes>,
         stop_signal: Arc<Mutex<bool>>,
     ) -> Result<(), ApplicationError> {
         let mut final_received = false;
-        let mut start_of_stream = true;
-        while let Some(response) = rx.recv().await {
-            // check if the session must be kept running
+
+        while !final_received {
             if !*stop_signal.lock().await {
                 log::debug!("Received stop signal");
                 break;
             }
 
-            if final_received {
-                // consume stream until its empty, as server may send additional events
-                // (e.g. stats, or logs) after the stop event.
-                // for now these are ignored.
-                continue;
-            }
-
-            let response = self.process_response(response, start_of_stream);
-            final_received = match response {
-                Ok(Some(response)) => {
+            match self.receive_response().await? {
+                Some(response) => {
                     print!("{}", response.get_content());
                     io::stdout().flush().expect("Failed to flush stdout");
-                    response.is_final
-                }
-                Ok(None) => true, // stop if no response
-                Err(e) => {
-                    log::error!("Error processing response: {}", e);
-                    true
-                }
-            };
+                    final_received = response.is_final;
 
-            start_of_stream = false;
+                    if let Some(stats) = &response.stats {
+                        if let Some(tokens) = stats.tokens_predicted {
+                            log::debug!("Tokens predicted: {}", tokens);
+                        }
+                    }
+                }
+                None => {
+                    log::debug!("No more responses");
+                    break;
+                }
+            }
         }
+
+        println!(); // Add a newline at the end for better formatting
         Ok(())
     }
 

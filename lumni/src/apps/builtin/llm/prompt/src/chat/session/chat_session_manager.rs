@@ -22,6 +22,15 @@ impl ChatSessionManager {
         }
     }
 
+    pub fn switch_active_session(&mut self, id: ConversationId) -> Result<(), ApplicationError> {
+        if self.sessions.contains_key(&id) {
+            self.active_session_id = id;
+            Ok(())
+        } else {
+            Err(ApplicationError::InvalidInput("Session not found".to_string()))
+        }
+    }
+
     pub fn get_active_session(&mut self) -> &mut ChatSession {
         self.sessions.get_mut(&self.active_session_id).unwrap()
     }

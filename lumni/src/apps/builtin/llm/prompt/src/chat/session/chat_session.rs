@@ -1,11 +1,14 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 
+use ratatui::style::Style;
+
 use bytes::Bytes;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::db::{ConversationDbHandler, ConversationId};
 use super::{
+    AppUi, TextWindowTrait,
     ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
     ServerManager, TextLine,
 };
@@ -299,5 +302,69 @@ impl ChatSession {
         color_scheme: &ColorScheme,
     ) -> Vec<TextLine> {
         self.prompt_instruction.export_conversation(color_scheme)
+    }
+}
+
+impl ChatSession {
+    pub async fn process_chat_response<'a>(
+        &mut self,
+        response: CompletionResponse,
+        db_handler: &mut ConversationDbHandler<'a>,
+        color_scheme: Option<&ColorScheme>,
+        mut ui: Option<&mut AppUi<'a>>,
+    ) -> Result<(), ApplicationError> {
+        log::debug!(
+            "Received response with length {:?}",
+            response.get_content().len()
+        );
+
+        let trimmed_response = response.get_content().trim_end().to_string();
+        log::debug!("Trimmed response: {:?}", trimmed_response);
+
+        if !trimmed_response.is_empty() {
+            self.update_last_exchange(&trimmed_response);
+            
+            // Update UI if provided
+            if let (Some(ui), Some(color_scheme)) = (ui.as_mut(), color_scheme) {
+                ui.response
+                    .text_append(
+                        &trimmed_response,
+                        Some(color_scheme.get_secondary_style()),
+                    )
+                    .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+            }
+        }
+
+        if response.is_final {
+            self.finalize_chat_response(response, db_handler, color_scheme, ui).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn finalize_chat_response<'a>(
+        &mut self,
+        response: CompletionResponse,
+        db_handler: &mut ConversationDbHandler<'a>,
+        color_scheme: Option<&ColorScheme>,
+        mut ui: Option<&mut AppUi<'a>>,
+    ) -> Result<(), ApplicationError> {
+        let tokens_predicted = response.stats.as_ref().and_then(|s| s.tokens_predicted);
+
+        self.stop_chat_session();
+
+        if let (Some(ui), Some(color_scheme)) = (ui.as_mut(), color_scheme) {
+            ui.response
+                .text_append("\n", Some(color_scheme.get_secondary_style()))
+                .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+
+            ui.response
+                .text_append("\n", Some(Style::reset()))
+                .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
+        }
+
+        self.finalize_last_exchange(db_handler, tokens_predicted).await?;
+
+        Ok(())
     }
 }

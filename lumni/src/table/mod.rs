@@ -10,6 +10,8 @@ pub use columns::*;
 pub use file_object::FileObjectTable;
 pub use object_store::ObjectStoreTable;
 
+use crate::InternalError;
+
 pub struct TableRow<'a> {
     data: Vec<(String, TableColumnValue)>,
     print_fn: Option<&'a (dyn Fn(&TableRow) + 'a)>,
@@ -86,6 +88,6 @@ pub trait Table: Debug {
     fn add_row(
         &mut self,
         row_data: Vec<(String, TableColumnValue)>,
-    ) -> Result<(), String>;
+    ) -> Result<(), InternalError>;
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }

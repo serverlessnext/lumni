@@ -13,7 +13,7 @@ env_logger = { version = "0.9" }
 tokio = { version = "1.12", default-features = false, features = ["rt-multi-thread", "macros"] }
 clap = { version = "4.2" , default-features = false, features = ["std", "help"] }
 crossterm = { version = "0.27" }
-ratatui = { version = ">=0.26.0, <1", default-features = false, features = ["crossterm"] }
+ratatui = { version = ">=0.27.0, <1", default-features = false, features = ["crossterm"] }
 arboard = { version = "3.2", default-features = false }
 
 lumni = { git = "https://github.com/serverlessnext/lumni", branch = "main" }

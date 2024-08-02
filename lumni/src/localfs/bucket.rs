@@ -69,7 +69,7 @@ impl ObjectStoreTrait for LocalFsBucket {
             filter,
             table,
         )
-        .await;
+        .await?;
         Ok(())
     }
 

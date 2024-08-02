@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::table::{
-    OptionalUint64Column, StringColumn, TableRow, Uint64Column,
+    OptionalInt64Column, StringColumn, TableRow, Uint64Column,
 };
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-use crate::{FileObject, Table, TableCallback, TableColumn, TableColumnValue};
+use crate::{FileObject, InternalError, Table, TableCallback, TableColumn, TableColumnValue};
 
 pub struct FileObjectTable {
     columns: Vec<(String, Box<dyn TableColumn>)>, // Store columns in order
@@ -37,7 +37,7 @@ impl FileObjectTable {
                         .add_column("size", Box::new(Uint64Column(Vec::new()))),
                     "modified" => table.add_column(
                         "modified",
-                        Box::new(OptionalUint64Column(Vec::new())),
+                        Box::new(OptionalInt64Column(Vec::new())),
                     ),
                     _ => panic!("Invalid column name: {}", column),
                 }
@@ -52,7 +52,7 @@ impl FileObjectTable {
                         .add_column("size", Box::new(Uint64Column(Vec::new()))),
                     "modified" => table.add_column(
                         "modified",
-                        Box::new(OptionalUint64Column(Vec::new())),
+                        Box::new(OptionalInt64Column(Vec::new())),
                     ),
                     // should not be reachable because valid_columns is hardcoded
                     _ => panic!("Invalid column name: {}", column),
@@ -87,7 +87,7 @@ impl Table for FileObjectTable {
     fn add_row(
         &mut self,
         row_data: Vec<(String, TableColumnValue)>,
-    ) -> Result<(), String> {
+    ) -> Result<(), InternalError> {
         if let Some(callback) = &self.callback {
             let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
@@ -98,10 +98,12 @@ impl Table for FileObjectTable {
                 let (_, column) = &mut self.columns[index];
                 column.append(value)?;
             } else {
-                return Err(format!("Column '{}' not found", column_name));
+                return Err(InternalError::InternalError(format!(
+                    "Column '{}' not found",
+                    column_name
+                )));
             }
         }
-
         Ok(())
     }
 
@@ -182,10 +184,9 @@ impl FileObjectTable {
     pub async fn add_file_objects(
         &mut self,
         file_objects: Vec<FileObject>,
-    ) -> Result<(), String> {
+    ) -> Result<(), InternalError> {
         for file_object in file_objects {
             let mut row_data: Vec<(String, TableColumnValue)> = Vec::new();
-
             for (column_name, _) in &self.columns {
                 if let Some(value) =
                     file_object.get_value_by_column_name(column_name)
@@ -205,10 +206,10 @@ impl FileObjectTable {
     pub async fn add_rows(
         &mut self,
         rows: Vec<HashMap<String, TableColumnValue>>,
-    ) -> Result<(), String> {
-        for row_data in rows {
-            let mut row_vec: Vec<(String, TableColumnValue)> = Vec::new();
+    ) -> Result<(), InternalError> {
 
+        for row_data in rows.iter() {
+            let mut row_vec: Vec<(String, TableColumnValue)> = Vec::new();
             // Iterate over self.columns to maintain the defined order
             for (column_name, _) in &self.columns {
                 if let Some(value) = row_data.get(column_name) {

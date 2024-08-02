@@ -8,7 +8,7 @@ use crossbeam_channel::{bounded, Sender};
 use rayon::prelude::*;
 
 use crate::table::{FileObjectTable, TableColumnValue};
-use crate::{FileObject, FileObjectFilter};
+use crate::{FileObject, FileObjectFilter, InternalError};
 
 pub async fn list_files(
     path: &Path,
@@ -18,13 +18,12 @@ pub async fn list_files(
     recursive: bool,
     filter: &Option<FileObjectFilter>,
     table: &mut FileObjectTable,
-) {
+) -> Result<(), InternalError> {
     if let Some(columns) = selected_columns {
         println!("Selected columns: {:?}", columns);
     }
 
     let max_count = max_keys.map(|m| m as usize).unwrap_or(usize::MAX);
-    //let count = AtomicUsize::new(0);
     let count = Arc::new(AtomicUsize::new(0));
     let (sender, receiver) = bounded(500);
 
@@ -60,8 +59,9 @@ pub async fn list_files(
 
     // Batch insert all rows at once
     if !rows.is_empty() {
-        let _ = table.add_rows(rows).await;
+        table.add_rows(rows).await?;
     }
+    Ok(())
 }
 
 fn process_directory(
@@ -129,7 +129,6 @@ fn process_entry(
     selected_columns: &Option<Vec<&str>>,
 ) -> Option<HashMap<String, TableColumnValue>> {
     let metadata = entry.metadata().ok()?;
-
     if metadata.is_file() {
         handle_file(entry, filter, selected_columns)
     } else if metadata.is_dir() && filter.is_none() {

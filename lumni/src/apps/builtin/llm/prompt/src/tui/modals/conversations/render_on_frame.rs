@@ -167,7 +167,7 @@ impl<'a> ConversationListModal<'a> {
             .begin_symbol(None)
             .end_symbol(None);
 
-        let scrollbar_area = area.inner(&Margin {
+        let scrollbar_area = area.inner(Margin {
             vertical: 1,
             horizontal: 0,
         });

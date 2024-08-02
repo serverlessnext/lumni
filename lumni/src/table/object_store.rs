@@ -70,7 +70,7 @@ impl Table for ObjectStoreTable {
     fn add_row(
         &mut self,
         row_data: Vec<(String, TableColumnValue)>,
-    ) -> Result<(), String> {
+    ) -> Result<(), InternalError> {
         if let Some(callback) = &self.callback {
             let mut row = TableRow::new(row_data.clone(), Some(&print_row));
             callback.on_row_add(&mut row);
@@ -83,7 +83,10 @@ impl Table for ObjectStoreTable {
             {
                 column.append(value)?;
             } else {
-                return Err(format!("Column '{}' not found", column_name));
+                return Err(InternalError::InternalError(format!(
+                    "Column {} not found in table",
+                    column_name
+                )));
             }
         }
 
@@ -109,7 +112,7 @@ impl ObjectStoreTable {
     pub async fn add_object_store(
         &mut self,
         object_store: ObjectStore,
-    ) -> Result<(), String> {
+    ) -> Result<(), InternalError> {
         let row_data = vec![(
             "uri".to_string(),
             TableColumnValue::StringColumn(object_store.uri()),

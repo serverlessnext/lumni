@@ -282,7 +282,6 @@ impl ObjectStoreHandler {
             parsed_uri.scheme.to_string(),
             parsed_uri.bucket.as_ref().unwrap()
         );
-
         let object_store = ObjectStore::new(&bucket_uri, config).unwrap();
         object_store
             .list_files(

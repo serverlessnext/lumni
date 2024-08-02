@@ -91,6 +91,7 @@ macro_rules! create_column_types {
 
 create_column_types!(Int32Column, OptionalInt32Column, i32);
 create_column_types!(Uint64Column, OptionalUint64Column, u64);
+create_column_types!(Int64Column, OptionalInt64Column, i64);
 create_column_types!(FloatColumn, OptionalFloatColumn, f64);
 create_column_types!(StringColumn, OptionalStringColumn, String);
 
@@ -108,10 +109,14 @@ impl TableColumnValue {
             TableColumnValue::OptionalUint64Column(Some(val)) => {
                 val.to_string()
             }
+            TableColumnValue::OptionalInt64Column(Some(val)) => val.to_string(),
             TableColumnValue::OptionalFloatColumn(Some(val)) => val.to_string(),
             TableColumnValue::OptionalStringColumn(Some(val)) => val.clone(),
             // Match any None variant for Optional types
-            _ => "NULL".to_string(),
+            _ => {
+                log::error!("Unexpected TableColumnValue: {:?}", self);
+                 "NULL".to_string()
+            }
         }
     }
 }

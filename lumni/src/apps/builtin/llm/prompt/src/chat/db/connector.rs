@@ -16,6 +16,22 @@ impl DatabaseConnector {
 
     pub fn new(sqlite_file: &PathBuf) -> Result<Self, SqliteError> {
         let connection = rusqlite::Connection::open(sqlite_file)?;
+
+        // Set PRAGMA settings that need to be set outside of a transaction
+        connection.execute_batch(
+            "PRAGMA auto_vacuum = INCREMENTAL;
+             PRAGMA page_size = 4096;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA foreign_keys = ON;
+             PRAGMA mmap_size = 134217728;
+             PRAGMA cache_size = -16000;
+             PRAGMA temp_store = MEMORY;
+             PRAGMA busy_timeout = 5000;
+             PRAGMA wal_autocheckpoint = 1000;
+             PRAGMA journal_size_limit = 67108864;"
+        )?;
+
         let operation_queue = Arc::new(Mutex::new(VecDeque::new()));
 
         let mut conn = DatabaseConnector {

@@ -1,4 +1,3 @@
-PRAGMA foreign_keys = ON;
 
 CREATE TABLE metadata (
     key TEXT PRIMARY KEY,
@@ -14,7 +13,7 @@ CREATE TABLE models (
 );
 
 CREATE TABLE conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name TEXT,
     info TEXT, -- JSON string including description and other metadata
     completion_options TEXT, -- JSON string
@@ -36,7 +35,7 @@ CREATE TABLE conversations (
 );
 
 CREATE TABLE messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     conversation_id INTEGER NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
     message_type TEXT NOT NULL,
@@ -55,7 +54,7 @@ CREATE TABLE messages (
 );
 
 CREATE TABLE attachments (
-    attachment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attachment_id INTEGER PRIMARY KEY,
     message_id INTEGER NOT NULL,
     conversation_id INTEGER NOT NULL,
     file_uri TEXT,
@@ -88,3 +87,5 @@ CREATE INDEX idx_message_conversation_created ON messages(conversation_id, creat
 CREATE INDEX idx_message_previous ON messages(previous_message_id);
 CREATE INDEX idx_attachment_conversation ON attachments(conversation_id);
 CREATE INDEX idx_conversation_pinned_updated ON conversations(is_pinned DESC, updated_at DESC);
+
+

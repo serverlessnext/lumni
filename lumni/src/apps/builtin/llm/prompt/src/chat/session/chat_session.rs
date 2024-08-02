@@ -217,7 +217,7 @@ impl ThreadedChatSession {
     }
 }
 
-pub struct ChatSession {
+struct ChatSession {
     prompt_instruction: PromptInstruction,
     model_server_session: ModelServerSession,
     response_sender: mpsc::Sender<Bytes>,

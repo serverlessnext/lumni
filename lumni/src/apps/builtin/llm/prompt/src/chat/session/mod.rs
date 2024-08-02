@@ -5,8 +5,8 @@ mod conversation_loop;
 use std::io;
 use std::sync::Arc;
 
-pub use chat_session::{ChatSession, ThreadedChatSession};
-pub use chat_session_manager::ChatSessionManager;
+pub use chat_session::ThreadedChatSession;
+pub use chat_session_manager::{ChatEvent, ChatSessionManager};
 pub use conversation_loop::prompt_app;
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;

@@ -9,7 +9,7 @@ pub use completion_options::ChatCompletionOptions;
 pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
 pub use prompt::{AssistantManager, PromptRole};
-pub use session::{prompt_app, App, ChatSession, ThreadedChatSession};
+pub use session::{prompt_app, App, ChatEvent, ThreadedChatSession};
 
 pub use super::defaults::*;
 pub use super::server::{CompletionResponse, ModelServer, ServerManager};

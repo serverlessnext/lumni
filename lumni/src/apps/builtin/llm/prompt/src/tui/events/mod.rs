@@ -15,9 +15,7 @@ use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
     WindowKind,
 };
-use super::{
-    ChatSession, ConversationDbHandler, NewConversation, ThreadedChatSession,
-};
+use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};
 pub use crate::external as lumni;
 
 #[derive(Debug)]

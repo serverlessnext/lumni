@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 use std::sync::Arc;
 
 use clap::{Arg, Command};
@@ -21,8 +21,8 @@ use tokio::time::{timeout, Duration};
 
 use super::chat::db::ConversationDatabase;
 use super::chat::{
-    prompt_app, App, AssistantManager, ChatSession, NewConversation,
-    PromptInstruction,
+    prompt_app, App, AssistantManager, ChatEvent, NewConversation,
+    PromptInstruction, ThreadedChatSession,
 };
 use super::server::{ModelServer, ModelServerName, ServerTrait};
 pub use crate::external as lumni;
@@ -189,8 +189,8 @@ pub async fn run_cli(
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
-            let chat_session = ChatSession::new(prompt_instruction);
-            process_non_interactive_input(chat_session, db_conn).await
+            //let chat_session = ChatSession::new(prompt_instruction);
+            process_non_interactive_input(prompt_instruction, db_conn).await
         }
     }
 }
@@ -242,10 +242,13 @@ async fn interactive_mode(
 }
 
 async fn process_non_interactive_input(
-    chat: ChatSession,
+    prompt_instruction: PromptInstruction,
     db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
-    let chat = Arc::new(Mutex::new(chat));
+    let chat = Arc::new(Mutex::new(ThreadedChatSession::new(
+        prompt_instruction,
+        db_conn.clone(),
+    )));
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut stdin_input = String::new();
@@ -272,14 +275,28 @@ async fn process_non_interactive_input(
             stdin_input.push('\n'); // Maintain line breaks
         }
 
-        let chat_clone = chat.clone();
         let input = stdin_input.trim_end().to_string();
+        let chat_clone = chat.clone();
+
         // Process the prompt
         let process_handle = tokio::spawn(async move {
-            let db_handler = db_conn.get_conversation_handler(None);
-            let mut chat = chat_clone.lock().await;
-            chat.process_prompt(input, running.clone(), &db_handler)
-                .await
+            chat_clone.lock().await.message(&input).await?;
+
+            let mut receiver = chat_clone.lock().await.subscribe();
+            while let Ok(event) = receiver.recv().await {
+                match event {
+                    ChatEvent::ResponseUpdate(content) => {
+                        print!("{}", content);
+                        std::io::stdout().flush().unwrap();
+                    }
+                    ChatEvent::FinalResponse => break,
+                    ChatEvent::Error(e) => {
+                        return Err(ApplicationError::Unexpected(e));
+                    }
+                }
+            }
+
+            Ok(())
         });
 
         // Wait for the process to complete or for a shutdown signal
@@ -294,10 +311,12 @@ async fn process_non_interactive_input(
                             "Processing completed successfully during \
                              shutdown."
                         );
+                        chat.lock().await.stop();
                         return Ok(());
                     }
                     Ok(Err(e)) => {
                         eprintln!("Process error during shutdown: {}", e);
+                        chat.lock().await.stop();
                         return Err(ApplicationError::Unexpected(format!(
                             "Process error: {}",
                             e
@@ -307,6 +326,7 @@ async fn process_non_interactive_input(
                         eprintln!(
                             "Graceful shutdown timed out. Forcing exit..."
                         );
+                        chat.lock().await.stop();
                         return Ok(());
                     }
                 }
@@ -328,6 +348,7 @@ async fn process_non_interactive_input(
                             e
                         ))
                     })?;
+                chat.lock().await.stop();
                 return Ok(());
             }
 

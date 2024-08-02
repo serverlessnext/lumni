@@ -16,10 +16,15 @@ pub enum ChatEvent {
     Error(String),
 }
 
+pub struct SessionInfo {
+    pub id: ConversationId,
+    pub server_name: Option<String>,
+}
+
 pub struct ChatSessionManager {
     sessions: HashMap<ConversationId, ThreadedChatSession>,
-    active_session_id: ConversationId,
     db_conn: Arc<ConversationDatabase>,
+    pub active_session_info: SessionInfo, // cache frequently accessed session info
 }
 
 impl ChatSessionManager {
@@ -28,6 +33,13 @@ impl ChatSessionManager {
         db_conn: Arc<ConversationDatabase>,
     ) -> Self {
         let id = initial_prompt_instruction.get_conversation_id().unwrap();
+
+        let server_name = initial_prompt_instruction
+            .get_completion_options()
+            .model_server
+            .as_ref()
+            .map(|s| s.to_string());
+
         let initial_session = ThreadedChatSession::new(
             initial_prompt_instruction,
             db_conn.clone(),
@@ -37,28 +49,17 @@ impl ChatSessionManager {
         sessions.insert(id.clone(), initial_session);
         Self {
             sessions,
-            active_session_id: id,
             db_conn,
+            active_session_info: SessionInfo { id, server_name },
         }
     }
 
     pub fn get_active_session(&mut self) -> &mut ThreadedChatSession {
-        self.sessions.get_mut(&self.active_session_id).unwrap()
+        self.sessions.get_mut(&self.active_session_info.id).unwrap()
     }
 
     pub fn get_active_session_id(&self) -> &ConversationId {
-        &self.active_session_id
-    }
-
-    pub async fn process_events(&mut self) -> Vec<ChatEvent> {
-        let mut events = Vec::new();
-        if let Some(session) = self.sessions.get_mut(&self.active_session_id) {
-            let mut receiver = session.subscribe();
-            while let Ok(event) = receiver.try_recv() {
-                events.push(event);
-            }
-        }
-        events
+        &self.active_session_info.id
     }
 
     pub async fn stop_session(
@@ -96,12 +97,22 @@ impl ChatSessionManager {
         Ok(id)
     }
 
-    pub fn set_active_session(
+    pub async fn set_active_session(
         &mut self,
         id: ConversationId,
     ) -> Result<(), ApplicationError> {
         if self.sessions.contains_key(&id) {
-            self.active_session_id = id;
+            self.active_session_info.id = id;
+            self.active_session_info.server_name = self
+                .sessions
+                .get(&id)
+                .unwrap()
+                .get_instruction()
+                .await?
+                .get_completion_options()
+                .model_server
+                .as_ref()
+                .map(|s| s.to_string());
             Ok(())
         } else {
             Err(ApplicationError::InvalidInput(
@@ -111,7 +122,9 @@ impl ChatSessionManager {
     }
 
     pub fn stop_active_chat_session(&mut self) {
-        if let Some(session) = self.sessions.get_mut(&self.active_session_id) {
+        if let Some(session) =
+            self.sessions.get_mut(&self.active_session_info.id)
+        {
             session.stop();
         }
     }

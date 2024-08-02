@@ -199,18 +199,6 @@ impl ThreadedChatSession {
         self.event_receiver.resubscribe()
     }
 
-    pub async fn server_name(&self) -> Result<String, ApplicationError> {
-        let instruction = self.get_instruction().await?;
-        instruction
-            .get_completion_options()
-            .model_server
-            .as_ref()
-            .map(|s| s.to_string())
-            .ok_or_else(|| {
-                ApplicationError::NotReady("Server not initialized".to_string())
-            })
-    }
-
     pub async fn load_instruction(
         &self,
         prompt_instruction: PromptInstruction,

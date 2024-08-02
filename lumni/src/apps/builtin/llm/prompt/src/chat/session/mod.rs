@@ -12,7 +12,7 @@ use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
 use ratatui::Terminal;
 
-use super::db::{ConversationDatabase, ConversationDbHandler, ConversationId};
+use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
     CompletionResponse, ConversationEvent, KeyEventHandler, ModalWindowType,

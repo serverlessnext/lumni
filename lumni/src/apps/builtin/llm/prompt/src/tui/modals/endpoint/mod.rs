@@ -13,6 +13,7 @@ use super::{
     ServerManager, ServerTrait, ThreadedChatSession, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
+use crate::apps::builtin::llm::prompt::src::server;
 
 pub struct SelectEndpointModal {
     widget: SelectEndpoint,
@@ -60,14 +61,19 @@ impl ModalWindowTrait for SelectEndpointModal {
                 let selected_server = self.widget.current_endpoint();
                 // TODO: allow model selection, + check if model changes
                 // TODO: catch ApplicationError::NotReady, if it is assume selected_server != tab_chat.server_name()
-                let should_create_new_conversation =
-                    match tab_chat.server_name().await {
-                        Ok(current_server_name) => {
-                            selected_server != current_server_name
-                        }
-                        Err(ApplicationError::NotReady(_)) => true, // Assume new server if NotReady
-                        Err(e) => return Err(e), // Propagate other errors
-                    };
+                let instruction = tab_chat.get_instruction().await?;
+                let server_name = instruction
+                    .get_completion_options()
+                    .model_server
+                    .as_ref()
+                    .map(|s| s.to_string());
+
+                let should_create_new_conversation = match server_name {
+                    Some(current_server_name) => {
+                        selected_server != current_server_name
+                    }
+                    None => true, // Assume new server if no current server
+                };
 
                 let event = if should_create_new_conversation {
                     let server = ModelServer::from_str(selected_server)?;

@@ -13,13 +13,12 @@ pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
     app: &mut App<'_>,
 ) -> Result<(), io::Error> {
-    let server_name = &app
+    let server_name = app
         .chat_manager
-        .get_active_session()
-        .server_name()
-        .await
+        .active_session_info
+        .server_name
+        .as_deref()
         .unwrap_or_default();
-    //let server_name = "TODO: get server name";
 
     terminal.draw(|frame| {
         let terminal_area = frame.size();
@@ -41,7 +40,7 @@ pub async fn draw_ui<B: Backend>(
 
         // add borders to main_window[0]
         frame.render_widget(
-            main_widget(&server_name, window_hint()),
+            main_widget(server_name, window_hint()),
             main_window[0],
         );
 

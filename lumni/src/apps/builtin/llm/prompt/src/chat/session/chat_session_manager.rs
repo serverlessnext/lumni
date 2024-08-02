@@ -8,6 +8,7 @@ use super::db::{ConversationDatabase, ConversationId};
 use super::PromptInstruction;
 pub use crate::external as lumni;
 
+// add clone
 #[derive(Clone)]
 pub enum ChatEvent {
     ResponseUpdate(String),

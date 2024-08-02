@@ -59,8 +59,18 @@ impl ModelServerSession {
 }
 
 pub struct ThreadedChatSession {
+    inner: Arc<Mutex<ThreadedChatSessionInner>>,
     command_sender: mpsc::Sender<ThreadedChatSessionCommand>,
     event_receiver: broadcast::Receiver<ChatEvent>,
+}
+
+struct ThreadedChatSessionInner {
+    prompt_instruction: PromptInstruction,
+    model_server_session: ModelServerSession,
+    response_sender: mpsc::Sender<Bytes>,
+    response_receiver: mpsc::Receiver<Bytes>,
+    event_sender: broadcast::Sender<ChatEvent>,
+    db_conn: Arc<ConversationDatabase>,
 }
 
 #[derive(Debug)]
@@ -78,79 +88,66 @@ impl ThreadedChatSession {
         prompt_instruction: PromptInstruction,
         db_conn: Arc<ConversationDatabase>,
     ) -> Self {
+        let (response_sender, response_receiver) =
+            mpsc::channel(CHANNEL_QUEUE_SIZE);
+        let (event_sender, event_receiver) = broadcast::channel(100);
         let (command_sender, command_receiver) = mpsc::channel(100);
-        let conversation_id = prompt_instruction.get_conversation_id();
-        let chat_session = ChatSession::new(prompt_instruction);
-        let event_receiver = chat_session.subscribe();
-        let inner = Arc::new(Mutex::new(chat_session));
+
+        let inner = Arc::new(Mutex::new(ThreadedChatSessionInner {
+            prompt_instruction,
+            model_server_session: ModelServerSession::new(),
+            response_sender,
+            response_receiver,
+            event_sender,
+            db_conn: db_conn.clone(),
+        }));
 
         let inner_clone = inner.clone();
-        let db_conn_clone = db_conn.clone();
-
         tokio::spawn(async move {
-            let db_handler =
-                db_conn_clone.get_conversation_handler(conversation_id);
-            Self::run(inner_clone, command_receiver, db_handler).await;
+            Self::run(inner_clone, command_receiver, db_conn).await;
         });
 
         Self {
+            inner,
             command_sender,
             event_receiver,
         }
     }
 
-    pub async fn get_instruction(
-        &self,
-    ) -> Result<PromptInstruction, ApplicationError> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        self.command_sender
-            .send(ThreadedChatSessionCommand::GetInstruction(response_sender))
-            .await
-            .map_err(|e| {
-                ApplicationError::Runtime(format!(
-                    "Failed to send get instruction command: {}",
-                    e
-                ))
-            })?;
-
-        response_receiver.await.map_err(|e| {
-            ApplicationError::Runtime(format!(
-                "Failed to receive instruction response: {}",
-                e
-            ))
-        })?
-    }
-
     async fn run(
-        inner: Arc<Mutex<ChatSession>>,
+        inner: Arc<Mutex<ThreadedChatSessionInner>>,
         mut command_receiver: mpsc::Receiver<ThreadedChatSessionCommand>,
-        mut db_handler: ConversationDbHandler,
+        db_conn: Arc<ConversationDatabase>,
     ) {
+        let conversation_id = {
+            let locked_inner = inner.lock().await;
+            locked_inner.prompt_instruction.get_conversation_id()
+        };
+        let mut db_handler = db_conn.get_conversation_handler(conversation_id);
+
         loop {
             tokio::select! {
                 Some(command) = command_receiver.recv() => {
+                    let mut locked_inner = inner.lock().await;
                     match command {
                         ThreadedChatSessionCommand::Message(question) => {
-                            let mut session = inner.lock().await;
-                            if let Err(e) = session.message(&question, &db_handler).await {
+                            if let Err(e) = locked_inner.handle_message(&question, &db_handler).await {
                                 log::error!("Error processing message: {:?}", e);
                             }
                         }
                         ThreadedChatSessionCommand::LoadInstruction(prompt_instruction) => {
-                            let mut session = inner.lock().await;
-                            if let Err(e) = session.load_instruction(prompt_instruction).await {
+                            if let Err(e) = locked_inner.load_instruction(prompt_instruction).await {
                                 log::error!("Error loading instruction: {:?}", e);
                             }
                         }
                         ThreadedChatSessionCommand::GetInstruction(response_sender) => {
-                            let result = inner.lock().await.get_instruction().clone();
+                            let result = locked_inner.prompt_instruction.clone();
                             if let Err(e) = response_sender.send(Ok(result)) {
                                 log::error!("Failed to send instruction response: {:?}", e);
                             }
                         }
                         ThreadedChatSessionCommand::Stop => {
-                            let mut session = inner.lock().await;
-                            if let Err(e) = session.finalize_last_exchange(&mut db_handler, None).await {
+                            if let Err(e) = locked_inner.finalize_last_exchange(&db_handler, None).await {
                                 log::error!("Error finalizing last exchange: {:?}", e);
                             }
                             break;
@@ -158,8 +155,8 @@ impl ThreadedChatSession {
                     }
                 }
                 result = async {
-                    let mut session = inner.lock().await;
-                    session.process_next_response(&mut db_handler).await
+                    let mut locked_inner = inner.lock().await;
+                    locked_inner.process_next_response(&mut db_handler).await
                 } => {
                     match result {
                         Ok(true) => continue,
@@ -215,82 +212,36 @@ impl ThreadedChatSession {
                 ))
             })
     }
+
+    pub async fn get_instruction(
+        &self,
+    ) -> Result<PromptInstruction, ApplicationError> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(ThreadedChatSessionCommand::GetInstruction(response_sender))
+            .await
+            .map_err(|e| {
+                ApplicationError::Runtime(format!(
+                    "Failed to send get instruction command: {}",
+                    e
+                ))
+            })?;
+
+        response_receiver.await.map_err(|e| {
+            ApplicationError::Runtime(format!(
+                "Failed to receive instruction response: {}",
+                e
+            ))
+        })?
+    }
 }
 
-struct ChatSession {
-    prompt_instruction: PromptInstruction,
-    model_server_session: ModelServerSession,
-    response_sender: mpsc::Sender<Bytes>,
-    response_receiver: mpsc::Receiver<Bytes>,
-    event_sender: broadcast::Sender<ChatEvent>,
-}
-
-impl ChatSession {
-    fn new(prompt_instruction: PromptInstruction) -> Self {
-        let (response_sender, response_receiver) =
-            mpsc::channel(CHANNEL_QUEUE_SIZE);
-        let (event_sender, _) = broadcast::channel(100);
-        ChatSession {
-            prompt_instruction,
-            model_server_session: ModelServerSession::new(),
-            response_sender,
-            response_receiver,
-            event_sender,
-        }
-    }
-
-    fn subscribe(&self) -> broadcast::Receiver<ChatEvent> {
-        self.event_sender.subscribe()
-    }
-
-    async fn load_instruction(
-        &mut self,
-        prompt_instruction: PromptInstruction,
-    ) -> Result<(), ApplicationError> {
-        self.stop_server_session(); // stop a running session (if any)
-        self.prompt_instruction = prompt_instruction;
-        Ok(())
-    }
-
-    fn stop_server_session(&mut self) {
-        self.stop_chat_session();
-        self.model_server_session.server = None;
-    }
-
-    fn stop_chat_session(&mut self) {
-        if let Some(cancel_tx) = self.model_server_session.cancel_tx.take() {
-            let _ = cancel_tx.send(());
-            self.model_server_session.cancel_tx = None;
-        }
-    }
-
-    fn update_last_exchange(&mut self, answer: &str) {
-        self.prompt_instruction.append_last_response(answer);
-    }
-
-    async fn finalize_last_exchange(
-        &mut self,
-        db_handler: &ConversationDbHandler,
-        tokens_predicted: Option<usize>,
-    ) -> Result<(), ApplicationError> {
-        let last_answer = self.prompt_instruction.get_last_response();
-        if let Some(last_answer) = last_answer {
-            let trimmed_answer = last_answer.trim();
-            _ = self.prompt_instruction.put_last_response(
-                trimmed_answer,
-                tokens_predicted,
-                db_handler,
-            );
-        }
-        Ok(())
-    }
-
-    async fn message(
+impl ThreadedChatSessionInner {
+    async fn handle_message(
         &mut self,
         question: &str,
         db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        // Initialize the server if it's not already initialized
         if self.model_server_session.server.is_none() {
             self.model_server_session
                 .initialize_model_server(&self.prompt_instruction, db_handler)
@@ -340,6 +291,15 @@ impl ChatSession {
         Ok(())
     }
 
+    async fn load_instruction(
+        &mut self,
+        prompt_instruction: PromptInstruction,
+    ) -> Result<(), ApplicationError> {
+        self.stop_server_session();
+        self.prompt_instruction = prompt_instruction;
+        Ok(())
+    }
+
     async fn initiate_new_exchange(
         &self,
         user_question: &str,
@@ -367,7 +327,38 @@ impl ChatSession {
             .and_then(|opts| opts.prompt_template.clone())
     }
 
-    pub fn process_response(
+    fn stop_server_session(&mut self) {
+        self.stop_chat_session();
+        self.model_server_session.server = None;
+    }
+
+    fn stop_chat_session(&mut self) {
+        if let Some(cancel_tx) = self.model_server_session.cancel_tx.take() {
+            let _ = cancel_tx.send(());
+        }
+    }
+
+    fn update_last_exchange(&mut self, answer: &str) {
+        self.prompt_instruction.append_last_response(answer);
+    }
+
+    async fn finalize_last_exchange(
+        &mut self,
+        db_handler: &ConversationDbHandler,
+        tokens_predicted: Option<usize>,
+    ) -> Result<(), ApplicationError> {
+        if let Some(last_answer) = self.prompt_instruction.get_last_response() {
+            let trimmed_answer = last_answer.trim();
+            _ = self.prompt_instruction.put_last_response(
+                trimmed_answer,
+                tokens_predicted,
+                db_handler,
+            );
+        }
+        Ok(())
+    }
+
+    fn process_response(
         &mut self,
         response: Bytes,
         start_of_stream: bool,
@@ -381,10 +372,6 @@ impl ChatSession {
             .and_then(|server| {
                 Ok(server.process_response(response, start_of_stream))
             })
-    }
-
-    fn get_instruction(&self) -> &PromptInstruction {
-        &self.prompt_instruction
     }
 
     async fn receive_response(

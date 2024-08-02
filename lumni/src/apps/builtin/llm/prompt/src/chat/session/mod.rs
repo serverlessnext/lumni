@@ -1,11 +1,13 @@
 mod chat_session;
 mod chat_session_manager;
 mod conversation_loop;
+//mod threaded_chat_session;
 
 use std::io;
 use std::sync::Arc;
 
 pub use chat_session::ThreadedChatSession;
+
 pub use chat_session_manager::{ChatEvent, ChatSessionManager};
 pub use conversation_loop::prompt_app;
 use lumni::api::error::ApplicationError;

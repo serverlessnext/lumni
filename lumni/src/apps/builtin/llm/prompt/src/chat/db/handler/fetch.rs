@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(dead_code)]
 impl ConversationDbHandler {
     pub async fn fetch_completion_options(
         &self,
@@ -44,29 +45,6 @@ impl ConversationDbHandler {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     let identifier: String = row.get(0)?;
                     ModelIdentifier::new(&identifier).map_err(|e| {
-                        SqliteError::FromSqlConversionFailure(
-                            0,
-                            rusqlite::types::Type::Text,
-                            Box::new(e),
-                        )
-                    })
-                })
-            })
-        } else {
-            Err(SqliteError::QueryReturnedNoRows)
-        }
-    }
-
-    pub async fn fetch_conversation_status(
-        &self,
-    ) -> Result<ConversationStatus, SqliteError> {
-        if let Some(conversation_id) = self.conversation_id {
-            let query = "SELECT status FROM conversations WHERE id = ?";
-            let mut db = self.db.lock().await;
-            db.process_queue_with_result(|tx| {
-                tx.query_row(query, params![conversation_id.0], |row| {
-                    let status: String = row.get(0)?;
-                    ConversationStatus::from_str(&status).map_err(|e| {
                         SqliteError::FromSqlConversionFailure(
                             0,
                             rusqlite::types::Type::Text,

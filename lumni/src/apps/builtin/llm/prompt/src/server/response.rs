@@ -10,7 +10,7 @@ pub struct CompletionStats {
     pub tokens_evaluated: Option<usize>, // numbers of tokens evaluated
     pub tokens_predicted: Option<usize>, // numbers of tokens predicted
 }
-
+#[allow(dead_code)]
 impl CompletionStats {
     pub fn merge(&mut self, other: &CompletionStats) {
         // Update last_token_received_at to the latest time
@@ -76,9 +76,5 @@ impl CompletionResponse {
             .iter()
             .map(|chunk| chunk.content.clone())
             .collect()
-    }
-
-    pub fn get_tokens_predicted(&self) -> Option<usize> {
-        self.stats.as_ref().and_then(|s| s.tokens_predicted)
     }
 }

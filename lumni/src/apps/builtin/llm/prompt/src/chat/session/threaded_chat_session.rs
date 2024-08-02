@@ -59,7 +59,6 @@ impl ModelServerSession {
 }
 
 pub struct ThreadedChatSession {
-    inner: Arc<Mutex<ThreadedChatSessionInner>>,
     command_sender: mpsc::Sender<ThreadedChatSessionCommand>,
     event_receiver: broadcast::Receiver<ChatEvent>,
 }
@@ -70,7 +69,6 @@ struct ThreadedChatSessionInner {
     response_sender: mpsc::Sender<Bytes>,
     response_receiver: mpsc::Receiver<Bytes>,
     event_sender: broadcast::Sender<ChatEvent>,
-    db_conn: Arc<ConversationDatabase>,
 }
 
 #[derive(Debug)]
@@ -99,7 +97,6 @@ impl ThreadedChatSession {
             response_sender,
             response_receiver,
             event_sender,
-            db_conn: db_conn.clone(),
         }));
 
         let inner_clone = inner.clone();
@@ -108,7 +105,6 @@ impl ThreadedChatSession {
         });
 
         Self {
-            inner,
             command_sender,
             event_receiver,
         }
@@ -353,7 +349,7 @@ impl ThreadedChatSessionInner {
                 trimmed_answer,
                 tokens_predicted,
                 db_handler,
-            );
+            ).await;
         }
         Ok(())
     }

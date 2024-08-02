@@ -3,7 +3,7 @@ mod fetch;
 mod insert;
 mod update;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
 use tokio::sync::Mutex as TokioMutex;

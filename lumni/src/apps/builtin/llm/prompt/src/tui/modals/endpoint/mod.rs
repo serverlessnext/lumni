@@ -13,7 +13,6 @@ use super::{
     ServerManager, ServerTrait, ThreadedChatSession, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
-use crate::apps::builtin::llm::prompt::src::server;
 
 pub struct SelectEndpointModal {
     widget: SelectEndpoint,

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
 
-use super::chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
+use super::threaded_chat_session::ThreadedChatSession;
 use super::PromptInstruction;
 pub use crate::external as lumni;
 
@@ -23,10 +23,10 @@ pub struct SessionInfo {
 
 pub struct ChatSessionManager {
     sessions: HashMap<ConversationId, ThreadedChatSession>,
-    db_conn: Arc<ConversationDatabase>,
     pub active_session_info: SessionInfo, // cache frequently accessed session info
 }
 
+#[allow(dead_code)]
 impl ChatSessionManager {
     pub async fn new(
         initial_prompt_instruction: PromptInstruction,
@@ -49,7 +49,6 @@ impl ChatSessionManager {
         sessions.insert(id.clone(), initial_session);
         Self {
             sessions,
-            db_conn,
             active_session_info: SessionInfo { id, server_name },
         }
     }
@@ -85,14 +84,14 @@ impl ChatSessionManager {
     pub async fn create_session(
         &mut self,
         prompt_instruction: PromptInstruction,
+        db_conn: Arc<ConversationDatabase>,
     ) -> Result<ConversationId, ApplicationError> {
         let id = prompt_instruction.get_conversation_id().ok_or_else(|| {
             ApplicationError::Runtime(
                 "Failed to get conversation ID".to_string(),
             )
         })?;
-        let new_session =
-            ThreadedChatSession::new(prompt_instruction, self.db_conn.clone());
+        let new_session = ThreadedChatSession::new(prompt_instruction, db_conn);
         self.sessions.insert(id.clone(), new_session);
         Ok(id)
     }

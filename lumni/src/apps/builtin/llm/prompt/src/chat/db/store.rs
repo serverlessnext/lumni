@@ -1,14 +1,14 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use rusqlite::{params, Error as SqliteError, OptionalExtension};
+use rusqlite::{Error as SqliteError, OptionalExtension};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::DatabaseConnector;
 use super::handler::ConversationDbHandler;
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
-    ModelIdentifier, ModelSpec,
+    ModelIdentifier,
 };
 
 pub struct ConversationDatabase {
@@ -27,71 +27,6 @@ impl ConversationDatabase {
         conversation_id: Option<ConversationId>,
     ) -> ConversationDbHandler {
         ConversationDbHandler::new(conversation_id, self.db.clone())
-    }
-
-    pub async fn update_conversation_status(
-        &self,
-        conversation_id: ConversationId,
-        status: ConversationStatus,
-    ) -> Result<(), SqliteError> {
-        let query = "UPDATE conversations SET status = ? WHERE id = ?";
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            tx.execute(
-                query,
-                params![
-                    match status {
-                        ConversationStatus::Active => "active",
-                        ConversationStatus::Archived => "archived",
-                        ConversationStatus::Deleted => "deleted",
-                    },
-                    conversation_id.0
-                ],
-            )?;
-            Ok(())
-        })
-    }
-
-    pub async fn add_conversation_tag(
-        &self,
-        conversation_id: ConversationId,
-        tag: &str,
-    ) -> Result<(), SqliteError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            tx.execute(
-                "INSERT OR IGNORE INTO tags (name) VALUES (?)",
-                params![tag],
-            )?;
-            let tag_id: i64 = tx.query_row(
-                "SELECT id FROM tags WHERE name = ?",
-                params![tag],
-                |row| row.get(0),
-            )?;
-            tx.execute(
-                "INSERT OR IGNORE INTO conversation_tags (conversation_id, \
-                 tag_id) VALUES (?, ?)",
-                params![conversation_id.0, tag_id],
-            )?;
-            Ok(())
-        })
-    }
-
-    pub async fn remove_conversation_tag(
-        &self,
-        conversation_id: ConversationId,
-        tag: &str,
-    ) -> Result<(), SqliteError> {
-        let query = "
-            DELETE FROM conversation_tags
-            WHERE conversation_id = ? AND tag_id = (SELECT id FROM tags WHERE \
-                     name = ?)
-        ";
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            tx.execute(query, params![conversation_id.0, tag])?;
-            Ok(())
-        })
     }
 
     pub async fn fetch_last_conversation_id(

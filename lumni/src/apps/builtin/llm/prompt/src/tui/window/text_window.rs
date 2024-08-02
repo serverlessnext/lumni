@@ -331,10 +331,6 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
         self.base().set_window_status(status);
     }
 
-    fn enable_auto_scroll(&mut self) {
-        self.base().scroller.enable_auto_scroll();
-    }
-
     fn is_editable(&mut self) -> bool {
         self.base().window_type.is_editable()
     }

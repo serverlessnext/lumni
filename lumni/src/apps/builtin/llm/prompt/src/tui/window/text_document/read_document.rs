@@ -28,11 +28,6 @@ impl TextDocumentTrait for ReadDocument {
         }
     }
 
-    fn append_line(&mut self, line: TextLine) {
-        self.lines.push(line);
-        self.modified = true;
-    }
-
     fn is_empty(&self) -> bool {
         self.lines.is_empty()
     }

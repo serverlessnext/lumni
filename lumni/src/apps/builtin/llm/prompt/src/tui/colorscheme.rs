@@ -1,5 +1,6 @@
 use ratatui::style::{Color, Style};
 
+#[allow(dead_code)]
 pub enum ColorSchemeType {
     Default,
     Dark,
@@ -38,20 +39,12 @@ impl ColorScheme {
         ColorScheme { colors: colors }
     }
 
-    pub fn switch_scheme(&mut self, new_scheme: ColorSchemeType) {
-        self.colors = Self::get_colors(&new_scheme);
-    }
-
     pub fn get_primary_style(&self) -> Style {
         self.colors.primary_style()
     }
 
     pub fn get_secondary_style(&self) -> Style {
         self.colors.secondary_style()
-    }
-
-    pub fn get_background(&self) -> Color {
-        self.colors.background
     }
 
     fn get_colors(scheme: &ColorSchemeType) -> ColorSet {

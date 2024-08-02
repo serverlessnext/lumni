@@ -49,6 +49,7 @@ pub struct ModelSpec {
     pub input_token_limit: Option<i64>,
 }
 
+#[allow(dead_code)]
 impl ModelSpec {
     pub fn new_with_validation(
         identifier_str: &str,

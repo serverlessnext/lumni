@@ -120,22 +120,6 @@ impl DatabaseConnector {
         Ok(())
     }
 
-    pub fn queue_operation(&self, sql: String) {
-        let mut queue = self.operation_queue.lock().unwrap();
-        queue.push_back(sql);
-    }
-
-    pub fn process_queue(&mut self) -> Result<(), SqliteError> {
-        // Lock the queue and start a transaction for items in the queue
-        let mut queue = self.operation_queue.lock().unwrap();
-        let tx = self.connection.transaction()?;
-        while let Some(sql) = queue.pop_front() {
-            tx.execute(&sql, [])?;
-        }
-        tx.commit()?;
-        Ok(())
-    }
-
     pub fn process_queue_with_result<T>(
         &mut self,
         result_handler: impl FnOnce(&Transaction) -> Result<T, SqliteError>,

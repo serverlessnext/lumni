@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fs::{self, ReadDir};
-use std::io;
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -11,18 +9,6 @@ use crate::base::config::EnvironmentConfig;
 use crate::handlers::object_store::ObjectStoreTrait;
 use crate::table::FileObjectTable;
 use crate::{FileObjectFilter, InternalError};
-
-pub struct LocalFileSystem;
-
-pub trait FileSystem {
-    fn read_dir(&self, path: &Path) -> io::Result<ReadDir>;
-}
-
-impl FileSystem for LocalFileSystem {
-    fn read_dir(&self, path: &Path) -> io::Result<ReadDir> {
-        fs::read_dir(path)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct LocalFsBucket {

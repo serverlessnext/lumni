@@ -1,6 +1,6 @@
 use lumni::api::error::ApplicationError;
 use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Masked, Span};
+use ratatui::text::{Line, Span};
 
 use super::cursor::{Cursor, MoveCursor};
 use super::text_display::{

@@ -2,7 +2,7 @@ use lumni::api::error::ApplicationError;
 use ratatui::style::Style;
 
 use super::piece_table::PieceTable;
-use super::text_line::{TextLine, TextSegment};
+use super::text_line::TextLine;
 use super::TextDocumentTrait;
 pub use crate::external as lumni;
 
@@ -24,11 +24,6 @@ impl TextDocumentTrait for ReadWriteDocument {
         Self {
             piece_table: PieceTable::from_text(lines),
         }
-    }
-
-    fn append_line(&mut self, line: TextLine) {
-        self.piece_table.append(&line.to_string(), None);
-        self.piece_table.update_if_modified();
     }
 
     fn is_empty(&self) -> bool {

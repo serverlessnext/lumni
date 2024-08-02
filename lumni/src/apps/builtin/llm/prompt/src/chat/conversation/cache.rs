@@ -41,10 +41,6 @@ impl ConversationCache {
         MessageId(self.messages.len() as i64)
     }
 
-    pub fn new_attachment_id(&self) -> AttachmentId {
-        AttachmentId(self.attachments.len() as i64)
-    }
-
     pub fn add_message(&mut self, message: Message) {
         self.messages.push(message);
     }

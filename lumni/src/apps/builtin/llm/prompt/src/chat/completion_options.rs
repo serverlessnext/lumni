@@ -44,6 +44,7 @@ impl Default for ChatCompletionOptions {
     }
 }
 
+#[allow(dead_code)]
 impl ChatCompletionOptions {
     pub fn update(
         &mut self,

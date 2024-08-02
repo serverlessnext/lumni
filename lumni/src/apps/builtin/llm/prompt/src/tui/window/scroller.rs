@@ -16,10 +16,6 @@ impl Scroller {
         }
     }
 
-    pub fn enable_auto_scroll(&mut self) {
-        self.auto_scroll = true;
-    }
-
     pub fn disable_auto_scroll(&mut self) {
         self.auto_scroll = false;
     }

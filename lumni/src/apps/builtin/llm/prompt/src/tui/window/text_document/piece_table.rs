@@ -1,6 +1,6 @@
 use ratatui::style::Style;
 
-use super::text_line::{TextLine, TextSegment};
+use super::text_line::TextLine;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Action {

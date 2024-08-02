@@ -1,16 +1,12 @@
-use std::io::{self, Write};
 use std::sync::Arc;
 
-use ratatui::style::Style;
-
 use bytes::Bytes;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 
-use super::db::{ConversationDbHandler, ConversationId};
-use super::chat_session_manager::UiUpdate;
+use super::chat_session_manager::ChatEvent;
+use super::db::{ConversationDatabase, ConversationDbHandler};
 use super::{
-    ColorScheme, CompletionResponse, ModelServer, PromptInstruction,
-    ServerManager, TextLine,
+    CompletionResponse, ModelServer, PromptInstruction, ServerManager,
 };
 use crate::api::error::ApplicationError;
 
@@ -34,7 +30,7 @@ impl ModelServerSession {
     pub async fn initialize_model_server(
         &mut self,
         prompt_instruction: &PromptInstruction,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         self.server = if let Some(model_server) = prompt_instruction
             .get_completion_options()
@@ -62,30 +58,201 @@ impl ModelServerSession {
     }
 }
 
+pub struct ThreadedChatSession {
+    command_sender: mpsc::Sender<ThreadedChatSessionCommand>,
+    event_receiver: broadcast::Receiver<ChatEvent>,
+}
+
+#[derive(Debug)]
+enum ThreadedChatSessionCommand {
+    Message(String),
+    LoadInstruction(PromptInstruction),
+    GetInstruction(
+        oneshot::Sender<Result<PromptInstruction, ApplicationError>>,
+    ),
+    Stop,
+}
+
+impl ThreadedChatSession {
+    pub fn new(
+        prompt_instruction: PromptInstruction,
+        db_conn: Arc<ConversationDatabase>,
+    ) -> Self {
+        let (command_sender, command_receiver) = mpsc::channel(100);
+        let conversation_id = prompt_instruction.get_conversation_id();
+        let chat_session = ChatSession::new(prompt_instruction);
+        let event_receiver = chat_session.subscribe();
+        let inner = Arc::new(Mutex::new(chat_session));
+
+        let inner_clone = inner.clone();
+        let db_conn_clone = db_conn.clone();
+
+        tokio::spawn(async move {
+            let db_handler =
+                db_conn_clone.get_conversation_handler(conversation_id);
+            Self::run(inner_clone, command_receiver, db_handler).await;
+        });
+
+        Self {
+            command_sender,
+            event_receiver,
+        }
+    }
+
+    pub async fn get_instruction(
+        &self,
+    ) -> Result<PromptInstruction, ApplicationError> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        self.command_sender
+            .send(ThreadedChatSessionCommand::GetInstruction(response_sender))
+            .await
+            .map_err(|e| {
+                ApplicationError::Runtime(format!(
+                    "Failed to send get instruction command: {}",
+                    e
+                ))
+            })?;
+
+        response_receiver.await.map_err(|e| {
+            ApplicationError::Runtime(format!(
+                "Failed to receive instruction response: {}",
+                e
+            ))
+        })?
+    }
+
+    async fn run(
+        inner: Arc<Mutex<ChatSession>>,
+        mut command_receiver: mpsc::Receiver<ThreadedChatSessionCommand>,
+        mut db_handler: ConversationDbHandler,
+    ) {
+        loop {
+            tokio::select! {
+                Some(command) = command_receiver.recv() => {
+                    match command {
+                        ThreadedChatSessionCommand::Message(question) => {
+                            let mut session = inner.lock().await;
+                            if let Err(e) = session.message(&question, &db_handler).await {
+                                log::error!("Error processing message: {:?}", e);
+                            }
+                        }
+                        ThreadedChatSessionCommand::LoadInstruction(prompt_instruction) => {
+                            let mut session = inner.lock().await;
+                            if let Err(e) = session.load_instruction(prompt_instruction).await {
+                                log::error!("Error loading instruction: {:?}", e);
+                            }
+                        }
+                        ThreadedChatSessionCommand::GetInstruction(response_sender) => {
+                            let result = inner.lock().await.get_instruction().clone();
+                            if let Err(e) = response_sender.send(Ok(result)) {
+                                log::error!("Failed to send instruction response: {:?}", e);
+                            }
+                        }
+                        ThreadedChatSessionCommand::Stop => {
+                            let mut session = inner.lock().await;
+                            if let Err(e) = session.finalize_last_exchange(&mut db_handler, None).await {
+                                log::error!("Error finalizing last exchange: {:?}", e);
+                            }
+                            break;
+                        }
+                    }
+                }
+                result = async {
+                    let mut session = inner.lock().await;
+                    session.process_next_response(&mut db_handler).await
+                } => {
+                    match result {
+                        Ok(true) => continue,
+                        Ok(false) => break,
+                        Err(e) => {
+                            log::error!("Error processing response: {:?}", e);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn message(
+        &self,
+        question: &str,
+    ) -> Result<(), ApplicationError> {
+        self.command_sender
+            .send(ThreadedChatSessionCommand::Message(question.to_string()))
+            .await
+            .map_err(|e| {
+                ApplicationError::Runtime(format!(
+                    "Failed to send message: {}",
+                    e
+                ))
+            })
+    }
+
+    pub fn stop(&self) {
+        let _ = self
+            .command_sender
+            .try_send(ThreadedChatSessionCommand::Stop);
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<ChatEvent> {
+        self.event_receiver.resubscribe()
+    }
+
+    pub async fn server_name(&self) -> Result<String, ApplicationError> {
+        let instruction = self.get_instruction().await?;
+        instruction
+            .get_completion_options()
+            .model_server
+            .as_ref()
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                ApplicationError::NotReady("Server not initialized".to_string())
+            })
+    }
+
+    pub async fn load_instruction(
+        &self,
+        prompt_instruction: PromptInstruction,
+    ) -> Result<(), ApplicationError> {
+        self.command_sender
+            .send(ThreadedChatSessionCommand::LoadInstruction(
+                prompt_instruction,
+            ))
+            .await
+            .map_err(|e| {
+                ApplicationError::Runtime(format!(
+                    "Failed to send load instruction command: {}",
+                    e
+                ))
+            })
+    }
+}
+
 pub struct ChatSession {
     prompt_instruction: PromptInstruction,
     model_server_session: ModelServerSession,
     response_sender: mpsc::Sender<Bytes>,
     response_receiver: mpsc::Receiver<Bytes>,
-    ui_sender: Arc<Mutex<Option<mpsc::Sender<UiUpdate>>>>,
+    event_sender: broadcast::Sender<ChatEvent>,
 }
 
 impl ChatSession {
     pub fn new(prompt_instruction: PromptInstruction) -> Self {
         let (response_sender, response_receiver) =
             mpsc::channel(CHANNEL_QUEUE_SIZE);
+        let (event_sender, _) = broadcast::channel(100);
         ChatSession {
             prompt_instruction,
             model_server_session: ModelServerSession::new(),
             response_sender,
             response_receiver,
-            ui_sender: Arc::new(Mutex::new(None)),
+            event_sender,
         }
     }
 
-    pub async fn set_ui_sender(&self, sender: Option<mpsc::Sender<UiUpdate>>) {
-        let mut ui_sender = self.ui_sender.lock().await;
-        *ui_sender = sender;
+    pub fn subscribe(&self) -> broadcast::Receiver<ChatEvent> {
+        self.event_sender.subscribe()
     }
 
     pub async fn load_instruction(
@@ -95,20 +262,6 @@ impl ChatSession {
         self.stop_server_session(); // stop a running session (if any)
         self.prompt_instruction = prompt_instruction;
         Ok(())
-    }
-
-    pub fn server_name(&self) -> Result<String, ApplicationError> {
-        self.model_server_session
-            .server
-            .as_ref()
-            .map(|s| s.server_name().to_string())
-            .ok_or_else(|| {
-                ApplicationError::NotReady("Server not initialized".to_string())
-            })
-    }
-
-    pub fn get_conversation_id(&self) -> Option<ConversationId> {
-        self.prompt_instruction.get_conversation_id()
     }
 
     fn stop_server_session(&mut self) {
@@ -123,18 +276,13 @@ impl ChatSession {
         }
     }
 
-    pub fn reset(&mut self, db_handler: &mut ConversationDbHandler<'_>) {
-        self.stop_server_session();
-        _ = self.prompt_instruction.reset_history(db_handler);
-    }
-
     pub fn update_last_exchange(&mut self, answer: &str) {
         self.prompt_instruction.append_last_response(answer);
     }
 
     pub async fn finalize_last_exchange(
         &mut self,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
         tokens_predicted: Option<usize>,
     ) -> Result<(), ApplicationError> {
         let last_answer = self.prompt_instruction.get_last_response();
@@ -152,7 +300,7 @@ impl ChatSession {
     pub async fn message(
         &mut self,
         question: &str,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         // Initialize the server if it's not already initialized
         if self.model_server_session.server.is_none() {
@@ -204,7 +352,6 @@ impl ChatSession {
         Ok(())
     }
 
-
     pub async fn initiate_new_exchange(
         &self,
         user_question: &str,
@@ -252,73 +399,42 @@ impl ChatSession {
         &mut self,
         question: String,
         stop_signal: Arc<Mutex<bool>>,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         self.message(&question, db_handler).await?;
-        self.handle_response(stop_signal).await?;
+        self.handle_response().await?;
         self.stop_server_session();
         Ok(())
     }
 
-    async fn handle_response(
-        &mut self,
-        stop_signal: Arc<Mutex<bool>>,
-    ) -> Result<(), ApplicationError> {
+    async fn handle_response(&mut self) -> Result<(), ApplicationError> {
         let mut final_received = false;
 
         while !final_received {
-            if !*stop_signal.lock().await {
-                log::debug!("Received stop signal");
-                break;
-            }
-
             match self.receive_response().await? {
                 Some(response) => {
-                    print!("{}", response.get_content());
-                    io::stdout().flush().expect("Failed to flush stdout");
+                    let content = response.get_content();
+                    self.event_sender
+                        .send(ChatEvent::ResponseUpdate(content.to_string()))
+                        .ok();
+                    self.update_last_exchange(&content);
                     final_received = response.is_final;
 
-                    if let Some(stats) = &response.stats {
-                        if let Some(tokens) = stats.tokens_predicted {
-                            log::debug!("Tokens predicted: {}", tokens);
-                        }
+                    if final_received {
+                        self.event_sender.send(ChatEvent::FinalResponse).ok();
                     }
                 }
                 None => {
-                    log::debug!("No more responses");
                     break;
                 }
             }
         }
 
-        println!(); // Add a newline at the end for better formatting
         Ok(())
     }
 
-    pub fn export_conversation(
-        &self,
-        color_scheme: &ColorScheme,
-    ) -> Vec<TextLine> {
-        self.prompt_instruction.export_conversation(color_scheme)
-    }
-}
-
-impl ChatSession {
-    pub async fn receive_and_process_response<'a>(
-        &mut self,
-        db_handler: &mut ConversationDbHandler<'a>,
-        color_scheme: Option<&ColorScheme>,
-    ) -> Result<bool, ApplicationError> {
-        match self.receive_response().await? {
-            Some(response) => {
-                self.process_chat_response(response, db_handler, color_scheme).await?;
-                Ok(true) // Indicates that a response was processed
-            }
-            None => {
-                log::debug!("No more responses");
-                Ok(false) // Indicates that no response was received (channel closed)
-            }
-        }
+    pub fn get_instruction(&self) -> &PromptInstruction {
+        &self.prompt_instruction
     }
 
     async fn receive_response(
@@ -331,78 +447,60 @@ impl ChatSession {
         }
     }
 
-    async fn process_chat_response<'a>(
+    async fn process_chat_response(
         &mut self,
         response: CompletionResponse,
-        db_handler: &mut ConversationDbHandler<'a>,
-        color_scheme: Option<&ColorScheme>,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        log::debug!(
-            "Received response with length {:?}",
-            response.get_content().len()
-        );
-
-        let style = if let Some(color_scheme) = color_scheme {
-            color_scheme.get_secondary_style()
-        } else {
-            Style::default()
-        };
-
-        let trimmed_response = response.get_content().trim_end().to_string();
-        log::debug!("Trimmed response: {:?}", trimmed_response);
-
-        if !trimmed_response.is_empty() {
-            self.update_last_exchange(&trimmed_response);
-            
-            // Send UI update if ui_sender is set
-            let ui_sender = self.ui_sender.lock().await;
-            if let Some(sender) = &*ui_sender {
-                let update = UiUpdate {
-                    content: trimmed_response.clone(),
-                    style: Some(style),
-                };
-                sender.send(update).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-            }
+        let content = response.get_content().trim_end().to_string();
+        if !content.is_empty() {
+            self.update_last_exchange(&content);
+            self.event_sender
+                .send(ChatEvent::ResponseUpdate(content))
+                .ok();
         }
 
         if response.is_final {
-            self.finalize_chat_response(response, db_handler, color_scheme).await?;
+            self.finalize_chat_response(response, db_handler).await?;
         }
 
         Ok(())
     }
 
-    async fn finalize_chat_response<'a>(
+    async fn finalize_chat_response(
         &mut self,
         response: CompletionResponse,
-        db_handler: &mut ConversationDbHandler<'a>,
-        color_scheme: Option<&ColorScheme>,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        let tokens_predicted = response.stats.as_ref().and_then(|s| s.tokens_predicted);
-
-        // Send UI updates for newlines
-        {
-            let ui_sender = self.ui_sender.lock().await;
-            if let (Some(sender), Some(color_scheme)) = (&*ui_sender, color_scheme) {
-                // First newline with secondary style
-                let update1 = UiUpdate {
-                    content: "\n".to_string(),
-                    style: Some(color_scheme.get_secondary_style()),
-                };
-                sender.send(update1).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-
-                // Second newline with reset style
-                let update2 = UiUpdate {
-                    content: "\n".to_string(),
-                    style: Some(Style::reset()),
-                };
-                sender.send(update2).await.map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-            }
-        } // The MutexGuard is dropped here, releasing the immutable borrow
+        let tokens_predicted =
+            response.stats.as_ref().and_then(|s| s.tokens_predicted);
 
         self.stop_chat_session();
-        self.finalize_last_exchange(db_handler, tokens_predicted).await?;
+        self.finalize_last_exchange(db_handler, tokens_predicted)
+            .await?;
+
+        self.event_sender.send(ChatEvent::FinalResponse).ok();
 
         Ok(())
+    }
+
+    pub async fn process_next_response(
+        &mut self,
+        db_handler: &mut ConversationDbHandler,
+    ) -> Result<bool, ApplicationError> {
+        match self.receive_response().await {
+            Ok(Some(response)) => {
+                self.process_chat_response(response, db_handler).await?;
+                Ok(true) // Indicates that a response was processed
+            }
+            Ok(None) => {
+                log::info!("Chat session channel closed");
+                Ok(false)
+            }
+            Err(e) => {
+                self.event_sender.send(ChatEvent::Error(e.to_string())).ok();
+                Err(e)
+            }
+        }
     }
 }

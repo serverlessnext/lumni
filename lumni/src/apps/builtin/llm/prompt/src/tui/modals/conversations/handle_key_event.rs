@@ -3,8 +3,8 @@ use super::*;
 impl<'a> ConversationListModal<'a> {
     async fn reload_conversation(
         &mut self,
-        tab_chat: &mut ChatSession,
-        db_handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &mut ThreadedChatSession,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match self.current_tab {
             ConversationStatus::Deleted => {
@@ -21,7 +21,7 @@ impl<'a> ConversationListModal<'a> {
     pub async fn handle_edit_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Enter => self.save_edited_name(handler).await?,
@@ -40,8 +40,8 @@ impl<'a> ConversationListModal<'a> {
     pub async fn handle_normal_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
-        tab_chat: &mut ChatSession,
-        db_handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &mut ThreadedChatSession,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => {
@@ -87,15 +87,14 @@ impl<'a> ConversationListModal<'a> {
 
     async fn save_edited_name(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(mut edit_line) = self.edit_name_line.take() {
             let new_name = edit_line.text_buffer().to_string();
             if let Some(conversation) = self.get_current_conversation_mut() {
-                handler.update_conversation_name(
-                    Some(conversation.id),
-                    &new_name,
-                )?;
+                handler
+                    .update_conversation_name(Some(conversation.id), &new_name)
+                    .await?;
                 conversation.name = new_name;
             }
         }
@@ -148,7 +147,7 @@ impl<'a> ConversationListModal<'a> {
 
     async fn handle_pin_action(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if self.current_tab == ConversationStatus::Active {
             self.toggle_pin_status(handler).await?;
@@ -158,7 +157,7 @@ impl<'a> ConversationListModal<'a> {
 
     async fn handle_archive_action(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if self.current_tab == ConversationStatus::Active {
             self.archive_conversation(handler).await?;
@@ -168,7 +167,7 @@ impl<'a> ConversationListModal<'a> {
 
     async fn handle_delete_action(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         match self.current_tab {
             ConversationStatus::Active | ConversationStatus::Archived => {
@@ -183,7 +182,7 @@ impl<'a> ConversationListModal<'a> {
 
     async fn handle_unarchive_undo_action(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         match self.current_tab {
             ConversationStatus::Archived => {

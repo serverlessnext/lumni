@@ -73,12 +73,13 @@ impl ServerTrait for Ollama {
         &mut self,
         handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
-        let identifier = handler.fetch_model_identifier().map_err(|e| {
-            ApplicationError::NotReady(format!(
-                "Cannot get model identifier: {}",
-                e.to_string()
-            ))
-        })?;
+        let identifier =
+            handler.fetch_model_identifier().await.map_err(|e| {
+                ApplicationError::NotReady(format!(
+                    "Cannot get model identifier: {}",
+                    e.to_string()
+                ))
+            })?;
         let model_name = identifier.get_model_name().to_string();
         let payload = OllamaShowPayload { name: &model_name }
             .serialize()

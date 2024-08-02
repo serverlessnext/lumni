@@ -6,6 +6,7 @@ mod update;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
+use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::DatabaseConnector;
 use super::{
@@ -14,15 +15,16 @@ use super::{
     Timestamp,
 };
 
-pub struct ConversationDbHandler<'a> {
+#[derive(Clone)]
+pub struct ConversationDbHandler {
     conversation_id: Option<ConversationId>,
-    db: &'a Arc<Mutex<DatabaseConnector>>,
+    db: Arc<TokioMutex<DatabaseConnector>>,
 }
 
-impl<'a> ConversationDbHandler<'a> {
+impl ConversationDbHandler {
     pub fn new(
         conversation_id: Option<ConversationId>,
-        db: &'a Arc<Mutex<DatabaseConnector>>,
+        db: Arc<TokioMutex<DatabaseConnector>>,
     ) -> Self {
         ConversationDbHandler {
             conversation_id,
@@ -31,7 +33,7 @@ impl<'a> ConversationDbHandler<'a> {
     }
 }
 
-impl<'a> ConversationDbHandler<'a> {
+impl ConversationDbHandler {
     pub fn get_conversation_id(&self) -> Option<ConversationId> {
         self.conversation_id
     }

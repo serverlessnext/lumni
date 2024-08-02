@@ -23,7 +23,9 @@ pub use window::{
 pub use super::chat::db::{
     Conversation, ConversationDbHandler, ConversationStatus,
 };
-pub use super::chat::{App, ChatSession, NewConversation, PromptInstruction};
+pub use super::chat::{
+    App, ChatSession, NewConversation, PromptInstruction, ThreadedChatSession,
+};
 pub use super::server::{
     ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
 };

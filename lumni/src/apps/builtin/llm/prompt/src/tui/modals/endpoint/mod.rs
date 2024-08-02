@@ -8,9 +8,9 @@ use ratatui::Frame;
 use select::SelectEndpoint;
 
 use super::{
-    ApplicationError, ChatSession, ConversationDbHandler, ConversationEvent,
-    KeyTrack, ModalWindowTrait, ModalWindowType, ModelServer, NewConversation,
-    Scroller, ServerManager, ServerTrait, WindowEvent,
+    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
+    ModalWindowTrait, ModalWindowType, ModelServer, NewConversation, Scroller,
+    ServerManager, ServerTrait, ThreadedChatSession, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
 
@@ -50,8 +50,8 @@ impl ModalWindowTrait for SelectEndpointModal {
     async fn handle_key_event<'a>(
         &'a mut self,
         key_event: &'a mut KeyTrack,
-        tab_chat: &'a mut ChatSession,
-        handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &'a mut ThreadedChatSession,
+        handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => self.widget.key_up(),
@@ -61,7 +61,7 @@ impl ModalWindowTrait for SelectEndpointModal {
                 // TODO: allow model selection, + check if model changes
                 // TODO: catch ApplicationError::NotReady, if it is assume selected_server != tab_chat.server_name()
                 let should_create_new_conversation =
-                    match tab_chat.server_name() {
+                    match tab_chat.server_name().await {
                         Ok(current_server_name) => {
                             selected_server != current_server_name
                         }
@@ -77,7 +77,8 @@ impl ModalWindowTrait for SelectEndpointModal {
                                 server.server_name(),
                                 model,
                                 &handler,
-                            )?;
+                            )
+                            .await?;
                             // Return the new conversation event
                             Ok(Some(WindowEvent::PromptWindow(Some(
                                 ConversationEvent::NewConversation(

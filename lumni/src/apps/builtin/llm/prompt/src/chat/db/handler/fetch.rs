@@ -1,13 +1,13 @@
 use super::*;
 
-impl<'a> ConversationDbHandler<'a> {
-    pub fn fetch_completion_options(
+impl ConversationDbHandler {
+    pub async fn fetch_completion_options(
         &self,
     ) -> Result<serde_json::Value, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query =
                 "SELECT completion_options FROM conversations WHERE id = ?";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     let options: Option<String> = row.get(0)?;
@@ -29,7 +29,7 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_model_identifier(
+    pub async fn fetch_model_identifier(
         &self,
     ) -> Result<ModelIdentifier, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
@@ -39,7 +39,7 @@ impl<'a> ConversationDbHandler<'a> {
                 JOIN models m ON c.model_identifier = m.identifier
                 WHERE c.id = ?
             ";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     let identifier: String = row.get(0)?;
@@ -57,12 +57,12 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_conversation_status(
+    pub async fn fetch_conversation_status(
         &self,
     ) -> Result<ConversationStatus, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "SELECT status FROM conversations WHERE id = ?";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     let status: String = row.get(0)?;
@@ -80,7 +80,9 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_conversation_tags(&self) -> Result<Vec<String>, SqliteError> {
+    pub async fn fetch_conversation_tags(
+        &self,
+    ) -> Result<Vec<String>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT t.name
@@ -89,7 +91,7 @@ impl<'a> ConversationDbHandler<'a> {
                 WHERE ct.conversation_id = ?
                 ORDER BY t.name
             ";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.prepare(query)?
                     .query_map(params![conversation_id.0], |row| row.get(0))?
@@ -100,13 +102,13 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_message_attachments(
+    pub async fn fetch_message_attachments(
         &self,
         message_id: MessageId,
     ) -> Result<Vec<Attachment>, SqliteError> {
         let query = "SELECT * FROM attachments WHERE message_id = ? AND \
                      is_deleted = FALSE";
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let mut stmt = tx.prepare(query)?;
             let rows = stmt.query_map(params![message_id.0], |row| {
@@ -131,7 +133,7 @@ impl<'a> ConversationDbHandler<'a> {
         })
     }
 
-    pub fn fetch_model_spec(&self) -> Result<ModelSpec, SqliteError> {
+    pub async fn fetch_model_spec(&self) -> Result<ModelSpec, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT m.identifier, m.info, m.config, m.context_window_size, \
@@ -140,7 +142,7 @@ impl<'a> ConversationDbHandler<'a> {
                 JOIN models m ON c.model_identifier = m.identifier
                 WHERE c.id = ?
             ";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     Ok(ModelSpec {
@@ -164,7 +166,9 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_system_prompt(&self) -> Result<Option<String>, SqliteError> {
+    pub async fn fetch_system_prompt(
+        &self,
+    ) -> Result<Option<String>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT content 
@@ -176,7 +180,7 @@ impl<'a> ConversationDbHandler<'a> {
                 LIMIT 1
             ";
 
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     row.get(0)
@@ -188,11 +192,13 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_conversation_stats(&self) -> Result<(i64, i64), SqliteError> {
+    pub async fn fetch_conversation_stats(
+        &self,
+    ) -> Result<(i64, i64), SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "SELECT message_count, total_tokens FROM \
                          conversations WHERE id = ?";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     Ok((row.get(0)?, row.get(1)?))
@@ -204,8 +210,8 @@ impl<'a> ConversationDbHandler<'a> {
     }
 }
 
-impl<'a> ConversationDbHandler<'a> {
-    pub fn fetch_conversation_list(
+impl ConversationDbHandler {
+    pub async fn fetch_conversation_list(
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
@@ -219,7 +225,7 @@ impl<'a> ConversationDbHandler<'a> {
              LIMIT {}",
             limit
         );
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let mut stmt = tx.prepare(&query)?;
             let rows = stmt.query_map([], |row| {
@@ -254,7 +260,7 @@ impl<'a> ConversationDbHandler<'a> {
         })
     }
 
-    pub fn fetch_last_message_id(
+    pub async fn fetch_last_message_id(
         &self,
     ) -> Result<Option<MessageId>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
@@ -264,7 +270,7 @@ impl<'a> ConversationDbHandler<'a> {
                 WHERE conversation_id = ? AND is_deleted = FALSE
             ";
 
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(query, params![conversation_id.0], |row| {
                     row.get::<_, Option<i64>>(0)
@@ -276,7 +282,7 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_messages(&self) -> Result<Vec<Message>, SqliteError> {
+    pub async fn fetch_messages(&self) -> Result<Vec<Message>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT id, role, message_type, content, has_attachments, 
@@ -286,7 +292,7 @@ impl<'a> ConversationDbHandler<'a> {
                 WHERE conversation_id = ? AND is_deleted = FALSE
                 ORDER BY created_at ASC
             ";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.prepare(query)?
                     .query_map(params![conversation_id.0], |row| {
@@ -315,7 +321,9 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn fetch_attachments(&self) -> Result<Vec<Attachment>, SqliteError> {
+    pub async fn fetch_attachments(
+        &self,
+    ) -> Result<Vec<Attachment>, SqliteError> {
         if let Some(conversation_id) = self.conversation_id {
             let query = "
                 SELECT attachment_id, message_id, file_uri, file_data, \
@@ -324,7 +332,7 @@ impl<'a> ConversationDbHandler<'a> {
                 WHERE conversation_id = ? AND is_deleted = FALSE
                 ORDER BY created_at ASC
             ";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.prepare(query)?
                     .query_map(params![conversation_id.0], |row| {

@@ -1,7 +1,7 @@
 use super::*;
 
-impl<'a> ConversationDbHandler<'a> {
-    pub fn new_conversation(
+impl ConversationDbHandler {
+    pub async fn new_conversation(
         &mut self,
         name: &str,
         parent_id: Option<ConversationId>,
@@ -10,7 +10,7 @@ impl<'a> ConversationDbHandler<'a> {
         model: &ModelSpec,
     ) -> Result<ConversationId, SqliteError> {
         let timestamp = Timestamp::from_system_time().unwrap().as_millis();
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             // Ensure the model exists
             let exists: bool = tx
@@ -100,11 +100,11 @@ impl<'a> ConversationDbHandler<'a> {
         })
     }
 
-    pub fn put_new_message(
+    pub async fn put_new_message(
         &self,
         message: &Message,
     ) -> Result<MessageId, SqliteError> {
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
             // Get the last message ID for this conversation
@@ -161,15 +161,14 @@ impl<'a> ConversationDbHandler<'a> {
         })
     }
 
-    pub fn put_new_messages(
+    pub async fn put_new_messages(
         &self,
         messages: &[Message],
     ) -> Result<Vec<MessageId>, SqliteError> {
         if messages.is_empty() {
             return Ok(vec![]);
         }
-
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
             let conversation_id = messages[0].conversation_id.0;

@@ -17,6 +17,7 @@ use super::window::{
 };
 use super::{
     ChatSession, ConversationDbHandler, NewConversation, PromptInstruction,
+    ThreadedChatSession,
 };
 pub use crate::external as lumni;
 
@@ -33,7 +34,6 @@ pub enum WindowEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PromptAction {
     Stop,          // stop stream
-    Clear,         // stop stream and clear prompt
     Write(String), // send prompt
 }
 

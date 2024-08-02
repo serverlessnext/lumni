@@ -41,11 +41,6 @@ pub fn handle_command_line_event(
                             PromptAction::Write(question),
                         )));
                     }
-                    "clear" => {
-                        return Ok(Some(WindowEvent::Prompt(
-                            PromptAction::Clear,
-                        )))
-                    }
                     "stop" => {
                         return Ok(Some(WindowEvent::Prompt(
                             PromptAction::Stop,

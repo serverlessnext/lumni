@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::thread::Thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -7,7 +8,8 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ChatSession, ConversationDbHandler, WindowEvent,
+    AppUi, ApplicationError, ChatSession, ConversationDbHandler,
+    ThreadedChatSession, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -156,10 +158,10 @@ impl KeyEventHandler {
         &mut self,
         key_event: KeyEvent,
         app_ui: &mut AppUi<'_>,
-        tab_chat: &mut ChatSession,
+        tab_chat: &mut ThreadedChatSession,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self

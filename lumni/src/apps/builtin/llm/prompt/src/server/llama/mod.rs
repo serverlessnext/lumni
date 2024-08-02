@@ -49,12 +49,13 @@ impl Llama {
         })
     }
 
-    fn set_completion_options(
+    async fn set_completion_options(
         &mut self,
         handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let options = handler
             .fetch_completion_options()
+            .await
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
         // TODO: should map generic options to Llama-specific options
         self.completion_options = Some(options);
@@ -84,7 +85,7 @@ impl Llama {
         Ok(payload.serialize())
     }
 
-    fn completion_api_payload(
+    async fn completion_api_payload(
         &self,
         prompt: String,
     ) -> Result<String, ApplicationError> {
@@ -168,7 +169,7 @@ impl ServerTrait for Llama {
             .collect::<Vec<String>>()
             .join("\n");
 
-        let data_payload = self.completion_api_payload(prompt)?;
+        let data_payload = self.completion_api_payload(prompt).await?;
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
 
         http_post(
@@ -201,13 +202,15 @@ impl ServerTrait for Llama {
     ) -> Result<(), ApplicationError> {
         let identifier = handler
             .fetch_model_identifier()
+            .await
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
         let system_prompt = handler
             .fetch_system_prompt()
+            .await
             .map_err(|e| ApplicationError::NotReady(e.to_string()))?
             .unwrap_or_default();
         // Send the system prompt to the completion endpoint at initialization
-        self.set_completion_options(handler)?;
+        self.set_completion_options(handler).await?;
 
         let model_name = identifier.get_model_name().to_string();
         let system_prompt_payload =

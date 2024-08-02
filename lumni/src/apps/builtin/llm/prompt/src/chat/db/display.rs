@@ -8,7 +8,7 @@ impl ConversationDatabase {
         &self,
     ) -> Result<(), ApplicationError> {
         if let Some((conversation, messages)) =
-            self.fetch_conversation(None, None)?
+            self.fetch_conversation(None, None).await?
         {
             display_conversation_with_messages(&conversation, &messages);
         } else {
@@ -21,7 +21,7 @@ impl ConversationDatabase {
         &self,
         limit: usize,
     ) -> Result<(), ApplicationError> {
-        let conversations = self.fetch_conversation_list(limit)?;
+        let conversations = self.fetch_conversation_list(limit).await?;
         for conversation in conversations {
             println!(
                 "ID: {}, Name: {}, Updated: {}",
@@ -42,7 +42,7 @@ impl ConversationDatabase {
         })?);
 
         if let Some((conversation, messages)) =
-            self.fetch_conversation(Some(conversation_id), None)?
+            self.fetch_conversation(Some(conversation_id), None).await?
         {
             display_conversation_with_messages(&conversation, &messages);
         } else {

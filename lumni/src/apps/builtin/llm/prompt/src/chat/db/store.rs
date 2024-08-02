@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Error as SqliteError, OptionalExtension};
+use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::DatabaseConnector;
 use super::handler::ConversationDbHandler;
@@ -11,13 +12,13 @@ use super::{
 };
 
 pub struct ConversationDatabase {
-    db: Arc<Mutex<DatabaseConnector>>,
+    db: Arc<TokioMutex<DatabaseConnector>>,
 }
 
 impl ConversationDatabase {
     pub fn new(sqlite_file: &PathBuf) -> Result<Self, SqliteError> {
         Ok(Self {
-            db: Arc::new(Mutex::new(DatabaseConnector::new(sqlite_file)?)),
+            db: Arc::new(TokioMutex::new(DatabaseConnector::new(sqlite_file)?)),
         })
     }
 
@@ -25,16 +26,16 @@ impl ConversationDatabase {
         &self,
         conversation_id: Option<ConversationId>,
     ) -> ConversationDbHandler {
-        ConversationDbHandler::new(conversation_id, &self.db)
+        ConversationDbHandler::new(conversation_id, self.db.clone())
     }
 
-    pub fn update_conversation_status(
+    pub async fn update_conversation_status(
         &self,
         conversation_id: ConversationId,
         status: ConversationStatus,
     ) -> Result<(), SqliteError> {
         let query = "UPDATE conversations SET status = ? WHERE id = ?";
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.execute(
                 query,
@@ -51,12 +52,12 @@ impl ConversationDatabase {
         })
     }
 
-    pub fn add_conversation_tag(
+    pub async fn add_conversation_tag(
         &self,
         conversation_id: ConversationId,
         tag: &str,
     ) -> Result<(), SqliteError> {
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.execute(
                 "INSERT OR IGNORE INTO tags (name) VALUES (?)",
@@ -76,7 +77,7 @@ impl ConversationDatabase {
         })
     }
 
-    pub fn remove_conversation_tag(
+    pub async fn remove_conversation_tag(
         &self,
         conversation_id: ConversationId,
         tag: &str,
@@ -86,26 +87,26 @@ impl ConversationDatabase {
             WHERE conversation_id = ? AND tag_id = (SELECT id FROM tags WHERE \
                      name = ?)
         ";
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.execute(query, params![conversation_id.0, tag])?;
             Ok(())
         })
     }
 
-    pub fn fetch_last_conversation_id(
+    pub async fn fetch_last_conversation_id(
         &self,
     ) -> Result<Option<ConversationId>, SqliteError> {
         let query = "SELECT id FROM conversations WHERE is_deleted = FALSE \
                      ORDER BY updated_at DESC LIMIT 1";
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.query_row(query, [], |row| Ok(ConversationId(row.get(0)?)))
                 .optional()
         })
     }
 
-    pub fn fetch_conversation(
+    pub async fn fetch_conversation(
         &self,
         conversation_id: Option<ConversationId>,
         limit: Option<usize>,
@@ -132,7 +133,7 @@ impl ConversationDatabase {
                 .map_or(String::new(), |id| format!("AND id = {}", id.0)),
             limit.map_or(String::new(), |l| format!("LIMIT {}", l))
         );
-        let mut db = self.db.lock().unwrap();
+        let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let mut stmt = tx.prepare(&query)?;
             let rows = stmt.query_map([], |row| {
@@ -196,11 +197,11 @@ impl ConversationDatabase {
         })
     }
 
-    pub fn fetch_conversation_list(
+    pub async fn fetch_conversation_list(
         &self,
         limit: usize,
     ) -> Result<Vec<Conversation>, SqliteError> {
         let reader = self.get_conversation_handler(None);
-        reader.fetch_conversation_list(limit)
+        reader.fetch_conversation_list(limit).await
     }
 }

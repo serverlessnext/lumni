@@ -9,10 +9,18 @@ use ratatui::Terminal;
 
 use super::{App, TextWindowTrait, WindowKind};
 
-pub fn draw_ui<B: Backend>(
+pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
-    app: &mut App,
+    app: &mut App<'_>,
 ) -> Result<(), io::Error> {
+    let server_name = &app
+        .chat_manager
+        .get_active_session()
+        .server_name()
+        .await
+        .unwrap_or_default();
+    //let server_name = "TODO: get server name";
+
     terminal.draw(|frame| {
         let terminal_area = frame.size();
         const COMMAND_LINE_HEIGHT: u16 = 2;
@@ -33,13 +41,7 @@ pub fn draw_ui<B: Backend>(
 
         // add borders to main_window[0]
         frame.render_widget(
-            main_widget(
-                &app.chat_manager
-                    .get_active_session()
-                    .server_name()
-                    .unwrap_or_default(),
-                window_hint(),
-            ),
+            main_widget(&server_name, window_hint()),
             main_window[0],
         );
 

@@ -91,7 +91,7 @@ pub async fn run_cli(
     let config_dir =
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
-    let db_conn = ConversationDatabase::new(&sqlite_file)?;
+    let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file)?);
 
     if let Some(db_matches) = matches.subcommand_matches("db") {
         if db_matches.contains_id("list") {
@@ -154,34 +154,42 @@ pub async fn run_cli(
 
     let mut db_handler = db_conn.get_conversation_handler(None);
 
-    let prompt_instruction = db_conn
-        .fetch_last_conversation_id()?
-        .and_then(|conversation_id| {
-            db_handler.set_conversation_id(conversation_id);
-            // Convert Result to Option using .ok()
-            if new_conversation.is_equal(&db_handler).ok()? {
-                log::debug!("Continuing last conversation");
-                Some(PromptInstruction::from_reader(&db_handler))
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| {
-            log::debug!("Starting new conversation");
-            PromptInstruction::new(new_conversation, &mut db_handler)
-        })?;
+    let conversation_id = db_conn.fetch_last_conversation_id().await?;
 
-    let chat_session = ChatSession::new(prompt_instruction);
+    let prompt_instruction = if let Some(conversation_id) = conversation_id {
+        db_handler.set_conversation_id(conversation_id);
+
+        match new_conversation.is_equal(&db_handler).await {
+            Ok(true) => {
+                log::debug!("Continuing last conversation");
+                Some(PromptInstruction::from_reader(&db_handler).await?)
+            }
+            Ok(_) => None,
+            Err(e) => return Err(e.into()),
+        }
+    } else {
+        None
+    };
+
+    let prompt_instruction = match prompt_instruction {
+        Some(instruction) => instruction,
+        None => {
+            log::debug!("Starting new conversation");
+            PromptInstruction::new(new_conversation, &mut db_handler).await?
+        }
+    };
 
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let app = App::new(chat_session).await?;
+            let app =
+                App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
             interactive_mode(app, db_conn).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
+            let chat_session = ChatSession::new(prompt_instruction);
             process_non_interactive_input(chat_session, db_conn).await
         }
     }
@@ -189,7 +197,7 @@ pub async fn run_cli(
 
 async fn interactive_mode(
     app: App<'_>,
-    db_conn: ConversationDatabase,
+    db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     println!("Interactive mode detected. Starting interactive session:");
     let mut stdout = io::stdout().lock();
@@ -235,7 +243,7 @@ async fn interactive_mode(
 
 async fn process_non_interactive_input(
     chat: ChatSession,
-    db_conn: ConversationDatabase,
+    db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(chat));
     let stdin = tokio::io::stdin();

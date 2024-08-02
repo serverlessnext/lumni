@@ -40,17 +40,17 @@ impl AppUi<'_> {
         self.command_line.init(); // initialize with defaults
     }
 
-    pub fn set_new_modal(
+    pub async fn set_new_modal(
         &mut self,
         modal_type: ModalWindowType,
-        handler: &ConversationDbHandler<'_>,
+        handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
             ModalWindowType::SelectEndpoint => {
                 Some(Box::new(SelectEndpointModal::new()))
             }
             ModalWindowType::ConversationList(_) => {
-                Some(Box::new(ConversationListModal::new(handler)?))
+                Some(Box::new(ConversationListModal::new(handler).await?))
             }
         };
         Ok(())

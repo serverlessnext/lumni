@@ -1,14 +1,14 @@
 use super::*;
 
-impl<'a> ConversationDbHandler<'a> {
-    pub fn permanent_delete_conversation(
+impl ConversationDbHandler {
+    pub async fn permanent_delete_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 
         if let Some(id) = target_conversation_id {
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             let result = db.process_queue_with_result(|tx| {
                 // Delete all attachments for the conversation
                 tx.execute(

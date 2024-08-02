@@ -19,9 +19,9 @@ pub struct PromptInstruction {
 }
 
 impl PromptInstruction {
-    pub fn new(
+    pub async fn new(
         new_conversation: NewConversation,
-        db_handler: &mut ConversationDbHandler<'_>,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<Self, ApplicationError> {
         let completion_options = match new_conversation.options {
             Some(opts) => {
@@ -33,13 +33,20 @@ impl PromptInstruction {
         };
 
         let conversation_id = if let Some(ref model) = new_conversation.model {
-            Some(db_handler.new_conversation(
-                "New Conversation",
-                new_conversation.parent.as_ref().map(|p| p.id),
-                new_conversation.parent.as_ref().map(|p| p.fork_message_id),
-                Some(serde_json::to_value(&completion_options)?),
-                model,
-            )?)
+            Some(
+                db_handler
+                    .new_conversation(
+                        "New Conversation",
+                        new_conversation.parent.as_ref().map(|p| p.id),
+                        new_conversation
+                            .parent
+                            .as_ref()
+                            .map(|p| p.fork_message_id),
+                        Some(serde_json::to_value(&completion_options)?),
+                        model,
+                    )
+                    .await?,
+            )
         } else {
             None
         };
@@ -85,18 +92,19 @@ impl PromptInstruction {
                     .set_preloaded_messages(messages_to_insert.len());
 
                 // Insert messages into the database
-                db_handler.put_new_messages(&messages_to_insert)?;
+                db_handler.put_new_messages(&messages_to_insert).await?;
             } else if let Some(system_prompt) = new_conversation.system_prompt {
                 // add system_prompt as the first message
                 prompt_instruction
-                    .add_system_message(system_prompt, db_handler)?;
+                    .add_system_message(system_prompt, db_handler)
+                    .await?;
             }
         }
         Ok(prompt_instruction)
     }
 
-    pub fn from_reader(
-        reader: &ConversationDbHandler<'_>,
+    pub async fn from_reader(
+        reader: &ConversationDbHandler,
     ) -> Result<Self, ApplicationError> {
         // if conversation_id is none, it should err
         let conversation_id =
@@ -107,10 +115,12 @@ impl PromptInstruction {
             })?;
         let model_spec = reader
             .fetch_model_spec()
+            .await
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
         let completion_options = reader
             .fetch_completion_options()
+            .await
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
         let completion_options: ChatCompletionOptions =
@@ -138,6 +148,7 @@ impl PromptInstruction {
         // Load messages
         let messages = reader
             .fetch_messages()
+            .await
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
         for message in messages {
             prompt_instruction.cache.add_message(message);
@@ -146,6 +157,7 @@ impl PromptInstruction {
         // Load attachments
         let attachments = reader
             .fetch_attachments()
+            .await
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
         for attachment in attachments {
             prompt_instruction.cache.add_attachment(attachment);
@@ -169,10 +181,10 @@ impl PromptInstruction {
         &self.completion_options
     }
 
-    fn add_system_message(
+    async fn add_system_message(
         &mut self,
         content: String,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let timestamp = Timestamp::from_system_time()?.as_millis();
         let message = Message {
@@ -191,27 +203,8 @@ impl PromptInstruction {
             is_deleted: false,
         };
         // put system message directly into the database
-        db_handler.put_new_message(&message)?;
+        db_handler.put_new_message(&message).await?;
         self.cache.add_message(message);
-        Ok(())
-    }
-
-    pub fn reset_history(
-        &mut self,
-        db_handler: &mut ConversationDbHandler<'_>,
-    ) -> Result<(), ApplicationError> {
-        // reset by creating a new conversation
-        // TODO: clone previous conversation settings
-        if let Some(ref model) = &self.model {
-            let current_conversation_id = db_handler.new_conversation(
-                "New Conversation",
-                None,
-                None,
-                None,
-                model,
-            )?;
-            self.cache.set_conversation_id(current_conversation_id);
-        };
         Ok(())
     }
 
@@ -239,11 +232,11 @@ impl PromptInstruction {
             .map(|msg| msg.content.clone())
     }
 
-    pub fn put_last_response(
+    pub async fn put_last_response(
         &mut self,
         answer: &str,
         tokens_predicted: Option<usize>,
-        db_handler: &ConversationDbHandler<'_>,
+        db_handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let (user_message, assistant_message) =
             self.finalize_last_messages(answer, tokens_predicted)?;
@@ -262,6 +255,7 @@ impl PromptInstruction {
         // Insert messages into the database
         db_handler
             .put_new_messages(&messages_to_insert)
+            .await
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
 
         Ok(())

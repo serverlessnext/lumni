@@ -11,7 +11,8 @@ pub use super::{
     ApplicationError, ChatSession, CommandLine, Conversation,
     ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
     ModelServer, NewConversation, PromptInstruction, Scroller, ServerManager,
-    ServerTrait, TextWindowTrait, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ServerTrait, TextWindowTrait, ThreadedChatSession, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +28,7 @@ pub trait ModalWindowTrait {
     async fn handle_key_event<'a>(
         &'a mut self,
         key_event: &'a mut KeyTrack,
-        tab_chat: &'a mut ChatSession,
-        handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &'a mut ThreadedChatSession,
+        handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError>;
 }

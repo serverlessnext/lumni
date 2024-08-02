@@ -1,7 +1,7 @@
 use super::*;
 
-impl<'a> ConversationDbHandler<'a> {
-    pub fn update_conversation_name(
+impl ConversationDbHandler {
+    pub async fn update_conversation_name(
         &self,
         conversation_id: Option<ConversationId>,
         new_name: &str,
@@ -10,7 +10,7 @@ impl<'a> ConversationDbHandler<'a> {
         let system_time = Timestamp::from_system_time().unwrap().as_millis();
 
         if let Some(id) = target_conversation_id {
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.execute(
                     "UPDATE conversations SET name = ?, updated_at = ? WHERE \
@@ -24,7 +24,7 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn update_conversation_pin_status(
+    pub async fn update_conversation_pin_status(
         &self,
         conversation_id: Option<ConversationId>,
         is_pinned: bool,
@@ -33,7 +33,7 @@ impl<'a> ConversationDbHandler<'a> {
 
         if let Some(id) = target_conversation_id {
             let query = "UPDATE conversations SET is_pinned = ? WHERE id = ?";
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.execute(query, params![is_pinned, id.0])?;
                 Ok(())
@@ -44,7 +44,7 @@ impl<'a> ConversationDbHandler<'a> {
     }
 
     // used for archive and unarchive
-    fn update_conversation_status(
+    async fn update_conversation_status(
         &self,
         conversation_id: Option<ConversationId>,
         new_status: ConversationStatus,
@@ -52,7 +52,7 @@ impl<'a> ConversationDbHandler<'a> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 
         if let Some(id) = target_conversation_id {
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.execute(
                     "UPDATE conversations SET status = ? WHERE id = ?",
@@ -65,7 +65,7 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn archive_conversation(
+    pub async fn archive_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {
@@ -73,9 +73,10 @@ impl<'a> ConversationDbHandler<'a> {
             conversation_id,
             ConversationStatus::Archived,
         )
+        .await
     }
 
-    pub fn unarchive_conversation(
+    pub async fn unarchive_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {
@@ -83,9 +84,10 @@ impl<'a> ConversationDbHandler<'a> {
             conversation_id,
             ConversationStatus::Active,
         )
+        .await
     }
 
-    pub fn soft_delete_conversation(
+    pub async fn soft_delete_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {
@@ -93,7 +95,7 @@ impl<'a> ConversationDbHandler<'a> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 
         if let Some(id) = target_conversation_id {
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 // Update the conversation status
                 tx.execute(
@@ -122,7 +124,7 @@ impl<'a> ConversationDbHandler<'a> {
         }
     }
 
-    pub fn undo_delete_conversation(
+    pub async fn undo_delete_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), SqliteError> {
@@ -130,7 +132,7 @@ impl<'a> ConversationDbHandler<'a> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 
         if let Some(id) = target_conversation_id {
-            let mut db = self.db.lock().unwrap();
+            let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 // Update the conversation status
                 tx.execute(

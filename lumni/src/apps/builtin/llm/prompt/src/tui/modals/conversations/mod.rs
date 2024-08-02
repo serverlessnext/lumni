@@ -16,9 +16,9 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, ChatSession, CommandLine, Conversation,
-    ConversationDbHandler, ConversationEvent, ConversationStatus, KeyTrack,
-    ModalWindowTrait, ModalWindowType, PromptInstruction, TextWindowTrait,
+    ApplicationError, CommandLine, Conversation, ConversationDbHandler,
+    ConversationEvent, ConversationStatus, KeyTrack, ModalWindowTrait,
+    ModalWindowType, PromptInstruction, TextWindowTrait, ThreadedChatSession,
     WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
@@ -37,10 +37,10 @@ pub struct ConversationListModal<'a> {
 }
 
 impl<'a> ConversationListModal<'a> {
-    pub fn new(
-        handler: &ConversationDbHandler<'_>,
+    pub async fn new(
+        handler: &ConversationDbHandler,
     ) -> Result<Self, ApplicationError> {
-        let conversations = handler.fetch_conversation_list(100)?;
+        let conversations = handler.fetch_conversation_list(100).await?;
 
         let mut tab_indices = HashMap::new();
         tab_indices.insert(ConversationStatus::Active, 0);
@@ -77,12 +77,12 @@ impl<'a> ConversationListModal<'a> {
 
     async fn load_conversation(
         &self,
-        db_handler: &mut ConversationDbHandler<'_>,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<Option<PromptInstruction>, ApplicationError> {
         if let Some(conversation) = self.get_current_conversation() {
             db_handler.set_conversation_id(conversation.id);
             let prompt_instruction =
-                PromptInstruction::from_reader(db_handler)?;
+                PromptInstruction::from_reader(db_handler).await?;
             Ok(Some(prompt_instruction))
         } else {
             Ok(None)
@@ -91,14 +91,16 @@ impl<'a> ConversationListModal<'a> {
 
     async fn toggle_pin_status(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
             let new_pin_status = !conversation.is_pinned;
-            handler.update_conversation_pin_status(
-                Some(conversation.id),
-                new_pin_status,
-            )?;
+            handler
+                .update_conversation_pin_status(
+                    Some(conversation.id),
+                    new_pin_status,
+                )
+                .await?;
             conversation.is_pinned = new_pin_status;
 
             // Sort only conversations in the current tab
@@ -145,10 +147,10 @@ impl<'a> ConversationListModal<'a> {
 
     async fn archive_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
-            handler.archive_conversation(Some(conversation.id))?;
+            handler.archive_conversation(Some(conversation.id)).await?;
             conversation.status = ConversationStatus::Archived;
         }
         self.adjust_indices();
@@ -157,10 +159,12 @@ impl<'a> ConversationListModal<'a> {
 
     async fn unarchive_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
-            handler.unarchive_conversation(Some(conversation.id))?;
+            handler
+                .unarchive_conversation(Some(conversation.id))
+                .await?;
             conversation.status = ConversationStatus::Active;
         }
         self.adjust_indices();
@@ -169,10 +173,12 @@ impl<'a> ConversationListModal<'a> {
 
     async fn soft_delete_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
-            handler.soft_delete_conversation(Some(conversation.id))?;
+            handler
+                .soft_delete_conversation(Some(conversation.id))
+                .await?;
             conversation.status = ConversationStatus::Deleted;
         }
         self.adjust_indices();
@@ -181,10 +187,12 @@ impl<'a> ConversationListModal<'a> {
 
     async fn undo_delete_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
-            handler.undo_delete_conversation(Some(conversation.id))?;
+            handler
+                .undo_delete_conversation(Some(conversation.id))
+                .await?;
             conversation.status = ConversationStatus::Active;
         }
         self.adjust_indices();
@@ -193,11 +201,11 @@ impl<'a> ConversationListModal<'a> {
 
     async fn permanent_delete_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler<'_>,
+        handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation() {
             let id = conversation.id;
-            handler.permanent_delete_conversation(Some(id))?;
+            handler.permanent_delete_conversation(Some(id)).await?;
             self.conversations.retain(|c| c.id != id);
 
             self.adjust_indices();
@@ -238,8 +246,8 @@ impl<'a> ConversationListModal<'a> {
 
     async fn load_and_set_conversation(
         &mut self,
-        tab_chat: &mut ChatSession,
-        db_handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &mut ThreadedChatSession,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         let prompt_instruction = self.load_conversation(db_handler).await?;
         match prompt_instruction {
@@ -253,12 +261,14 @@ impl<'a> ConversationListModal<'a> {
 
     async fn undo_delete_and_load_conversation(
         &mut self,
-        tab_chat: &mut ChatSession,
-        db_handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &mut ThreadedChatSession,
+        db_handler: &mut ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
             let conversation_id = conversation.id;
-            db_handler.undo_delete_conversation(Some(conversation_id))?;
+            db_handler
+                .undo_delete_conversation(Some(conversation_id))
+                .await?;
             conversation.status = ConversationStatus::Active;
             self.adjust_indices();
 
@@ -269,7 +279,7 @@ impl<'a> ConversationListModal<'a> {
             // Now load the conversation
             db_handler.set_conversation_id(conversation_id);
             let prompt_instruction =
-                PromptInstruction::from_reader(db_handler)?;
+                PromptInstruction::from_reader(db_handler).await?;
             tab_chat.load_instruction(prompt_instruction).await?;
             self.last_selected_conversation_id = None;
         }
@@ -308,8 +318,8 @@ impl<'a> ModalWindowTrait for ConversationListModal<'a> {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        tab_chat: &'b mut ChatSession,
-        handler: &mut ConversationDbHandler<'_>,
+        tab_chat: &'b mut ThreadedChatSession,
+        handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         log::debug!(
             "Key: {:?}, Modifiers: {:?}",

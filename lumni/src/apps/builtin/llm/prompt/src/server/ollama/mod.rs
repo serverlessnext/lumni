@@ -95,6 +95,7 @@ impl ServerTrait for Ollama {
             payload,
         )
         .await;
+
         if let Ok(response) = response {
             // check if model is available by validating the response format
             // at this moment we not yet need the response itself

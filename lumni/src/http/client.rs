@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
 use bytes::{Bytes, BytesMut};
-use futures::future::pending;
+use tokio::time::timeout;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::header::{HeaderName, HeaderValue};
@@ -45,7 +45,7 @@ impl HttpClientResponse {
 #[derive(Debug, Clone)]
 pub enum HttpClientError {
     ConnectionError(String),
-    TimeoutError,
+    Timeout,
     HttpError(u16, String), // Status code, status text
     Utf8Error(String),
     RequestCancelled,
@@ -58,7 +58,7 @@ impl fmt::Display for HttpClientError {
             HttpClientError::ConnectionError(e) => {
                 write!(f, "ConnectionError: {}", e)
             }
-            HttpClientError::TimeoutError => write!(f, "TimeoutError"),
+            HttpClientError::Timeout => write!(f, "Timeout"),
             HttpClientError::HttpError(code, message) => {
                 write!(f, "HTTPError: {} {}", code, message)
             }
@@ -175,86 +175,89 @@ impl HttpClient {
         let request = req_builder
             .body(request_body)
             .expect("Failed to build the request");
-        // Send the request and await the response, handling timeout as needed
-        let mut response =
-            self.client.request(request).await.map_err(|_| {
-                HttpClientError::ConnectionError(url.to_string())
-            })?;
 
-        if !response.status().is_success() {
-            let canonical_reason = response
-                .status()
-                .canonical_reason()
-                .unwrap_or("")
-                .to_string();
-            if let Some(error_handler) = &self.error_handler {
-                // Custom error handling
-                let http_client_response = HttpClientResponse {
-                    body: None,
-                    status_code: response.status().as_u16(),
-                    headers: response.headers().clone(),
-                };
-                return Err(error_handler
-                    .handle_error(http_client_response, canonical_reason));
-            }
-            return Err(HttpClientError::HttpError(
-                response.status().as_u16(),
-                canonical_reason,
-            ));
-        }
+        match timeout(self.timeout, self.client.request(request)).await {
+            Ok(result) => {
+                let mut response = result.map_err(|_| {
+                    HttpClientError::ConnectionError(url.to_string())
+                })?;
 
-        let status_code = response.status().as_u16();
-        let headers = response.headers().clone();
-        let body;
+                if !response.status().is_success() {
+                    let canonical_reason = response
+                        .status()
+                        .canonical_reason()
+                        .unwrap_or("")
+                        .to_string();
+                    if let Some(error_handler) = &self.error_handler {
+                        // Custom error handling
+                        let http_client_response = HttpClientResponse {
+                            body: None,
+                            status_code: response.status().as_u16(),
+                            headers: response.headers().clone(),
+                        };
+                        return Err(error_handler
+                            .handle_error(http_client_response, canonical_reason));
+                    }
+                    return Err(HttpClientError::HttpError(
+                        response.status().as_u16(),
+                        canonical_reason,
+                    ));
+                }
 
-        if let Some(tx) = &tx {
-            body = None;
-            loop {
-                let frame_future = response.frame();
-                tokio::select! {
-                    next = frame_future => {
-                        match next {
-                            Some(Ok(frame)) => {
-                                if let Ok(chunk) = frame.into_data() {
-                                    if let Err(e) = tx.send(chunk).await {
-                                        return Err(HttpClientError::Other(e.to_string()));
-                                    }
+                let status_code = response.status().as_u16();
+                let headers = response.headers().clone();
+                let body;
+
+                if let Some(tx) = &tx {
+                    body = None;
+                    loop {
+                        let frame_future = response.frame();
+                        tokio::select! {
+                            next = frame_future => {
+                                match next {
+                                    Some(Ok(frame)) => {
+                                        if let Ok(chunk) = frame.into_data() {
+                                            if let Err(e) = tx.send(chunk).await {
+                                                return Err(HttpClientError::Other(e.to_string()));
+                                            }
+                                        }
+                                    },
+                                    Some(Err(e)) => return Err(HttpClientError::Other(e.to_string())),
+                                    None => break, // End of the stream
                                 }
                             },
-                            Some(Err(e)) => return Err(HttpClientError::Other(e.to_string())),
-                            None => break, // End of the stream
+                            // Check if the request has been cancelled
+                            _ = async {
+                                if let Some(rx) = &mut cancel_rx {
+                                    rx.await.ok();
+                                } else {
+                                    std::future::pending::<()>().await;
+                                }
+                            } => {
+                                drop(response); // Optionally drop the response to close the connection
+                                return Err(HttpClientError::RequestCancelled);
+                            },
                         }
-                    },
-                    // Check if the request has been cancelled
-                    _ = async {
-                        if let Some(rx) = &mut cancel_rx {
-                            rx.await.ok();
-                        } else {
-                            pending::<()>().await;
+                    }
+                } else {
+                    let mut body_bytes = BytesMut::new();
+                    while let Some(next) = response.frame().await {
+                        let frame = next.map_err(|e| anyhow!(e))?;
+                        if let Some(chunk) = frame.data_ref() {
+                            body_bytes.extend_from_slice(chunk);
                         }
-                    } => {
-                        drop(response); // Optionally drop the response to close the connection
-                        return Err(HttpClientError::RequestCancelled);
-                    },
+                    }
+                    body = Some(body_bytes.into());
                 }
-            }
-        } else {
-            let mut body_bytes = BytesMut::new();
-            while let Some(next) = response.frame().await {
-                // get headers for debugging
-                let frame = next.map_err(|e| anyhow!(e))?;
-                if let Some(chunk) = frame.data_ref() {
-                    body_bytes.extend_from_slice(chunk);
-                }
-            }
-            body = Some(body_bytes.into());
-        }
 
-        Ok(HttpClientResponse {
-            body,
-            status_code,
-            headers,
-        })
+                Ok(HttpClientResponse {
+                    body,
+                    status_code,
+                    headers,
+                })
+            },
+            Err(_) => Err(HttpClientError::Timeout),
+        }
     }
 
     pub async fn get(

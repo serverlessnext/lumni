@@ -1,6 +1,7 @@
 use std::fmt;
 
 use rusqlite::Error as SqliteError;
+use tokio::task::JoinError;
 
 // export the http client error via api::error
 pub use crate::http::client::HttpClientError;
@@ -172,6 +173,12 @@ impl From<serde_json::Error> for ApplicationError {
 impl From<anyhow::Error> for ApplicationError {
     fn from(err: anyhow::Error) -> Self {
         ApplicationError::Runtime(format!("Runtime error: {}", err))
+    }
+}
+
+impl From<JoinError> for ApplicationError {
+    fn from(error: JoinError) -> Self {
+        ApplicationError::Runtime(format!("Task join error: {}", error))
     }
 }
 

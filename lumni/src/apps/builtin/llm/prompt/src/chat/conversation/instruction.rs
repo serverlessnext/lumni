@@ -48,6 +48,7 @@ impl PromptInstruction {
                     .await?,
             )
         } else {
+            // Model is required to add conversation to the database
             None
         };
 
@@ -64,7 +65,11 @@ impl PromptInstruction {
                 .set_conversation_id(conversation_id);
         }
 
-        if new_conversation.parent.is_none() {
+        if new_conversation.parent.is_some() || conversation_id.is_none() {
+            // if parent is provided, do not evaluate system_prompt and initial_messages
+            // as they are already evaluated in the parent
+            // If conversation_id is none, cant create system prompt or initial messages yet
+        } else {
             // evaluate system_prompt and initial_messages only if parent is not provided
             if let Some(messages) = new_conversation.initial_messages {
                 let mut messages_to_insert = Vec::new();

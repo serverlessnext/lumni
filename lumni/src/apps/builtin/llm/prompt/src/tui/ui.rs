@@ -40,6 +40,10 @@ impl AppUi<'_> {
         self.command_line.init(); // initialize with defaults
     }
 
+    pub fn set_alert(&mut self, message: &str) -> Result<(), ApplicationError> {
+        self.command_line.set_alert(message)
+    }
+
     pub async fn set_new_modal(
         &mut self,
         modal_type: ModalWindowType,

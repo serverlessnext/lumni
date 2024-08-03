@@ -52,6 +52,7 @@ lazy_static = { version = "1.5" }
 rayon = { version = "1.10" }
 crossbeam-channel = { version = "0.5" }
 globset = { version = "0.4" }
+uuid = { version = "1.10.0", features = ["v4"] }
 
 # CLI
 env_logger = { version = "0.9", optional = true }

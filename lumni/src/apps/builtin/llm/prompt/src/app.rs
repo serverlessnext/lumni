@@ -153,7 +153,6 @@ pub async fn run_cli(
     // continue the conversation, otherwise start a new conversation
 
     let mut db_handler = db_conn.get_conversation_handler(None);
-
     let conversation_id = db_conn.fetch_last_conversation_id().await?;
 
     let prompt_instruction = if let Some(conversation_id) = conversation_id {
@@ -182,24 +181,24 @@ pub async fn run_cli(
     match poll(Duration::from_millis(0)) {
         Ok(_) => {
             // Starting interactive session
-            let app =
-                App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
-            interactive_mode(app, db_conn).await
+            log::debug!("Starting interactive session");
+            interactive_mode(prompt_instruction, db_conn).await
         }
         Err(_) => {
             // potential non-interactive input detected due to poll error.
             // attempt to use in non interactive mode
-            //let chat_session = ChatSession::new(prompt_instruction);
+            log::debug!("Starting non-interactive session");
             process_non_interactive_input(prompt_instruction, db_conn).await
         }
     }
 }
 
 async fn interactive_mode(
-    app: App<'_>,
+    prompt_instruction: PromptInstruction,
     db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
-    println!("Interactive mode detected. Starting interactive session:");
+    let app =
+        App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
     let mut stdout = io::stdout().lock();
 
     // Enable raw mode and setup the screen

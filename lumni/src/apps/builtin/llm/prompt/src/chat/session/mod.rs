@@ -64,7 +64,7 @@ impl App<'_> {
     ) -> Result<(), ApplicationError> {
         let prompt_instruction = self
             .chat_manager
-            .get_active_session()
+            .get_active_session()?
             .get_instruction()
             .await?;
 
@@ -93,12 +93,12 @@ impl App<'_> {
         Ok(())
     }
 
-    pub fn get_conversation_id_for_active_session(&self) -> &ConversationId {
-        self.chat_manager.get_active_session_id()
+    pub fn get_conversation_id_for_active_session(&self) -> Option<ConversationId> {
+        self.chat_manager.get_conversation_id_for_active_session()
     }
 
-    pub async fn stop_active_chat_session(&mut self) {
-        self.chat_manager.stop_active_chat_session();
+    pub async fn stop_active_chat_session(&mut self) -> Result<(), ApplicationError> {
+        self.chat_manager.stop_active_chat_session()
     }
 
     pub async fn load_instruction_for_active_session(
@@ -106,7 +106,7 @@ impl App<'_> {
         prompt_instruction: PromptInstruction,
     ) -> Result<(), ApplicationError> {
         self.chat_manager
-            .get_active_session()
+            .get_active_session()?
             .load_instruction(prompt_instruction)
             .await
     }

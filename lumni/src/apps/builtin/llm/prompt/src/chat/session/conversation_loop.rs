@@ -31,9 +31,9 @@ pub async fn prompt_app<B: Backend>(
     let mut current_mode = Some(WindowEvent::ResponseWindow);
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
-    let conversation_id = app.get_conversation_id_for_active_session().clone();
+    let conversation_id = app.get_conversation_id_for_active_session();
     let mut db_handler =
-        db_conn.get_conversation_handler(Some(conversation_id));
+        db_conn.get_conversation_handler(conversation_id);
 
     loop {
         tokio::select! {
@@ -42,7 +42,7 @@ pub async fn prompt_app<B: Backend>(
             }
             _ = async {
                 // Process chat events
-                let events = app.chat_manager.get_active_session().subscribe().recv().await;
+                let events = app.chat_manager.get_active_session()?.subscribe().recv().await;
                 if let Ok(event) = events {
                     match event {
                         ChatEvent::ResponseUpdate(content) => {
@@ -121,7 +121,7 @@ async fn handle_key_event(
             .process_key(
                 key_event,
                 &mut app.ui,
-                app.chat_manager.get_active_session(),
+                app.chat_manager.get_active_session()?,
                 mode,
                 keep_running.clone(),
                 db_handler,
@@ -170,7 +170,7 @@ async fn handle_prompt_action(
             send_prompt(app, &prompt, color_scheme).await?;
         }
         PromptAction::Stop => {
-            app.stop_active_chat_session().await;
+            app.stop_active_chat_session().await?;
             app.ui
                 .response
                 .text_append("\n", Some(color_scheme.get_secondary_style()))?;
@@ -261,7 +261,7 @@ async fn send_prompt<'a>(
     let formatted_prompt = format!("{}\n", prompt.trim_end());
     let result = app
         .chat_manager
-        .get_active_session()
+        .get_active_session()?
         .message(&formatted_prompt)
         .await;
 

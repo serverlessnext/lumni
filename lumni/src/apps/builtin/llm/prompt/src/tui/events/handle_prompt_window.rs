@@ -97,6 +97,14 @@ pub fn handle_prompt_window_event(
                     '-' => {
                         app_ui.set_primary_window(WindowKind::ResponseWindow);
                     }
+                    ' ' => {
+                        if let Some(prev) = key_track.previous_key_str() {
+                            if prev == " " {
+                                // change to insert mode if double space
+                                return Ok(Some(app_ui.set_prompt_window(true)));
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }

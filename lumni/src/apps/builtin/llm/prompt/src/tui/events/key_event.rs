@@ -68,7 +68,8 @@ impl KeyTrack {
             }
             match new_c {
                 ' ' => {
-                    self.previous_key_str = Some(String::new());
+                    // double space
+                    self.set_leader_key(false);
                 }
                 'i' => {
                     // currently insert always disables leader key

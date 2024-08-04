@@ -191,6 +191,16 @@ impl KeyEventHandler {
                 is_running,
             ),
             WindowEvent::Modal(window_type) => {
+                // catch forced quit key events before passing control to modal
+                let current_key = self.key_track.current_key();
+                if current_key.modifiers == KeyModifiers::CONTROL {
+                    match current_key.code {
+                        KeyCode::Char('c') | KeyCode::Char('q') => {
+                            return Ok(Some(WindowEvent::Quit));
+                        }
+                        _ => {}
+                    }
+                }
                 // key event is handled by modal window
                 if let Some(modal) = app_ui.modal.as_mut() {
                     let new_window_event = match modal

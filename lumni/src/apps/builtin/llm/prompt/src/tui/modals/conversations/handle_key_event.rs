@@ -57,6 +57,9 @@ impl<'a> ConversationListModal<'a> {
             KeyCode::Enter => {
                 return Ok(Some(WindowEvent::PromptWindow(None)));
             }
+            KeyCode::Char('q') => {
+                return Ok(Some(WindowEvent::PromptWindow(None)));
+            }
             KeyCode::Tab => {
                 self.switch_tab();
                 self.last_selected_conversation_id = None;

@@ -19,7 +19,7 @@ pub fn handle_prompt_window_event(
 ) -> Result<Option<WindowEvent>, ApplicationError> {
     match key_track.current_key().code {
         KeyCode::Up => {
-            if !app_ui.response.text_buffer().is_empty() {
+            if app_ui.response.text_buffer().is_empty() {
                 let (_, row) = app_ui.prompt.get_column_row();
                 if row == 0 {
                     // jump from prompt window to response window

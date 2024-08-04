@@ -11,7 +11,7 @@ use super::text_display::{CodeBlock, LineType};
 use super::text_document::{
     ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine,
 };
-use super::{RectArea, TextBuffer, WindowConfig, WindowKind, WindowStatus};
+use super::{RectArea, TextBuffer, WindowConfig, WindowContent, WindowKind, WindowStatus};
 pub use crate::external as lumni;
 
 #[derive(Debug, Clone)]
@@ -48,7 +48,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
             WindowStatus::Insert => {
                 self.text_buffer.set_cursor_visibility(true);
             }
-            WindowStatus::Normal => {
+            WindowStatus::Normal(_) => {
                 self.text_buffer.set_cursor_visibility(true);
             }
             WindowStatus::Background => {
@@ -151,6 +151,14 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
     pub fn current_line_type(&self) -> Option<LineType> {
         let (_, row) = self.text_buffer.get_column_row();
         self.text_buffer.row_line_type(row)
+    }
+
+    pub fn get_column_row(&self) -> (usize, usize) {
+        self.text_buffer.get_column_row()
+    }
+
+    pub fn max_row_idx(&self) -> usize {
+        self.text_buffer.max_row_idx()
     }
 
     pub fn current_code_block(&self) -> Option<CodeBlock> {
@@ -305,6 +313,14 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
         self.base().current_line_type()
     }
 
+    fn get_column_row(&mut self) -> (usize, usize) {
+        self.base().get_column_row()
+    }
+
+    fn max_row_idx(&mut self) -> usize {
+        self.base().max_row_idx()
+    }
+
     fn current_code_block(&mut self) -> Option<CodeBlock> {
         self.base().current_code_block()
     }
@@ -349,6 +365,10 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
 
     fn scroll_down(&mut self) {
         self.base().scroll_down();
+    }
+
+    fn scroll_to_end(&mut self) {
+        self.base().scroll_to_end();
     }
 
     fn move_cursor(&mut self, direction: MoveCursor) {
@@ -423,7 +443,14 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
     }
 
     fn set_status_normal(&mut self) {
-        self.set_window_status(WindowStatus::Normal);
+
+        let has_text = !self.text_buffer().is_empty();
+        let window_content = if has_text {
+            Some(WindowContent::Text)
+        } else {
+            None
+        };
+        self.set_window_status(WindowStatus::Normal(window_content))
     }
 
     fn set_status_visual(&mut self) {

@@ -15,6 +15,13 @@ pub fn handle_response_window_event(
     is_running: Arc<AtomicBool>,
 ) -> Result<Option<WindowEvent>, ApplicationError> {
     match key_track.current_key().code {
+        KeyCode::Down => {
+            let (_, row) = app_ui.response.get_column_row();
+            if row == app_ui.response.max_row_idx() {
+                // jump from response window to prompt window
+                return Ok(Some(app_ui.set_prompt_window(true)));
+            }
+        },
         KeyCode::Tab => {
             return Ok(Some(app_ui.set_prompt_window(false)));
         }
@@ -48,6 +55,14 @@ pub fn handle_response_window_event(
                     }
                     '-' => {
                         app_ui.set_primary_window(WindowKind::PromptWindow);
+                    }
+                    ' ' => {
+                        if let Some(prev) = key_track.previous_key_str() {
+                            if prev == " " {
+                                // change to insert mode if double space
+                                return Ok(Some(app_ui.set_prompt_window(true)));
+                            }
+                        }
                     }
                     _ => {}
                 }

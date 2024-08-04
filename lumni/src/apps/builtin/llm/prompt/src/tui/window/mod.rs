@@ -19,8 +19,8 @@ pub use text_document::{
     ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine, TextSegment,
 };
 pub use text_window::{TextWindow, TextWindowTrait};
-pub use window_config::{WindowConfig, WindowKind, WindowStatus};
-
+pub use window_config::{WindowConfig, WindowKind, WindowStatus, WindowContent};
+pub use super::events::WindowEvent;
 pub use super::events::KeyTrack;
 pub use crate::external as lumni;
 
@@ -90,6 +90,25 @@ impl PromptWindow<'_> {
         Self {
             base: TextWindow::new_read_write(window_type, None),
         }
+    }
+
+    pub fn next_window_status(&mut self) -> WindowEvent {
+        let next_status = match self.window_status() {
+            WindowStatus::Normal(_) => WindowStatus::Insert,
+            _ => {
+                let has_text = !self.text_buffer().is_empty();
+                let window_content = if has_text {
+                    Some(WindowContent::Text)
+                } else {
+                    None
+                };
+                WindowStatus::Normal(window_content)
+            }
+        };
+
+        self.set_window_status(next_status);
+        return WindowEvent::PromptWindow(None);
+
     }
 }
 

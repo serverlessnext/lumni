@@ -39,4 +39,20 @@ pub trait TextDocumentTrait {
     ) -> Result<(), ApplicationError>;
     fn undo(&mut self) -> Result<(), ApplicationError>;
     fn redo(&mut self) -> Result<(), ApplicationError>;
+    fn max_row_idx(&self) -> usize {
+        let rows = self.text_lines().len();
+        rows.saturating_sub(1)
+    }
+    fn max_col_idx(&self, row: usize) -> usize {
+        // Get the maximum column of a specific row. This is the line length + 1,
+        // to account for either a newline character or empty space for the cursor.
+        // Because line is 0-indexed we can skip add and substract
+        let lines = self.text_lines();
+        if let Some(line) = lines.get(row as usize) {
+            line.get_length()
+        } else {
+            0
+        }
+    }
+
 }

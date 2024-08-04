@@ -82,6 +82,7 @@ impl AppUi<'_> {
     pub fn set_response_window(&mut self) -> WindowEvent {
         self.prompt.set_status_background();
         self.response.set_status_normal();
+        self.response.scroll_to_end();
         return WindowEvent::ResponseWindow;
     }
 

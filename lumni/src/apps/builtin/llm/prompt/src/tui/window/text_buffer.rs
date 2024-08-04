@@ -53,6 +53,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         self.display.get_column_row()
     }
 
+    pub fn max_row_idx(&self) -> usize {
+        self.text.max_row_idx()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.text.is_empty()
     }
@@ -93,18 +97,18 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
 
         if newlines > 0 {
             // Move the cursor to the end of the inserted text
-            self.move_cursor(MoveCursor::Down(newlines as u16), true);
+            self.move_cursor(MoveCursor::Down(newlines), true);
             self.move_cursor(MoveCursor::StartOfLine, true); // Move to the start of the new line
             if last_line_length > 0 {
                 // Then move right to the end of the inserted text on the last line
                 self.move_cursor(
-                    MoveCursor::Right(last_line_length as u16),
+                    MoveCursor::Right(last_line_length),
                     true,
                 );
             }
         } else {
             // If no newlines, just move right
-            self.move_cursor(MoveCursor::Right(text.len() as u16), true);
+            self.move_cursor(MoveCursor::Right(text.len()), true);
         }
         Ok(())
     }
@@ -142,11 +146,11 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
 
             // check if the cursor is at the end of the line
             if self.cursor.col as usize >= self.to_string().len() {
-                self.move_cursor(MoveCursor::Left(char_count as u16), false);
+                self.move_cursor(MoveCursor::Left(char_count), false);
             }
         } else {
             // delete leftwards from the cursor
-            self.move_cursor(MoveCursor::Left(char_count as u16), true);
+            self.move_cursor(MoveCursor::Left(char_count), true);
         }
         Ok(())
     }
@@ -221,8 +225,11 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         let prev_real_col = self.cursor.col;
         let prev_real_row = self.cursor.row;
 
-        let text_lines = self.text.text_lines().to_vec();
-        self.cursor.move_cursor(direction, &text_lines, edit_mode);
+        self.cursor.move_cursor(
+            direction,
+            &self.text,
+            edit_mode
+        );
 
         let real_column_changed = prev_real_col != self.cursor.col;
         let real_row_changed = prev_real_row != self.cursor.row;

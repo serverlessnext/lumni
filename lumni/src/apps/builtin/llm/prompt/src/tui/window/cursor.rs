@@ -1,11 +1,11 @@
-use super::text_document::TextLine;
+use super::{text_document::TextLine, TextDocumentTrait};
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
-    Right(u16),
-    Left(u16),
-    Up(u16),
-    Down(u16),
+    Right(usize),
+    Left(usize),
+    Up(usize),
+    Down(usize),
     StartOfLine,
     EndOfLine,
     StartOfFile,
@@ -15,13 +15,13 @@ pub enum MoveCursor {
 
 #[derive(Debug, Clone)]
 pub struct Cursor {
-    pub col: u16,
-    pub row: u16,
-    anchor_col: u16,   // column for anchor, start of selection
-    anchor_row: u16,   // row for anchor, start of selection
+    pub col: usize,
+    pub row: usize,
+    anchor_col: usize,   // column for anchor, start of selection
+    anchor_row: usize,   // row for anchor, start of selection
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
-    desired_col: u16, // Desired column position, independent of actual line length
+    desired_col: usize, // Desired column position, independent of actual line length
     real_position: usize, // real position of the cursor in the text buffer
 }
 
@@ -74,27 +74,29 @@ impl Cursor {
         self.selection_enabled = enable;
     }
 
-    pub fn move_cursor(
+    pub fn move_cursor<T>(
         &mut self,
         direction: MoveCursor,
-        text_lines: &[TextLine],
+        text_document: &T,
         // keep cursor at desired column when jumping to next line. This is used to prevent
         // cursor from jumping to the beginning when text is wrapped during editing
         keep_desired: bool,
-    ) {
-        let max_row = get_max_row(text_lines);
+    ) where
+        T: TextDocumentTrait,
+    {
+        let max_row = text_document.max_row_idx();
         match direction {
             MoveCursor::Right(steps) => {
                 // Move the cursor to the right by the specified number of characters
                 for _ in 0..steps {
-                    let max_col = get_max_col(text_lines, self.row);
+                    let max_col = text_document.max_col_idx(self.row);
                     if self.col < max_col {
                         self.col += 1;
-                    } else if self.row < get_max_row(text_lines) {
+                    } else if self.row < max_row {
                         // Move to the beginning of the next line
                         self.row += 1;
                         if keep_desired {
-                            let max_col = get_max_col(text_lines, self.row);
+                            let max_col = text_document.max_col_idx(self.row);
                             self.col = std::cmp::min(self.desired_col, max_col);
                         } else {
                             self.col = 0;
@@ -113,7 +115,7 @@ impl Cursor {
                     } else if self.row > 0 {
                         // Move to the end of the previous line
                         self.row -= 1;
-                        self.col = get_max_col(text_lines, self.row);
+                        self.col = text_document.max_col_idx(self.row);
                     }
                 }
             }
@@ -122,7 +124,7 @@ impl Cursor {
                 let new_row = self.row.saturating_sub(lines);
                 self.row = new_row;
 
-                let max_col = get_max_col(text_lines, self.row);
+                let max_col = text_document.max_col_idx(self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // If moving up a single line and the cursor cannot move further up,
@@ -138,7 +140,7 @@ impl Cursor {
                     std::cmp::min(self.row.saturating_add(lines), max_row);
                 self.row = new_row;
 
-                let max_col = get_max_col(text_lines, self.row);
+                let max_col = text_document.max_col_idx(self.row);
                 self.col = std::cmp::min(self.desired_col, max_col);
 
                 // when moving down a single line, and cant move further,
@@ -153,7 +155,7 @@ impl Cursor {
                 self.desired_col = self.col;
             }
             MoveCursor::EndOfLine => {
-                self.col = get_max_col(text_lines, self.row);
+                self.col = text_document.max_col_idx(self.row);
                 self.desired_col = self.col;
             }
             MoveCursor::StartOfFile => {
@@ -168,7 +170,7 @@ impl Cursor {
             }
             MoveCursor::EndOfFileEndOfLine => {
                 self.row = max_row;
-                self.col = get_max_col(text_lines, self.row);
+                self.col = text_document.max_col_idx(self.row);
                 self.desired_col = self.col;
             }
         }
@@ -227,30 +229,15 @@ impl Cursor {
         // on the current row and column
         let mut position = 0;
         for (index, line) in lines.iter().enumerate() {
-            if index < self.row as usize {
+            if index < self.row {
                 // row before the current row
                 position += line.get_length() + 1; // account for newline character
-            } else if index == self.row as usize {
+            } else if index == self.row {
                 // current row
-                position += self.col as usize; // add columns for the current row
+                position += self.col; // add columns for the current row
                 break;
             }
         }
         self.real_position = position;
-    }
-}
-
-fn get_max_row(display_text: &[TextLine]) -> u16 {
-    display_text.len().saturating_sub(1) as u16
-}
-
-pub fn get_max_col(lines: &[TextLine], row: u16) -> u16 {
-    // Get the maximum column of a specific row. This is the line length + 1,
-    // to account for either a newline character or empty space for the cursor.
-    // Because line is 0-indexed we can skip add and substract
-    if let Some(line) = lines.get(row as usize) {
-        line.get_length() as u16
-    } else {
-        0
     }
 }

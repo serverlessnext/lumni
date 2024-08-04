@@ -18,20 +18,18 @@ pub fn handle_prompt_window_event(
     is_running: Arc<AtomicBool>,
 ) -> Result<Option<WindowEvent>, ApplicationError> {
     match key_track.current_key().code {
+        KeyCode::Up => {
+            if !app_ui.response.text_buffer().is_empty() {
+                let (_, row) = app_ui.prompt.get_column_row();
+                if row == 0 {
+                    // jump from prompt window to response window
+                    return Ok(Some(app_ui.set_response_window()));
+                }
+            }
+        },
         KeyCode::Tab => {
             if !in_editing_block(&mut app_ui.prompt) {
-                if app_ui.prompt.is_status_insert() {
-                    // change to normal prompt mode
-                    return Ok(Some(app_ui.set_prompt_window(false)));
-                } else {
-                    if app_ui.prompt.text_buffer().is_empty() {
-                        // change to response window
-                        return Ok(Some(app_ui.set_response_window()));
-                    } else {
-                        // send prompt
-                        return Ok(Some(app_ui.set_response_window()));
-                    }
-                }
+                return Ok(Some(app_ui.prompt.next_window_status()));
             }
         }
         KeyCode::Enter => {

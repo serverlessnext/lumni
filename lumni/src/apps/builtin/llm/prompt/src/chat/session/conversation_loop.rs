@@ -28,7 +28,7 @@ pub async fn prompt_app<B: Backend>(
     let color_scheme = app.color_scheme.clone();
     let mut tick = interval(Duration::from_millis(16)); // ~60 fps
     let keep_running = Arc::new(AtomicBool::new(true));
-    let mut current_mode = Some(WindowEvent::ResponseWindow);
+    let mut current_mode = Some(WindowEvent::PromptWindow(None));
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
     let conversation_id = app.get_conversation_id_for_active_session();

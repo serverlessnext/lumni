@@ -5,11 +5,16 @@ use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowStatus {
-    Normal,
+    Normal(Option<WindowContent>),
     Background,
     Insert,
     Visual,
     InActive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowContent {
+    Text
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,7 +51,12 @@ impl WindowConfig {
     pub fn hint(&self) -> Option<Title> {
         match self.kind {
             WindowKind::PromptWindow => match self.status {
-                WindowStatus::Normal | WindowStatus::Background => Some(
+                WindowStatus::Normal(None) => Some(
+                    Title::from("press i to enter insert mode".dark_gray())
+                        .alignment(Alignment::Right)
+                        .position(Position::Bottom),
+                ),
+                WindowStatus::Normal(_) => Some(
                     Title::from("press Enter to send prompt".dark_gray())
                         .alignment(Alignment::Right)
                         .position(Position::Bottom),
@@ -68,7 +78,7 @@ impl WindowConfig {
         match self.kind {
             WindowKind::ResponseWindow => "",
             WindowKind::PromptWindow => match self.status {
-                WindowStatus::Normal | WindowStatus::Background => {
+                WindowStatus::Normal(_) | WindowStatus::Background => {
                     "Press i to enter insert mode"
                 }
                 WindowStatus::Visual => "",
@@ -98,7 +108,10 @@ impl WindowConfig {
         let light_gray = Color::Rgb(128, 128, 128);
         let light_yellow = Color::Rgb(192, 192, 96);
         match self.status {
-            WindowStatus::Normal => {
+            WindowStatus::Normal(None) => {
+                Style::default().fg(light_gray).bg(Color::Black)
+            }
+            WindowStatus::Normal(_) => {
                 Style::default().fg(Color::White).bg(Color::Black)
             }
             WindowStatus::Background => {

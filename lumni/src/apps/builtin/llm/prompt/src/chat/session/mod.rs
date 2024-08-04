@@ -17,8 +17,9 @@ use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
     CompletionResponse, ConversationEvent, KeyEventHandler, ModalWindowType,
-    ModelServer, PromptAction, PromptInstruction, ServerManager,
-    TextWindowTrait, WindowEvent, WindowKind,
+    ModelServer, PromptAction, PromptError, PromptInstruction,
+    PromptNotReadyReason, ServerManager, TextWindowTrait, WindowEvent,
+    WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -93,11 +94,15 @@ impl App<'_> {
         Ok(())
     }
 
-    pub fn get_conversation_id_for_active_session(&self) -> Option<ConversationId> {
+    pub fn get_conversation_id_for_active_session(
+        &self,
+    ) -> Option<ConversationId> {
         self.chat_manager.get_conversation_id_for_active_session()
     }
 
-    pub async fn stop_active_chat_session(&mut self) -> Result<(), ApplicationError> {
+    pub async fn stop_active_chat_session(
+        &mut self,
+    ) -> Result<(), ApplicationError> {
         self.chat_manager.stop_active_chat_session()
     }
 

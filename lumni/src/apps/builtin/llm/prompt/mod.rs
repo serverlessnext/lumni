@@ -3,6 +3,7 @@ pub mod src {
     mod app;
     mod chat;
     mod defaults;
+    mod error;
     mod handler;
     mod server;
     mod tui;

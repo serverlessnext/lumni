@@ -52,14 +52,16 @@ pub async fn http_get_with_response(
         "application/json".to_string(),
     )]);
     let (tx, mut rx) = mpsc::channel(1);
-    
+
     // Spawn a task to handle the HTTP request
     let request_task = tokio::spawn(async move {
-        http_client.get(&url, Some(&header), None, Some(tx), None).await
+        http_client
+            .get(&url, Some(&header), None, Some(tx), None)
+            .await
     });
 
     let mut response_bytes = BytesMut::new();
-    
+
     // Receive chunks from the channel
     while let Some(response) = rx.recv().await {
         response_bytes.extend_from_slice(&response);
@@ -86,21 +88,23 @@ pub async fn http_post_with_response(
     )]);
     let (tx, mut rx) = mpsc::channel(1);
     let payload_bytes = Bytes::from(payload.into_bytes());
-    
+
     // Spawn a task to handle the HTTP request
     let request_task = tokio::spawn(async move {
-        http_client.post(
-            &url,
-            Some(&headers),
-            None,
-            Some(&payload_bytes),
-            Some(tx),
-            None,
-        ).await
+        http_client
+            .post(
+                &url,
+                Some(&headers),
+                None,
+                Some(&payload_bytes),
+                Some(tx),
+                None,
+            )
+            .await
     });
 
     let mut response_bytes = BytesMut::new();
-    
+
     // Receive chunks from the channel
     while let Some(response) = rx.recv().await {
         response_bytes.extend_from_slice(&response);

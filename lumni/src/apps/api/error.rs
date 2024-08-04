@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt;
 
 use rusqlite::Error as SqliteError;
@@ -38,6 +39,7 @@ pub enum ApplicationError {
     DatabaseError(String),
     NotImplemented(String),
     NotReady(String),
+    CustomError(Box<dyn Error + Send + Sync>),
 }
 
 #[derive(Debug, Clone)]
@@ -132,11 +134,20 @@ impl fmt::Display for ApplicationError {
                 write!(f, "NotImplemented: {}", s)
             }
             ApplicationError::NotReady(s) => write!(f, "NotReady: {}", s),
+            ApplicationError::CustomError(e) => write!(f, "{}", e),
         }
     }
 }
 
-impl std::error::Error for ApplicationError {}
+impl std::error::Error for ApplicationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ApplicationError::CustomError(e) => Some(e.as_ref()),
+            // For other variants, we use the default behavior (returning None)
+            _ => None,
+        }
+    }
+}
 
 impl From<HttpClientError> for ApplicationError {
     fn from(error: HttpClientError) -> Self {

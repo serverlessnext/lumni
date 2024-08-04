@@ -32,8 +32,7 @@ pub async fn prompt_app<B: Backend>(
     let mut key_event_handler = KeyEventHandler::new();
     let mut redraw_ui = true;
     let conversation_id = app.get_conversation_id_for_active_session();
-    let mut db_handler =
-        db_conn.get_conversation_handler(conversation_id);
+    let mut db_handler = db_conn.get_conversation_handler(conversation_id);
 
     loop {
         tokio::select! {
@@ -99,7 +98,11 @@ async fn handle_tick<B: Backend>(
                 )
                 .await?;
             }
-            Event::Mouse(mouse_event) => handle_mouse_event(app, mouse_event),
+            Event::Mouse(mouse_event) => {
+                if !handle_mouse_event(app, mouse_event) {
+                    return Ok(()); // skip redraw_ui if mouse event was not handled
+                }
+            }
             _ => {}
         }
         *redraw_ui = true;
@@ -150,14 +153,19 @@ async fn handle_key_event(
     Ok(())
 }
 
-fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) {
+fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) -> bool {
+    // handle mouse events in response window
+    // return true if event was handled
     let window = &mut app.ui.response;
     match mouse_event.kind {
         MouseEventKind::ScrollUp => window.scroll_up(),
         MouseEventKind::ScrollDown => window.scroll_down(),
-        MouseEventKind::Down(_) => {}
-        _ => {}
+        _ => {
+            // ignore other mouse events
+            return false;
+        }
     }
+    true // handled mouse event
 }
 
 async fn handle_prompt_action(
@@ -264,7 +272,6 @@ async fn send_prompt<'a>(
         .get_active_session()?
         .message(&formatted_prompt)
         .await;
-
     match result {
         Ok(_) => {
             // clear prompt
@@ -277,9 +284,9 @@ async fn send_prompt<'a>(
             app.ui.set_primary_window(WindowKind::ResponseWindow);
             app.ui.response.text_append("\n", Some(Style::reset()))?;
         }
-        Err(e) => {
-            log::error!("Error sending message: {:?}", e);
-            app.ui.command_line.set_alert(&e.to_string())?;
+        Err(prompt_error) => {
+            // show error in alert window
+            app.ui.command_line.set_alert(&prompt_error.to_string())?;
         }
     }
     Ok(())

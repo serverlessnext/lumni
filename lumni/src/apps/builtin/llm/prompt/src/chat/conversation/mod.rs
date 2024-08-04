@@ -8,8 +8,8 @@ pub use prepare::NewConversation;
 
 pub use super::db;
 use super::{
-    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextLine,
-    TextSegment,
+    ChatCompletionOptions, ChatMessage, ColorScheme, PromptError, PromptRole,
+    TextLine, TextSegment,
 };
 
 #[derive(Debug, Clone, PartialEq, Copy)]

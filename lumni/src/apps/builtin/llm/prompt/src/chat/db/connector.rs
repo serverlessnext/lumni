@@ -29,7 +29,7 @@ impl DatabaseConnector {
              PRAGMA temp_store = MEMORY;
              PRAGMA busy_timeout = 5000;
              PRAGMA wal_autocheckpoint = 1000;
-             PRAGMA journal_size_limit = 67108864;"
+             PRAGMA journal_size_limit = 67108864;",
         )?;
 
         let operation_queue = Arc::new(Mutex::new(VecDeque::new()));

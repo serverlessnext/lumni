@@ -8,7 +8,6 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Error as AnyhowError, Result};
 use bytes::{Bytes, BytesMut};
-use tokio::time::timeout;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::header::{HeaderName, HeaderValue};
@@ -20,6 +19,7 @@ use hyper_util::rt::TokioExecutor;
 use percent_encoding::{percent_encode, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::de::DeserializeOwned;
 use tokio::sync::{mpsc, oneshot};
+use tokio::time::timeout;
 
 #[derive(Debug)]
 pub struct HttpClientResponse {
@@ -195,8 +195,10 @@ impl HttpClient {
                             status_code: response.status().as_u16(),
                             headers: response.headers().clone(),
                         };
-                        return Err(error_handler
-                            .handle_error(http_client_response, canonical_reason));
+                        return Err(error_handler.handle_error(
+                            http_client_response,
+                            canonical_reason,
+                        ));
                     }
                     return Err(HttpClientError::HttpError(
                         response.status().as_u16(),
@@ -255,7 +257,7 @@ impl HttpClient {
                     status_code,
                     headers,
                 })
-            },
+            }
             Err(_) => Err(HttpClientError::Timeout),
         }
     }

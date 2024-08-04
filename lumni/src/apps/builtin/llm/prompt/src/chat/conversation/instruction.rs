@@ -6,7 +6,8 @@ use super::db::{
 };
 use super::prepare::NewConversation;
 use super::{
-    ChatCompletionOptions, ChatMessage, ColorScheme, PromptRole, TextLine,
+    ChatCompletionOptions, ChatMessage, ColorScheme, PromptError, PromptRole,
+    TextLine,
 };
 pub use crate::external as lumni;
 
@@ -352,8 +353,11 @@ impl PromptInstruction {
         &mut self,
         question: &str,
         max_token_length: usize,
-    ) -> Result<Vec<ChatMessage>, ApplicationError> {
-        let timestamp = Timestamp::from_system_time()?.as_millis();
+    ) -> Result<Vec<ChatMessage>, PromptError> {
+        let timestamp = Timestamp::from_system_time()
+            .map_err(|e| PromptError::Runtime(e.to_string()))?
+            .as_millis();
+
         let message = Message {
             id: self.cache.new_message_id(),
             conversation_id: self.cache.get_conversation_id(),

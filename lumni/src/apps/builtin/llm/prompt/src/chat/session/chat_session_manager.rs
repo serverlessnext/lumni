@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use lumni::api::error::ApplicationError;
+use uuid::Uuid;
 
 use super::db::{ConversationDatabase, ConversationId};
 use super::threaded_chat_session::ThreadedChatSession;
@@ -41,32 +41,40 @@ impl ChatSessionManager {
             .model_server
             .as_ref()
             .map(|s| s.to_string());
-        
+
         let initial_session = ThreadedChatSession::new(
             initial_prompt_instruction,
             db_conn.clone(),
         );
-        
+
         let mut sessions = HashMap::new();
         sessions.insert(session_id, initial_session);
-        
+
         Self {
             sessions,
-            active_session_info: SessionInfo { 
-                id: session_id, 
-                conversation_id, 
-                server_name 
+            active_session_info: SessionInfo {
+                id: session_id,
+                conversation_id,
+                server_name,
             },
         }
     }
 
-    pub fn get_active_session(&mut self) -> Result<&mut ThreadedChatSession, ApplicationError> {
-        self.sessions.get_mut(&self.active_session_info.id).ok_or_else(|| 
-            ApplicationError::Runtime("Active session not found".to_string())
-        )
+    pub fn get_active_session(
+        &mut self,
+    ) -> Result<&mut ThreadedChatSession, ApplicationError> {
+        self.sessions
+            .get_mut(&self.active_session_info.id)
+            .ok_or_else(|| {
+                ApplicationError::Runtime(
+                    "Active session not found".to_string(),
+                )
+            })
     }
 
-    pub fn get_conversation_id_for_active_session(&self) -> Option<ConversationId> {
+    pub fn get_conversation_id_for_active_session(
+        &self,
+    ) -> Option<ConversationId> {
         self.active_session_info.conversation_id
     }
 
@@ -82,7 +90,9 @@ impl ChatSessionManager {
             session.stop();
             Ok(())
         } else {
-            Err(ApplicationError::InvalidInput("Session not found".to_string()))
+            Err(ApplicationError::InvalidInput(
+                "Session not found".to_string(),
+            ))
         }
     }
 
@@ -115,7 +125,7 @@ impl ChatSessionManager {
                 .model_server
                 .as_ref()
                 .map(|s| s.to_string());
-            
+
             self.active_session_info = SessionInfo {
                 id,
                 conversation_id,
@@ -123,16 +133,22 @@ impl ChatSessionManager {
             };
             Ok(())
         } else {
-            Err(ApplicationError::InvalidInput("Session not found".to_string()))
+            Err(ApplicationError::InvalidInput(
+                "Session not found".to_string(),
+            ))
         }
     }
 
     pub fn stop_active_chat_session(&mut self) -> Result<(), ApplicationError> {
-        if let Some(session) = self.sessions.get_mut(&self.active_session_info.id) {
+        if let Some(session) =
+            self.sessions.get_mut(&self.active_session_info.id)
+        {
             session.stop();
             Ok(())
         } else {
-            Err(ApplicationError::Runtime("Active session not found".to_string()))
+            Err(ApplicationError::Runtime(
+                "Active session not found".to_string(),
+            ))
         }
     }
 }

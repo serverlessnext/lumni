@@ -197,8 +197,7 @@ async fn interactive_mode(
     prompt_instruction: PromptInstruction,
     db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
-    let app =
-        App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
+    let app = App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
     let mut stdout = io::stdout().lock();
 
     // Enable raw mode and setup the screen

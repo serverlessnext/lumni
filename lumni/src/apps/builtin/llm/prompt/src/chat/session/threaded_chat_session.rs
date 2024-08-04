@@ -6,7 +6,8 @@ use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use super::chat_session_manager::ChatEvent;
 use super::db::{ConversationDatabase, ConversationDbHandler};
 use super::{
-    CompletionResponse, ModelServer, PromptInstruction, ServerManager,
+    CompletionResponse, ModelServer, PromptError, PromptInstruction,
+    PromptNotReadyReason, ServerManager,
 };
 use crate::api::error::ApplicationError;
 
@@ -73,7 +74,7 @@ struct ThreadedChatSessionInner {
 
 #[derive(Debug)]
 enum ThreadedChatSessionCommand {
-    Message(String),
+    Message(String, oneshot::Sender<Result<(), PromptError>>),
     LoadInstruction(PromptInstruction),
     GetInstruction(
         oneshot::Sender<Result<PromptInstruction, ApplicationError>>,
@@ -126,10 +127,9 @@ impl ThreadedChatSession {
                 Some(command) = command_receiver.recv() => {
                     let mut locked_inner = inner.lock().await;
                     match command {
-                        ThreadedChatSessionCommand::Message(question) => {
-                            if let Err(e) = locked_inner.handle_message(&question, &db_handler).await {
-                                log::error!("Error processing message: {:?}", e);
-                            }
+                        ThreadedChatSessionCommand::Message(question, response_sender) => {
+                            let result = locked_inner.handle_message(&question, &db_handler).await;
+                            let _ = response_sender.send(result);
                         }
                         ThreadedChatSessionCommand::LoadInstruction(prompt_instruction) => {
                             if let Err(e) = locked_inner.load_instruction(prompt_instruction).await {
@@ -167,19 +167,25 @@ impl ThreadedChatSession {
         }
     }
 
-    pub async fn message(
-        &self,
-        question: &str,
-    ) -> Result<(), ApplicationError> {
+    pub async fn message(&self, question: &str) -> Result<(), PromptError> {
+        let (response_sender, response_receiver) = oneshot::channel();
+
         self.command_sender
-            .send(ThreadedChatSessionCommand::Message(question.to_string()))
+            .send(ThreadedChatSessionCommand::Message(
+                question.to_string(),
+                response_sender,
+            ))
             .await
             .map_err(|e| {
-                ApplicationError::Runtime(format!(
-                    "Failed to send message: {}",
-                    e
-                ))
-            })
+                PromptError::Runtime(format!("Failed to send message: {}", e))
+            })?;
+
+        response_receiver.await.map_err(|e| {
+            PromptError::Runtime(format!(
+                "Failed to receive message response: {}",
+                e
+            ))
+        })?
     }
 
     pub fn stop(&self) {
@@ -237,12 +243,16 @@ impl ThreadedChatSessionInner {
         &mut self,
         question: &str,
         db_handler: &ConversationDbHandler,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<(), PromptError> {
         if self.model_server_session.server.is_none() {
             self.model_server_session
                 .initialize_model_server(&self.prompt_instruction, db_handler)
                 .await
-                .map_err(|e| ApplicationError::NotReady(e.to_string()))?;
+                .map_err(|e| {
+                    PromptError::NotReady(PromptNotReadyReason::Other(
+                        e.to_string(),
+                    ))
+                })?;
         }
 
         let model =
@@ -250,26 +260,25 @@ impl ThreadedChatSessionInner {
                 .get_model()
                 .cloned()
                 .ok_or_else(|| {
-                    ApplicationError::NotReady(
-                        "Model not available".to_string(),
-                    )
+                    PromptError::NotReady(PromptNotReadyReason::NoModelSelected)
                 })?;
 
         let user_question = self.initiate_new_exchange(question).await?;
         let server =
             self.model_server_session.server.as_mut().ok_or_else(|| {
-                ApplicationError::NotReady("Server not initialized".to_string())
+                PromptError::NotReady(PromptNotReadyReason::Other(
+                    "Server not initialized".to_string(),
+                ))
             })?;
 
         let max_token_length =
             server.get_max_context_size().await.map_err(|e| {
-                ApplicationError::ServerConfigurationError(e.to_string())
+                PromptError::ServerConfigurationError(e.to_string())
             })?;
 
         let messages = self
             .prompt_instruction
-            .new_question(&user_question, max_token_length)
-            .map_err(|e| ApplicationError::InvalidInput(e.to_string()))?;
+            .new_question(&user_question, max_token_length)?;
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         self.model_server_session.cancel_tx = Some(cancel_tx);
@@ -282,8 +291,7 @@ impl ThreadedChatSessionInner {
                 Some(cancel_rx),
             )
             .await
-            .map_err(|e| ApplicationError::Runtime(e.to_string()))?;
-
+            .map_err(|e| PromptError::Runtime(e.to_string()))?;
         Ok(())
     }
 
@@ -299,7 +307,7 @@ impl ThreadedChatSessionInner {
     async fn initiate_new_exchange(
         &self,
         user_question: &str,
-    ) -> Result<String, ApplicationError> {
+    ) -> Result<String, PromptError> {
         let user_question = user_question.trim();
         Ok(if user_question.is_empty() {
             "continue".to_string()
@@ -345,11 +353,10 @@ impl ThreadedChatSessionInner {
     ) -> Result<(), ApplicationError> {
         if let Some(last_answer) = self.prompt_instruction.get_last_response() {
             let trimmed_answer = last_answer.trim();
-            _ = self.prompt_instruction.put_last_response(
-                trimmed_answer,
-                tokens_predicted,
-                db_handler,
-            ).await;
+            _ = self
+                .prompt_instruction
+                .put_last_response(trimmed_answer, tokens_predicted, db_handler)
+                .await;
         }
         Ok(())
     }

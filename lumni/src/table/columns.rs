@@ -115,7 +115,7 @@ impl TableColumnValue {
             // Match any None variant for Optional types
             _ => {
                 log::error!("Unexpected TableColumnValue: {:?}", self);
-                 "NULL".to_string()
+                "NULL".to_string()
             }
         }
     }

@@ -2,11 +2,12 @@ use core::{fmt, panic};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::table::{
-    OptionalInt64Column, StringColumn, TableRow, Uint64Column,
-};
+use crate::table::{OptionalInt64Column, StringColumn, TableRow, Uint64Column};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
-use crate::{FileObject, InternalError, Table, TableCallback, TableColumn, TableColumnValue};
+use crate::{
+    FileObject, InternalError, Table, TableCallback, TableColumn,
+    TableColumnValue,
+};
 
 pub struct FileObjectTable {
     columns: Vec<(String, Box<dyn TableColumn>)>, // Store columns in order
@@ -207,7 +208,6 @@ impl FileObjectTable {
         &mut self,
         rows: Vec<HashMap<String, TableColumnValue>>,
     ) -> Result<(), InternalError> {
-
         for row_data in rows.iter() {
             let mut row_vec: Vec<(String, TableColumnValue)> = Vec::new();
             // Iterate over self.columns to maintain the defined order

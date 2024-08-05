@@ -4,7 +4,7 @@ use ratatui::style::Style;
 use super::piece_table::PieceTable;
 use super::text_line::TextLine;
 use super::TextDocumentTrait;
-pub use crate::external as lumni;
+use crate::external as lumni;
 
 #[derive(Debug)]
 pub struct ReadWriteDocument {

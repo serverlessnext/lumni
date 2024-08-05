@@ -29,4 +29,4 @@ pub use super::chat::{
 pub use super::server::{
     ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
 };
-pub use crate::external as lumni;
+use crate::external as lumni;

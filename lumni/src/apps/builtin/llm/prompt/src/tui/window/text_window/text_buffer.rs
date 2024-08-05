@@ -2,29 +2,27 @@ use lumni::api::error::ApplicationError;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 
-use super::cursor::{Cursor, MoveCursor};
-use super::text_display::{
-    CodeBlock, CodeBlockLine, CodeBlockLineType, LineType, TextDisplay,
+use super::{
+    CodeBlock, CodeBlockLine, CodeBlockLineType, Cursor, LineType, MoveCursor,
+    TextDisplay, TextDocumentTrait, TextLine,
 };
-use super::text_document::{TextDocumentTrait, TextLine, TextWrapper};
-use super::text_render::DisplayWindowRenderer;
-pub use crate::external as lumni;
+use crate::external as lumni;
 
 #[derive(Debug, Clone)]
 pub struct TextBuffer<'a, T: TextDocumentTrait> {
-    text: T,                  // text buffer
-    placeholder: String,      // placeholder text
-    display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
+    text_document: T,              // text buffer
+    placeholder: String,           // placeholder text
+    text_display: TextDisplay<'a>, // text (e.g. wrapped,  highlighted) for display
     cursor: Cursor,
     code_blocks: Vec<CodeBlock>, // code blocks
 }
 
 impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
-    pub fn new(document: T) -> Self {
+    pub fn new(text_document: T) -> Self {
         Self {
-            text: document,
+            text_document,
             placeholder: String::new(),
-            display: TextDisplay::new(0),
+            text_display: TextDisplay::new(0),
             cursor: Cursor::new(),
             code_blocks: Vec::new(),
         }
@@ -33,7 +31,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     pub fn set_placeholder(&mut self, text: &str) {
         if self.placeholder != text {
             self.placeholder = text.to_string();
-            if self.text.is_empty() {
+            if self.text_document.is_empty() {
                 // trigger display update if placeholder text changed,
                 // and the text buffer is empty
                 self.update_display_text();
@@ -50,27 +48,27 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn get_column_row(&self) -> (usize, usize) {
-        self.display.get_column_row()
+        self.text_display.get_column_row()
     }
 
     pub fn max_row_idx(&self) -> usize {
-        self.text.max_row_idx()
+        self.text_document.max_row_idx()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.text.is_empty()
+        self.text_document.is_empty()
     }
 
     pub fn empty(&mut self) {
-        self.display.clear();
+        self.text_display.clear();
         self.cursor.reset();
-        self.text.empty();
+        self.text_document.empty();
         // update display
         self.update_display_text();
     }
 
     pub fn set_width(&mut self, width: usize) {
-        self.display.set_display_width(width);
+        self.text_display.set_display_width(width);
     }
 
     pub fn text_insert_add(
@@ -80,7 +78,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     ) -> Result<(), ApplicationError> {
         // Get the current cursor position in the underlying (unwrapped) text buffer
         let idx = self.cursor.real_position();
-        self.text.insert(idx, text, style)?;
+        self.text_document.insert(idx, text, style)?;
         self.update_display_text();
 
         // Calculate the number of newlines and the length of the last line segment
@@ -101,10 +99,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             self.move_cursor(MoveCursor::StartOfLine, true); // Move to the start of the new line
             if last_line_length > 0 {
                 // Then move right to the end of the inserted text on the last line
-                self.move_cursor(
-                    MoveCursor::Right(last_line_length),
-                    true,
-                );
+                self.move_cursor(MoveCursor::Right(last_line_length), true);
             }
         } else {
             // If no newlines, just move right
@@ -114,7 +109,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn text_append(&mut self, text: &str, style: Option<Style>) {
-        self.text.append(text, style);
+        self.text_document.append(text, style);
         self.update_display_text();
     }
 
@@ -137,7 +132,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             return Ok(()); // nothing to delete
         };
 
-        self.text.delete(start_idx, char_count)?;
+        self.text_document.delete(start_idx, char_count)?;
 
         if include_cursor {
             // delete rightwards from the cursor
@@ -156,7 +151,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn row_line_type(&self, row: usize) -> Option<LineType> {
-        let lines = self.display.wrap_lines();
+        let lines = self.text_display.wrap_lines();
         if row >= lines.len() {
             return None; // out of bounds
         }
@@ -168,15 +163,11 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn display_window_lines(&self, start: usize, end: usize) -> Vec<Line> {
-        let renderer = DisplayWindowRenderer::new(
-            self.display.wrap_lines(),
-            self.display.width(),
-        );
-        renderer.render_lines(start, end)
+        self.text_display.select_window_lines(start, end)
     }
 
     pub fn display_lines_len(&self) -> usize {
-        self.display.wrap_lines().len()
+        self.text_display.wrap_lines().len()
     }
 
     pub fn yank_selected_text(&self) -> Option<String> {
@@ -184,9 +175,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         if self.cursor.selection_enabled() {
             // get selection bounds
             let (start_row, start_col, end_row, end_col) =
-                self.get_selection_bounds();
-            let lines =
-                self.text.get_text_lines_selection(start_row, Some(end_row));
+                self.cursor.get_selection_bounds();
+            let lines = self
+                .text_document
+                .get_text_lines_selection(start_row, Some(end_row));
 
             if let Some(lines) = lines {
                 let mut selected_lines = Vec::new();
@@ -225,11 +217,8 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         let prev_real_col = self.cursor.col;
         let prev_real_row = self.cursor.row;
 
-        self.cursor.move_cursor(
-            direction,
-            &self.text,
-            edit_mode
-        );
+        self.cursor
+            .move_cursor(direction, &self.text_document, edit_mode);
 
         let real_column_changed = prev_real_col != self.cursor.col;
         let real_row_changed = prev_real_row != self.cursor.row;
@@ -237,7 +226,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             // cursor moved in the underlying text buffer
             // get the cursor position in the wrapped text display
             let (prev_display_col, prev_display_row) =
-                self.display.get_column_row();
+                self.text_display.get_column_row();
 
             // update the display text
             self.update_display_text();
@@ -245,7 +234,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             // get the cursor position in the wrapped text display after update,
             // this is used to determine if the cursor moved in the display
             let (post_display_col, post_display_row) =
-                self.display.get_column_row();
+                self.text_display.get_column_row();
             return (
                 prev_display_col != post_display_col,
                 prev_display_row != post_display_row,
@@ -268,7 +257,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         let reset = Style::reset();
 
         for (line_number, line) in
-            self.display.wrap_lines.iter_mut().enumerate()
+            self.text_display.wrap_lines.iter_mut().enumerate()
         {
             let line_number = line_number as u16;
 
@@ -334,15 +323,13 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
                 current_code_block_start = None;
             }
         }
-
         // TODO: for each codeblock, add syntax styling
     }
 
     pub fn update_display_text(&mut self) {
-        self.text.update_if_modified();
-        self.display.clear();
-        let mut text_lines = self.text.text_lines().to_vec();
+        self.text_document.update_if_modified();
 
+        let mut text_lines = self.text_document.text_lines().to_vec();
         if text_lines.is_empty() && !self.placeholder.is_empty() {
             // placeholder text
             let style = Style::default().fg(Color::DarkGray);
@@ -351,142 +338,11 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             text_lines.push(line_styled);
         }
 
-        // Get the bounds of selected text, position based on unwrapped lines
-        // (start_row, start_col, end_row, end_col)
-        let selection_bounds = self.get_selection_bounds();
-
-        let text_wrapper = TextWrapper::new(self.display.width());
-
-        for (idx, line) in text_lines.iter().enumerate() {
-            let text_str =
-                line.segments().map(|s| s.text.as_str()).collect::<String>();
-            let trailing_spaces =
-                text_str.len() - text_str.trim_end_matches(' ').len();
-            let wrapped_lines = text_wrapper.wrap_text_styled(line, None);
-
-            // length of the wrapped lines content
-            if wrapped_lines.is_empty() {
-                self.handle_empty_line(trailing_spaces, line.get_background());
-            } else {
-                // process wrapped lines
-                self.process_wrapped_lines(
-                    wrapped_lines,
-                    idx,
-                    &selection_bounds,
-                    trailing_spaces,
-                    line.get_background(),
-                );
-            }
-        }
+        self.text_display.update(&text_lines, &self.cursor);
 
         self.mark_code_blocks();
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();
-    }
-
-    fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
-        if self.cursor.selection_enabled() {
-            self.cursor.get_selection_bounds()
-        } else {
-            (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
-        }
-    }
-
-    fn handle_empty_line(
-        &mut self,
-        trailing_spaces: usize,
-        background: Option<Color>,
-    ) {
-        if trailing_spaces > 0 {
-            // Add trailing spaces to the line
-            let spaces = std::iter::repeat(' ')
-                .take(trailing_spaces)
-                .collect::<String>();
-
-            self.display.push_line(
-                Line::from(Span::raw(spaces)),
-                trailing_spaces,
-                true,
-                None,
-                background,
-            );
-        } else {
-            // add empty row
-            self.display.push_line(
-                Line::from(Span::raw("")),
-                0,
-                true,
-                None,
-                background,
-            );
-        }
-    }
-
-    fn process_wrapped_lines(
-        &mut self,
-        wrapped_lines: Vec<TextLine>,
-        unwrapped_line_index: usize,
-        selection_bounds: &(usize, usize, usize, usize),
-        // trailing spaces of the unwrapped line are removed during wrapping,
-        // this is added back to the first and last (wrapped) line respectively
-        trailing_spaces: usize,
-        background: Option<Color>,
-    ) {
-        let (start_row, start_col, end_row, end_col) = *selection_bounds;
-        let mut char_pos = 0;
-
-        for (idx, line) in wrapped_lines.iter().enumerate() {
-            let mut spans = Vec::new();
-
-            // Start character position for this line from the cumulative offset
-            for segment in line.segments() {
-                let chars: Vec<char> = segment.text.chars().collect();
-                for ch in chars.into_iter() {
-                    // Adjust row based on the index in wrapped lines
-                    let should_select = self.cursor.should_select(
-                        unwrapped_line_index,
-                        char_pos,
-                        start_row,
-                        start_col,
-                        end_row,
-                        end_col,
-                    );
-
-                    let mut effective_style =
-                        segment.style.unwrap_or(Style::default());
-                    if should_select {
-                        effective_style = effective_style.bg(Color::Blue);
-                    }
-                    spans.push(Span::styled(ch.to_string(), effective_style));
-                    char_pos += 1;
-                }
-            }
-
-            let mut current_line = Line::from(spans);
-
-            let last_segment = idx == wrapped_lines.len() - 1;
-
-            if last_segment && trailing_spaces > 0 {
-                // Add trailing spaces back to end of the last line
-                let spaces = std::iter::repeat(' ')
-                    .take(trailing_spaces)
-                    .collect::<String>();
-                current_line.spans.push(Span::raw(spaces));
-            }
-            let current_line_length = current_line
-                .spans
-                .iter()
-                .map(|span| span.content.len())
-                .sum::<usize>();
-            self.display.push_line(
-                current_line,
-                current_line_length,
-                last_segment,
-                None,
-                background,
-            );
-            char_pos += 1; // account for newline character
-        }
     }
 
     fn update_cursor_style(&mut self) {
@@ -494,10 +350,10 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             return;
         }
         // Retrieve the cursor's column and row in the wrapped display
-        let (column, row) = self.display.update_column_row(&self.cursor);
+        let (column, row) = self.text_display.update_column_row(&self.cursor);
         let mut line_column = column;
 
-        if let Some(current_line) = self.display.wrap_lines.get_mut(row) {
+        if let Some(current_line) = self.text_display.wrap_lines.get_mut(row) {
             let line_length = current_line.length;
             let last_segment = current_line.last_segment;
             let spans = current_line.spans_mut();
@@ -550,19 +406,19 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
     }
 
     pub fn undo(&mut self) -> Result<(), ApplicationError> {
-        self.text.undo()?;
+        self.text_document.undo()?;
         self.update_display_text();
         Ok(())
     }
 
     pub fn redo(&mut self) -> Result<(), ApplicationError> {
-        self.text.redo()?;
+        self.text_document.redo()?;
         self.update_display_text();
         Ok(())
     }
 
     pub fn to_string(&self) -> String {
-        self.text.to_string()
+        self.text_document.to_string()
     }
 
     pub fn yank_lines(&self, count: usize) -> Vec<String> {
@@ -572,8 +428,9 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
         // e.g. to get n lines: end_row = start_row + n - 1
         let end_row = start_row.saturating_add(count.saturating_sub(1));
 
-        if let Some(text_lines) =
-            self.text.get_text_lines_selection(start_row, Some(end_row))
+        if let Some(text_lines) = self
+            .text_document
+            .get_text_lines_selection(start_row, Some(end_row))
         {
             text_lines.iter().map(|line| line.to_string()).collect()
         } else {

@@ -14,7 +14,7 @@ pub enum WindowStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowContent {
-    Text
+    Text,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

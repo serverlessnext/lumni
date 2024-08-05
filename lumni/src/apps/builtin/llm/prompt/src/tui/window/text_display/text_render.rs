@@ -1,9 +1,7 @@
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Masked, Span};
 
-use super::text_display::{
-    CodeBlockLine, CodeBlockLineType, LineSegment, LineType,
-};
+use super::{CodeBlockLine, CodeBlockLineType, LineSegment, LineType};
 
 pub struct DisplayWindowRenderer<'a> {
     wrap_lines: &'a [LineSegment<'a>],

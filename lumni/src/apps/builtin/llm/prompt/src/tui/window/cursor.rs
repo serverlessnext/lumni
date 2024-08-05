@@ -1,4 +1,5 @@
-use super::{text_document::TextLine, TextDocumentTrait};
+use super::text_document::TextLine;
+use super::TextDocumentTrait;
 
 #[derive(Debug, Clone)]
 pub enum MoveCursor {
@@ -17,8 +18,8 @@ pub enum MoveCursor {
 pub struct Cursor {
     pub col: usize,
     pub row: usize,
-    anchor_col: usize,   // column for anchor, start of selection
-    anchor_row: usize,   // row for anchor, start of selection
+    anchor_col: usize, // column for anchor, start of selection
+    anchor_row: usize, // row for anchor, start of selection
     show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: usize, // Desired column position, independent of actual line length
@@ -182,23 +183,28 @@ impl Cursor {
     }
 
     pub fn get_selection_bounds(&self) -> (usize, usize, usize, usize) {
-        // Determine the correct order for start and end positions
-        if self.row < self.anchor_row
-            || (self.row == self.anchor_row && self.col < self.anchor_col)
-        {
-            (
-                self.row as usize,
-                self.col as usize,
-                self.anchor_row as usize,
-                self.anchor_col as usize,
-            )
+        // Get the bounds of selected text, position based on unwrapped lines
+        // (start_row, start_col, end_row, end_col)
+        if self.selection_enabled() {
+            if self.row < self.anchor_row
+                || (self.row == self.anchor_row && self.col < self.anchor_col)
+            {
+                (
+                    self.row as usize,
+                    self.col as usize,
+                    self.anchor_row as usize,
+                    self.anchor_col as usize,
+                )
+            } else {
+                (
+                    self.anchor_row as usize,
+                    self.anchor_col as usize,
+                    self.row as usize,
+                    self.col as usize,
+                )
+            }
         } else {
-            (
-                self.anchor_row as usize,
-                self.anchor_col as usize,
-                self.row as usize,
-                self.col as usize,
-            )
+            (usize::MAX, usize::MAX, usize::MIN, usize::MIN) // No highlighting
         }
     }
 

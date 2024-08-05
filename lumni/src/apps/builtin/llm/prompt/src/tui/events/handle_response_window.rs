@@ -21,7 +21,7 @@ pub fn handle_response_window_event(
                 // jump from response window to prompt window
                 return Ok(Some(app_ui.set_prompt_window(true)));
             }
-        },
+        }
         KeyCode::Tab => {
             return Ok(Some(app_ui.set_prompt_window(false)));
         }
@@ -60,7 +60,9 @@ pub fn handle_response_window_event(
                         if let Some(prev) = key_track.previous_key_str() {
                             if prev == " " {
                                 // change to insert mode if double space
-                                return Ok(Some(app_ui.set_prompt_window(true)));
+                                return Ok(Some(
+                                    app_ui.set_prompt_window(true),
+                                ));
                             }
                         }
                     }

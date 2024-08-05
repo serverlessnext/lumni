@@ -26,7 +26,7 @@ pub fn handle_prompt_window_event(
                     return Ok(Some(app_ui.set_response_window()));
                 }
             }
-        },
+        }
         KeyCode::Tab => {
             if !in_editing_block(&mut app_ui.prompt) {
                 return Ok(Some(app_ui.prompt.next_window_status()));
@@ -99,7 +99,9 @@ pub fn handle_prompt_window_event(
                         if let Some(prev) = key_track.previous_key_str() {
                             if prev == " " {
                                 // change to insert mode if double space
-                                return Ok(Some(app_ui.set_prompt_window(true)));
+                                return Ok(Some(
+                                    app_ui.set_prompt_window(true),
+                                ));
                             }
                         }
                     }

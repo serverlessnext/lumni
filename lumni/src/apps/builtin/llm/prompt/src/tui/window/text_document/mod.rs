@@ -11,7 +11,7 @@ pub use read_write_document::ReadWriteDocument;
 pub use text_line::{TextLine, TextSegment};
 pub use text_wrapper::TextWrapper;
 
-pub use crate::external as lumni;
+use crate::external as lumni;
 
 pub trait TextDocumentTrait {
     fn from_text(lines: Vec<TextLine>) -> Self;
@@ -54,5 +54,4 @@ pub trait TextDocumentTrait {
             0
         }
     }
-
 }

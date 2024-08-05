@@ -141,13 +141,11 @@ where
             window.move_cursor(MoveCursor::EndOfFile);
         }
         'j' => {
-            let lines_to_move =
-                key_track.take_numeric_input().unwrap_or(1);
+            let lines_to_move = key_track.take_numeric_input().unwrap_or(1);
             window.move_cursor(MoveCursor::Down(lines_to_move));
         }
         'k' => {
-            let lines_to_move =
-                key_track.take_numeric_input().unwrap_or(1);
+            let lines_to_move = key_track.take_numeric_input().unwrap_or(1);
             window.move_cursor(MoveCursor::Up(lines_to_move));
         }
         'v' => {

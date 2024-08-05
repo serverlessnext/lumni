@@ -1,9 +1,7 @@
 mod cursor;
 mod scroller;
-mod text_buffer;
 mod text_display;
 mod text_document;
-mod text_render;
 mod text_window;
 mod window_config;
 
@@ -13,16 +11,17 @@ use lumni::api::error::ApplicationError;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 pub use scroller::Scroller;
-pub use text_buffer::TextBuffer;
 pub use text_display::LineType;
 pub use text_document::{
     ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine, TextSegment,
 };
 pub use text_window::{TextWindow, TextWindowTrait};
-pub use window_config::{WindowConfig, WindowKind, WindowStatus, WindowContent};
-pub use super::events::WindowEvent;
-pub use super::events::KeyTrack;
-pub use crate::external as lumni;
+pub use window_config::{
+    WindowConfig, WindowContent, WindowKind, WindowStatus,
+};
+
+use super::events::{KeyTrack, WindowEvent};
+use crate::external as lumni;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RectArea {
@@ -108,7 +107,6 @@ impl PromptWindow<'_> {
 
         self.set_window_status(next_status);
         return WindowEvent::PromptWindow(None);
-
     }
 }
 

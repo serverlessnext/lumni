@@ -2,16 +2,18 @@ use std::error::Error;
 use std::fmt;
 
 mod connector;
+mod conversations;
 mod display;
-mod handler;
 mod model;
 mod store;
+mod user_profiles;
 
-pub use handler::ConversationDbHandler;
+pub use conversations::ConversationDbHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
+pub use user_profiles::UserProfileDbHandler;
 
 pub use super::ConversationCache;
 use super::PromptRole;

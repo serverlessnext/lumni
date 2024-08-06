@@ -4,6 +4,12 @@ CREATE TABLE metadata (
     value TEXT NOT NULL
 );
 
+CREATE TABLE user_profiles (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    options TEXT NOT NULL -- JSON string
+);
+
 CREATE TABLE models (
     identifier TEXT PRIMARY KEY,
     info TEXT, -- JSON string

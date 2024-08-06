@@ -20,7 +20,7 @@ pub async fn handle_apps(
 pub async fn handle_application(
     app: &str, // can be either app_name or app_uri
     mut app_env: ApplicationEnv,
-    matches: &clap::ArgMatches,
+    extra_arguments: Vec<String>,
 ) {
     let uri_pattern = Regex::new(r"^[-a-z]+::[-a-z0-9]+::[-a-z0-9]+$").unwrap();
 
@@ -35,14 +35,12 @@ pub async fn handle_application(
             // convert ArgMatches to Vec<String>, this allows Apps to choose/ implement
             // their own argument parser
             let mut app_arguments = Vec::new();
-            app_arguments.push(app.to_string());
+            if let Some(prog_name) = app_env.get_prog_name() {
+                app_arguments.push(prog_name.to_string());
+            } else {
+                app_arguments.push(app.to_string());
+            }
 
-            let extra_arguments = matches
-                .get_raw("")
-                .unwrap_or_default()
-                .map(|os_str| os_str.to_str().unwrap_or("[Invalid UTF-8]"))
-                .map(String::from)
-                .collect::<Vec<String>>();
             app_arguments.extend(extra_arguments);
             let app_spec = match serde_yaml::from_str::<ApplicationSpec>(
                 app_handler.load_specification(),

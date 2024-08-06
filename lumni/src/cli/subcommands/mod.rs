@@ -6,5 +6,6 @@ pub mod ls;
 mod ls_handler;
 pub mod query;
 mod query_handler;
+pub mod question;
 pub mod request;
 mod request_handler;

@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{poll, DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
@@ -14,12 +14,13 @@ use lumni::api::error::ApplicationError;
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use serde_json::Value as JsonValue;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::ConversationDatabase;
+use super::chat::db::{ConversationDatabase, UserProfileDbHandler};
 use super::chat::{
     prompt_app, App, AssistantManager, ChatEvent, NewConversation,
     PromptInstruction, ThreadedChatSession,
@@ -54,6 +55,59 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                         .num_args(1),
                 ),
         )
+        .subcommand(
+            Command::new("profile")
+                .about("Manage user profiles")
+                .arg(
+                    Arg::new("name")
+                        .help("Name of the profile")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("set")
+                        .long("set")
+                        .short('s')
+                        .help("Set profile values")
+                        .num_args(2)
+                        .value_names(["KEY", "VALUE"])
+                        .action(ArgAction::Append),
+                )
+                .arg(
+                    Arg::new("get")
+                        .long("get")
+                        .short('g')
+                        .help("Get a specific profile value")
+                        .num_args(1)
+                        .value_name("KEY"),
+                )
+                .arg(
+                    Arg::new("show")
+                        .long("show")
+                        .help("Show all profile values")
+                        .num_args(0),
+                )
+                .arg(
+                    Arg::new("delete")
+                        .long("delete")
+                        .short('d')
+                        .help("Delete the profile")
+                        .num_args(0),
+                )
+                .arg(
+                    Arg::new("default")
+                        .long("default")
+                        .help("Set as the default profile")
+                        .num_args(0),
+                ),
+        )
+        .arg(
+            Arg::new("profile")
+                .long("profile")
+                .short('p')
+                .help("Use a specific profile")
+                .global(true),
+        )
         .arg(
             Arg::new("system")
                 .long("system")
@@ -78,40 +132,81 @@ fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
         ))
 }
 
-pub async fn run_cli(
-    spec: ApplicationSpec,
-    env: ApplicationEnv,
-    args: Vec<String>,
+async fn handle_db_subcommand(
+    db_matches: &ArgMatches,
+    db_conn: &Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
-    let app = parse_cli_arguments(spec);
-    let matches = app.try_get_matches_from(args).unwrap_or_else(|e| {
-        e.exit();
-    });
-
-    let config_dir =
-        env.get_config_dir().expect("Config directory not defined");
-    let sqlite_file = config_dir.join("chat.db");
-    let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file)?);
-
-    if let Some(db_matches) = matches.subcommand_matches("db") {
-        if db_matches.contains_id("list") {
-            let limit = match db_matches.get_one::<String>("list") {
-                Some(value) => value.parse().unwrap_or(20),
-                None => 20, // Default value when --list is used without a value
-            };
-            return db_conn.print_conversation_list(limit).await;
-        } else if let Some(id_value) = db_matches.get_one::<String>("id") {
-            return db_conn.print_conversation_by_id(id_value).await;
-        } else {
-            return db_conn.print_last_conversation().await;
-        }
+    if db_matches.contains_id("list") {
+        let limit = match db_matches.get_one::<String>("list") {
+            Some(value) => value.parse().unwrap_or(20),
+            None => 20,
+        };
+        db_conn.print_conversation_list(limit).await
+    } else if let Some(id_value) = db_matches.get_one::<String>("id") {
+        db_conn.print_conversation_by_id(id_value).await
+    } else {
+        db_conn.print_last_conversation().await
     }
-    // optional arguments
-    let instruction = matches.get_one::<String>("system").cloned();
-    let assistant = matches.get_one::<String>("assistant").cloned();
-    let user_options = matches.get_one::<String>("options");
+}
+
+async fn handle_profile_subcommand(
+    profile_matches: &ArgMatches,
+    db_handler: &mut UserProfileDbHandler,
+) -> Result<(), ApplicationError> {
+    let profile_name = profile_matches.get_one::<String>("name").unwrap();
+
+    if profile_matches.contains_id("set") {
+        let mut settings = JsonValue::default();
+        let values: Vec<&str> = profile_matches
+            .get_many::<String>("set")
+            .unwrap()
+            .map(AsRef::as_ref)
+            .collect();
+        for chunk in values.chunks(2) {
+            if let [key, value] = chunk {
+                settings[key.to_string()] =
+                    JsonValue::String(value.to_string());
+            }
+        }
+        db_handler
+            .set_profile_settings(&profile_name.to_string(), &settings)
+            .await?;
+        println!("Profile '{}' updated.", profile_name);
+    } else if let Some(key) = profile_matches.get_one::<String>("get") {
+        let settings = db_handler.get_profile_settings(profile_name).await?;
+        if let Some(value) = settings.get(key) {
+            println!("{}: {}", key, value);
+        } else {
+            println!("Key '{}' not found in profile '{}'", key, profile_name);
+        }
+    } else if profile_matches.contains_id("show") {
+        let settings = db_handler.get_profile_settings(profile_name).await?;
+        println!("Profile '{}' settings:", profile_name);
+        for (key, value) in settings.as_object().unwrap() {
+            println!("  {}: {}", key, value);
+        }
+    } else if profile_matches.contains_id("delete") {
+        db_handler.delete_profile(profile_name).await?;
+        println!("Profile '{}' deleted.", profile_name);
+    } else if profile_matches.contains_id("default") {
+        db_handler.set_default_profile(profile_name).await?;
+        println!("Profile '{}' set as default.", profile_name);
+    }
+
+    Ok(())
+}
+
+async fn create_prompt_instruction(
+    matches: Option<&ArgMatches>,
+    db_conn: &Arc<ConversationDatabase>,
+) -> Result<PromptInstruction, ApplicationError> {
+    let instruction =
+        matches.and_then(|m| m.get_one::<String>("system").cloned());
+    let assistant =
+        matches.and_then(|m| m.get_one::<String>("assistant").cloned());
+    let user_options = matches.and_then(|m| m.get_one::<String>("options"));
     let server_name = matches
-        .get_one::<String>("server")
+        .and_then(|m| m.get_one::<String>("server"))
         .map(|s| s.to_lowercase())
         .unwrap_or_else(|| "ollama".to_lowercase());
 
@@ -140,6 +235,7 @@ pub async fn run_cli(
         let user_options_value = serde_json::from_str::<serde_json::Value>(s)?;
         completion_options.update(user_options_value)?;
     }
+
     let new_conversation = NewConversation {
         server: model_server,
         model: default_model,
@@ -151,13 +247,11 @@ pub async fn run_cli(
 
     // check if the last conversation is the same as the new conversation, if so,
     // continue the conversation, otherwise start a new conversation
-
     let mut db_handler = db_conn.get_conversation_handler(None);
     let conversation_id = db_conn.fetch_last_conversation_id().await?;
 
     let prompt_instruction = if let Some(conversation_id) = conversation_id {
         db_handler.set_conversation_id(conversation_id);
-
         match new_conversation.is_equal(&db_handler).await {
             Ok(true) => {
                 log::debug!("Continuing last conversation");
@@ -178,18 +272,121 @@ pub async fn run_cli(
         }
     };
 
-    match poll(Duration::from_millis(0)) {
-        Ok(_) => {
-            // Starting interactive session
-            log::debug!("Starting interactive session");
-            interactive_mode(prompt_instruction, db_conn).await
+    Ok(prompt_instruction)
+}
+
+fn get_possible_inputs(app: &Command) -> Vec<String> {
+    let mut possible_inputs = Vec::new();
+
+    // Add subcommands
+    possible_inputs
+        .extend(app.get_subcommands().map(|cmd| cmd.get_name().to_string()));
+
+    // Add arguments (both short and long forms)
+    for arg in app.get_arguments() {
+        if let Some(short) = arg.get_short() {
+            possible_inputs.push(format!("-{}", short));
         }
-        Err(_) => {
-            // potential non-interactive input detected due to poll error.
-            // attempt to use in non interactive mode
-            log::debug!("Starting non-interactive session");
-            process_non_interactive_input(prompt_instruction, db_conn).await
+        if let Some(long) = arg.get_long() {
+            possible_inputs.push(format!("--{}", long));
         }
+    }
+    // Manually add common options
+    possible_inputs.extend(vec![
+        "--help".to_string(),
+        "-h".to_string(),
+        "-v".to_string(),
+        "--version".to_string(),
+    ]);
+    possible_inputs
+}
+
+pub async fn run_cli(
+    spec: ApplicationSpec,
+    env: ApplicationEnv,
+    args: Vec<String>,
+) -> Result<(), ApplicationError> {
+    let app = parse_cli_arguments(spec);
+    let (matches, input) = if args.len() > 1
+        && args[0] == "prompt"
+        && !get_possible_inputs(&app).contains(&args[1])
+    {
+        // If the command is "prompt" and the next arg doesn't match any command or arg, assume it's a question
+        (None, Some(args[1..].join(" ")))
+    } else if args.len() > 1 && args[0] == "-q" {
+        // If the command is "-q", treat the rest as a question
+        (None, Some(args[1..].join(" ")))
+    } else if args.len() == 1 && args[0] == "-q" {
+        // If only "-q" is provided without a question, print an error and exit
+        eprintln!("Error: No question provided after -q");
+        std::process::exit(1);
+    } else {
+        // Otherwise, parse as normal and let clap handle any errors
+        let matches = app.try_get_matches_from(&args).unwrap_or_else(|e| {
+            e.exit();
+        });
+        (Some(matches), None)
+    };
+
+    let config_dir =
+        env.get_config_dir().expect("Config directory not defined");
+    let sqlite_file = config_dir.join("chat.db");
+    let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file)?);
+
+    let mut profile_handler = db_conn.get_profile_handler(None);
+    if let Some(ref matches) = matches {
+        if let Some(db_matches) = matches.subcommand_matches("db") {
+            return handle_db_subcommand(db_matches, &db_conn).await;
+        }
+        if let Some(profile_matches) = matches.subcommand_matches("profile") {
+            return handle_profile_subcommand(
+                profile_matches,
+                &mut profile_handler,
+            )
+            .await;
+        }
+
+        // Handle --profile option
+        if let Some(profile_name) = matches.get_one::<String>("profile") {
+            profile_handler.set_profile_name(profile_name.to_string());
+        } else {
+            // Use default profile if set
+            if let Some(default_profile) =
+                profile_handler.get_default_profile().await?
+            {
+                profile_handler.set_profile_name(default_profile);
+            }
+        }
+    }
+    // TODO: Add support for --profile option in the prompt command
+    let prompt_instruction =
+        create_prompt_instruction(matches.as_ref(), &db_conn).await?;
+
+    match input {
+        Some(question) => {
+            // Question passed as argument
+            log::debug!("Starting non-interactive session from argument");
+            process_non_interactive_input(
+                prompt_instruction,
+                db_conn,
+                Some(question),
+            )
+            .await
+        }
+        None => match poll(Duration::from_millis(0)) {
+            Ok(_) => {
+                // Starting interactive session
+                log::debug!("Starting interactive session");
+                interactive_mode(prompt_instruction, db_conn).await
+            }
+            Err(_) => {
+                // potential stdin input detected due to poll error.
+                // attempt to use in non interactive mode
+                log::debug!("Starting non-interactive session from stdin");
+                process_non_interactive_input(prompt_instruction, db_conn, None)
+                    .await
+            }
+        },
     }
 }
 
@@ -242,14 +439,12 @@ async fn interactive_mode(
 async fn process_non_interactive_input(
     prompt_instruction: PromptInstruction,
     db_conn: Arc<ConversationDatabase>,
+    question: Option<String>,
 ) -> Result<(), ApplicationError> {
     let chat = Arc::new(Mutex::new(ThreadedChatSession::new(
         prompt_instruction,
         db_conn.clone(),
     )));
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin);
-    let mut stdin_input = String::new();
 
     // Shared state for handling Ctrl+C
     let running = Arc::new(Mutex::new(true));
@@ -262,101 +457,101 @@ async fn process_non_interactive_input(
         handle_ctrl_c(running_clone, shutdown_signal_clone).await
     });
 
-    // Attempt to read the first byte to determine if stdin has data
-    let mut initial_buffer = [0; 1];
-    if let Ok(1) = reader.read(&mut initial_buffer).await {
-        stdin_input.push_str(&String::from_utf8_lossy(&initial_buffer));
-        // Continue reading the rest of stdin
-        let mut lines = reader.lines();
-        while let Some(line) = lines.next_line().await? {
-            stdin_input.push_str(&line);
-            stdin_input.push('\n'); // Maintain line breaks
-        }
-
-        let input = stdin_input.trim_end().to_string();
-        let chat_clone = chat.clone();
-
-        // Process the prompt
-        let process_handle = tokio::spawn(async move {
-            chat_clone.lock().await.message(&input).await?;
-
-            let mut receiver = chat_clone.lock().await.subscribe();
-            while let Ok(event) = receiver.recv().await {
-                match event {
-                    ChatEvent::ResponseUpdate(content) => {
-                        print!("{}", content);
-                        std::io::stdout().flush().unwrap();
-                    }
-                    ChatEvent::FinalResponse => break,
-                    ChatEvent::Error(e) => {
-                        return Err(ApplicationError::Unexpected(e));
-                    }
-                }
-            }
-
-            Ok(())
-        });
-
-        // Wait for the process to complete or for a shutdown signal
-        loop {
-            if *shutdown_signal.lock().await {
-                // Shutdown signal received, set a timeout for graceful shutdown
-                const GRACEFUL_SHUTDOWN_TIMEOUT: Duration =
-                    Duration::from_secs(3);
-                match timeout(GRACEFUL_SHUTDOWN_TIMEOUT, process_handle).await {
-                    Ok(Ok(_)) => {
-                        eprintln!(
-                            "Processing completed successfully during \
-                             shutdown."
-                        );
-                        chat.lock().await.stop();
-                        return Ok(());
-                    }
-                    Ok(Err(e)) => {
-                        eprintln!("Process error during shutdown: {}", e);
-                        chat.lock().await.stop();
-                        return Err(ApplicationError::Unexpected(format!(
-                            "Process error: {}",
-                            e
-                        )));
-                    }
-                    Err(_) => {
-                        eprintln!(
-                            "Graceful shutdown timed out. Forcing exit..."
-                        );
-                        chat.lock().await.stop();
-                        return Ok(());
-                    }
-                }
-            }
-
-            // Check if the process has completed naturally
-            if process_handle.is_finished() {
-                process_handle
-                    .await
-                    .map_err(|e| {
-                        ApplicationError::Unexpected(format!(
-                            "Join error: {}",
-                            e
-                        ))
-                    })?
-                    .map_err(|e| {
-                        ApplicationError::Unexpected(format!(
-                            "Process error: {}",
-                            e
-                        ))
-                    })?;
-                chat.lock().await.stop();
-                return Ok(());
-            }
-
-            // Wait a bit before checking again
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
+    let input = if let Some(q) = question {
+        q
     } else {
-        Err(ApplicationError::Unexpected(
-            "Failed to read initial byte from stdin, possibly empty".into(),
-        ))
+        let stdin = tokio::io::stdin();
+        let mut reader = BufReader::new(stdin);
+        let mut stdin_input = String::new();
+
+        // Attempt to read the first byte to determine if stdin has data
+        let mut initial_buffer = [0; 1];
+        if reader.read(&mut initial_buffer).await? == 1 {
+            stdin_input.push_str(&String::from_utf8_lossy(&initial_buffer));
+            // Continue reading the rest of stdin
+            let mut lines = reader.lines();
+            while let Some(line) = lines.next_line().await? {
+                stdin_input.push_str(&line);
+                stdin_input.push('\n'); // Maintain line breaks
+            }
+            stdin_input.trim_end().to_string()
+        } else {
+            return Err(ApplicationError::Unexpected(
+                "Failed to read initial byte from stdin, possibly empty".into(),
+            ));
+        }
+    };
+
+    let chat_clone = chat.clone();
+
+    // Process the prompt
+    let process_handle = tokio::spawn(async move {
+        chat_clone.lock().await.message(&input).await?;
+
+        let mut receiver = chat_clone.lock().await.subscribe();
+        while let Ok(event) = receiver.recv().await {
+            match event {
+                ChatEvent::ResponseUpdate(content) => {
+                    print!("{}", content);
+                    std::io::stdout().flush().unwrap();
+                }
+                ChatEvent::FinalResponse => break,
+                ChatEvent::Error(e) => {
+                    return Err(ApplicationError::Unexpected(e));
+                }
+            }
+        }
+        Ok(())
+    });
+
+    // Wait for the process to complete or for a shutdown signal
+    loop {
+        if *shutdown_signal.lock().await {
+            // Shutdown signal received, set a timeout for graceful shutdown
+            const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
+            match timeout(GRACEFUL_SHUTDOWN_TIMEOUT, process_handle).await {
+                Ok(Ok(_)) => {
+                    eprintln!(
+                        "Processing completed successfully during shutdown."
+                    );
+                    chat.lock().await.stop();
+                    return Ok(());
+                }
+                Ok(Err(e)) => {
+                    eprintln!("Process error during shutdown: {}", e);
+                    chat.lock().await.stop();
+                    return Err(ApplicationError::Unexpected(format!(
+                        "Process error: {}",
+                        e
+                    )));
+                }
+                Err(_) => {
+                    eprintln!("Graceful shutdown timed out. Forcing exit...");
+                    chat.lock().await.stop();
+                    return Ok(());
+                }
+            }
+        }
+
+        // Check if the process has completed naturally
+        if process_handle.is_finished() {
+            process_handle
+                .await
+                .map_err(|e| {
+                    ApplicationError::Unexpected(format!("Join error: {}", e))
+                })?
+                .map_err(|e| {
+                    ApplicationError::Unexpected(format!(
+                        "Process error: {}",
+                        e
+                    ))
+                })?;
+            chat.lock().await.stop();
+            return Ok(());
+        }
+
+        // Wait a bit before checking again
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 

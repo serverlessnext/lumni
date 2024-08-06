@@ -10,6 +10,7 @@ use super::subcommands::app::*;
 use super::subcommands::cp::*;
 use super::subcommands::ls::*;
 use super::subcommands::query::*;
+use super::subcommands::question::*;
 use super::subcommands::request::*;
 
 const PROGRAM_NAME: &str = "Lumni";
@@ -31,6 +32,7 @@ pub async fn run_cli(_args: Vec<String>) {
         )
         .subcommand(request_subcommand()) // "-X/--request [GET,PUT]"
         .subcommand(query_subcommand()) // "-Q/--query [SELECT,DESCRIBE]"
+        .subcommand(question_subcommand()) // "-q/--question"
         .subcommand(ls_subcommand()) // "ls [URI]"
         .subcommand(cp_subcommand()) // "cp" [SOURCE] [TARGET]
         .subcommand(apps_subcommand()) // "app"
@@ -62,11 +64,36 @@ pub async fn run_cli(_args: Vec<String>) {
                     // show list of apps
                     handle_apps(matches, &mut config).await;
                 }
+                Some(("-q", matches)) => {
+                    let mut app_env = ApplicationEnv::new();
+                    let extra_arguments = matches
+                        .get_raw("question")
+                        .unwrap_or_default()
+                        .map(|os_str| {
+                            os_str.to_str().unwrap_or("[Invalid UTF-8]")
+                        })
+                        .map(String::from)
+                        .collect::<Vec<String>>();
+
+                    app_env.set_config_dir(get_config_dir());
+                    app_env.set_prog_name("-q".to_string());
+                    handle_application("prompt", app_env, extra_arguments)
+                        .await;
+                }
                 Some((app_name, matches)) => {
                     // catch all other subcommands as an App
                     let mut app_env = ApplicationEnv::new();
                     app_env.set_config_dir(get_config_dir());
-                    handle_application(app_name, app_env, matches).await;
+                    let extra_arguments = matches
+                        .get_raw("")
+                        .unwrap_or_default()
+                        .map(|os_str| {
+                            os_str.to_str().unwrap_or("[Invalid UTF-8]")
+                        })
+                        .map(String::from)
+                        .collect::<Vec<String>>();
+                    handle_application(app_name, app_env, extra_arguments)
+                        .await;
                 }
                 None => {
                     // given the `arg_required_else_help(true)` is defined,

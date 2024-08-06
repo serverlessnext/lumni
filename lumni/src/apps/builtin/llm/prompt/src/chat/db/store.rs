@@ -5,7 +5,8 @@ use rusqlite::{Error as SqliteError, OptionalExtension};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::DatabaseConnector;
-use super::handler::ConversationDbHandler;
+use super::conversations::ConversationDbHandler;
+use super::user_profiles::UserProfileDbHandler;
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
     ModelIdentifier,
@@ -27,6 +28,13 @@ impl ConversationDatabase {
         conversation_id: Option<ConversationId>,
     ) -> ConversationDbHandler {
         ConversationDbHandler::new(conversation_id, self.db.clone())
+    }
+
+    pub fn get_profile_handler(
+        &self,
+        profile_name: Option<String>,
+    ) -> UserProfileDbHandler {
+        UserProfileDbHandler::new(profile_name, self.db.clone())
     }
 
     pub async fn fetch_last_conversation_id(

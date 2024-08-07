@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
-pub use super::PromptRole;
 use super::{
     http_get_with_response, http_post, ChatMessage, CompletionResponse,
     CompletionStats, ConversationDbHandler, Endpoints, HttpClient, ModelSpec,
-    ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
+    PromptRole, ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 

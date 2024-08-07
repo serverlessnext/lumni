@@ -6,7 +6,7 @@ CREATE TABLE metadata (
 
 CREATE TABLE user_profiles (
     id INTEGER PRIMARY KEY,
-    name TEXT,
+    name TEXT UNIQUE NOT NULL,
     options TEXT NOT NULL -- JSON string
 );
 

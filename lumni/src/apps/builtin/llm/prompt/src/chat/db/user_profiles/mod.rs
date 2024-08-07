@@ -28,25 +28,63 @@ impl UserProfileDbHandler {
         self.profile_name = Some(profile_name);
     }
 
-    pub async fn set_profile_settings(
+    pub async fn create_or_update(
         &self,
         profile_name: &str,
-        settings: &JsonValue,
+        new_settings: &JsonValue,
     ) -> Result<(), SqliteError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
-            let json_string = serde_json::to_string(settings).map_err(|e| {
-                SqliteError::FromSqlConversionFailure(
-                    0,
-                    rusqlite::types::Type::Text,
-                    Box::new(e),
+            // Check if the profile exists and get current settings
+            let current_settings: Option<String> = tx
+                .query_row(
+                    "SELECT options FROM user_profiles WHERE name = ?",
+                    params![profile_name],
+                    |row| row.get(0),
                 )
-            })?;
+                .optional()?;
+
+            let merged_settings = if let Some(current_json) = current_settings {
+                // Parse current settings
+                let mut current: serde_json::Value =
+                    serde_json::from_str(&current_json).map_err(|e| {
+                        SqliteError::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+
+                // Merge new settings into current settings
+                if let Some(current_obj) = current.as_object_mut() {
+                    if let Some(new_obj) = new_settings.as_object() {
+                        for (key, value) in new_obj {
+                            current_obj.insert(key.clone(), value.clone());
+                        }
+                    }
+                }
+                current
+            } else {
+                // If no current settings, use new settings as is
+                new_settings.clone()
+            };
+
+            let json_string =
+                serde_json::to_string(&merged_settings).map_err(|e| {
+                    SqliteError::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+
+            // Insert or replace with merged settings
             tx.execute(
                 "INSERT OR REPLACE INTO user_profiles (name, options) VALUES \
                  (?, ?)",
                 params![profile_name, json_string],
             )?;
+
             Ok(())
         })
     }
@@ -122,19 +160,5 @@ impl UserProfileDbHandler {
             let profiles = stmt.query_map([], |row| row.get(0))?;
             profiles.collect()
         })
-    }
-
-    pub async fn update_profile_setting(
-        &self,
-        profile_name: &str,
-        key: &str,
-        value: &JsonValue,
-    ) -> Result<(), SqliteError> {
-        let mut settings = self.get_profile_settings(profile_name).await?;
-        if let Some(obj) = settings.as_object_mut() {
-            obj.insert(key.to_string(), value.clone());
-            self.set_profile_settings(profile_name, &settings).await?;
-        }
-        Ok(())
     }
 }

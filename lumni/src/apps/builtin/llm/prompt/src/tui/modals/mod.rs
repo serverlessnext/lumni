@@ -7,7 +7,7 @@ pub use endpoint::SelectEndpointModal;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-pub use super::{
+use super::{
     ApplicationError, CommandLine, Conversation, ConversationDbHandler,
     ConversationEvent, ConversationStatus, KeyTrack, ModelServer,
     NewConversation, PromptInstruction, Scroller, ServerManager, ServerTrait,

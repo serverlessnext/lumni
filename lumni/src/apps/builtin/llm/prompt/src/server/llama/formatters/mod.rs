@@ -6,7 +6,7 @@ use generic::Generic;
 use llama3::Llama3;
 use regex::Regex;
 
-pub use super::PromptRole;
+use super::PromptRole;
 
 #[derive(Clone, Debug)]
 enum PromptModel {

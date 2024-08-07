@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{ArgMatches, Command};
 use crossterm::cursor::Show;
 use crossterm::event::{poll, DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
@@ -14,187 +14,21 @@ use lumni::api::error::ApplicationError;
 use lumni::api::spec::ApplicationSpec;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
-use serde_json::Value as JsonValue;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::{ConversationDatabase, UserProfileDbHandler};
+use super::chat::db::{ConversationDatabase, ModelServerName};
 use super::chat::{
     prompt_app, App, AssistantManager, ChatEvent, NewConversation,
     PromptInstruction, ThreadedChatSession,
 };
-use super::server::{ModelServer, ModelServerName, ServerTrait};
-pub use crate::external as lumni;
-
-fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
-    let name = Box::leak(spec.name().into_boxed_str()) as &'static str;
-    let version = Box::leak(spec.version().into_boxed_str()) as &'static str;
-
-    Command::new(name)
-        .version(version)
-        .about("CLI for prompt interaction")
-        .arg_required_else_help(false)
-        .subcommand(
-            Command::new("db")
-                .about("Query the conversation database")
-                .arg(
-                    Arg::new("list")
-                        .long("list")
-                        .short('l')
-                        .help("List recent conversations")
-                        .num_args(0..=1)
-                        .value_name("LIMIT"),
-                )
-                .arg(
-                    Arg::new("id")
-                        .long("id")
-                        .short('i')
-                        .help("Fetch a specific conversation by ID")
-                        .num_args(1),
-                ),
-        )
-        .subcommand(
-            Command::new("profile")
-                .about("Manage user profiles")
-                .arg(
-                    Arg::new("name")
-                        .help("Name of the profile")
-                        .required(true)
-                        .index(1),
-                )
-                .arg(
-                    Arg::new("set")
-                        .long("set")
-                        .short('s')
-                        .help("Set profile values")
-                        .num_args(2)
-                        .value_names(["KEY", "VALUE"])
-                        .action(ArgAction::Append),
-                )
-                .arg(
-                    Arg::new("get")
-                        .long("get")
-                        .short('g')
-                        .help("Get a specific profile value")
-                        .num_args(1)
-                        .value_name("KEY"),
-                )
-                .arg(
-                    Arg::new("show")
-                        .long("show")
-                        .help("Show all profile values")
-                        .num_args(0),
-                )
-                .arg(
-                    Arg::new("delete")
-                        .long("delete")
-                        .short('d')
-                        .help("Delete the profile")
-                        .num_args(0),
-                )
-                .arg(
-                    Arg::new("default")
-                        .long("default")
-                        .help("Set as the default profile")
-                        .num_args(0),
-                ),
-        )
-        .arg(
-            Arg::new("profile")
-                .long("profile")
-                .short('p')
-                .help("Use a specific profile")
-                .global(true),
-        )
-        .arg(
-            Arg::new("system")
-                .long("system")
-                .short('s')
-                .help("System prompt"),
-        )
-        .arg(
-            Arg::new("assistant")
-                .long("assistant")
-                .short('a')
-                .help("Specify an assistant to use"),
-        )
-        .arg(
-            Arg::new("server")
-                .long("server")
-                .short('S')
-                .help("Server to use for processing the request"),
-        )
-        .arg(Arg::new("options").long("options").short('o').help(
-            "Comma-separated list of model options e.g., \
-             temperature=1,max_tokens=100",
-        ))
-}
-
-async fn handle_db_subcommand(
-    db_matches: &ArgMatches,
-    db_conn: &Arc<ConversationDatabase>,
-) -> Result<(), ApplicationError> {
-    if db_matches.contains_id("list") {
-        let limit = match db_matches.get_one::<String>("list") {
-            Some(value) => value.parse().unwrap_or(20),
-            None => 20,
-        };
-        db_conn.print_conversation_list(limit).await
-    } else if let Some(id_value) = db_matches.get_one::<String>("id") {
-        db_conn.print_conversation_by_id(id_value).await
-    } else {
-        db_conn.print_last_conversation().await
-    }
-}
-
-async fn handle_profile_subcommand(
-    profile_matches: &ArgMatches,
-    db_handler: &mut UserProfileDbHandler,
-) -> Result<(), ApplicationError> {
-    let profile_name = profile_matches.get_one::<String>("name").unwrap();
-
-    if profile_matches.contains_id("set") {
-        let mut settings = JsonValue::default();
-        let values: Vec<&str> = profile_matches
-            .get_many::<String>("set")
-            .unwrap()
-            .map(AsRef::as_ref)
-            .collect();
-        for chunk in values.chunks(2) {
-            if let [key, value] = chunk {
-                settings[key.to_string()] =
-                    JsonValue::String(value.to_string());
-            }
-        }
-        db_handler
-            .set_profile_settings(&profile_name.to_string(), &settings)
-            .await?;
-        println!("Profile '{}' updated.", profile_name);
-    } else if let Some(key) = profile_matches.get_one::<String>("get") {
-        let settings = db_handler.get_profile_settings(profile_name).await?;
-        if let Some(value) = settings.get(key) {
-            println!("{}: {}", key, value);
-        } else {
-            println!("Key '{}' not found in profile '{}'", key, profile_name);
-        }
-    } else if profile_matches.contains_id("show") {
-        let settings = db_handler.get_profile_settings(profile_name).await?;
-        println!("Profile '{}' settings:", profile_name);
-        for (key, value) in settings.as_object().unwrap() {
-            println!("  {}: {}", key, value);
-        }
-    } else if profile_matches.contains_id("delete") {
-        db_handler.delete_profile(profile_name).await?;
-        println!("Profile '{}' deleted.", profile_name);
-    } else if profile_matches.contains_id("default") {
-        db_handler.set_default_profile(profile_name).await?;
-        println!("Profile '{}' set as default.", profile_name);
-    }
-
-    Ok(())
-}
+use super::cli::{
+    handle_db_subcommand, handle_profile_subcommand, parse_cli_arguments,
+};
+use super::server::{ModelServer, ServerTrait};
+use crate::external as lumni;
 
 async fn create_prompt_instruction(
     matches: Option<&ArgMatches>,
@@ -358,6 +192,7 @@ pub async fn run_cli(
             }
         }
     }
+
     // TODO: Add support for --profile option in the prompt command
     let prompt_instruction =
         create_prompt_instruction(matches.as_ref(), &db_conn).await?;

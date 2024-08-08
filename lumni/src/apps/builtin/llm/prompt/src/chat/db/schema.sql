@@ -7,7 +7,9 @@ CREATE TABLE metadata (
 CREATE TABLE user_profiles (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
-    options TEXT NOT NULL -- JSON string
+    ssh_key_hash TEXT,  -- sha256 hash of the ssh private key
+    options TEXT NOT NULL, -- JSON string
+    is_default INTEGER DEFAULT 0
 );
 
 CREATE TABLE models (
@@ -93,5 +95,4 @@ CREATE INDEX idx_message_conversation_created ON messages(conversation_id, creat
 CREATE INDEX idx_message_previous ON messages(previous_message_id);
 CREATE INDEX idx_attachment_conversation ON attachments(conversation_id);
 CREATE INDEX idx_conversation_pinned_updated ON conversations(is_pinned DESC, updated_at DESC);
-
-
+CREATE UNIQUE INDEX idx_user_profiles_default ON user_profiles(is_default) WHERE is_default = 1;

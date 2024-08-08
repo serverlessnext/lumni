@@ -2,7 +2,10 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, Error as SqliteError, Transaction};
+
+use crate::external as lumni;
 
 pub struct DatabaseConnector {
     connection: rusqlite::Connection,
@@ -138,11 +141,12 @@ impl DatabaseConnector {
 
     pub fn process_queue_with_result<T>(
         &mut self,
-        result_handler: impl FnOnce(&Transaction) -> Result<T, SqliteError>,
-    ) -> Result<T, SqliteError> {
+        result_handler: impl FnOnce(
+            &Transaction,
+        ) -> Result<T, DatabaseOperationError>,
+    ) -> Result<T, DatabaseOperationError> {
         let mut queue = self.operation_queue.lock().unwrap();
         let tx = self.connection.transaction()?;
-
         while let Some(sql) = queue.pop_front() {
             if sql.trim().to_lowercase().starts_with("select") {
                 // For SELECT statements, use query
@@ -153,8 +157,46 @@ impl DatabaseConnector {
             }
         }
         let result = result_handler(&tx)?;
-
         tx.commit()?;
         Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub enum DatabaseOperationError {
+    SqliteError(SqliteError),
+    ApplicationError(ApplicationError),
+}
+
+// implement display
+impl std::fmt::Display for DatabaseOperationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DatabaseOperationError::SqliteError(e) => write!(f, "{}", e),
+            DatabaseOperationError::ApplicationError(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl From<SqliteError> for DatabaseOperationError {
+    fn from(error: SqliteError) -> Self {
+        DatabaseOperationError::SqliteError(error)
+    }
+}
+
+impl From<ApplicationError> for DatabaseOperationError {
+    fn from(error: ApplicationError) -> Self {
+        DatabaseOperationError::ApplicationError(error)
+    }
+}
+
+impl From<DatabaseOperationError> for ApplicationError {
+    fn from(error: DatabaseOperationError) -> Self {
+        match error {
+            DatabaseOperationError::SqliteError(e) => {
+                ApplicationError::DatabaseError(e.to_string())
+            }
+            DatabaseOperationError::ApplicationError(e) => e,
+        }
     }
 }

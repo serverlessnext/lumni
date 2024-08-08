@@ -1,6 +1,11 @@
 use std::error::Error;
 use std::fmt;
 
+use base64::engine::general_purpose;
+use base64::Engine as _;
+use ring::aead;
+use ring::rand::{SecureRandom, SystemRandom};
+use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use rusqlite::Error as SqliteError;
 use tokio::task::JoinError;
 
@@ -39,6 +44,7 @@ pub enum ApplicationError {
     DatabaseError(String),
     NotImplemented(String),
     NotReady(String),
+    EncryptionError(EncryptionError),
     CustomError(Box<dyn Error + Send + Sync>),
 }
 
@@ -134,6 +140,9 @@ impl fmt::Display for ApplicationError {
                 write!(f, "NotImplemented: {}", s)
             }
             ApplicationError::NotReady(s) => write!(f, "NotReady: {}", s),
+            ApplicationError::EncryptionError(e) => {
+                write!(f, "EncryptionError: {}", e)
+            }
             ApplicationError::CustomError(e) => write!(f, "{}", e),
         }
     }
@@ -202,5 +211,87 @@ impl From<&str> for LumniError {
 impl From<std::string::String> for LumniError {
     fn from(error: std::string::String) -> Self {
         LumniError::Any(error.to_owned())
+    }
+}
+
+#[derive(Debug)]
+pub enum EncryptionError {
+    RsaError(rsa::Error),
+    RingError(String),
+    Base64Error(base64::DecodeError),
+    Utf8Error(std::string::FromUtf8Error),
+    SpkiError(rsa::pkcs8::spki::Error),
+    Pkcs8Error(rsa::pkcs8::Error),
+    Other(Box<dyn Error + Send + Sync>),
+}
+
+impl fmt::Display for EncryptionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            EncryptionError::RsaError(e) => write!(f, "RSA error: {}", e),
+            EncryptionError::RingError(e) => {
+                write!(f, "Ring encryption error: {}", e)
+            }
+            EncryptionError::Base64Error(e) => {
+                write!(f, "Base64 decoding error: {}", e)
+            }
+            EncryptionError::Utf8Error(e) => {
+                write!(f, "UTF-8 conversion error: {}", e)
+            }
+            EncryptionError::SpkiError(e) => write!(f, "SPKI error: {}", e),
+            EncryptionError::Pkcs8Error(e) => write!(f, "PKCS8 error: {}", e),
+            EncryptionError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
+
+impl Error for EncryptionError {}
+
+impl From<rsa::Error> for EncryptionError {
+    fn from(err: rsa::Error) -> EncryptionError {
+        EncryptionError::RsaError(err)
+    }
+}
+
+impl From<ring::error::Unspecified> for EncryptionError {
+    fn from(_: ring::error::Unspecified) -> EncryptionError {
+        EncryptionError::RingError("Unspecified Ring error".to_string())
+    }
+}
+
+impl From<base64::DecodeError> for EncryptionError {
+    fn from(err: base64::DecodeError) -> EncryptionError {
+        EncryptionError::Base64Error(err)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for EncryptionError {
+    fn from(err: std::string::FromUtf8Error) -> EncryptionError {
+        EncryptionError::Utf8Error(err)
+    }
+}
+
+impl From<rsa::pkcs8::spki::Error> for EncryptionError {
+    fn from(err: rsa::pkcs8::spki::Error) -> EncryptionError {
+        EncryptionError::SpkiError(err)
+    }
+}
+
+impl From<rsa::pkcs8::Error> for EncryptionError {
+    fn from(err: rsa::pkcs8::Error) -> EncryptionError {
+        EncryptionError::Pkcs8Error(err)
+    }
+}
+
+impl From<Box<dyn Error + Send + Sync>> for EncryptionError {
+    fn from(err: Box<dyn Error + Send + Sync>) -> EncryptionError {
+        EncryptionError::Other(err)
+    }
+}
+
+// Implement From<EncryptionError> for ApplicationError
+impl From<EncryptionError> for ApplicationError {
+    fn from(err: EncryptionError) -> ApplicationError {
+        ApplicationError::CustomError(Box::new(err))
     }
 }

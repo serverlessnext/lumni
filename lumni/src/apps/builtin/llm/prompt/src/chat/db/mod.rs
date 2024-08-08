@@ -4,10 +4,12 @@ use std::fmt;
 mod connector;
 mod conversations;
 mod display;
+mod encryption;
 mod model;
 mod store;
 mod user_profiles;
 
+pub use connector::DatabaseOperationError;
 pub use conversations::ConversationDbHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};

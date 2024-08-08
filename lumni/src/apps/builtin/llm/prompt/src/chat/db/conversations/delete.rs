@@ -4,7 +4,7 @@ impl ConversationDbHandler {
     pub async fn permanent_delete_conversation(
         &mut self,
         conversation_id: Option<ConversationId>,
-    ) -> Result<(), SqliteError> {
+    ) -> Result<(), DatabaseOperationError> {
         let target_conversation_id = conversation_id.or(self.conversation_id);
 
         if let Some(id) = target_conversation_id {
@@ -44,7 +44,9 @@ impl ConversationDbHandler {
 
             result
         } else {
-            Err(SqliteError::QueryReturnedNoRows)
+            Err(DatabaseOperationError::SqliteError(
+                SqliteError::QueryReturnedNoRows,
+            ))
         }
     }
 }

@@ -39,6 +39,51 @@ impl UserProfileDbHandler {
         self.profile_name = Some(profile_name);
     }
 
+    pub async fn get_profile_settings(
+        &self,
+        profile_name: &str,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            let result: Result<JsonValue, DatabaseOperationError> = {
+                let (json_string, ssh_key_hash): (String, Option<String>) = tx
+                    .query_row(
+                        "SELECT options, ssh_key_hash FROM user_profiles \
+                         WHERE name = ?",
+                        params![profile_name],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )
+                    .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+
+                let settings: JsonValue = serde_json::from_str(&json_string)
+                    .map_err(|e| {
+                        DatabaseOperationError::ApplicationError(
+                            ApplicationError::InvalidInput(format!(
+                                "Invalid JSON: {}",
+                                e
+                            )),
+                        )
+                    })?;
+
+                if let Some(hash) = ssh_key_hash {
+                    self.verify_ssh_key_hash(&hash)
+                        .map_err(DatabaseOperationError::ApplicationError)?;
+                }
+
+                self.process_settings(&settings, false, mask_encrypted)
+                    .map_err(DatabaseOperationError::ApplicationError)
+            };
+            result
+        })
+        .map_err(|e| match e {
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
+            DatabaseOperationError::ApplicationError(app_err) => app_err,
+        })
+    }
+
     pub async fn create_or_update(
         &self,
         profile_name: &str,
@@ -69,12 +114,15 @@ impl UserProfileDbHandler {
                     let merged = self.merge_settings(&current, new_settings)?;
                     (merged, existing_hash)
                 } else {
-                    let ssh_key_hash = self.calculate_ssh_key_hash()?;
-                    (new_settings.clone(), Some(ssh_key_hash))
+                    let ssh_key_hash = self
+                        .encryption_handler
+                        .as_ref()
+                        .and_then(|_| self.calculate_ssh_key_hash().ok());
+                    (new_settings.clone(), ssh_key_hash)
                 };
 
             let processed_settings =
-                self.process_settings(&merged_settings, true)?;
+                self.process_settings(&merged_settings, true, false)?;
 
             let json_string = serde_json::to_string(&processed_settings)
                 .map_err(|e| {
@@ -95,92 +143,158 @@ impl UserProfileDbHandler {
         })
         .map_err(ApplicationError::from)
     }
-    pub async fn get_profile_settings(
+
+    fn merge_settings(
         &self,
-        profile_name: &str,
+        current: &JsonValue,
+        new: &JsonValue,
     ) -> Result<JsonValue, ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let result: Result<JsonValue, DatabaseOperationError> = {
-                let (json_string, ssh_key_hash): (String, Option<String>) = tx
-                    .query_row(
-                        "SELECT options, ssh_key_hash FROM user_profiles \
-                         WHERE name = ?",
-                        params![profile_name],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .map_err(|e| DatabaseOperationError::SqliteError(e))?;
-
-                let settings: JsonValue = serde_json::from_str(&json_string)
-                    .map_err(|e| {
-                        DatabaseOperationError::ApplicationError(
-                            ApplicationError::InvalidInput(format!(
-                                "Invalid JSON: {}",
-                                e
-                            )),
-                        )
-                    })?;
-
-                if let Some(hash) = ssh_key_hash {
-                    self.verify_ssh_key_hash(&hash)
-                        .map_err(DatabaseOperationError::ApplicationError)?;
+        match (current, new) {
+            (JsonValue::Object(current_obj), JsonValue::Object(new_obj)) => {
+                let mut merged = current_obj.clone();
+                for (key, value) in new_obj {
+                    merged.insert(
+                        key.clone(),
+                        self.merge_settings(
+                            current_obj.get(key).unwrap_or(&JsonValue::Null),
+                            value,
+                        )?,
+                    );
                 }
-
-                self.process_settings(&settings, false)
-                    .map_err(DatabaseOperationError::ApplicationError)
-            };
-            result
-        })
-        .map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => {
-                ApplicationError::DatabaseError(sqlite_err.to_string())
+                Ok(JsonValue::Object(merged))
             }
-            DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })
+            (_, new) => Ok(new.clone()),
+        }
     }
 
     fn process_settings(
         &self,
         value: &JsonValue,
         encrypt: bool,
+        mask_encrypted: bool,
     ) -> Result<JsonValue, ApplicationError> {
         match value {
             JsonValue::Object(obj) => {
                 let mut new_obj = Map::new();
                 for (k, v) in obj {
-                    new_obj
-                        .insert(k.clone(), self.process_settings(v, encrypt)?);
+                    if encrypt {
+                        if let JsonValue::Object(inner_obj) = v {
+                            if inner_obj.get("secure")
+                                == Some(&JsonValue::Bool(true))
+                            {
+                                // Encrypt secure strings
+                                if let Some(JsonValue::String(content)) =
+                                    inner_obj.get("value")
+                                {
+                                    new_obj.insert(
+                                        k.clone(),
+                                        self.encrypt_value(
+                                            &JsonValue::String(content.clone()),
+                                        )?,
+                                    );
+                                }
+                            } else {
+                                // Don't encrypt regular strings
+                                new_obj.insert(k.clone(), v.clone());
+                            }
+                        } else {
+                            // Don't encrypt non-string values
+                            new_obj.insert(k.clone(), v.clone());
+                        }
+                    } else {
+                        // During get operation, handle decryption and masking
+                        if Self::is_encrypted_value(v) {
+                            if mask_encrypted {
+                                new_obj.insert(
+                                    k.clone(),
+                                    JsonValue::String("*****".to_string()),
+                                );
+                            } else {
+                                new_obj
+                                    .insert(k.clone(), self.decrypt_value(v)?);
+                            }
+                        } else {
+                            new_obj.insert(k.clone(), v.clone());
+                        }
+                    }
                 }
                 Ok(JsonValue::Object(new_obj))
             }
             JsonValue::Array(arr) => {
                 let new_arr: Result<Vec<JsonValue>, _> = arr
                     .iter()
-                    .map(|v| self.process_settings(v, encrypt))
+                    .map(|v| self.process_settings(v, encrypt, mask_encrypted))
                     .collect();
                 Ok(JsonValue::Array(new_arr?))
-            }
-            JsonValue::Object(obj) if obj.contains_key("contents") => {
-                if encrypt {
-                    self.encrypt_value(obj)
-                } else {
-                    Ok(JsonValue::Object(obj.clone()))
-                }
-            }
-            JsonValue::Object(obj)
-                if obj.contains_key("content")
-                    && obj.contains_key("encryption_key") =>
-            {
-                if encrypt {
-                    Ok(JsonValue::Object(obj.clone()))
-                } else {
-                    self.decrypt_value(obj)
-                }
             }
             _ => Ok(value.clone()),
         }
     }
 
+    fn encrypt_value(
+        &self,
+        value: &JsonValue,
+    ) -> Result<JsonValue, ApplicationError> {
+        if let Some(ref encryption_handler) = self.encryption_handler {
+            if let JsonValue::String(content) = value {
+                let (encrypted_content, encryption_key) = encryption_handler
+                    .encrypt_string(content)
+                    .map_err(|e| {
+                        ApplicationError::EncryptionError(
+                            EncryptionError::Other(Box::new(e)),
+                        )
+                    })?;
+
+                Ok(JsonValue::Object(Map::from_iter(vec![
+                    (
+                        "content".to_string(),
+                        JsonValue::String(encrypted_content),
+                    ),
+                    (
+                        "encryption_key".to_string(),
+                        JsonValue::String(encryption_key),
+                    ),
+                ])))
+            } else {
+                Ok(value.clone())
+            }
+        } else {
+            Ok(value.clone())
+        }
+    }
+
+    fn decrypt_value(
+        &self,
+        value: &JsonValue,
+    ) -> Result<JsonValue, ApplicationError> {
+        if let Some(ref encryption_handler) = self.encryption_handler {
+            if let JsonValue::Object(obj) = value {
+                if let (
+                    Some(JsonValue::String(content)),
+                    Some(JsonValue::String(encrypted_key)),
+                ) = (obj.get("content"), obj.get("encryption_key"))
+                {
+                    let decrypted = encryption_handler
+                        .decrypt_string(content, encrypted_key)?;
+                    Ok(JsonValue::String(decrypted))
+                } else {
+                    Ok(value.clone())
+                }
+            } else {
+                Ok(value.clone())
+            }
+        } else {
+            Ok(value.clone())
+        }
+    }
+
+    fn is_encrypted_value(value: &JsonValue) -> bool {
+        if let JsonValue::Object(obj) = value {
+            obj.contains_key("content") && obj.contains_key("encryption_key")
+        } else {
+            false
+        }
+    }
     pub async fn delete_profile(
         &self,
         profile_name: &str,
@@ -253,90 +367,6 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    fn merge_settings(
-        &self,
-        current: &JsonValue,
-        new: &JsonValue,
-    ) -> Result<JsonValue, ApplicationError> {
-        match (current, new) {
-            (JsonValue::Object(current_obj), JsonValue::Object(new_obj)) => {
-                let mut merged = current_obj.clone();
-                for (key, value) in new_obj {
-                    merged.insert(
-                        key.clone(),
-                        self.merge_settings(
-                            &current_obj.get(key).unwrap_or(&JsonValue::Null),
-                            value,
-                        )?,
-                    );
-                }
-                Ok(JsonValue::Object(merged))
-            }
-            (_, new) => Ok(new.clone()),
-        }
-    }
-
-    fn encrypt_value(
-        &self,
-        obj: &Map<String, JsonValue>,
-    ) -> Result<JsonValue, ApplicationError> {
-        if let Some(ref encryption_handler) = self.encryption_handler {
-            if let Some(JsonValue::String(content)) = obj.get("contents") {
-                let (encrypted_content, encryption_key) = encryption_handler
-                    .encrypt_string(content)
-                    .map_err(|e| {
-                        ApplicationError::EncryptionError(
-                            EncryptionError::Other(Box::new(e)),
-                        )
-                    })?;
-
-                Ok(JsonValue::Object(Map::from_iter(vec![
-                    (
-                        "content".to_string(),
-                        JsonValue::String(encrypted_content),
-                    ),
-                    (
-                        "encryption_key".to_string(),
-                        JsonValue::String(encryption_key),
-                    ),
-                ])))
-            } else {
-                Err(ApplicationError::InvalidInput(
-                    "Invalid content for encryption".to_string(),
-                ))
-            }
-        } else {
-            Ok(JsonValue::Object(obj.clone()))
-        }
-    }
-
-    fn decrypt_value(
-        &self,
-        obj: &Map<String, JsonValue>,
-    ) -> Result<JsonValue, ApplicationError> {
-        if let Some(ref encryption_handler) = self.encryption_handler {
-            if let (
-                Some(JsonValue::String(content)),
-                Some(JsonValue::String(encrypted_key)),
-            ) = (obj.get("content"), obj.get("encryption_key"))
-            {
-                let decrypted = encryption_handler
-                    .decrypt_string(content, encrypted_key)?;
-
-                Ok(JsonValue::Object(Map::from_iter(vec![(
-                    "contents".to_string(),
-                    JsonValue::String(decrypted),
-                )])))
-            } else {
-                Err(ApplicationError::InvalidInput(
-                    "Invalid encrypted data".to_string(),
-                ))
-            }
-        } else {
-            Ok(JsonValue::Object(obj.clone()))
-        }
-    }
-
     fn calculate_ssh_key_hash(&self) -> Result<String, ApplicationError> {
         if let Some(ref encryption_handler) = self.encryption_handler {
             let ssh_private_key = encryption_handler
@@ -364,21 +394,5 @@ impl UserProfileDbHandler {
             ));
         }
         Ok(())
-    }
-
-    pub fn is_encrypted_value(value: &JsonValue) -> bool {
-        if let JsonValue::Object(obj) = value {
-            obj.contains_key("content") && obj.contains_key("encryption_key")
-        } else {
-            false
-        }
-    }
-
-    pub fn is_unencrypted_value(value: &JsonValue) -> bool {
-        if let JsonValue::Object(obj) = value {
-            obj.contains_key("contents") && obj.len() == 1
-        } else {
-            false
-        }
     }
 }

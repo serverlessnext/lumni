@@ -10,6 +10,7 @@ mod store;
 mod user_profiles;
 
 pub use conversations::ConversationDbHandler;
+pub use encryption::EncryptionHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};

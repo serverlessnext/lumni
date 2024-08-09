@@ -1,16 +1,22 @@
+use std::fs;
+use std::path::PathBuf;
+
 use base64::engine::general_purpose;
-use base64::Engine as _;
+use base64::{Engine, Engine as _};
 use lumni::api::error::{ApplicationError, EncryptionError};
 use ring::aead;
 use ring::rand::{SecureRandom, SystemRandom};
+use rsa::pkcs1::DecodeRsaPrivateKey;
+use rsa::pkcs1v15::Pkcs1v15Encrypt;
 use rsa::pkcs8::{
     DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey,
     LineEnding,
 };
-use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
+use rsa::{BigUint, RsaPrivateKey, RsaPublicKey};
 
 use crate::external as lumni;
 
+#[derive(Debug)]
 pub struct EncryptionHandler {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,
@@ -29,6 +35,192 @@ impl EncryptionHandler {
             public_key,
             private_key,
         })
+    }
+
+    pub fn new_from_path(
+        private_key_path: Option<&PathBuf>,
+    ) -> Result<Option<Self>, ApplicationError> {
+        match private_key_path {
+            Some(path) => {
+                if !path.exists() {
+                    return Err(ApplicationError::NotFound(format!(
+                        "Private key file not found: {:?}",
+                        path
+                    )));
+                }
+
+                let private_key = Self::parse_private_key(
+                    path.to_str().ok_or_else(|| {
+                        ApplicationError::InvalidInput(
+                            "Invalid path".to_string(),
+                        )
+                    })?,
+                )?;
+                let public_key = RsaPublicKey::from(&private_key);
+                let public_key_pem = public_key
+                    .to_public_key_pem(LineEnding::LF)
+                    .map_err(|e| EncryptionError::Other(Box::new(e)))?;
+
+                let private_key_pem = private_key
+                    .to_pkcs8_pem(LineEnding::LF)
+                    .map_err(|e| EncryptionError::Pkcs8Error(e))?;
+
+                Ok(Some(Self::new(&public_key_pem, &private_key_pem)?))
+            }
+            None => {
+                if let Some(home_dir) = dirs::home_dir() {
+                    let default_path = home_dir.join(".ssh").join("id_rsa");
+                    if default_path.exists() {
+                        Self::new_from_path(Some(&default_path))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    fn parse_private_key(
+        key_path: &str,
+    ) -> Result<RsaPrivateKey, ApplicationError> {
+        let key_data = fs::read_to_string(key_path)
+            .map_err(|e| ApplicationError::IOError(e))?;
+
+        // Try parsing as OpenSSH format
+        if key_data.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----") {
+            return Self::parse_openssh_private_key(&key_data);
+        }
+
+        // Try parsing as PKCS#8 PEM
+        if let Ok(key) = RsaPrivateKey::from_pkcs8_pem(&key_data) {
+            return Ok(key);
+        }
+
+        // Try parsing as PKCS#1 PEM
+        if let Ok(key) = RsaPrivateKey::from_pkcs1_pem(&key_data) {
+            return Ok(key);
+        }
+
+        // If all parsing attempts fail, return an error
+        Err(ApplicationError::InvalidInput(
+            "Unable to parse private key: unsupported format".to_string(),
+        ))
+    }
+
+    fn parse_openssh_private_key(
+        key_data: &str,
+    ) -> Result<RsaPrivateKey, ApplicationError> {
+        let lines: Vec<&str> = key_data.lines().collect();
+
+        if !lines[0].starts_with("-----BEGIN OPENSSH PRIVATE KEY-----") {
+            return Err(ApplicationError::InvalidInput(
+                "Not an OpenSSH private key".to_string(),
+            ));
+        }
+
+        let base64_data = lines[1..lines.len() - 1].join("");
+        let decoded =
+            general_purpose::STANDARD.decode(base64_data).map_err(|e| {
+                ApplicationError::from(EncryptionError::Base64Error(e))
+            })?;
+
+        // OpenSSH magic header
+        if &decoded[0..15] != b"openssh-key-v1\0" {
+            return Err(ApplicationError::InvalidInput(
+                "Invalid OpenSSH key format".to_string(),
+            ));
+        }
+
+        let mut index = 15;
+
+        // Skip ciphername, kdfname, kdfoptions
+        for _ in 0..3 {
+            let len = u32::from_be_bytes([
+                decoded[index],
+                decoded[index + 1],
+                decoded[index + 2],
+                decoded[index + 3],
+            ]) as usize;
+            index += 4 + len;
+        }
+
+        // Number of keys (should be 1)
+        index += 4;
+
+        // Public key length
+        let pubkey_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+
+        // Skip public key
+        index += pubkey_len;
+
+        // Private key length
+        let privkey_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+
+        // Skip checkints
+        index += 8;
+
+        // Key type length
+        let key_type_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+
+        // Skip key type
+        index += key_type_len;
+
+        // Extract n
+        let n_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+        let n = BigUint::from_bytes_be(&decoded[index..index + n_len]);
+        index += n_len;
+
+        // Extract e
+        let e_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+        let e = BigUint::from_bytes_be(&decoded[index..index + e_len]);
+        index += e_len;
+
+        // Extract d
+        let d_len = u32::from_be_bytes([
+            decoded[index],
+            decoded[index + 1],
+            decoded[index + 2],
+            decoded[index + 3],
+        ]) as usize;
+        index += 4;
+        let d = BigUint::from_bytes_be(&decoded[index..index + d_len]);
+
+        // We're ignoring iqmp, p, and q for simplicity, but a full implementation should use these
+
+        RsaPrivateKey::from_components(n, e, d, vec![])
+            .map_err(|e| ApplicationError::from(EncryptionError::RsaError(e)))
     }
 
     pub fn get_ssh_private_key(&self) -> Result<Vec<u8>, EncryptionError> {

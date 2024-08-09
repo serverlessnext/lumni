@@ -40,7 +40,7 @@ pub enum ApplicationError {
     NotFound(String),
     ServerConfigurationError(String),
     HttpClientError(HttpClientError),
-    IoError(std::io::Error),
+    IOError(std::io::Error),
     DatabaseError(String),
     NotImplemented(String),
     NotReady(String),
@@ -132,7 +132,7 @@ impl fmt::Display for ApplicationError {
             ApplicationError::HttpClientError(e) => {
                 write!(f, "HttpClientError: {}", e)
             }
-            ApplicationError::IoError(e) => write!(f, "IoError: {}", e),
+            ApplicationError::IOError(e) => write!(f, "IoError: {}", e),
             ApplicationError::DatabaseError(s) => {
                 write!(f, "DatabaseError: {}", s)
             }
@@ -171,7 +171,7 @@ impl From<HttpClientError> for ApplicationError {
 
 impl From<std::io::Error> for ApplicationError {
     fn from(error: std::io::Error) -> Self {
-        ApplicationError::IoError(error)
+        ApplicationError::IOError(error)
     }
 }
 

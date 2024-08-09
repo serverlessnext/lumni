@@ -7,7 +7,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::conversations::ConversationDbHandler;
-use super::encryption::EncryptionHandler;
+use super::encryption::{self, EncryptionHandler};
 use super::user_profiles::UserProfileDbHandler;
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
@@ -23,7 +23,10 @@ pub struct ConversationDatabase {
 }
 
 impl ConversationDatabase {
-    pub fn new(sqlite_file: &PathBuf) -> Result<Self, DatabaseOperationError> {
+    pub fn new(
+        sqlite_file: &PathBuf,
+        encryption_handler: Option<Arc<EncryptionHandler>>,
+    ) -> Result<Self, DatabaseOperationError> {
         PROMPT_SQLITE_FILEPATH
             .set(sqlite_file.clone())
             .map_err(|_| {
@@ -35,7 +38,7 @@ impl ConversationDatabase {
             })?;
         Ok(Self {
             db: Arc::new(TokioMutex::new(DatabaseConnector::new(sqlite_file)?)),
-            encryption_handler: None,
+            encryption_handler,
         })
     }
 

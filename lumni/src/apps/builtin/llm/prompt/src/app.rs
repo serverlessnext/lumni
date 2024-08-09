@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::{ArgMatches, Command};
@@ -19,7 +20,9 @@ use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::{ConversationDatabase, ModelServerName};
+use super::chat::db::{
+    ConversationDatabase, EncryptionHandler, ModelServerName,
+};
 use super::chat::{
     prompt_app, App, AssistantManager, ChatEvent, NewConversation,
     PromptInstruction, ThreadedChatSession,
@@ -165,7 +168,12 @@ pub async fn run_cli(
     let config_dir =
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
-    let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file)?);
+
+    let encryption_handler =
+        EncryptionHandler::new_from_path(None)?.map(Arc::new);
+
+    let db_conn =
+        Arc::new(ConversationDatabase::new(&sqlite_file, encryption_handler)?);
 
     let mut profile_handler = db_conn.get_profile_handler(None);
     if let Some(ref matches) = matches {

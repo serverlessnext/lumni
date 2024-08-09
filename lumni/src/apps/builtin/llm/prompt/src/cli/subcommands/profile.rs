@@ -1,6 +1,6 @@
 use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
-use serde_json::Value as JsonValue;
+use serde_json::{Map, Value as JsonValue};
 
 use super::UserProfileDbHandler;
 use crate::external as lumni;
@@ -19,12 +19,25 @@ pub fn create_profile_subcommand() -> Command {
                 .action(ArgAction::Append),
         )
         .arg(
+            Arg::new("secure")
+                .long("secure")
+                .help("Mark the previous value as secure (to be encrypted)")
+                .action(ArgAction::SetTrue)
+                .requires("set"),
+        )
+        .arg(
             Arg::new("get")
                 .long("get")
                 .short('g')
                 .help("Get a specific profile value")
                 .num_args(1)
                 .value_name("KEY"),
+        )
+        .arg(
+            Arg::new("show-decrypted")
+                .long("show-decrypted")
+                .help("Show decrypted values instead of masked values")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("show")
@@ -77,18 +90,35 @@ pub async fn handle_profile_subcommand(
 
     if profile_matches.contains_id("set") {
         if let Some(profile_name) = profile_name {
-            let mut settings = JsonValue::default();
+            let mut settings = JsonValue::Object(Map::new());
             let values: Vec<&str> = profile_matches
                 .get_many::<String>("set")
                 .unwrap()
                 .map(AsRef::as_ref)
                 .collect();
-            for chunk in values.chunks(2) {
-                if let [key, value] = chunk {
+
+            let mut i = 0;
+            while i < values.len() {
+                let key = values[i];
+                let value = values[i + 1];
+                let is_secure = profile_matches.get_flag("secure");
+
+                if is_secure {
+                    settings[key.to_string()] =
+                        JsonValue::Object(Map::from_iter(vec![
+                            (
+                                "value".to_string(),
+                                JsonValue::String(value.to_string()),
+                            ),
+                            ("secure".to_string(), JsonValue::Bool(true)),
+                        ]));
+                } else {
                     settings[key.to_string()] =
                         JsonValue::String(value.to_string());
                 }
+                i += 2;
             }
+
             db_handler.create_or_update(profile_name, &settings).await?;
             println!("Profile '{}' updated.", profile_name);
         } else {
@@ -96,8 +126,10 @@ pub async fn handle_profile_subcommand(
         }
     } else if let Some(key) = profile_matches.get_one::<String>("get") {
         if let Some(profile_name) = profile_name {
-            let settings =
-                db_handler.get_profile_settings(profile_name).await?;
+            let show_decrypted = profile_matches.get_flag("show-decrypted");
+            let settings = db_handler
+                .get_profile_settings(profile_name, !show_decrypted)
+                .await?;
             if let Some(value) = settings.get(key) {
                 println!("{}: {}", key, value);
             } else {
@@ -111,8 +143,10 @@ pub async fn handle_profile_subcommand(
         }
     } else if profile_matches.get_flag("show") {
         if let Some(profile_name) = profile_name {
-            let settings =
-                db_handler.get_profile_settings(profile_name).await?;
+            let show_decrypted = profile_matches.get_flag("show-decrypted");
+            let settings = db_handler
+                .get_profile_settings(profile_name, !show_decrypted)
+                .await?;
             println!("Profile '{}' settings:", profile_name);
             for (key, value) in settings.as_object().unwrap() {
                 println!("  {}: {}", key, value);
@@ -137,7 +171,22 @@ pub async fn handle_profile_subcommand(
     } else if profile_name.is_some() {
         // If a profile name is provided but no action is specified, show that profile
         let profile_name = profile_name.unwrap();
-        let settings = db_handler.get_profile_settings(profile_name).await?;
+        let show_decrypted = profile_matches.get_flag("show-decrypted");
+        let settings = match db_handler
+            .get_profile_settings(profile_name, !show_decrypted)
+            .await
+        {
+            Ok(settings) => settings,
+            Err(ApplicationError::DatabaseError(_)) => {
+                // Profile doesn't exist, create it with empty settings
+                let empty_settings = JsonValue::Object(Map::new());
+                db_handler
+                    .create_or_update(profile_name, &empty_settings)
+                    .await?;
+                empty_settings
+            }
+            Err(e) => return Err(e),
+        };
         println!("Profile '{}' settings:", profile_name);
         for (key, value) in settings.as_object().unwrap() {
             println!("  {}: {}", key, value);

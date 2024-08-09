@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use base64::engine::general_purpose;
-use base64::{Engine, Engine as _};
+use base64::Engine;
 use lumni::api::error::{ApplicationError, EncryptionError};
 use ring::aead;
 use ring::rand::{SecureRandom, SystemRandom};

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use lumni::api::error::{ApplicationError, EncryptionError};
-use rusqlite::{params, Error as SqliteError, OptionalExtension};
+use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;

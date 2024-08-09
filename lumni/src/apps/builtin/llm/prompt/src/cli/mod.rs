@@ -23,8 +23,7 @@ pub fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
             Arg::new("profile")
                 .long("profile")
                 .short('p')
-                .help("Use a specific profile")
-                .global(true),
+                .help("Use a specific profile"),
         )
         .arg(
             Arg::new("system")

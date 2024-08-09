@@ -160,6 +160,11 @@ impl DatabaseConnector {
         tx.commit()?;
         Ok(result)
     }
+
+    pub fn vacuum(&self) -> Result<(), SqliteError> {
+        self.connection.execute("VACUUM", [])?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]

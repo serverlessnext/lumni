@@ -1,4 +1,4 @@
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
 use serde_json::Value as JsonValue;
 
@@ -51,6 +51,12 @@ pub fn create_profile_subcommand() -> Command {
                 .short('l')
                 .help("List all profiles")
                 .action(ArgAction::SetTrue),
+        )
+        .group(
+            ArgGroup::new("profile_group")
+                .args(["set", "get", "show", "delete", "default", "list"])
+                .required(false)
+                .multiple(false),
         )
 }
 

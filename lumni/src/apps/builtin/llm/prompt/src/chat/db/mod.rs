@@ -9,7 +9,6 @@ mod model;
 mod store;
 mod user_profiles;
 
-pub use connector::DatabaseOperationError;
 pub use conversations::ConversationDbHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
@@ -19,7 +18,7 @@ pub use user_profiles::UserProfileDbHandler;
 
 pub use super::ConversationCache;
 use super::PromptRole;
-pub use crate::external as lumni;
+use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelServerName(pub String);

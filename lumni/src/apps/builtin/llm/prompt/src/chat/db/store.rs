@@ -1,6 +1,7 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+use lumni::api::error::ApplicationError;
 use rusqlite::{Error as SqliteError, OptionalExtension};
 use tokio::sync::Mutex as TokioMutex;
 
@@ -12,6 +13,9 @@ use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
     ModelIdentifier,
 };
+use crate::external as lumni;
+
+static PROMPT_SQLITE_FILEPATH: OnceLock<PathBuf> = OnceLock::new();
 
 pub struct ConversationDatabase {
     db: Arc<TokioMutex<DatabaseConnector>>,
@@ -19,11 +23,24 @@ pub struct ConversationDatabase {
 }
 
 impl ConversationDatabase {
-    pub fn new(sqlite_file: &PathBuf) -> Result<Self, SqliteError> {
+    pub fn new(sqlite_file: &PathBuf) -> Result<Self, DatabaseOperationError> {
+        PROMPT_SQLITE_FILEPATH
+            .set(sqlite_file.clone())
+            .map_err(|_| {
+                DatabaseOperationError::ApplicationError(
+                    ApplicationError::DatabaseError(
+                        "Failed to set the SQLite filepath".to_string(),
+                    ),
+                )
+            })?;
         Ok(Self {
             db: Arc::new(TokioMutex::new(DatabaseConnector::new(sqlite_file)?)),
             encryption_handler: None,
         })
+    }
+
+    pub fn get_filepath() -> &'static PathBuf {
+        PROMPT_SQLITE_FILEPATH.get().expect("Filepath not set")
     }
 
     pub fn get_conversation_handler(
@@ -46,6 +63,31 @@ impl ConversationDatabase {
             self.db.clone(),
             self.encryption_handler.clone(),
         )
+    }
+
+    pub async fn truncate_and_vacuum(&self) -> Result<(), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            // Disable foreign key constraints temporarily
+            tx.execute("PRAGMA foreign_keys = OFF", [])?;
+
+            // Truncate all tables except metadata, user_profiles, and models
+            tx.execute_batch(
+                "
+                DELETE FROM conversation_tags;
+                DELETE FROM tags;
+                DELETE FROM attachments;
+                DELETE FROM messages;
+                DELETE FROM conversations;
+            ",
+            )?;
+
+            // Re-enable foreign key constraints
+            tx.execute("PRAGMA foreign_keys = ON", [])?;
+            Ok(())
+        })?;
+        db.vacuum()?; // Reclaim unused space
+        Ok(())
     }
 
     pub async fn fetch_last_conversation_id(

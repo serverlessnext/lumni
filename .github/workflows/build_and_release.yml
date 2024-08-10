@@ -52,6 +52,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Check disk usage
+        run: df -h
+
       - name: Install and configure dependencies
         run: |
           # dependencies are only needed on ubuntu as that's the only place where
@@ -68,8 +71,14 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
 
+      - name: Check disk usage
+        run: df -h
+
       - name: Install target
         run: rustup target add $TARGET
+      
+      - name: Check disk usage
+        run: df -h
 
       - name: Update version in Cargo.toml
         id: update_version
@@ -95,6 +104,9 @@ jobs:
 
       - name: Build project
         run: cargo build -p $NAME --release --target $TARGET
+
+      - name: Check disk usage
+        run: df -h
 
       - name: List target directory
         run: ls target/${{ matrix.target }}/release

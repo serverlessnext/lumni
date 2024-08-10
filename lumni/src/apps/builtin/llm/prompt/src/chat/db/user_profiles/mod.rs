@@ -3,7 +3,7 @@ use std::sync::Arc;
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use lumni::api::error::{ApplicationError, EncryptionError};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, Transaction};
 use serde_json::{Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;
@@ -37,205 +37,6 @@ impl UserProfileDbHandler {
 
     pub fn set_profile_name(&mut self, profile_name: String) {
         self.profile_name = Some(profile_name);
-    }
-
-    pub async fn get_profile_settings(
-        &self,
-        profile_name: &str,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let result: Result<JsonValue, DatabaseOperationError> = {
-                let (json_string, ssh_key_hash): (String, Option<String>) = tx
-                    .query_row(
-                        "SELECT options, ssh_key_hash FROM user_profiles \
-                         WHERE name = ?",
-                        params![profile_name],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .map_err(|e| DatabaseOperationError::SqliteError(e))?;
-
-                let settings: JsonValue = serde_json::from_str(&json_string)
-                    .map_err(|e| {
-                        DatabaseOperationError::ApplicationError(
-                            ApplicationError::InvalidInput(format!(
-                                "Invalid JSON: {}",
-                                e
-                            )),
-                        )
-                    })?;
-
-                if let Some(hash) = ssh_key_hash {
-                    self.verify_ssh_key_hash(&hash)
-                        .map_err(DatabaseOperationError::ApplicationError)?;
-                }
-
-                self.process_settings(&settings, false, mask_encrypted)
-                    .map_err(DatabaseOperationError::ApplicationError)
-            };
-            result
-        })
-        .map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => {
-                ApplicationError::DatabaseError(sqlite_err.to_string())
-            }
-            DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })
-    }
-
-    pub async fn create_or_update(
-        &self,
-        profile_name: &str,
-        new_settings: &JsonValue,
-    ) -> Result<(), ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let current_data: Option<String> = tx
-                .query_row(
-                    "SELECT options FROM user_profiles WHERE name = ?",
-                    params![profile_name],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
-
-            let merged_settings = if let Some(current_json) = current_data {
-                let current: JsonValue = serde_json::from_str(&current_json)
-                    .map_err(|e| {
-                        ApplicationError::InvalidInput(format!(
-                            "Invalid JSON: {}",
-                            e
-                        ))
-                    })?;
-
-                let mut merged = current.clone();
-                if let (Some(merged_obj), Some(new_obj)) =
-                    (merged.as_object_mut(), new_settings.as_object())
-                {
-                    for (key, new_value) in new_obj {
-                        if new_value.is_null() {
-                            merged_obj.remove(key);
-                        } else {
-                            let current_value = current.get(key);
-                            let is_currently_encrypted = current_value
-                                .map(Self::is_encrypted_value)
-                                .unwrap_or(false);
-                            let is_new_value_marked_for_encryption =
-                                Self::is_marked_for_encryption(new_value);
-
-                            if is_currently_encrypted {
-                                if is_new_value_marked_for_encryption {
-                                    // Update with new secure value
-                                    merged_obj
-                                        .insert(key.clone(), new_value.clone());
-                                } else if let Some(content) = new_value.as_str()
-                                {
-                                    // Re-encrypt the new content
-                                    let encrypted =
-                                        self.encrypt_value(content)?;
-                                    merged_obj.insert(key.clone(), encrypted);
-                                }
-                                // If new_value is not a string, keep the current encrypted value
-                            } else if is_new_value_marked_for_encryption {
-                                // New secure value
-                                merged_obj
-                                    .insert(key.clone(), new_value.clone());
-                            } else {
-                                // Non-secure value, update normally
-                                merged_obj
-                                    .insert(key.clone(), new_value.clone());
-                            }
-                        }
-                    }
-                }
-                merged
-            } else {
-                new_settings.clone()
-            };
-
-            // We use encrypt = true and mask_encrypted = false when storing data
-            let processed_settings =
-                self.process_settings(&merged_settings, true, false)?;
-            let json_string = serde_json::to_string(&processed_settings)
-                .map_err(|e| {
-                    ApplicationError::InvalidInput(format!(
-                        "Failed to serialize JSON: {}",
-                        e
-                    ))
-                })?;
-
-            tx.execute(
-                "INSERT OR REPLACE INTO user_profiles (name, options) VALUES \
-                 (?, ?)",
-                params![profile_name, json_string],
-            )
-            .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
-
-            Ok(())
-        })
-        .map_err(ApplicationError::from)
-    }
-
-    fn process_settings(
-        &self,
-        value: &JsonValue,
-        encrypt: bool,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, ApplicationError> {
-        match value {
-            JsonValue::Object(obj) => {
-                let mut new_obj = Map::new();
-                for (k, v) in obj {
-                    if encrypt {
-                        if Self::is_marked_for_encryption(v) {
-                            if let Some(JsonValue::String(content)) =
-                                v.get("content")
-                            {
-                                new_obj.insert(
-                                    k.clone(),
-                                    self.encrypt_value(content)?,
-                                );
-                            } else {
-                                return Err(ApplicationError::InvalidInput(
-                                    "Invalid secure string format".to_string(),
-                                ));
-                            }
-                        } else if !Self::is_encrypted_value(v) {
-                            // This is a non-secure value, keep it as is
-                            new_obj.insert(k.clone(), v.clone());
-                        } else {
-                            // This is already an encrypted value, keep it as is
-                            new_obj.insert(k.clone(), v.clone());
-                        }
-                    } else {
-                        // When not encrypting (i.e., retrieving), decrypt if necessary
-                        if Self::is_encrypted_value(v) {
-                            if mask_encrypted {
-                                new_obj.insert(
-                                    k.clone(),
-                                    JsonValue::String("*****".to_string()),
-                                );
-                            } else {
-                                new_obj
-                                    .insert(k.clone(), self.decrypt_value(v)?);
-                            }
-                        } else {
-                            new_obj.insert(k.clone(), v.clone());
-                        }
-                    }
-                }
-                Ok(JsonValue::Object(new_obj))
-            }
-            JsonValue::Array(arr) => {
-                let new_arr: Result<Vec<JsonValue>, _> = arr
-                    .iter()
-                    .map(|v| self.process_settings(v, encrypt, mask_encrypted))
-                    .collect();
-                Ok(JsonValue::Array(new_arr?))
-            }
-            _ => Ok(value.clone()),
-        }
     }
 
     fn encrypt_value(
@@ -403,6 +204,305 @@ impl UserProfileDbHandler {
                 "SSH key hash mismatch".to_string(),
             ));
         }
+        Ok(())
+    }
+
+    pub async fn get_profile_settings(
+        &self,
+        profile_name: &str,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            self.fetch_and_process_settings(tx, profile_name, mask_encrypted)
+        })
+        .map_err(|e| e.into())
+    }
+
+    fn fetch_and_process_settings(
+        &self,
+        tx: &Transaction,
+        profile_name: &str,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, DatabaseOperationError> {
+        let (json_string, ssh_key_hash) =
+            self.fetch_profile_data(tx, profile_name)?;
+        let settings: JsonValue = self.parse_json(&json_string)?;
+
+        if let Some(hash) = ssh_key_hash {
+            self.verify_ssh_key_hash(&hash)
+                .map_err(DatabaseOperationError::ApplicationError)?;
+        }
+
+        self.process_settings(&settings, false, mask_encrypted)
+            .map_err(DatabaseOperationError::ApplicationError)
+    }
+
+    fn fetch_profile_data(
+        &self,
+        tx: &Transaction,
+        profile_name: &str,
+    ) -> Result<(String, Option<String>), DatabaseOperationError> {
+        tx.query_row(
+            "SELECT options, ssh_key_hash FROM user_profiles WHERE name = ?",
+            params![profile_name],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(DatabaseOperationError::SqliteError)
+    }
+
+    fn parse_json(
+        &self,
+        json_string: &str,
+    ) -> Result<JsonValue, DatabaseOperationError> {
+        serde_json::from_str(json_string).map_err(|e| {
+            DatabaseOperationError::ApplicationError(
+                ApplicationError::InvalidInput(format!("Invalid JSON: {}", e)),
+            )
+        })
+    }
+
+    fn process_settings(
+        &self,
+        value: &JsonValue,
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        match value {
+            JsonValue::Object(obj) => {
+                self.process_object(obj, encrypt, mask_encrypted)
+            }
+            JsonValue::Array(arr) => {
+                self.process_array(arr, encrypt, mask_encrypted)
+            }
+            _ => Ok(value.clone()),
+        }
+    }
+
+    fn process_object(
+        &self,
+        obj: &Map<String, JsonValue>,
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        let mut new_obj = Map::new();
+        for (k, v) in obj {
+            new_obj.insert(
+                k.clone(),
+                self.process_value(v, encrypt, mask_encrypted)?,
+            );
+        }
+        Ok(JsonValue::Object(new_obj))
+    }
+
+    fn process_array(
+        &self,
+        arr: &[JsonValue],
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        let new_arr: Result<Vec<JsonValue>, _> = arr
+            .iter()
+            .map(|v| self.process_settings(v, encrypt, mask_encrypted))
+            .collect();
+        Ok(JsonValue::Array(new_arr?))
+    }
+
+    fn process_value(
+        &self,
+        value: &JsonValue,
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        if encrypt {
+            self.handle_encryption(value)
+        } else {
+            self.handle_decryption(value, mask_encrypted)
+        }
+    }
+
+    fn handle_encryption(
+        &self,
+        value: &JsonValue,
+    ) -> Result<JsonValue, ApplicationError> {
+        if Self::is_marked_for_encryption(value) {
+            if let Some(JsonValue::String(content)) = value.get("content") {
+                self.encrypt_value(content)
+            } else {
+                Err(ApplicationError::InvalidInput(
+                    "Invalid secure string format".to_string(),
+                ))
+            }
+        } else if !Self::is_encrypted_value(value) {
+            Ok(value.clone())
+        } else {
+            Ok(value.clone())
+        }
+    }
+
+    fn handle_decryption(
+        &self,
+        value: &JsonValue,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        if Self::is_encrypted_value(value) {
+            if mask_encrypted {
+                Ok(JsonValue::String("*****".to_string()))
+            } else {
+                self.decrypt_value(value)
+            }
+        } else {
+            Ok(value.clone())
+        }
+    }
+    pub async fn create_or_update(
+        &self,
+        profile_name: &str,
+        new_settings: &JsonValue,
+    ) -> Result<(), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            self.perform_create_or_update(tx, profile_name, new_settings)
+        })
+        .map_err(|e| match e {
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
+            DatabaseOperationError::ApplicationError(app_err) => app_err,
+        })
+    }
+
+    fn perform_create_or_update(
+        &self,
+        tx: &Transaction,
+        profile_name: &str,
+        new_settings: &JsonValue,
+    ) -> Result<(), DatabaseOperationError> {
+        let current_data = self.fetch_current_profile_data(tx, profile_name)?;
+        let merged_settings =
+            self.merge_settings(current_data, new_settings)?;
+        let processed_settings =
+            self.process_settings(&merged_settings, true, false)?;
+        self.save_profile_settings(tx, profile_name, &processed_settings)?;
+        Ok(())
+    }
+
+    fn fetch_current_profile_data(
+        &self,
+        tx: &Transaction,
+        profile_name: &str,
+    ) -> Result<Option<String>, DatabaseOperationError> {
+        tx.query_row(
+            "SELECT options FROM user_profiles WHERE name = ?",
+            params![profile_name],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| DatabaseOperationError::SqliteError(e))
+    }
+
+    fn merge_settings(
+        &self,
+        current_data: Option<String>,
+        new_settings: &JsonValue,
+    ) -> Result<JsonValue, DatabaseOperationError> {
+        if let Some(current_json) = current_data {
+            let current: JsonValue = serde_json::from_str(&current_json)
+                .map_err(|e| {
+                    DatabaseOperationError::ApplicationError(
+                        ApplicationError::InvalidInput(format!(
+                            "Invalid JSON: {}",
+                            e
+                        )),
+                    )
+                })?;
+
+            let mut merged = current.clone();
+            if let (Some(merged_obj), Some(new_obj)) =
+                (merged.as_object_mut(), new_settings.as_object())
+            {
+                for (key, new_value) in new_obj {
+                    self.merge_setting(merged_obj, key, new_value, &current)?;
+                }
+            }
+            Ok(merged)
+        } else {
+            Ok(new_settings.clone())
+        }
+    }
+
+    fn merge_setting(
+        &self,
+        merged_obj: &mut Map<String, JsonValue>,
+        key: &String,
+        new_value: &JsonValue,
+        current: &JsonValue,
+    ) -> Result<(), DatabaseOperationError> {
+        if new_value.is_null() {
+            merged_obj.remove(key);
+        } else {
+            let current_value = current.get(key);
+            let is_currently_encrypted =
+                current_value.map(Self::is_encrypted_value).unwrap_or(false);
+            let is_new_value_marked_for_encryption =
+                Self::is_marked_for_encryption(new_value);
+
+            if is_currently_encrypted {
+                self.handle_encrypted_value(
+                    merged_obj,
+                    key,
+                    new_value,
+                    is_new_value_marked_for_encryption,
+                )?;
+            } else if is_new_value_marked_for_encryption {
+                merged_obj.insert(key.clone(), new_value.clone());
+            } else {
+                merged_obj.insert(key.clone(), new_value.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_encrypted_value(
+        &self,
+        merged_obj: &mut Map<String, JsonValue>,
+        key: &String,
+        new_value: &JsonValue,
+        is_new_value_marked_for_encryption: bool,
+    ) -> Result<(), DatabaseOperationError> {
+        if is_new_value_marked_for_encryption {
+            merged_obj.insert(key.clone(), new_value.clone());
+        } else if let Some(content) = new_value.as_str() {
+            let encrypted = self
+                .encrypt_value(content)
+                .map_err(DatabaseOperationError::ApplicationError)?;
+            merged_obj.insert(key.clone(), encrypted);
+        }
+        Ok(())
+    }
+
+    fn save_profile_settings(
+        &self,
+        tx: &Transaction,
+        profile_name: &str,
+        settings: &JsonValue,
+    ) -> Result<(), DatabaseOperationError> {
+        let json_string = serde_json::to_string(settings).map_err(|e| {
+            DatabaseOperationError::ApplicationError(
+                ApplicationError::InvalidInput(format!(
+                    "Failed to serialize JSON: {}",
+                    e
+                )),
+            )
+        })?;
+
+        tx.execute(
+            "INSERT OR REPLACE INTO user_profiles (name, options) VALUES (?, \
+             ?)",
+            params![profile_name, json_string],
+        )
+        .map_err(DatabaseOperationError::SqliteError)?;
+
         Ok(())
     }
 }

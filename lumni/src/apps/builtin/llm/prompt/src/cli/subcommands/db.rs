@@ -8,48 +8,49 @@ use crate::external as lumni;
 
 pub fn create_db_subcommand() -> Command {
     Command::new("db")
-        .about("Query the conversation database")
+        .about("Manage and query the conversation database")
+        .subcommand(create_path_subcommand())
+        .subcommand(create_list_subcommand())
+        .subcommand(create_show_subcommand())
+        .subcommand(create_truncate_subcommand())
+}
+
+fn create_path_subcommand() -> Command {
+    Command::new("path")
+        .about("Show the path to the SQLite database file")
+}
+
+fn create_list_subcommand() -> Command {
+    Command::new("list")
+        .about("List recent conversations")
         .arg(
-            Arg::new("path")
-                .long("path")
-                .short('p')
-                .help("Path to the SQLite database file")
-                .action(ArgAction::SetTrue)
-                .value_name("FILE"),
+            Arg::new("limit")
+                .short('n')
+                .long("limit")
+                .help("Number of conversations to list")
+                .value_name("LIMIT")
+                .default_value("20"),
         )
-        .arg(
-            Arg::new("list")
-                .long("list")
-                .short('l')
-                .help("List recent conversations")
-                .num_args(0..=1)
-                .value_name("LIMIT"),
-        )
-        .arg(
-            Arg::new("last")
-                .long("last")
-                .short('L')
-                .help("Print the last conversation")
-                .action(ArgAction::SetTrue),
-        )
+}
+
+fn create_show_subcommand() -> Command {
+    Command::new("show")
+        .about("Show details of a specific conversation")
         .arg(
             Arg::new("id")
-                .long("id")
-                .short('i')
-                .help("Fetch a specific conversation by ID")
-                .num_args(1),
+                .help("ID of the conversation to show"),
         )
+}
+
+fn create_truncate_subcommand() -> Command {
+    Command::new("truncate")
+        .about("Truncate all tables and vacuum the database")
         .arg(
-            Arg::new("truncate")
-                .long("truncate")
-                .help("Truncate all tables and vacuum the database")
+            Arg::new("confirm")
+                .short('y')
+                .long("yes")
+                .help("Confirm the truncation without prompting")
                 .action(ArgAction::SetTrue),
-        )
-        .group(
-            ArgGroup::new("db_group")
-                .args(["path", "list", "last", "id", "truncate"])
-                .required(false)
-                .multiple(false),
         )
 }
 
@@ -57,31 +58,49 @@ pub async fn handle_db_subcommand(
     db_matches: &ArgMatches,
     db_conn: &Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
-    if db_matches.get_flag("truncate") {
-        let result = db_conn.truncate_and_vacuum().await;
-        if result.is_ok() {
-            println!("Database tables truncated");
+    match db_matches.subcommand() {
+        Some(("path", _)) => {
+            let filepath = ConversationDatabase::get_filepath();
+            println!("SQLite database filepath: {:?}", filepath);
+            Ok(())
         }
-        result
-    } else if db_matches.get_flag("path") {
-        let filepath = ConversationDatabase::get_filepath();
-        println!("Sqlite filepath: {:?}", filepath);
-        Ok(())
-    } else if db_matches.contains_id("list") {
-        let limit = match db_matches.get_one::<String>("list") {
-            Some(value) => value.parse().unwrap_or(20),
-            None => 20,
-        };
-        db_conn.print_conversation_list(limit).await
-    } else if let Some(id_value) = db_matches.get_one::<String>("id") {
-        db_conn.print_conversation_by_id(id_value).await
-    } else if db_matches.get_flag("last") {
-        // If any arguments are present but not handled above, print the last conversation
-        db_conn.print_last_conversation().await
-    } else {
-        // If no arguments are provided, print the help message
-        let mut db_command = create_db_subcommand();
-        db_command.print_help()?;
-        Ok(())
+        Some(("list", list_matches)) => {
+            let limit: usize = list_matches
+                .get_one::<String>("limit")
+                .unwrap()
+                .parse()
+                .unwrap_or(20);
+            db_conn.print_conversation_list(limit).await
+        }
+        Some(("show", show_matches)) => {
+            if let Some(id) = show_matches.get_one::<String>("id") {
+                db_conn.print_conversation_by_id(id).await
+            } else {
+                create_show_subcommand().print_help()?;
+                Ok(())
+            }
+        }
+        Some(("truncate", truncate_matches)) => {
+            if truncate_matches.get_flag("confirm") {
+                db_conn.truncate_and_vacuum().await?;
+                println!("Database tables truncated and vacuumed successfully.");
+            } else {
+                println!("Are you sure you want to truncate all tables and vacuum the database? This action cannot be undone.");
+                println!("Type 'yes' to confirm or any other input to cancel:");
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if input.trim().eq_ignore_ascii_case("yes") {
+                    db_conn.truncate_and_vacuum().await?;
+                    println!("Database tables truncated and vacuumed successfully.");
+                } else {
+                    println!("Operation cancelled.");
+                }
+            }
+            Ok(())
+        }
+        _ => {
+            create_db_subcommand().print_help()?;
+            Ok(())
+        }
     }
 }

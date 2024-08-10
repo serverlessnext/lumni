@@ -166,12 +166,6 @@ fn create_export_subcommand() -> Command {
                 .required(false),
         )
         .arg(
-            Arg::new("show-decrypted")
-                .long("show-decrypted")
-                .help("Show decrypted values instead of masked values")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
             Arg::new("output")
                 .short('o')
                 .long("output")
@@ -387,39 +381,41 @@ pub async fn handle_profile_subcommand(
         },
 
         Some(("export", export_matches)) => {
-            let show_decrypted = export_matches.get_flag("show-decrypted");
             let output_file = export_matches.get_one::<String>("output");
-
-            let profiles = if let Some(profile_name) =
-                export_matches.get_one::<String>("name")
-            {
+            
+            let default_profile = db_handler.get_default_profile().await?;
+            
+            let profiles = if let Some(profile_name) = export_matches.get_one::<String>("name") {
                 // Export a single profile
-                let settings = db_handler
-                    .get_profile_settings(profile_name, !show_decrypted)
-                    .await?;
-                vec![create_profile_json(profile_name, &settings)]
+                let settings = db_handler.export_profile_settings(profile_name).await?;
+                vec![json!({
+                    "Name": profile_name,
+                    "Parameters": settings["Parameters"]
+                })]
             } else {
                 // Export all profiles
                 let mut profiles_vec = Vec::new();
                 let profile_names = db_handler.list_profiles().await?;
                 for name in profile_names {
-                    let settings = db_handler
-                        .get_profile_settings(&name, !show_decrypted)
-                        .await?;
-                    profiles_vec.push(create_profile_json(&name, &settings));
+                    let settings = db_handler.export_profile_settings(&name).await?;
+                    profiles_vec.push(json!({
+                        "Name": name,
+                        "Parameters": settings["Parameters"]
+                    }));
                 }
                 profiles_vec
             };
 
-            let export_data = json!({
-                "Profiles": profiles
+            let mut export_data = json!({
+                "Profiles": profiles,
             });
 
-            export_json(
-                &export_data,
-                output_file,
-                "Profiles exported to JSON".to_string(),
-            )?;
+            // Add DefaultProfile field only if it's set
+            if let Some(default) = default_profile {
+                export_data["DefaultProfile"] = JsonValue::String(default);
+            }
+
+            export_json(&export_data, output_file, "Profiles exported to JSON")?;
         }
 
         _ => {
@@ -430,36 +426,10 @@ pub async fn handle_profile_subcommand(
     Ok(())
 }
 
-fn create_profile_json(name: &str, settings: &JsonValue) -> JsonValue {
-    let mut parameters = Vec::new();
-    if let Some(obj) = settings.as_object() {
-        for (key, value) in obj {
-            let (value_str, param_type) = match value.as_str() {
-                Some("*****") => {
-                    (value.as_str().unwrap().to_string(), "SecureString")
-                }
-                Some(v) => (v.to_string(), "String"),
-                None => (value.to_string(), "String"), // For non-string values, convert to string
-            };
-
-            parameters.push(json!({
-                "Key": key,
-                "Value": value_str,
-                "Type": param_type
-            }));
-        }
-    }
-
-    json!({
-        "Name": name,
-        "Parameters": parameters
-    })
-}
-
 fn export_json(
     json: &JsonValue,
     output_file: Option<&String>,
-    success_message: String,
+    success_message: &str,
 ) -> Result<(), ApplicationError> {
     let json_string = serde_json::to_string_pretty(json)?;
 

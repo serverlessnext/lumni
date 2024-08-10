@@ -5,7 +5,7 @@ use base64::engine::general_purpose;
 use base64::Engine as _;
 use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, OptionalExtension, Transaction};
-use serde_json::{Map, Value as JsonValue};
+use serde_json::{json, Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;
 
@@ -218,7 +218,6 @@ impl UserProfileDbHandler {
                         )),
                     )
                 })?;
-
             Ok(self.process_settings(&settings, false, mask_encrypted))
         })?
     }
@@ -596,5 +595,47 @@ impl UserProfileDbHandler {
             Ok(keys)
         })
         .map_err(ApplicationError::from)
+    }
+
+    pub async fn export_profile_settings(
+        &self,
+        profile_name: &str,
+    ) -> Result<JsonValue, ApplicationError> {
+        let settings = self.get_profile_settings(profile_name, false).await?;
+        Ok(self.create_export_json(&settings))
+    }
+
+    fn create_export_json(&self, settings: &JsonValue) -> JsonValue {
+        match settings {
+            JsonValue::Object(obj) => {
+                let mut parameters = Vec::new();
+                for (key, value) in obj {
+                    let (param_type, param_value) =
+                        if Self::is_encrypted_value(value) {
+                            ("SecureString", self.get_decrypted_value(value))
+                        } else {
+                            ("String", value.clone())
+                        };
+
+                    parameters.push(json!({
+                        "Key": key,
+                        "Value": param_value,
+                        "Type": param_type
+                    }));
+                }
+                json!({
+                    "Parameters": parameters
+                })
+            }
+            _ => JsonValue::Null,
+        }
+    }
+
+    fn get_decrypted_value(&self, value: &JsonValue) -> JsonValue {
+        if let Ok(decrypted) = self.decrypt_value(value) {
+            decrypted
+        } else {
+            JsonValue::String("[FAILED_TO_DECRYPT]".to_string())
+        }
     }
 }

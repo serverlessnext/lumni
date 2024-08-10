@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use base64::engine::general_purpose;
@@ -12,6 +13,7 @@ use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
 use crate::external as lumni;
 
+#[derive(Debug)]
 pub struct UserProfileDbHandler {
     profile_name: Option<String>,
     db: Arc<TokioMutex<DatabaseConnector>>,
@@ -37,6 +39,17 @@ impl UserProfileDbHandler {
 
     pub fn set_profile_name(&mut self, profile_name: String) {
         self.profile_name = Some(profile_name);
+    }
+
+    pub fn get_encryption_handler(&self) -> Option<&Arc<EncryptionHandler>> {
+        self.encryption_handler.as_ref()
+    }
+
+    pub fn set_encryption_handler(
+        &mut self,
+        encryption_handler: Arc<EncryptionHandler>,
+    ) {
+        self.encryption_handler = Some(encryption_handler);
     }
 
     fn encrypt_value(
@@ -210,49 +223,6 @@ impl UserProfileDbHandler {
         })?
     }
 
-    fn fetch_and_process_settings(
-        &self,
-        tx: &Transaction,
-        profile_name: &str,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, DatabaseOperationError> {
-        let (json_string, ssh_key_hash) =
-            self.fetch_profile_data(tx, profile_name)?;
-        let settings: JsonValue = self.parse_json(&json_string)?;
-
-        if let Some(hash) = ssh_key_hash {
-            self.verify_ssh_key_hash(Some(&hash))
-                .map_err(DatabaseOperationError::ApplicationError)?;
-        }
-
-        self.process_settings(&settings, false, mask_encrypted)
-            .map_err(DatabaseOperationError::ApplicationError)
-    }
-
-    fn fetch_profile_data(
-        &self,
-        tx: &Transaction,
-        profile_name: &str,
-    ) -> Result<(String, Option<String>), DatabaseOperationError> {
-        tx.query_row(
-            "SELECT options, ssh_key_hash FROM user_profiles WHERE name = ?",
-            params![profile_name],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .map_err(DatabaseOperationError::SqliteError)
-    }
-
-    fn parse_json(
-        &self,
-        json_string: &str,
-    ) -> Result<JsonValue, DatabaseOperationError> {
-        serde_json::from_str(json_string).map_err(|e| {
-            DatabaseOperationError::ApplicationError(
-                ApplicationError::InvalidInput(format!("Invalid JSON: {}", e)),
-            )
-        })
-    }
-
     fn process_settings(
         &self,
         value: &JsonValue,
@@ -292,35 +262,6 @@ impl UserProfileDbHandler {
         } else {
             self.handle_decryption(value, mask_encrypted)
         }
-    }
-
-    fn process_object(
-        &self,
-        obj: &Map<String, JsonValue>,
-        encrypt: bool,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, ApplicationError> {
-        let mut new_obj = Map::new();
-        for (k, v) in obj {
-            new_obj.insert(
-                k.clone(),
-                self.process_value(v, encrypt, mask_encrypted)?,
-            );
-        }
-        Ok(JsonValue::Object(new_obj))
-    }
-
-    fn process_array(
-        &self,
-        arr: &[JsonValue],
-        encrypt: bool,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, ApplicationError> {
-        let new_arr: Result<Vec<JsonValue>, _> = arr
-            .iter()
-            .map(|v| self.process_settings(v, encrypt, mask_encrypted))
-            .collect();
-        Ok(JsonValue::Array(new_arr?))
     }
 
     fn handle_encryption(
@@ -566,5 +507,94 @@ impl UserProfileDbHandler {
             }
             _ => Ok(()),
         }
+    }
+}
+
+impl UserProfileDbHandler {
+    pub async fn register_encryption_key(
+        &self,
+        name: &str,
+        file_path: &PathBuf,
+        key_type: &str,
+    ) -> Result<(), ApplicationError> {
+        let hash = EncryptionHandler::get_private_key_hash(file_path)?;
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            tx.execute(
+                "INSERT INTO encryption_keys (name, file_path, sha256_hash, \
+                 key_type) VALUES (?, ?, ?, ?)",
+                params![name, file_path.to_str().unwrap(), hash, key_type],
+            )
+            .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+            Ok(())
+        })
+        .map_err(ApplicationError::from)
+    }
+
+    pub async fn get_encryption_key(
+        &self,
+        name: &str,
+    ) -> Result<(String, String, String), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            tx.query_row(
+                "SELECT file_path, sha256_hash, key_type FROM encryption_keys \
+                 WHERE name = ?",
+                params![name],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|e| DatabaseOperationError::SqliteError(e))
+        })
+        .map_err(ApplicationError::from)
+    }
+
+    pub async fn remove_encryption_key(
+        &self,
+        name: &str,
+    ) -> Result<(), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            tx.execute(
+                "DELETE FROM encryption_keys WHERE name = ?",
+                params![name],
+            )
+            .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+            Ok(())
+        })
+        .map_err(ApplicationError::from)
+    }
+
+    pub async fn list_encryption_keys(
+        &self,
+        key_type: Option<&str>,
+    ) -> Result<Vec<String>, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            let query = match key_type {
+                Some(_) => {
+                    "SELECT name FROM encryption_keys WHERE key_type = ?"
+                }
+                None => "SELECT name FROM encryption_keys",
+            };
+
+            let mut stmt = tx
+                .prepare(query)
+                .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+
+            let row_mapper = |row: &rusqlite::Row| row.get(0);
+
+            let rows = match key_type {
+                Some(ktype) => stmt.query_map(params![ktype], row_mapper),
+                None => stmt.query_map([], row_mapper),
+            }
+            .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+
+            let keys = rows
+                .collect::<Result<Vec<String>, _>>()
+                .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+
+            Ok(keys)
+        })
+        .map_err(ApplicationError::from)
     }
 }

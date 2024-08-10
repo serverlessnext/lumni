@@ -13,6 +13,7 @@ use rsa::pkcs8::{
     LineEnding,
 };
 use rsa::{BigUint, RsaPrivateKey, RsaPublicKey};
+use sha2::{Digest, Sha256};
 
 use crate::external as lumni;
 
@@ -337,5 +338,15 @@ impl EncryptionHandler {
         )?;
 
         Ok(decrypted_data.to_vec())
+    }
+
+    pub fn get_private_key_hash(
+        private_key_path: &PathBuf,
+    ) -> Result<String, ApplicationError> {
+        let file_content = fs::read(private_key_path)
+            .map_err(|e| ApplicationError::IOError(e))?;
+        let mut hasher = Sha256::new();
+        hasher.update(&file_content);
+        Ok(format!("{:x}", hasher.finalize()))
     }
 }

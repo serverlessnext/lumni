@@ -2,11 +2,12 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use lumni::api::error::{ApplicationError, EncryptionError};
+use lumni::api::error::ApplicationError;
 use rusqlite::{params, Error as SqliteError, Transaction};
 
 use crate::external as lumni;
 
+#[derive(Debug)]
 pub struct DatabaseConnector {
     connection: rusqlite::Connection,
     operation_queue: Arc<Mutex<VecDeque<String>>>,

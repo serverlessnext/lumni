@@ -169,6 +169,7 @@ pub async fn run_cli(
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
 
+    // TODO: None uses default ssh key path, add support for custom ssh key path
     let encryption_handler =
         EncryptionHandler::new_from_path(None)?.map(Arc::new);
 

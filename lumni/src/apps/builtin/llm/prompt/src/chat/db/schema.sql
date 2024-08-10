@@ -12,6 +12,14 @@ CREATE TABLE user_profiles (
     is_default INTEGER DEFAULT 0
 );
 
+CREATE TABLE encryption_keys (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    file_path TEXT NOT NULL,
+    sha256_hash TEXT NOT NULL,
+    key_type TEXT NOT NULL
+);
+
 CREATE TABLE models (
     identifier TEXT PRIMARY KEY,
     info TEXT, -- JSON string

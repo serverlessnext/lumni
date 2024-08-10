@@ -1,8 +1,10 @@
-use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
-use libc::kCCCallSequenceError;
+use std::path::PathBuf;
+
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
 use serde_json::{Map, Value as JsonValue};
 
+use super::profile_helper::interactive_profile_creation;
 use super::UserProfileDbHandler;
 use crate::external as lumni;
 
@@ -17,6 +19,8 @@ pub fn create_profile_subcommand() -> Command {
         .subcommand(create_rm_subcommand())
         .subcommand(create_set_default_subcommand())
         .subcommand(create_show_default_subcommand())
+        .subcommand(create_add_profile_subcommand())
+        .subcommand(create_key_subcommand())
 }
 
 fn create_list_subcommand() -> Command {
@@ -90,6 +94,62 @@ fn create_show_default_subcommand() -> Command {
                 .long("show-decrypted")
                 .help("Show decrypted values instead of masked values")
                 .action(ArgAction::SetTrue),
+        )
+}
+
+fn create_add_profile_subcommand() -> Command {
+    Command::new("add").about("Add a new profile with guided setup")
+}
+
+fn create_key_subcommand() -> Command {
+    Command::new("key")
+        .about("Manage encryption keys for profiles")
+        .subcommand(create_key_add_subcommand())
+        .subcommand(create_key_list_subcommand())
+        .subcommand(create_key_remove_subcommand())
+        .subcommand(create_key_show_subcommand())
+}
+
+fn create_key_add_subcommand() -> Command {
+    Command::new("add")
+        .about("Add a new encryption key")
+        .arg(Arg::new("name").help("Name for the key").required(true))
+        .arg(
+            Arg::new("path")
+                .help("Path to the private key file")
+                .required(true),
+        )
+        .arg(
+            Arg::new("type")
+                .long("type")
+                .help("Type of the key (e.g., 'ssh', 'gpg')")
+                .default_value("ssh"),
+        )
+}
+
+fn create_key_list_subcommand() -> Command {
+    Command::new("list")
+        .about("List all registered encryption keys")
+        .arg(Arg::new("type").long("type").help("Filter keys by type"))
+}
+
+fn create_key_remove_subcommand() -> Command {
+    Command::new("remove")
+        .about("Remove a registered encryption key")
+        .arg(
+            Arg::new("name")
+                .help("Name of the key to remove")
+                .required(true),
+        )
+}
+
+fn create_key_show_subcommand() -> Command {
+    Command::new("show")
+        .about("Show details of a specific encryption key")
+        .arg(
+            Arg::new("name")
+                .help("Name of the key to show")
+                .required(true),
         )
 }
 
@@ -251,6 +311,53 @@ pub async fn handle_profile_subcommand(
                 println!("No default profile set.");
             }
         }
+
+        Some(("add", _)) => {
+            interactive_profile_creation(db_handler).await?;
+        }
+
+        Some(("key", key_matches)) => match key_matches.subcommand() {
+            Some(("add", add_matches)) => {
+                let name = add_matches.get_one::<String>("name").unwrap();
+                let path = add_matches.get_one::<String>("path").unwrap();
+                let key_type = add_matches.get_one::<String>("type").unwrap();
+                db_handler
+                    .register_encryption_key(
+                        name,
+                        &PathBuf::from(path),
+                        key_type,
+                    )
+                    .await?;
+                println!("Encryption key '{}' added successfully.", name);
+            }
+            Some(("list", list_matches)) => {
+                let key_type = list_matches.get_one::<String>("type");
+                let key_type_str = key_type.map(|s| s.as_str());
+                let keys =
+                    db_handler.list_encryption_keys(key_type_str).await?;
+                println!("Registered encryption keys:");
+                for key in keys {
+                    println!("  {}", key);
+                }
+            }
+            Some(("remove", remove_matches)) => {
+                let name = remove_matches.get_one::<String>("name").unwrap();
+                db_handler.remove_encryption_key(name).await?;
+                println!("Encryption key '{}' removed successfully.", name);
+            }
+            Some(("show", show_matches)) => {
+                let name = show_matches.get_one::<String>("name").unwrap();
+                let (file_path, sha256_hash, key_type) =
+                    db_handler.get_encryption_key(name).await?;
+                println!("Encryption key '{}' details:", name);
+                println!("  File path: {}", file_path);
+                println!("  SHA256 hash: {}", sha256_hash);
+                println!("  Key type: {}", key_type);
+            }
+            _ => {
+                create_key_subcommand().print_help()?;
+            }
+        },
 
         _ => {
             create_profile_subcommand().print_help()?;

@@ -7,7 +7,9 @@ pub use subcommands::db::handle_db_subcommand;
 use subcommands::profile::create_profile_subcommand;
 pub use subcommands::profile::handle_profile_subcommand;
 
-use super::chat::db::{ConversationDatabase, UserProfileDbHandler};
+use super::chat::db::{
+    ConversationDatabase, EncryptionHandler, UserProfileDbHandler,
+};
 use crate::external as lumni;
 
 pub fn parse_cli_arguments(spec: ApplicationSpec) -> Command {

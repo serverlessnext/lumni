@@ -1,4 +1,5 @@
 pub mod db;
 pub mod profile;
+pub mod profile_helper;
 
-use super::{ConversationDatabase, UserProfileDbHandler};
+use super::{ConversationDatabase, EncryptionHandler, UserProfileDbHandler};

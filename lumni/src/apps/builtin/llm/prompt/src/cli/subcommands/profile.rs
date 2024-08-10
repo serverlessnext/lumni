@@ -145,10 +145,13 @@ pub async fn handle_profile_subcommand(
                     settings[key.to_string()] =
                         JsonValue::Object(Map::from_iter(vec![
                             (
-                                "value".to_string(),
+                                "content".to_string(),
                                 JsonValue::String(value.to_string()),
                             ),
-                            ("secure".to_string(), JsonValue::Bool(true)),
+                            (
+                                "encryption_key".to_string(),
+                                JsonValue::String("".to_string()),
+                            ),
                         ]));
                 } else {
                     settings[key.to_string()] =
@@ -231,10 +234,15 @@ pub async fn handle_profile_subcommand(
         }
 
         Some(("show-default", show_default_matches)) => {
-            if let Some(default_profile) = db_handler.get_default_profile().await? {
+            if let Some(default_profile) =
+                db_handler.get_default_profile().await?
+            {
                 println!("Default profile: {}", default_profile);
-                let show_decrypted = show_default_matches.get_flag("show-decrypted");
-                let settings = db_handler.get_profile_settings(&default_profile, !show_decrypted).await?;
+                let show_decrypted =
+                    show_default_matches.get_flag("show-decrypted");
+                let settings = db_handler
+                    .get_profile_settings(&default_profile, !show_decrypted)
+                    .await?;
                 println!("Settings:");
                 for (key, value) in settings.as_object().unwrap() {
                     println!("  {}: {}", key, value);

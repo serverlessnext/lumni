@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
-use serde_json::{Map, Value as JsonValue};
+use serde_json::{json, Map, Value as JsonValue};
 
 use super::profile_helper::interactive_profile_creation;
 use super::UserProfileDbHandler;
@@ -21,6 +21,7 @@ pub fn create_profile_subcommand() -> Command {
         .subcommand(create_show_default_subcommand())
         .subcommand(create_add_profile_subcommand())
         .subcommand(create_key_subcommand())
+        .subcommand(create_export_subcommand())
 }
 
 fn create_list_subcommand() -> Command {
@@ -150,6 +151,32 @@ fn create_key_show_subcommand() -> Command {
             Arg::new("name")
                 .help("Name of the key to show")
                 .required(true),
+        )
+}
+
+fn create_export_subcommand() -> Command {
+    Command::new("export")
+        .about("Export profile(s) to JSON")
+        .arg(
+            Arg::new("name")
+                .help(
+                    "Name of the profile to export (omit to export all \
+                     profiles)",
+                )
+                .required(false),
+        )
+        .arg(
+            Arg::new("show-decrypted")
+                .long("show-decrypted")
+                .help("Show decrypted values instead of masked values")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .help("Output file path (if not specified, prints to stdout)")
+                .value_name("FILE"),
         )
 }
 
@@ -359,9 +386,88 @@ pub async fn handle_profile_subcommand(
             }
         },
 
+        Some(("export", export_matches)) => {
+            let show_decrypted = export_matches.get_flag("show-decrypted");
+            let output_file = export_matches.get_one::<String>("output");
+
+            let profiles = if let Some(profile_name) =
+                export_matches.get_one::<String>("name")
+            {
+                // Export a single profile
+                let settings = db_handler
+                    .get_profile_settings(profile_name, !show_decrypted)
+                    .await?;
+                vec![create_profile_json(profile_name, &settings)]
+            } else {
+                // Export all profiles
+                let mut profiles_vec = Vec::new();
+                let profile_names = db_handler.list_profiles().await?;
+                for name in profile_names {
+                    let settings = db_handler
+                        .get_profile_settings(&name, !show_decrypted)
+                        .await?;
+                    profiles_vec.push(create_profile_json(&name, &settings));
+                }
+                profiles_vec
+            };
+
+            let export_data = json!({
+                "Profiles": profiles
+            });
+
+            export_json(
+                &export_data,
+                output_file,
+                "Profiles exported to JSON".to_string(),
+            )?;
+        }
+
         _ => {
             create_profile_subcommand().print_help()?;
         }
+    }
+
+    Ok(())
+}
+
+fn create_profile_json(name: &str, settings: &JsonValue) -> JsonValue {
+    let mut parameters = Vec::new();
+    if let Some(obj) = settings.as_object() {
+        for (key, value) in obj {
+            let (value_str, param_type) = match value.as_str() {
+                Some("*****") => {
+                    (value.as_str().unwrap().to_string(), "SecureString")
+                }
+                Some(v) => (v.to_string(), "String"),
+                None => (value.to_string(), "String"), // For non-string values, convert to string
+            };
+
+            parameters.push(json!({
+                "Key": key,
+                "Value": value_str,
+                "Type": param_type
+            }));
+        }
+    }
+
+    json!({
+        "Name": name,
+        "Parameters": parameters
+    })
+}
+
+fn export_json(
+    json: &JsonValue,
+    output_file: Option<&String>,
+    success_message: String,
+) -> Result<(), ApplicationError> {
+    let json_string = serde_json::to_string_pretty(json)?;
+
+    if let Some(file_path) = output_file {
+        std::fs::write(file_path, json_string)?;
+        println!("{}. Saved to: {}", success_message, file_path);
+    } else {
+        println!("{}", json_string);
     }
 
     Ok(())

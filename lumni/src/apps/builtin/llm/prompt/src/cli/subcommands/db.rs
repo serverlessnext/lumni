@@ -16,30 +16,24 @@ pub fn create_db_subcommand() -> Command {
 }
 
 fn create_path_subcommand() -> Command {
-    Command::new("path")
-        .about("Show the path to the SQLite database file")
+    Command::new("path").about("Show the path to the SQLite database file")
 }
 
 fn create_list_subcommand() -> Command {
-    Command::new("list")
-        .about("List recent conversations")
-        .arg(
-            Arg::new("limit")
-                .short('n')
-                .long("limit")
-                .help("Number of conversations to list")
-                .value_name("LIMIT")
-                .default_value("20"),
-        )
+    Command::new("list").about("List recent conversations").arg(
+        Arg::new("limit")
+            .short('n')
+            .long("limit")
+            .help("Number of conversations to list")
+            .value_name("LIMIT")
+            .default_value("20"),
+    )
 }
 
 fn create_show_subcommand() -> Command {
     Command::new("show")
         .about("Show details of a specific conversation")
-        .arg(
-            Arg::new("id")
-                .help("ID of the conversation to show"),
-        )
+        .arg(Arg::new("id").help("ID of the conversation to show"))
 }
 
 fn create_truncate_subcommand() -> Command {
@@ -83,15 +77,22 @@ pub async fn handle_db_subcommand(
         Some(("truncate", truncate_matches)) => {
             if truncate_matches.get_flag("confirm") {
                 db_conn.truncate_and_vacuum().await?;
-                println!("Database tables truncated and vacuumed successfully.");
+                println!(
+                    "Database tables truncated and vacuumed successfully."
+                );
             } else {
-                println!("Are you sure you want to truncate all tables and vacuum the database? This action cannot be undone.");
+                println!(
+                    "Are you sure you want to truncate all tables and vacuum \
+                     the database? This action cannot be undone."
+                );
                 println!("Type 'yes' to confirm or any other input to cancel:");
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
                 if input.trim().eq_ignore_ascii_case("yes") {
                     db_conn.truncate_and_vacuum().await?;
-                    println!("Database tables truncated and vacuumed successfully.");
+                    println!(
+                        "Database tables truncated and vacuumed successfully."
+                    );
                 } else {
                     println!("Operation cancelled.");
                 }

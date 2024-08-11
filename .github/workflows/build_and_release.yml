@@ -59,7 +59,6 @@ jobs:
           sudo chmod 777 /mnt/cargo-build /mnt/cargo-home /mnt/rustup-home
           echo "CARGO_TARGET_DIR=/mnt/cargo-build" >> $GITHUB_ENV
           echo "CARGO_HOME=/mnt/cargo-home" >> $GITHUB_ENV
-          echo "RUSTUP_HOME=/mnt/rustup-home" >> $GITHUB_ENV
 
       - name: Install and configure dependencies
         run: |

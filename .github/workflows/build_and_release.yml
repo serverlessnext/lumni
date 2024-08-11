@@ -52,8 +52,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Check disk usage
-        run: df -h
+      - name: Prepare build directories (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo mkdir -p /mnt/cargo-build /mnt/cargo-home /mnt/rustup-home
+          sudo chmod 777 /mnt/cargo-build /mnt/cargo-home /mnt/rustup-home
 
       - name: Install and configure dependencies
         run: |
@@ -71,12 +74,11 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
 
-      - name: Check disk usage
-        run: df -h
-
       - name: Install target
         run: rustup target add $TARGET
-      
+        env:
+          RUSTUP_HOME: ${{ runner.os == 'Linux' && '/mnt/rustup-home' || '' }}
+
       - name: Check disk usage
         run: df -h
 
@@ -104,12 +106,20 @@ jobs:
 
       - name: Build project
         run: cargo build -p $NAME --release --target $TARGET
+        env:
+          CARGO_TARGET_DIR: ${{ runner.os == 'Linux' && '/mnt/cargo-build' || '' }}
+      CARGO_HOME: ${{ runner.os == 'Linux' && '/mnt/cargo-home' || '' }}
 
       - name: Check disk usage
         run: df -h
 
       - name: List target directory
-        run: ls target/${{ matrix.target }}/release
+        run: |
+          if [[ $OS =~ ^ubuntu.*$ ]]; then
+            ls /mnt/cargo-build/$TARGET/release
+          else
+            ls target/$TARGET/release
+          fi
 
       - name: Compress
         run: |
@@ -117,7 +127,11 @@ jobs:
           [ -e ./artifacts ] && rm -rf ./artifacts
           mkdir -p ./artifacts ./build/bin
           TAG=${{ needs.prebuild.outputs.release_tag }}
-          mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
+          if [[ $OS =~ ^ubuntu.*$ ]]; then
+            mv /mnt/cargo-build/$TARGET/release/$NAME ./build/bin/$NAME
+          else
+            mv ./target/$TARGET/release/$NAME ./build/bin/$NAME
+          fi
           OUTFILE=./artifacts/$NAME-$TARGET-$TAG.tar.gz
           tar -czf $OUTFILE -C ./build .
           shasum -a 256 $OUTFILE > $OUTFILE.sha256

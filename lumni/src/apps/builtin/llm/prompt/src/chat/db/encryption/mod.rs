@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use base64::engine::general_purpose;
@@ -50,18 +51,28 @@ impl EncryptionHandler {
                     )));
                 }
 
-                let private_key = Self::parse_private_key(
-                    path.to_str().ok_or_else(|| {
-                        ApplicationError::InvalidInput(
-                            "Invalid path".to_string(),
-                        )
-                    })?,
-                )?;
+                let private_key_pem = fs::read_to_string(path)
+                    .map_err(|e| ApplicationError::IOError(e))?;
+
+                let private_key = if Self::is_encrypted_key(&private_key_pem) {
+                    Self::parse_encrypted_private_key(
+                        path.to_str().unwrap(),
+                        &private_key_pem,
+                    )?
+                } else {
+                    Self::parse_private_key(path.to_str().ok_or_else(
+                        || {
+                            ApplicationError::InvalidInput(
+                                "Invalid path".to_string(),
+                            )
+                        },
+                    )?)?
+                };
+
                 let public_key = RsaPublicKey::from(&private_key);
                 let public_key_pem = public_key
                     .to_public_key_pem(LineEnding::LF)
                     .map_err(|e| EncryptionError::Other(Box::new(e)))?;
-
                 let private_key_pem = private_key
                     .to_pkcs8_pem(LineEnding::LF)
                     .map_err(|e| EncryptionError::Pkcs8Error(e))?;
@@ -81,6 +92,35 @@ impl EncryptionHandler {
                 }
             }
         }
+    }
+
+    fn is_encrypted_key(key_pem: &str) -> bool {
+        key_pem.contains("ENCRYPTED")
+    }
+
+    fn parse_encrypted_private_key(
+        path: &str,
+        key_pem: &str,
+    ) -> Result<RsaPrivateKey, ApplicationError> {
+        println!("The private key at {:?} is password-protected.", path);
+
+        let mut password = String::new();
+        print!("Enter the password for the private key: ");
+        io::stdout()
+            .flush()
+            .map_err(|e| ApplicationError::IOError(e))?;
+        io::stdin()
+            .read_line(&mut password)
+            .map_err(|e| ApplicationError::IOError(e))?;
+        let password = password.trim();
+
+        RsaPrivateKey::from_pkcs8_encrypted_pem(key_pem, password).map_err(
+            |e| {
+                ApplicationError::EncryptionError(EncryptionError::RsaError(
+                    rsa::Error::Pkcs8(e),
+                ))
+            },
+        )
     }
 
     fn parse_private_key(
@@ -348,5 +388,56 @@ impl EncryptionHandler {
         let mut hasher = Sha256::new();
         hasher.update(&file_content);
         Ok(format!("{:x}", hasher.finalize()))
+    }
+}
+
+impl EncryptionHandler {
+    pub fn generate_private_key(
+        key_path: PathBuf,
+        bits: usize,
+        password: Option<&str>,
+    ) -> Result<(), ApplicationError> {
+        // Generate a new RSA private key
+        let private_key = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, bits)
+            .map_err(|e| {
+                ApplicationError::EncryptionError(EncryptionError::RsaError(e))
+            })?;
+
+        // Convert private key to PEM format, with optional encryption
+        let private_key_pem = match password {
+            Some(pass) => private_key
+                .to_pkcs8_encrypted_pem(
+                    &mut rsa::rand_core::OsRng,
+                    pass.as_bytes(),
+                    LineEnding::LF,
+                )
+                .map_err(|e| {
+                    ApplicationError::EncryptionError(
+                        EncryptionError::Pkcs8Error(e.into()),
+                    )
+                })?,
+            None => private_key.to_pkcs8_pem(LineEnding::LF).map_err(|e| {
+                ApplicationError::EncryptionError(EncryptionError::Pkcs8Error(
+                    e.into(),
+                ))
+            })?,
+        };
+
+        // Ensure the directory exists
+        if let Some(parent) = key_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| ApplicationError::IOError(e))?;
+        }
+
+        // Save private key to file
+        fs::write(&key_path, private_key_pem.as_bytes())
+            .map_err(|e| ApplicationError::IOError(e))?;
+
+        println!("RSA private key generated and saved successfully.");
+        println!("Private key location: {:?}", key_path);
+        if password.is_some() {
+            println!("The private key is password-protected.");
+        }
+        Ok(())
     }
 }

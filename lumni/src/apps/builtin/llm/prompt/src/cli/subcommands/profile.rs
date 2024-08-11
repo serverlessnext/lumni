@@ -382,12 +382,15 @@ pub async fn handle_profile_subcommand(
 
         Some(("export", export_matches)) => {
             let output_file = export_matches.get_one::<String>("output");
-            
+
             let default_profile = db_handler.get_default_profile().await?;
-            
-            let profiles = if let Some(profile_name) = export_matches.get_one::<String>("name") {
+
+            let profiles = if let Some(profile_name) =
+                export_matches.get_one::<String>("name")
+            {
                 // Export a single profile
-                let settings = db_handler.export_profile_settings(profile_name).await?;
+                let settings =
+                    db_handler.export_profile_settings(profile_name).await?;
                 vec![json!({
                     "Name": profile_name,
                     "Parameters": settings["Parameters"]
@@ -397,7 +400,8 @@ pub async fn handle_profile_subcommand(
                 let mut profiles_vec = Vec::new();
                 let profile_names = db_handler.list_profiles().await?;
                 for name in profile_names {
-                    let settings = db_handler.export_profile_settings(&name).await?;
+                    let settings =
+                        db_handler.export_profile_settings(&name).await?;
                     profiles_vec.push(json!({
                         "Name": name,
                         "Parameters": settings["Parameters"]
@@ -415,7 +419,11 @@ pub async fn handle_profile_subcommand(
                 export_data["DefaultProfile"] = JsonValue::String(default);
             }
 
-            export_json(&export_data, output_file, "Profiles exported to JSON")?;
+            export_json(
+                &export_data,
+                output_file,
+                "Profiles exported to JSON",
+            )?;
         }
 
         _ => {

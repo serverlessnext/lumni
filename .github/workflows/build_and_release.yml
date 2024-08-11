@@ -52,11 +52,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Prepare build directories (Ubuntu only)
+      - name: Prepare build directories and set env vars (Ubuntu only)
         if: runner.os == 'Linux'
         run: |
           sudo mkdir -p /mnt/cargo-build /mnt/cargo-home /mnt/rustup-home
           sudo chmod 777 /mnt/cargo-build /mnt/cargo-home /mnt/rustup-home
+          echo "CARGO_TARGET_DIR=/mnt/cargo-build" >> $GITHUB_ENV
+          echo "CARGO_HOME=/mnt/cargo-home" >> $GITHUB_ENV
+          echo "RUSTUP_HOME=/mnt/rustup-home" >> $GITHUB_ENV
 
       - name: Install and configure dependencies
         run: |
@@ -76,8 +79,6 @@ jobs:
 
       - name: Install target
         run: rustup target add $TARGET
-        env:
-          RUSTUP_HOME: ${{ runner.os == 'Linux' && '/mnt/rustup-home' || '' }}
 
       - name: Check disk usage
         run: df -h
@@ -106,9 +107,6 @@ jobs:
 
       - name: Build project
         run: cargo build -p $NAME --release --target $TARGET
-        env:
-          CARGO_TARGET_DIR: ${{ runner.os == 'Linux' && '/mnt/cargo-build' || '' }}
-          CARGO_HOME: ${{ runner.os == 'Linux' && '/mnt/cargo-home' || '' }}
 
       - name: Check disk usage
         run: df -h

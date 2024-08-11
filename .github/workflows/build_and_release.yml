@@ -108,7 +108,7 @@ jobs:
         run: cargo build -p $NAME --release --target $TARGET
         env:
           CARGO_TARGET_DIR: ${{ runner.os == 'Linux' && '/mnt/cargo-build' || '' }}
-      CARGO_HOME: ${{ runner.os == 'Linux' && '/mnt/cargo-home' || '' }}
+          CARGO_HOME: ${{ runner.os == 'Linux' && '/mnt/cargo-home' || '' }}
 
       - name: Check disk usage
         run: df -h

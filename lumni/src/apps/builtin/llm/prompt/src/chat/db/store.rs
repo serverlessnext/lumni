@@ -8,7 +8,7 @@ use tokio::sync::Mutex as TokioMutex;
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::conversations::ConversationDbHandler;
 use super::encryption::{self, EncryptionHandler};
-use super::user_profiles::UserProfileDbHandler;
+use super::user_profile::UserProfileDbHandler;
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
     ModelIdentifier,

@@ -7,7 +7,7 @@ mod display;
 mod encryption;
 mod model;
 mod store;
-mod user_profiles;
+mod user_profile;
 
 pub use conversations::ConversationDbHandler;
 pub use encryption::EncryptionHandler;
@@ -15,7 +15,7 @@ pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
-pub use user_profiles::UserProfileDbHandler;
+pub use user_profile::UserProfileDbHandler;
 
 pub use super::ConversationCache;
 use super::PromptRole;

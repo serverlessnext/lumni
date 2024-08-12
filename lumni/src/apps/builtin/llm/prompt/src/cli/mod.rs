@@ -8,7 +8,8 @@ use subcommands::profile::create_profile_subcommand;
 pub use subcommands::profile::handle_profile_subcommand;
 
 use super::chat::db::{
-    ConversationDatabase, EncryptionHandler, UserProfileDbHandler,
+    ConversationDatabase, EncryptionHandler, EncryptionMode, MaskMode,
+    UserProfileDbHandler,
 };
 use crate::external as lumni;
 

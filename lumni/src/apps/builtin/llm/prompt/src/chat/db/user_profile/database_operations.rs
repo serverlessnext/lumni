@@ -1,16 +1,16 @@
 use std::path::PathBuf;
+
 use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, OptionalExtension};
 
+use super::{DatabaseOperationError, EncryptionHandler, UserProfileDbHandler};
 use crate::external as lumni;
 
-use super::{
-    DatabaseOperationError, EncryptionHandler, UserProfileDbHandler,
-};
-
-
 impl UserProfileDbHandler {
-    pub async fn profile_exists(&self, profile_name: &str) -> Result<bool, ApplicationError> {
+    pub async fn profile_exists(
+        &self,
+        profile_name: &str,
+    ) -> Result<bool, ApplicationError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let count: i64 = tx
@@ -25,7 +25,10 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn delete_profile(&self, profile_name: &str) -> Result<(), ApplicationError> {
+    pub async fn delete_profile(
+        &self,
+        profile_name: &str,
+    ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
@@ -56,7 +59,9 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn get_default_profile(&self) -> Result<Option<String>, ApplicationError> {
+    pub async fn get_default_profile(
+        &self,
+    ) -> Result<Option<String>, ApplicationError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.query_row(
@@ -70,7 +75,10 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn set_default_profile(&self, profile_name: &str) -> Result<(), ApplicationError> {
+    pub async fn set_default_profile(
+        &self,
+        profile_name: &str,
+    ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
@@ -89,7 +97,10 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn load_encryption_handler(&self, encryption_key_id: i64) -> Result<EncryptionHandler, ApplicationError> {
+    pub async fn load_encryption_handler(
+        &self,
+        encryption_key_id: i64,
+    ) -> Result<EncryptionHandler, ApplicationError> {
         let mut db = self.db.lock().await;
         let key_path: String = db.process_queue_with_result(|tx| {
             tx.query_row(
@@ -100,16 +111,18 @@ impl UserProfileDbHandler {
             .map_err(DatabaseOperationError::SqliteError)
         })?;
 
-        EncryptionHandler::new_from_path(&PathBuf::from(key_path))?.ok_or_else(
-            || {
-                ApplicationError::EncryptionError(EncryptionError::Other(
-                    Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Failed to create encryption handler from key file",
-                    )),
+        EncryptionHandler::new_from_path(&PathBuf::from(key_path))
+            .map_err(|e| {
+                ApplicationError::EncryptionError(EncryptionError::InvalidKey(
+                    e.to_string(),
                 ))
-            },
-        )
+            })?
+            .ok_or_else(|| {
+                ApplicationError::EncryptionError(EncryptionError::InvalidKey(
+                    "Failed to create encryption handler from key file"
+                        .to_string(),
+                ))
+            })
     }
 
     pub async fn register_encryption_key(

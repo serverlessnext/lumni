@@ -1,7 +1,9 @@
 use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
-use super::{DatabaseOperationError, UserProfileDbHandler};
+use super::{
+    DatabaseOperationError, EncryptionMode, MaskMode, UserProfileDbHandler,
+};
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
@@ -88,8 +90,8 @@ impl UserProfileDbHandler {
     pub fn process_settings(
         &self,
         value: &JsonValue,
-        encrypt: bool,
-        mask_encrypted: bool,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
         match value {
             JsonValue::Object(obj) => {
@@ -97,7 +99,7 @@ impl UserProfileDbHandler {
                 for (k, v) in obj {
                     new_obj.insert(
                         k.clone(),
-                        self.process_value(v, encrypt, mask_encrypted)?,
+                        self.process_value(v, encryption_mode, mask_mode)?,
                     );
                 }
                 Ok(JsonValue::Object(new_obj))
@@ -105,7 +107,9 @@ impl UserProfileDbHandler {
             JsonValue::Array(arr) => {
                 let new_arr: Result<Vec<JsonValue>, _> = arr
                     .iter()
-                    .map(|v| self.process_settings(v, encrypt, mask_encrypted))
+                    .map(|v| {
+                        self.process_settings(v, encryption_mode, mask_mode)
+                    })
                     .collect();
                 Ok(JsonValue::Array(new_arr?))
             }
@@ -116,13 +120,13 @@ impl UserProfileDbHandler {
     fn process_value(
         &self,
         value: &JsonValue,
-        encrypt: bool,
-        mask_encrypted: bool,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
-        if encrypt {
+        if encryption_mode == EncryptionMode::Encrypt {
             self.handle_encryption(value)
         } else {
-            self.handle_decryption(value, mask_encrypted)
+            self.handle_decryption(value, mask_mode)
         }
     }
 
@@ -146,11 +150,11 @@ impl UserProfileDbHandler {
     fn handle_decryption(
         &self,
         value: &JsonValue,
-        mask_encrypted: bool,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
         if Self::is_encrypted_value(value) {
             if self.encryption_handler.is_some() {
-                if mask_encrypted {
+                if mask_mode == MaskMode::Mask {
                     Ok(JsonValue::String("*****".to_string()))
                 } else {
                     self.decrypt_value(value)
@@ -166,8 +170,8 @@ impl UserProfileDbHandler {
     pub fn process_settings_with_metadata(
         &self,
         value: &JsonValue,
-        encrypt: bool,
-        mask_encrypted: bool,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
         match value {
             JsonValue::Object(obj) => {
@@ -175,8 +179,8 @@ impl UserProfileDbHandler {
                 for (k, v) in obj {
                     let processed = self.process_value_with_metadata(
                         v,
-                        encrypt,
-                        mask_encrypted,
+                        encryption_mode,
+                        mask_mode,
                     )?;
                     new_obj.insert(k.clone(), processed);
                 }
@@ -188,8 +192,8 @@ impl UserProfileDbHandler {
                     .map(|v| {
                         self.process_settings_with_metadata(
                             v,
-                            encrypt,
-                            mask_encrypted,
+                            encryption_mode,
+                            mask_mode,
                         )
                     })
                     .collect();
@@ -202,13 +206,13 @@ impl UserProfileDbHandler {
     fn process_value_with_metadata(
         &self,
         value: &JsonValue,
-        encrypt: bool,
-        mask_encrypted: bool,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
-        if encrypt {
+        if encryption_mode == EncryptionMode::Encrypt {
             self.handle_encryption(value)
         } else {
-            let decrypted = self.handle_decryption(value, mask_encrypted)?;
+            let decrypted = self.handle_decryption(value, mask_mode)?;
             if Self::is_encrypted_value(value) {
                 Ok(json!({
                     "value": decrypted,

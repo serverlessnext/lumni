@@ -17,9 +17,9 @@ impl UserProfileDbHandler {
         if let Some(ref encryption_handler) = self.encryption_handler {
             let (encrypted_content, encryption_key) =
                 encryption_handler.encrypt_string(content).map_err(|e| {
-                    ApplicationError::EncryptionError(EncryptionError::Other(
-                        Box::new(e),
-                    ))
+                    ApplicationError::EncryptionError(
+                        EncryptionError::EncryptionFailed(e.to_string()),
+                    )
                 })?;
 
             Ok(json!({
@@ -42,35 +42,46 @@ impl UserProfileDbHandler {
                     Some(JsonValue::String(encrypted_key)),
                 ) = (obj.get("content"), obj.get("encryption_key"))
                 {
-                    // If the encryption_key is empty, return the content as is
                     if encrypted_key.is_empty() {
                         return Ok(JsonValue::String(content.clone()));
                     }
 
-                    match encryption_handler.decrypt_string(content, encrypted_key)
-                    {
-                        Ok(decrypted) => Ok(JsonValue::String(decrypted)),
-                        Err(e) => {
+                    encryption_handler
+                        .decrypt_string(content, encrypted_key)
+                        .map(JsonValue::String)
+                        .map_err(|e| {
                             eprintln!("Decryption error: {:?}", e);
                             eprintln!(
                                 "Content length: {}, Key length: {}",
                                 content.len(),
                                 encrypted_key.len()
                             );
-                            Err(e)
-                        }
-                    }
+                            ApplicationError::EncryptionError(
+                                EncryptionError::DecryptionFailed(
+                                    e.to_string(),
+                                ),
+                            )
+                        })
                 } else {
-                    eprintln!("Invalid encrypted value format");
-                    Ok(value.clone())
+                    Err(ApplicationError::EncryptionError(
+                        EncryptionError::InvalidKey(
+                            "Invalid encrypted value format".to_string(),
+                        ),
+                    ))
                 }
             } else {
-                eprintln!("Value is not an object: {:?}", value);
-                Ok(value.clone())
+                Err(ApplicationError::EncryptionError(
+                    EncryptionError::InvalidKey(
+                        "Value is not an object".to_string(),
+                    ),
+                ))
             }
         } else {
-            eprintln!("No encryption handler available");
-            Ok(value.clone())
+            Err(ApplicationError::EncryptionError(
+                EncryptionError::InvalidKey(
+                    "No encryption handler available".to_string(),
+                ),
+            ))
         }
     }
 
@@ -80,40 +91,57 @@ impl UserProfileDbHandler {
     ) -> Result<(), ApplicationError> {
         let current_hash = self.calculate_current_key_hash()?;
         if current_hash != stored_hash {
-            return Err(ApplicationError::InvalidInput(
-                "Encryption key hash mismatch".to_string(),
+            return Err(ApplicationError::EncryptionError(
+                EncryptionError::InvalidKey(
+                    "Encryption key hash mismatch".to_string(),
+                ),
             ));
         }
-
         Ok(())
     }
 
-    fn calculate_current_key_hash(
-        &self,
-    ) -> Result<String, ApplicationError> {
+    fn calculate_current_key_hash(&self) -> Result<String, ApplicationError> {
         if let Some(ref encryption_handler) = self.encryption_handler {
-            let key_data = encryption_handler.get_private_key_pem()?;
+            let key_data =
+                encryption_handler.get_private_key_pem().map_err(|e| {
+                    ApplicationError::EncryptionError(
+                        EncryptionError::InvalidKey(e.to_string()),
+                    )
+                })?;
             let mut hasher = Sha256::new();
             hasher.update(key_data.as_bytes());
             Ok(format!("{:x}", hasher.finalize()))
         } else {
-            Err(ApplicationError::InvalidInput(
-                "No encryption handler available".to_string(),
+            Err(ApplicationError::EncryptionError(
+                EncryptionError::InvalidKey(
+                    "No encryption handler available".to_string(),
+                ),
             ))
         }
     }
-
     pub fn generate_encryption_key(
         profile_name: &str,
     ) -> Result<(EncryptionHandler, PathBuf, String), ApplicationError> {
-        let key_dir = home_dir().unwrap_or_default().join(".lumni").join("keys");
-        fs::create_dir_all(&key_dir).map_err(|e| ApplicationError::IOError(e))?;
+        let key_dir =
+            home_dir().unwrap_or_default().join(".lumni").join("keys");
+        fs::create_dir_all(&key_dir)
+            .map_err(|e| ApplicationError::IOError(e))?;
         let key_path = key_dir.join(format!("{}_key.pem", profile_name));
-    
+
         let encryption_handler =
-            EncryptionHandler::generate_private_key(&key_path, 2048, None)?;
-        let key_hash = EncryptionHandler::get_private_key_hash(&key_path)?;
-    
+            EncryptionHandler::generate_private_key(&key_path, 2048, None)
+                .map_err(|e| {
+                    ApplicationError::EncryptionError(
+                        EncryptionError::KeyGenerationFailed(e.to_string()),
+                    )
+                })?;
+        let key_hash = EncryptionHandler::get_private_key_hash(&key_path)
+            .map_err(|e| {
+                ApplicationError::EncryptionError(EncryptionError::InvalidKey(
+                    e.to_string(),
+                ))
+            })?;
+
         Ok((encryption_handler, key_path, key_hash))
     }
 }

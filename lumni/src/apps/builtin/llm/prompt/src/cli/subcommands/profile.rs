@@ -5,7 +5,7 @@ use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
 use super::profile_helper::interactive_profile_creation;
-use super::UserProfileDbHandler;
+use super::{EncryptionMode, MaskMode, UserProfileDbHandler};
 use crate::external as lumni;
 
 pub fn create_profile_subcommand() -> Command {
@@ -197,9 +197,13 @@ pub async fn handle_profile_subcommand(
                 eprintln!("Name: {:?}", show_matches.get_one::<String>("name"));
                 let profile_name =
                     show_matches.get_one::<String>("name").unwrap();
-                let show_decrypted = show_matches.get_flag("show-decrypted");
+                let mask_mode = if show_matches.get_flag("show-decrypted") {
+                    MaskMode::Unmask
+                } else {
+                    MaskMode::Mask
+                };
                 let settings = db_handler
-                    .get_profile_settings(profile_name, !show_decrypted)
+                    .get_profile_settings(profile_name, mask_mode)
                     .await?;
                 println!("Profile '{}' settings:", profile_name);
                 for (key, value) in settings.as_object().unwrap() {
@@ -255,9 +259,13 @@ pub async fn handle_profile_subcommand(
                 let profile_name =
                     get_matches.get_one::<String>("name").unwrap();
                 let key = get_matches.get_one::<String>("key").unwrap();
-                let show_decrypted = get_matches.get_flag("show-decrypted");
+                let mask_mode = if get_matches.get_flag("show-decrypted") {
+                    MaskMode::Unmask
+                } else {
+                    MaskMode::Mask
+                };
                 let settings = db_handler
-                    .get_profile_settings(profile_name, !show_decrypted)
+                    .get_profile_settings(profile_name, mask_mode)
                     .await?;
                 if let Some(value) = settings.get(key) {
                     println!("{}: {}", key, extract_value(value));
@@ -319,10 +327,14 @@ pub async fn handle_profile_subcommand(
                 db_handler.get_default_profile().await?
             {
                 println!("Default profile: {}", default_profile);
-                let show_decrypted =
-                    show_default_matches.get_flag("show-decrypted");
+                let mask_mode =
+                    if show_default_matches.get_flag("show-decrypted") {
+                        MaskMode::Unmask
+                    } else {
+                        MaskMode::Mask
+                    };
                 let settings = db_handler
-                    .get_profile_settings(&default_profile, !show_decrypted)
+                    .get_profile_settings(&default_profile, mask_mode)
                     .await?;
                 println!("Settings:");
                 for (key, value) in settings.as_object().unwrap() {

@@ -5,7 +5,10 @@ use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, OptionalExtension};
 use serde_json::Value as JsonValue;
 
-use super::{DatabaseOperationError, EncryptionHandler, UserProfileDbHandler};
+use super::{
+    DatabaseOperationError, EncryptionHandler, EncryptionMode, MaskMode,
+    UserProfileDbHandler,
+};
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
@@ -19,8 +22,8 @@ impl UserProfileDbHandler {
             db.process_queue_with_result(|tx| {
                 let existing_profile: Option<(i64, String, i64)> = tx
                     .query_row(
-                        "SELECT id, options, encryption_key_id FROM user_profiles \
-                         WHERE name = ?",
+                        "SELECT id, options, encryption_key_id FROM \
+                         user_profiles WHERE name = ?",
                         params![profile_name],
                         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                     )
@@ -29,8 +32,10 @@ impl UserProfileDbHandler {
 
                 match existing_profile {
                     Some((_, existing_options, existing_key_id)) => {
-                        let merged = self
-                            .merge_settings(Some(existing_options), new_settings)?;
+                        let merged = self.merge_settings(
+                            Some(existing_options),
+                            new_settings,
+                        )?;
                         Ok((existing_key_id, merged, None))
                     }
                     None => {
@@ -71,16 +76,19 @@ impl UserProfileDbHandler {
         }
 
         if self.encryption_handler.is_none() {
-            return Err(ApplicationError::EncryptionError(EncryptionError::Other(
-                Box::new(std::io::Error::new(
+            return Err(ApplicationError::EncryptionError(
+                EncryptionError::Other(Box::new(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     "Failed to set up encryption handler",
-                )),
-            )));
+                ))),
+            ));
         }
 
-        let processed_settings =
-            self.process_settings(&merged_settings, true, false)?;
+        let processed_settings = self.process_settings(
+            &merged_settings,
+            EncryptionMode::Encrypt,
+            MaskMode::Unmask,
+        )?;
 
         let json_string =
             serde_json::to_string(&processed_settings).map_err(|e| {
@@ -115,14 +123,14 @@ impl UserProfileDbHandler {
     pub async fn get_profile_settings(
         &mut self,
         profile_name: &str,
-        mask_encrypted: bool,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
         let (json_string, key_hash, key_path): (String, String, String) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(
-                    "SELECT user_profiles.options, encryption_keys.sha256_hash, \
-                     encryption_keys.file_path
+                    "SELECT user_profiles.options, \
+                     encryption_keys.sha256_hash, encryption_keys.file_path
                      FROM user_profiles
                      JOIN encryption_keys ON user_profiles.encryption_key_id = \
                      encryption_keys.id
@@ -149,6 +157,10 @@ impl UserProfileDbHandler {
             serde_json::from_str(&json_string).map_err(|e| {
                 ApplicationError::InvalidInput(format!("Invalid JSON: {}", e))
             })?;
-        self.process_settings_with_metadata(&settings, false, mask_encrypted)
+        self.process_settings_with_metadata(
+            &settings,
+            EncryptionMode::Decrypt,
+            mask_mode,
+        )
     }
 }

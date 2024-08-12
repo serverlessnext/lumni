@@ -1,7 +1,7 @@
-mod encryption_operations;
-mod profile_operations;
 mod content_operations;
 mod database_operations;
+mod encryption_operations;
+mod profile_operations;
 use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
@@ -17,6 +17,18 @@ pub struct UserProfileDbHandler {
     profile_name: Option<String>,
     db: Arc<TokioMutex<DatabaseConnector>>,
     encryption_handler: Option<Arc<EncryptionHandler>>,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum EncryptionMode {
+    Encrypt,
+    Decrypt,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum MaskMode {
+    Mask,
+    Unmask,
 }
 
 impl UserProfileDbHandler {
@@ -55,7 +67,9 @@ impl UserProfileDbHandler {
         &mut self,
         profile_name: &str,
     ) -> Result<JsonValue, ApplicationError> {
-        let settings = self.get_profile_settings(profile_name, false).await?;
+        let settings = self
+            .get_profile_settings(profile_name, MaskMode::Unmask)
+            .await?;
         Ok(self.create_export_json(&settings))
     }
 

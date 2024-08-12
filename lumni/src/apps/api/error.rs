@@ -217,6 +217,10 @@ pub enum EncryptionError {
     Utf8Error(std::string::FromUtf8Error),
     SpkiError(rsa::pkcs8::spki::Error),
     Pkcs8Error(rsa::pkcs8::Error),
+    KeyGenerationFailed(String),
+    EncryptionFailed(String),
+    DecryptionFailed(String),
+    InvalidKey(String),
     Other(Box<dyn Error + Send + Sync>),
 }
 
@@ -235,6 +239,16 @@ impl fmt::Display for EncryptionError {
             }
             EncryptionError::SpkiError(e) => write!(f, "SPKI error: {}", e),
             EncryptionError::Pkcs8Error(e) => write!(f, "PKCS8 error: {}", e),
+            EncryptionError::KeyGenerationFailed(e) => {
+                write!(f, "Key generation failed: {}", e)
+            }
+            EncryptionError::EncryptionFailed(e) => {
+                write!(f, "Encryption failed: {}", e)
+            }
+            EncryptionError::DecryptionFailed(e) => {
+                write!(f, "Decryption failed: {}", e)
+            }
+            EncryptionError::InvalidKey(e) => write!(f, "Invalid key: {}", e),
             EncryptionError::Other(e) => write!(f, "Other error: {}", e),
         }
     }

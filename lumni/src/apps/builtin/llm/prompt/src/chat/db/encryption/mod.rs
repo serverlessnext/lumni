@@ -22,12 +22,14 @@ use crate::external as lumni;
 pub struct EncryptionHandler {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,
+    key_path: PathBuf,
 }
 
 impl EncryptionHandler {
     pub fn new(
         public_key_pem: &str,
         private_key_pem: &str,
+        key_path: PathBuf,
     ) -> Result<Self, ApplicationError> {
         let public_key = RsaPublicKey::from_public_key_pem(public_key_pem)
             .map_err(EncryptionError::from)?;
@@ -36,6 +38,7 @@ impl EncryptionHandler {
         Ok(Self {
             public_key,
             private_key,
+            key_path,
         })
     }
 
@@ -71,7 +74,11 @@ impl EncryptionHandler {
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| EncryptionError::Pkcs8Error(e))?;
 
-        Ok(Some(Self::new(&public_key_pem, &private_key_pem)?))
+        Ok(Some(Self::new(
+            &public_key_pem,
+            &private_key_pem,
+            private_key_path.clone(),
+        )?))
     }
 
     pub fn get_private_key_pem(&self) -> Result<String, ApplicationError> {
@@ -83,6 +90,10 @@ impl EncryptionHandler {
                     e.into(),
                 ))
             })
+    }
+
+    pub fn get_key_path(&self) -> &PathBuf {
+        &self.key_path
     }
 
     fn is_encrypted_key(key_pem: &str) -> bool {
@@ -255,17 +266,6 @@ impl EncryptionHandler {
             .map_err(|e| ApplicationError::from(EncryptionError::RsaError(e)))
     }
 
-    pub fn get_ssh_private_key(&self) -> Result<Vec<u8>, EncryptionError> {
-        // Convert the RSA private key to PKCS#8 PEM format with LF line endings
-        let pem = self
-            .private_key
-            .to_pkcs8_pem(LineEnding::LF)
-            .map_err(EncryptionError::from)?;
-
-        // Convert the PEM string to bytes
-        Ok(pem.as_bytes().to_vec())
-    }
-
     pub fn encrypt_string(
         &self,
         data: &str,
@@ -374,10 +374,20 @@ impl EncryptionHandler {
     pub fn get_private_key_hash(
         private_key_path: &PathBuf,
     ) -> Result<String, ApplicationError> {
-        let file_content = fs::read(private_key_path)
-            .map_err(|e| ApplicationError::IOError(e))?;
+        let handler = EncryptionHandler::new_from_path(private_key_path)?
+            .ok_or_else(|| {
+                ApplicationError::EncryptionError(EncryptionError::InvalidKey(
+                    "No encryption handler available".to_string(),
+                ))
+            })?;
+
+        let key_data = handler.get_private_key_pem().map_err(|e| {
+            ApplicationError::EncryptionError(EncryptionError::InvalidKey(
+                e.to_string(),
+            ))
+        })?;
         let mut hasher = Sha256::new();
-        hasher.update(&file_content);
+        hasher.update(key_data.as_bytes());
         Ok(format!("{:x}", hasher.finalize()))
     }
 }
@@ -437,6 +447,7 @@ impl EncryptionHandler {
         Ok(Self {
             public_key,
             private_key,
+            key_path: key_path.clone(),
         })
     }
 }

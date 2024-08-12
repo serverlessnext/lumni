@@ -21,12 +21,12 @@ impl UserProfileDbHandler {
                         EncryptionError::EncryptionFailed(e.to_string()),
                     )
                 })?;
-
             Ok(json!({
                 "content": encrypted_content,
                 "encryption_key": encryption_key,
             }))
         } else {
+            eprintln!("No encryption handler available");
             Ok(JsonValue::String(content.to_string()))
         }
     }
@@ -119,6 +119,7 @@ impl UserProfileDbHandler {
             ))
         }
     }
+
     pub fn generate_encryption_key(
         profile_name: &str,
     ) -> Result<(EncryptionHandler, PathBuf, String), ApplicationError> {
@@ -141,7 +142,6 @@ impl UserProfileDbHandler {
                     e.to_string(),
                 ))
             })?;
-
         Ok((encryption_handler, key_path, key_hash))
     }
 }

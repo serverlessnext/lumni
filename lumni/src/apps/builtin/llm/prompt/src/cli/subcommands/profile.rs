@@ -120,12 +120,6 @@ fn create_key_add_subcommand() -> Command {
                 .help("Path to the private key file")
                 .required(true),
         )
-        .arg(
-            Arg::new("type")
-                .long("type")
-                .help("Type of the key (e.g., 'ssh', 'gpg')")
-                .default_value("ssh"),
-        )
 }
 
 fn create_key_list_subcommand() -> Command {
@@ -353,13 +347,8 @@ pub async fn handle_profile_subcommand(
             Some(("add", add_matches)) => {
                 let name = add_matches.get_one::<String>("name").unwrap();
                 let path = add_matches.get_one::<String>("path").unwrap();
-                let key_type = add_matches.get_one::<String>("type").unwrap();
                 db_handler
-                    .register_encryption_key(
-                        name,
-                        &PathBuf::from(path),
-                        key_type,
-                    )
+                    .register_encryption_key(name, &PathBuf::from(path))
                     .await?;
                 println!("Encryption key '{}' added successfully.", name);
             }
@@ -380,12 +369,11 @@ pub async fn handle_profile_subcommand(
             }
             Some(("show", show_matches)) => {
                 let name = show_matches.get_one::<String>("name").unwrap();
-                let (file_path, sha256_hash, key_type) =
+                let (file_path, sha256_hash) =
                     db_handler.get_encryption_key(name).await?;
                 println!("Encryption key '{}' details:", name);
                 println!("  File path: {}", file_path);
                 println!("  SHA256 hash: {}", sha256_hash);
-                println!("  Key type: {}", key_type);
             }
             _ => {
                 create_key_subcommand().print_help()?;

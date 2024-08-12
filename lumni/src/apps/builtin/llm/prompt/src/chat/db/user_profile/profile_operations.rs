@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use lumni::api::error::{ApplicationError, EncryptionError};
-use rusqlite::{params, OptionalExtension};
+use lumni::api::error::ApplicationError;
+use rusqlite::{params, OptionalExtension, Transaction};
 use serde_json::Value as JsonValue;
 
 use super::{
@@ -17,7 +17,9 @@ impl UserProfileDbHandler {
         profile_name: &str,
         new_settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
-        let (encryption_key_id, merged_settings, new_encryption_handler) = {
+        let has_encryption_handler = self.encryption_handler.is_some();
+        let mut created_encryption_handler: Option<EncryptionHandler> = None;
+        let (encryption_key_id, merged_settings) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 let existing_profile: Option<(i64, String, i64)> = tx
@@ -36,26 +38,60 @@ impl UserProfileDbHandler {
                             Some(existing_options),
                             new_settings,
                         )?;
-                        Ok((existing_key_id, merged, None))
+
+                        // if encryption handler is not available, create a new one from the key path
+                        if !has_encryption_handler {
+                            let key_path: String = tx
+                                .query_row(
+                                    "SELECT file_path FROM encryption_keys \
+                                     WHERE id = ?",
+                                    params![existing_key_id],
+                                    |row| row.get(0),
+                                )
+                                .map_err(DatabaseOperationError::SqliteError)?;
+
+                            let encryption_handler =
+                                EncryptionHandler::new_from_path(
+                                    &PathBuf::from(&key_path),
+                                )?
+                                .ok_or_else(
+                                    || {
+                                        ApplicationError::InvalidInput(
+                                            "Failed to load encryption handler"
+                                                .to_string(),
+                                        )
+                                    },
+                                )?;
+                            created_encryption_handler =
+                                Some(encryption_handler);
+                        }
+                        Ok((existing_key_id, merged))
                     }
                     None => {
-                        let (new_encryption_handler, key_path, key_hash) =
-                            Self::generate_encryption_key(profile_name)?;
-
-                        let key_id: i64 = tx
-                            .query_row(
-                                "INSERT INTO encryption_keys (file_path, \
-                                 sha256_hash) VALUES (?, ?) RETURNING id",
-                                params![key_path.to_str().unwrap(), key_hash],
-                                |row| row.get(0),
-                            )
-                            .map_err(DatabaseOperationError::SqliteError)?;
-
-                        Ok((
-                            key_id,
-                            new_settings.clone(),
-                            Some(new_encryption_handler),
-                        ))
+                        if !has_encryption_handler {
+                            let (new_encryption_handler, key_path, key_hash) =
+                                Self::generate_encryption_key(profile_name)?;
+                            let key_id = self.get_or_insert_encryption_key(
+                                tx, &key_path, &key_hash,
+                            )?;
+                            created_encryption_handler =
+                                Some(new_encryption_handler);
+                            Ok((key_id, new_settings.clone()))
+                        } else {
+                            let key_path = self
+                                .encryption_handler
+                                .as_ref()
+                                .unwrap()
+                                .get_key_path();
+                            let key_hash =
+                                EncryptionHandler::get_private_key_hash(
+                                    &key_path,
+                                )?;
+                            let key_id = self.get_or_insert_encryption_key(
+                                tx, &key_path, &key_hash,
+                            )?;
+                            Ok((key_id, new_settings.clone()))
+                        }
                     }
                 }
             })
@@ -67,21 +103,16 @@ impl UserProfileDbHandler {
             })?
         };
 
-        if let Some(encryption_handler) = new_encryption_handler {
-            self.encryption_handler = Some(Arc::new(encryption_handler));
-        } else if self.encryption_handler.is_none() {
-            let encryption_handler =
-                self.load_encryption_handler(encryption_key_id).await?;
-            self.encryption_handler = Some(Arc::new(encryption_handler));
-        }
-
         if self.encryption_handler.is_none() {
-            return Err(ApplicationError::EncryptionError(
-                EncryptionError::Other(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Failed to set up encryption handler",
-                ))),
-            ));
+            // Set new encryption handler outside the closure
+            if let Some(new_encryption_handler) = created_encryption_handler {
+                self.encryption_handler =
+                    Some(Arc::new(new_encryption_handler));
+            } else {
+                return Err(ApplicationError::InvalidInput(
+                    "Failed to create encryption handler".to_string(),
+                ));
+            }
         }
 
         let processed_settings = self.process_settings(
@@ -120,6 +151,37 @@ impl UserProfileDbHandler {
         Ok(())
     }
 
+    fn get_or_insert_encryption_key<'a>(
+        &self,
+        tx: &Transaction<'a>,
+        key_path: &PathBuf,
+        key_hash: &str,
+    ) -> Result<i64, DatabaseOperationError> {
+        // First, try to find an existing key with the same hash
+        let existing_key_id: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM encryption_keys WHERE sha256_hash = ?",
+                params![key_hash],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(DatabaseOperationError::SqliteError)?;
+
+        match existing_key_id {
+            Some(id) => Ok(id),
+            None => {
+                // If no existing key found, insert a new one
+                tx.query_row(
+                    "INSERT INTO encryption_keys (file_path, sha256_hash) \
+                     VALUES (?, ?) RETURNING id",
+                    params![key_path.to_str().unwrap(), key_hash],
+                    |row| row.get(0),
+                )
+                .map_err(DatabaseOperationError::SqliteError)
+            }
+        }
+    }
+
     pub async fn get_profile_settings(
         &mut self,
         profile_name: &str,
@@ -141,7 +203,6 @@ impl UserProfileDbHandler {
                 .map_err(DatabaseOperationError::SqliteError)
             })?
         };
-
         if self.encryption_handler.is_none() {
             let encryption_handler =
                 EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?

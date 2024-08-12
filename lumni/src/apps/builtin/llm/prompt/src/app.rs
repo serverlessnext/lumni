@@ -169,12 +169,11 @@ pub async fn run_cli(
         env.get_config_dir().expect("Config directory not defined");
     let sqlite_file = config_dir.join("chat.db");
 
-    // TODO: None uses default ssh key path, add support for custom ssh key path
-    let encryption_handler =
-        EncryptionHandler::new_from_path(None)?.map(Arc::new);
+    // TODO: add support for custom encryption keys in conversations
+    //let encryption_handler =
+    //    EncryptionHandler::new_from_path(custom_key_path)?.map(Arc::new);
 
-    let db_conn =
-        Arc::new(ConversationDatabase::new(&sqlite_file, encryption_handler)?);
+    let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file, None)?);
 
     let mut profile_handler = db_conn.get_profile_handler(None);
     if let Some(ref matches) = matches {

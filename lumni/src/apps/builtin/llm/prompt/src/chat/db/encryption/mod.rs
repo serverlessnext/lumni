@@ -40,58 +40,49 @@ impl EncryptionHandler {
     }
 
     pub fn new_from_path(
-        private_key_path: Option<&PathBuf>,
+        private_key_path: &PathBuf,
     ) -> Result<Option<Self>, ApplicationError> {
-        match private_key_path {
-            Some(path) => {
-                if !path.exists() {
-                    return Err(ApplicationError::NotFound(format!(
-                        "Private key file not found: {:?}",
-                        path
-                    )));
-                }
-
-                let private_key_pem = fs::read_to_string(path)
-                    .map_err(|e| ApplicationError::IOError(e))?;
-
-                let private_key = if Self::is_encrypted_key(&private_key_pem) {
-                    Self::parse_encrypted_private_key(
-                        path.to_str().unwrap(),
-                        &private_key_pem,
-                    )?
-                } else {
-                    Self::parse_private_key(path.to_str().ok_or_else(
-                        || {
-                            ApplicationError::InvalidInput(
-                                "Invalid path".to_string(),
-                            )
-                        },
-                    )?)?
-                };
-
-                let public_key = RsaPublicKey::from(&private_key);
-                let public_key_pem = public_key
-                    .to_public_key_pem(LineEnding::LF)
-                    .map_err(|e| EncryptionError::Other(Box::new(e)))?;
-                let private_key_pem = private_key
-                    .to_pkcs8_pem(LineEnding::LF)
-                    .map_err(|e| EncryptionError::Pkcs8Error(e))?;
-
-                Ok(Some(Self::new(&public_key_pem, &private_key_pem)?))
-            }
-            None => {
-                if let Some(home_dir) = dirs::home_dir() {
-                    let default_path = home_dir.join(".ssh").join("id_rsa");
-                    if default_path.exists() {
-                        Self::new_from_path(Some(&default_path))
-                    } else {
-                        Ok(None)
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
+        if !private_key_path.exists() {
+            return Err(ApplicationError::NotFound(format!(
+                "Private key file not found: {:?}",
+                private_key_path
+            )));
         }
+
+        let private_key_pem = fs::read_to_string(private_key_path)
+            .map_err(|e| ApplicationError::IOError(e))?;
+
+        let private_key = if Self::is_encrypted_key(&private_key_pem) {
+            Self::parse_encrypted_private_key(
+                private_key_path.to_str().unwrap(),
+                &private_key_pem,
+            )?
+        } else {
+            Self::parse_private_key(private_key_path.to_str().ok_or_else(
+                || ApplicationError::InvalidInput("Invalid path".to_string()),
+            )?)?
+        };
+
+        let public_key = RsaPublicKey::from(&private_key);
+        let public_key_pem = public_key
+            .to_public_key_pem(LineEnding::LF)
+            .map_err(|e| EncryptionError::Other(Box::new(e)))?;
+        let private_key_pem = private_key
+            .to_pkcs8_pem(LineEnding::LF)
+            .map_err(|e| EncryptionError::Pkcs8Error(e))?;
+
+        Ok(Some(Self::new(&public_key_pem, &private_key_pem)?))
+    }
+
+    pub fn get_private_key_pem(&self) -> Result<String, ApplicationError> {
+        self.private_key
+            .to_pkcs8_pem(LineEnding::LF)
+            .map(|pem| pem.to_string())
+            .map_err(|e| {
+                ApplicationError::EncryptionError(EncryptionError::Pkcs8Error(
+                    e.into(),
+                ))
+            })
     }
 
     fn is_encrypted_key(key_pem: &str) -> bool {
@@ -393,15 +384,18 @@ impl EncryptionHandler {
 
 impl EncryptionHandler {
     pub fn generate_private_key(
-        key_path: PathBuf,
+        key_path: &PathBuf,
         bits: usize,
         password: Option<&str>,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<Self, ApplicationError> {
         // Generate a new RSA private key
         let private_key = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, bits)
             .map_err(|e| {
                 ApplicationError::EncryptionError(EncryptionError::RsaError(e))
             })?;
+
+        // Derive the public key
+        let public_key = RsaPublicKey::from(&private_key);
 
         // Convert private key to PEM format, with optional encryption
         let private_key_pem = match password {
@@ -438,6 +432,11 @@ impl EncryptionHandler {
         if password.is_some() {
             println!("The private key is password-protected.");
         }
-        Ok(())
+
+        // Create and return a new EncryptionHandler instance
+        Ok(Self {
+            public_key,
+            private_key,
+        })
     }
 }

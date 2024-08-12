@@ -99,7 +99,7 @@ pub async fn interactive_profile_creation(
                 PathBuf::from(key_path)
             };
 
-            match EncryptionHandler::new_from_path(Some(&key_path)) {
+            match EncryptionHandler::new_from_path(&key_path) {
                 Ok(Some(handler)) => {
                     println!("SSH key registered successfully.");
                     // Set the encryption handler in the db_handler

@@ -203,7 +203,7 @@ pub async fn handle_profile_subcommand(
                     .await?;
                 println!("Profile '{}' settings:", profile_name);
                 for (key, value) in settings.as_object().unwrap() {
-                    println!("  {}: {}", key, value);
+                    println!("  {}: {}", key, extract_value(value));
                 }
             } else {
                 create_show_subcommand().print_help()?;
@@ -260,7 +260,7 @@ pub async fn handle_profile_subcommand(
                     .get_profile_settings(profile_name, !show_decrypted)
                     .await?;
                 if let Some(value) = settings.get(key) {
-                    println!("{}: {}", key, value);
+                    println!("{}: {}", key, extract_value(value));
                 } else {
                     println!(
                         "Key '{}' not found in profile '{}'",
@@ -326,7 +326,7 @@ pub async fn handle_profile_subcommand(
                     .await?;
                 println!("Settings:");
                 for (key, value) in settings.as_object().unwrap() {
-                    println!("  {}: {}", key, value);
+                    println!("  {}: {}", key, extract_value(value));
                 }
             } else {
                 println!("No default profile set.");
@@ -449,4 +449,16 @@ fn export_json(
     }
 
     Ok(())
+}
+
+fn extract_value(value: &JsonValue) -> &JsonValue {
+    if let Some(obj) = value.as_object() {
+        if obj.contains_key("was_encrypted") {
+            obj.get("value").unwrap_or(value)
+        } else {
+            value
+        }
+    } else {
+        value
+    }
 }

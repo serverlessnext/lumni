@@ -1,10 +1,11 @@
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use base64::engine::general_purpose;
-use base64::Engine as _;
+use dirs::home_dir;
+use libc::EPERM;
 use lumni::api::error::{ApplicationError, EncryptionError};
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;
@@ -52,6 +53,24 @@ impl UserProfileDbHandler {
         self.encryption_handler = Some(encryption_handler);
     }
 
+    pub async fn profile_exists(
+        &self,
+        profile_name: &str,
+    ) -> Result<bool, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            let count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM user_profiles WHERE name = ?",
+                    params![profile_name],
+                    |row| row.get(0),
+                )
+                .map_err(DatabaseOperationError::SqliteError)?;
+            Ok(count > 0)
+        })
+        .map_err(ApplicationError::from)
+    }
+
     fn encrypt_value(
         &self,
         content: &str,
@@ -87,25 +106,36 @@ impl UserProfileDbHandler {
                     Some(JsonValue::String(encrypted_key)),
                 ) = (obj.get("content"), obj.get("encryption_key"))
                 {
-                    let decrypted = encryption_handler
-                        .decrypt_string(content, encrypted_key)?;
-                    Ok(JsonValue::String(decrypted))
+                    // If the encryption_key is empty, return the content as is
+                    if encrypted_key.is_empty() {
+                        return Ok(JsonValue::String(content.clone()));
+                    }
+
+                    match encryption_handler
+                        .decrypt_string(content, encrypted_key)
+                    {
+                        Ok(decrypted) => Ok(JsonValue::String(decrypted)),
+                        Err(e) => {
+                            eprintln!("Decryption error: {:?}", e);
+                            eprintln!(
+                                "Content length: {}, Key length: {}",
+                                content.len(),
+                                encrypted_key.len()
+                            );
+                            Err(e)
+                        }
+                    }
                 } else {
+                    eprintln!("Invalid encrypted value format");
                     Ok(value.clone())
                 }
             } else {
+                eprintln!("Value is not an object: {:?}", value);
                 Ok(value.clone())
             }
         } else {
+            eprintln!("No encryption handler available");
             Ok(value.clone())
-        }
-    }
-
-    fn is_encrypted_value(value: &JsonValue) -> bool {
-        if let Some(obj) = value.as_object() {
-            obj.contains_key("content") && obj.contains_key("encryption_key")
-        } else {
-            false
         }
     }
 
@@ -191,37 +221,6 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn get_profile_settings(
-        &self,
-        profile_name: &str,
-        mask_encrypted: bool,
-    ) -> Result<JsonValue, ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let (json_string, ssh_key_hash): (String, Option<String>) = tx
-                .query_row(
-                    "SELECT options, ssh_key_hash FROM user_profiles WHERE \
-                     name = ?",
-                    params![profile_name],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .map_err(DatabaseOperationError::SqliteError)?;
-
-            self.verify_ssh_key_hash(ssh_key_hash.as_deref())?;
-
-            let settings: JsonValue = serde_json::from_str(&json_string)
-                .map_err(|e| {
-                    DatabaseOperationError::ApplicationError(
-                        ApplicationError::InvalidInput(format!(
-                            "Invalid JSON: {}",
-                            e
-                        )),
-                    )
-                })?;
-            Ok(self.process_settings(&settings, false, mask_encrypted))
-        })?
-    }
-
     fn process_settings(
         &self,
         value: &JsonValue,
@@ -269,10 +268,15 @@ impl UserProfileDbHandler {
     ) -> Result<JsonValue, ApplicationError> {
         if Self::is_marked_for_encryption(value) {
             if let Some(JsonValue::String(content)) = value.get("content") {
-                if self.encryption_handler.is_some() {
+                if let Some(ref encryption_handler) = self.encryption_handler {
                     self.encrypt_value(content)
                 } else {
-                    Ok(value.clone()) // Keep as is if no encryption handler
+                    Err(ApplicationError::EncryptionError(
+                        EncryptionError::Other(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "No encryption handler available for encryption",
+                        ))),
+                    ))
                 }
             } else {
                 Err(ApplicationError::InvalidInput(
@@ -290,71 +294,155 @@ impl UserProfileDbHandler {
         mask_encrypted: bool,
     ) -> Result<JsonValue, ApplicationError> {
         if Self::is_encrypted_value(value) {
-            if self.encryption_handler.is_some() {
-                if mask_encrypted {
-                    Ok(JsonValue::String("*****".to_string()))
+            if let Some(obj) = value.as_object() {
+                if let (
+                    Some(JsonValue::String(content)),
+                    Some(JsonValue::String(encrypted_key)),
+                ) = (obj.get("content"), obj.get("encryption_key"))
+                {
+                    // If the encryption_key is empty, return the content as is
+                    if encrypted_key.is_empty() {
+                        return Ok(JsonValue::String(content.clone()));
+                    }
+
+                    // Otherwise, proceed with normal decryption logic
+                    if self.encryption_handler.is_some() {
+                        if mask_encrypted {
+                            Ok(JsonValue::String("*****".to_string()))
+                        } else {
+                            self.decrypt_value(value)
+                        }
+                    } else {
+                        Ok(JsonValue::String("*****".to_string())) // Always mask if no encryption handler
+                    }
                 } else {
-                    self.decrypt_value(value)
+                    // Invalid format for encrypted value
+                    Err(ApplicationError::InvalidInput(
+                        "Invalid encrypted value format".to_string(),
+                    ))
                 }
             } else {
-                Ok(JsonValue::String("*****".to_string())) // Always mask if no encryption handler
+                // Value marked as encrypted but not an object
+                Err(ApplicationError::InvalidInput(
+                    "Encrypted value must be an object".to_string(),
+                ))
             }
         } else {
             Ok(value.clone())
         }
     }
 
-    pub async fn create_or_update(
+    fn generate_encryption_key(
         &self,
+        profile_name: &str,
+    ) -> Result<(EncryptionHandler, PathBuf, String), ApplicationError> {
+        let key_dir =
+            home_dir().unwrap_or_default().join(".lumni").join("keys");
+        fs::create_dir_all(&key_dir)
+            .map_err(|e| ApplicationError::IOError(e))?;
+        let key_path = key_dir.join(format!("{}_key.pem", profile_name));
+
+        let encryption_handler =
+            EncryptionHandler::generate_private_key(&key_path, 2048, None)?;
+        let key_hash = EncryptionHandler::get_private_key_hash(&key_path)?;
+
+        Ok((encryption_handler, key_path, key_hash))
+    }
+
+    pub async fn create_or_update(
+        &mut self,
         profile_name: &str,
         new_settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
+        let (encryption_key_id, merged_settings, new_encryption_handler) = {
+            let mut db = self.db.lock().await;
+            db.process_queue_with_result(|tx| {
+                let existing_profile: Option<(i64, String, i64)> = tx
+                    .query_row(
+                        "SELECT id, options, encryption_key_id FROM \
+                         user_profiles WHERE name = ?",
+                        params![profile_name],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                    )
+                    .optional()
+                    .map_err(DatabaseOperationError::SqliteError)?;
+
+                match existing_profile {
+                    Some((_, existing_options, existing_key_id)) => {
+                        let merged = self.merge_settings(
+                            Some(existing_options),
+                            new_settings,
+                        )?;
+                        Ok((existing_key_id, merged, None))
+                    }
+                    None => {
+                        let (new_encryption_handler, key_path, key_hash) =
+                            self.generate_encryption_key(profile_name)?;
+
+                        let key_id: i64 = tx
+                            .query_row(
+                                "INSERT INTO encryption_keys (file_path, \
+                                 sha256_hash) VALUES (?, ?) RETURNING id",
+                                params![key_path.to_str().unwrap(), key_hash],
+                                |row| row.get(0),
+                            )
+                            .map_err(DatabaseOperationError::SqliteError)?;
+
+                        eprintln!("key_id for new profile: {}", key_id);
+                        Ok((
+                            key_id,
+                            new_settings.clone(),
+                            Some(new_encryption_handler),
+                        ))
+                    }
+                }
+            })
+            .map_err(|e| match e {
+                DatabaseOperationError::SqliteError(sqlite_err) => {
+                    ApplicationError::DatabaseError(sqlite_err.to_string())
+                }
+                DatabaseOperationError::ApplicationError(app_err) => app_err,
+            })?
+        };
+        if let Some(handler) = new_encryption_handler {
+            self.encryption_handler = Some(Arc::new(handler));
+        } else if self.encryption_handler.is_none() {
+            // If we don't have a new handler and the existing one is None, try to load it
+            let encryption_handler =
+                self.load_encryption_handler(encryption_key_id).await?;
+            self.encryption_handler = Some(Arc::new(encryption_handler));
+        }
+
+        // Verify that we now have an encryption handler
+        if self.encryption_handler.is_none() {
+            return Err(ApplicationError::EncryptionError(
+                EncryptionError::Other(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Failed to set up encryption handler",
+                ))),
+            ));
+        }
+
+        let processed_settings =
+            self.process_settings(&merged_settings, true, false)?;
+
+        let json_string =
+            serde_json::to_string(&processed_settings).map_err(|e| {
+                ApplicationError::InvalidInput(format!(
+                    "Failed to serialize JSON: {}",
+                    e
+                ))
+            })?;
+
+        eprintln!("Encryption_key_id: {}", encryption_key_id);
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
-            let (existing_options, existing_hash): (
-                Option<String>,
-                Option<String>,
-            ) = tx
-                .query_row(
-                    "SELECT options, ssh_key_hash FROM user_profiles WHERE \
-                     name = ?",
-                    params![profile_name],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()
-                .map_err(DatabaseOperationError::SqliteError)?
-                .unwrap_or((None, None));
-
-            let current_hash = self.calculate_ssh_key_hash()?;
-
-            // Only verify the SSH key hash if both existing and current hashes are present
-            if let (Some(existing), Some(current)) =
-                (existing_hash.as_deref(), current_hash.as_deref())
-            {
-                if existing != current {
-                    return Err(DatabaseOperationError::ApplicationError(
-                        ApplicationError::InvalidInput(
-                            "SSH key mismatch".to_string(),
-                        ),
-                    ));
-                }
-            }
-
-            let merged_settings =
-                if let Some(existing_options) = existing_options {
-                    self.merge_settings(Some(existing_options), new_settings)?
-                } else {
-                    new_settings.clone()
-                };
-
-            let processed_settings =
-                self.process_settings(&merged_settings, true, false)?;
-            self.save_profile_settings(
-                tx,
-                profile_name,
-                &processed_settings,
-                current_hash.as_deref(),
-            )?;
+            tx.execute(
+                "INSERT OR REPLACE INTO user_profiles (name, options, \
+                 encryption_key_id) VALUES (?, ?, ?)",
+                params![profile_name, json_string, encryption_key_id],
+            )
+            .map_err(DatabaseOperationError::SqliteError)?;
             Ok(())
         })
         .map_err(|e| match e {
@@ -362,7 +450,38 @@ impl UserProfileDbHandler {
                 ApplicationError::DatabaseError(sqlite_err.to_string())
             }
             DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })
+        })?;
+
+        // Update self after database operations
+        self.profile_name = Some(profile_name.to_string());
+
+        Ok(())
+    }
+
+    async fn load_encryption_handler(
+        &self,
+        encryption_key_id: i64,
+    ) -> Result<EncryptionHandler, ApplicationError> {
+        let mut db = self.db.lock().await;
+        let key_path: String = db.process_queue_with_result(|tx| {
+            tx.query_row(
+                "SELECT file_path FROM encryption_keys WHERE id = ?",
+                params![encryption_key_id],
+                |row| row.get(0),
+            )
+            .map_err(DatabaseOperationError::SqliteError)
+        })?;
+
+        EncryptionHandler::new_from_path(&PathBuf::from(key_path))?.ok_or_else(
+            || {
+                ApplicationError::EncryptionError(EncryptionError::Other(
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to create encryption handler from key file",
+                    )),
+                ))
+            },
+        )
     }
 
     fn merge_settings(
@@ -445,66 +564,127 @@ impl UserProfileDbHandler {
         Ok(())
     }
 
-    fn save_profile_settings(
-        &self,
-        tx: &Transaction,
+    pub async fn get_profile_settings(
+        &mut self,
         profile_name: &str,
-        settings: &JsonValue,
-        ssh_key_hash: Option<&str>,
-    ) -> Result<(), DatabaseOperationError> {
-        let json_string = serde_json::to_string(settings).map_err(|e| {
-            DatabaseOperationError::ApplicationError(
-                ApplicationError::InvalidInput(format!(
-                    "Failed to serialize JSON: {}",
-                    e
-                )),
-            )
-        })?;
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        let (json_string, key_hash, key_path): (String, String, String) = {
+            let mut db = self.db.lock().await;
+            db.process_queue_with_result(|tx| {
+                tx.query_row(
+                    "SELECT user_profiles.options, \
+                     encryption_keys.sha256_hash, encryption_keys.file_path
+                     FROM user_profiles
+                     JOIN encryption_keys ON user_profiles.encryption_key_id = \
+                     encryption_keys.id
+                     WHERE user_profiles.name = ?",
+                    params![profile_name],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .map_err(DatabaseOperationError::SqliteError)
+            })?
+        };
 
-        tx.execute(
-            "INSERT OR REPLACE INTO user_profiles (name, options, \
-             ssh_key_hash) VALUES (?, ?, ?)",
-            params![profile_name, json_string, ssh_key_hash],
-        )
-        .map_err(DatabaseOperationError::SqliteError)?;
+        if self.encryption_handler.is_none() {
+            let encryption_handler =
+                EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?
+                    .ok_or_else(|| {
+                        ApplicationError::InvalidInput(
+                            "Failed to load encryption handler".to_string(),
+                        )
+                    })?;
+            self.encryption_handler = Some(Arc::new(encryption_handler));
+        }
+        self.verify_encryption_key_hash(&key_hash)?;
+        let settings: JsonValue =
+            serde_json::from_str(&json_string).map_err(|e| {
+                ApplicationError::InvalidInput(format!("Invalid JSON: {}", e))
+            })?;
+        self.process_settings_with_metadata(&settings, false, mask_encrypted)
+    }
+
+    fn process_settings_with_metadata(
+        &self,
+        value: &JsonValue,
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        match value {
+            JsonValue::Object(obj) => {
+                let mut new_obj = Map::new();
+                for (k, v) in obj {
+                    let processed = self.process_value_with_metadata(
+                        v,
+                        encrypt,
+                        mask_encrypted,
+                    )?;
+                    new_obj.insert(k.clone(), processed);
+                }
+                Ok(JsonValue::Object(new_obj))
+            }
+            JsonValue::Array(arr) => {
+                let new_arr: Result<Vec<JsonValue>, _> = arr
+                    .iter()
+                    .map(|v| {
+                        self.process_settings_with_metadata(
+                            v,
+                            encrypt,
+                            mask_encrypted,
+                        )
+                    })
+                    .collect();
+                Ok(JsonValue::Array(new_arr?))
+            }
+            _ => Ok(value.clone()),
+        }
+    }
+
+    fn process_value_with_metadata(
+        &self,
+        value: &JsonValue,
+        encrypt: bool,
+        mask_encrypted: bool,
+    ) -> Result<JsonValue, ApplicationError> {
+        if encrypt {
+            self.handle_encryption(value)
+        } else {
+            let decrypted = self.handle_decryption(value, mask_encrypted)?;
+            if Self::is_encrypted_value(value) {
+                Ok(json!({
+                    "value": decrypted,
+                    "was_encrypted": true
+                }))
+            } else {
+                Ok(decrypted)
+            }
+        }
+    }
+
+    fn verify_encryption_key_hash(
+        &self,
+        stored_hash: &str,
+    ) -> Result<(), ApplicationError> {
+        let current_hash = self.calculate_current_key_hash()?;
+        if current_hash != stored_hash {
+            return Err(ApplicationError::InvalidInput(
+                "Encryption key hash mismatch".to_string(),
+            ));
+        }
 
         Ok(())
     }
 
-    fn calculate_ssh_key_hash(
-        &self,
-    ) -> Result<Option<String>, ApplicationError> {
+    fn calculate_current_key_hash(&self) -> Result<String, ApplicationError> {
         if let Some(ref encryption_handler) = self.encryption_handler {
-            let ssh_private_key = encryption_handler
-                .get_ssh_private_key()
-                .map_err(|e| ApplicationError::EncryptionError(e.into()))?;
+            let key_data = encryption_handler.get_private_key_pem()?;
             let mut hasher = Sha256::new();
-            hasher.update(ssh_private_key);
-            let result = hasher.finalize();
-            Ok(Some(general_purpose::STANDARD.encode(result)))
+            hasher.update(key_data.as_bytes());
+            Ok(format!("{:x}", hasher.finalize()))
         } else {
-            Ok(None)
-        }
-    }
-
-    fn verify_ssh_key_hash(
-        &self,
-        stored_hash: Option<&str>,
-    ) -> Result<(), ApplicationError> {
-        match (self.calculate_ssh_key_hash()?, stored_hash) {
-            (Some(current_hash), Some(stored_hash))
-                if current_hash != stored_hash =>
-            {
-                Err(ApplicationError::InvalidInput(
-                    "SSH key hash mismatch".to_string(),
-                ))
-            }
-            (Some(_), None) | (None, Some(_)) => {
-                Err(ApplicationError::InvalidInput(
-                    "Encryption status mismatch".to_string(),
-                ))
-            }
-            _ => Ok(()),
+            Err(ApplicationError::InvalidInput(
+                "No encryption handler available".to_string(),
+            ))
         }
     }
 }
@@ -598,7 +778,7 @@ impl UserProfileDbHandler {
     }
 
     pub async fn export_profile_settings(
-        &self,
+        &mut self,
         profile_name: &str,
     ) -> Result<JsonValue, ApplicationError> {
         let settings = self.get_profile_settings(profile_name, false).await?;
@@ -610,13 +790,22 @@ impl UserProfileDbHandler {
             JsonValue::Object(obj) => {
                 let mut parameters = Vec::new();
                 for (key, value) in obj {
-                    let (param_type, param_value) =
-                        if Self::is_encrypted_value(value) {
-                            ("SecureString", self.get_decrypted_value(value))
+                    let (param_type, param_value) = if let Some(metadata) =
+                        value.as_object()
+                    {
+                        if metadata.get("was_encrypted")
+                            == Some(&JsonValue::Bool(true))
+                        {
+                            (
+                                "SecureString",
+                                metadata.get("value").unwrap_or(value).clone(),
+                            )
                         } else {
                             ("String", value.clone())
-                        };
-
+                        }
+                    } else {
+                        ("String", value.clone())
+                    };
                     parameters.push(json!({
                         "Key": key,
                         "Value": param_value,
@@ -631,11 +820,50 @@ impl UserProfileDbHandler {
         }
     }
 
-    fn get_decrypted_value(&self, value: &JsonValue) -> JsonValue {
-        if let Ok(decrypted) = self.decrypt_value(value) {
-            decrypted
+    fn is_encrypted_value(value: &JsonValue) -> bool {
+        if let Some(obj) = value.as_object() {
+            obj.contains_key("content") && obj.contains_key("encryption_key")
         } else {
-            JsonValue::String("[FAILED_TO_DECRYPT]".to_string())
+            false
+        }
+    }
+
+    fn get_decrypted_value(
+        &self,
+        value: &JsonValue,
+    ) -> Result<JsonValue, ApplicationError> {
+        if let Some(obj) = value.as_object() {
+            if let (
+                Some(JsonValue::String(content)),
+                Some(JsonValue::String(encrypted_key)),
+            ) = (obj.get("content"), obj.get("encryption_key"))
+            {
+                if encrypted_key.is_empty() {
+                    // If encryption_key is empty, return content as is
+                    Ok(JsonValue::String(content.clone()))
+                } else if let Some(ref encryption_handler) =
+                    self.encryption_handler
+                {
+                    // Decrypt the value
+                    let decrypted = encryption_handler
+                        .decrypt_string(content, encrypted_key)?;
+                    Ok(JsonValue::String(decrypted))
+                } else {
+                    // No encryption handler available
+                    Err(ApplicationError::EncryptionError(
+                        EncryptionError::Other(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "No encryption handler available for decryption",
+                        ))),
+                    ))
+                }
+            } else {
+                Err(ApplicationError::InvalidInput(
+                    "Invalid encrypted value format".to_string(),
+                ))
+            }
+        } else {
+            Ok(value.clone())
         }
     }
 }

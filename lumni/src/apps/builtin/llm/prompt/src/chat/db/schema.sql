@@ -7,17 +7,16 @@ CREATE TABLE metadata (
 CREATE TABLE user_profiles (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
-    ssh_key_hash TEXT,  -- sha256 hash of the ssh private key
     options TEXT NOT NULL, -- JSON string
-    is_default INTEGER DEFAULT 0
+    is_default INTEGER DEFAULT 0,
+    encryption_key_id INTEGER NOT NULL,
+    FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
 );
 
 CREATE TABLE encryption_keys (
     id INTEGER PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
     file_path TEXT NOT NULL,
-    sha256_hash TEXT NOT NULL,
-    key_type TEXT NOT NULL
+    sha256_hash TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE models (

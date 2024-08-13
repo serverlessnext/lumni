@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::env;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -6,43 +8,91 @@ use dirs::home_dir;
 use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
-use super::{EncryptionHandler, UserProfileDbHandler};
+use super::{
+    EncryptionHandler, ModelServer, ServerTrait, UserProfileDbHandler,
+    SUPPORTED_MODEL_ENDPOINTS,
+};
 use crate::external as lumni;
 
-pub async fn interactive_profile_creation(
+pub async fn interactive_profile_edit(
     db_handler: &mut UserProfileDbHandler,
+    profile_name_to_update: Option<String>,
 ) -> Result<(), ApplicationError> {
     println!("Welcome to the profile creation wizard!");
 
-    let profile_name = get_profile_name()?;
+    let profile_name = match &profile_name_to_update {
+        Some(name) => name.clone(),
+        None => get_profile_name()?,
+    };
     db_handler.set_profile_name(profile_name.clone());
 
-    let settings = collect_profile_settings()?;
+    let profile_type = select_profile_type()?;
+    let mut settings = get_predefined_settings(&profile_type)?;
+
+    if profile_type == "Custom" {
+        collect_custom_settings(&mut settings)?;
+    } else {
+        collect_profile_settings(&mut settings, &profile_type)?;
+    }
 
     if ask_for_custom_ssh_key()? {
         setup_custom_encryption(db_handler).await?;
     }
+
     db_handler
         .create_or_update(&profile_name, &settings)
         .await?;
-    println!("Profile '{}' created successfully!", profile_name);
+
+    println!(
+        "Profile '{}' {} successfully!",
+        profile_name,
+        if profile_name_to_update.is_some() {
+            "updated"
+        } else {
+            "created"
+        }
+    );
 
     Ok(())
 }
 
-fn get_profile_name() -> Result<String, ApplicationError> {
-    print!("Enter a name for the new profile: ");
-    io::stdout().flush()?;
-    let mut profile_name = String::new();
-    io::stdin().read_line(&mut profile_name)?;
-    Ok(profile_name.trim().to_string())
-}
-
-fn collect_profile_settings() -> Result<JsonValue, ApplicationError> {
-    let mut settings = JsonValue::Object(Map::new());
+fn select_profile_type() -> Result<String, ApplicationError> {
+    println!("Select a profile type:");
+    println!("0. Custom (default)");
+    for (index, server_type) in SUPPORTED_MODEL_ENDPOINTS.iter().enumerate() {
+        println!("{}. {}", index + 1, server_type);
+    }
 
     loop {
-        print!("Enter a key (or press Enter to finish): ");
+        print!(
+            "Enter your choice (0-{}, or press Enter for Custom): ",
+            SUPPORTED_MODEL_ENDPOINTS.len()
+        );
+        io::stdout().flush()?;
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+        let choice = choice.trim();
+
+        if choice.is_empty() {
+            return Ok("Custom".to_string());
+        }
+
+        if let Ok(index) = choice.parse::<usize>() {
+            if index == 0 {
+                return Ok("Custom".to_string());
+            } else if index <= SUPPORTED_MODEL_ENDPOINTS.len() {
+                return Ok(SUPPORTED_MODEL_ENDPOINTS[index - 1].to_string());
+            }
+        }
+        println!("Invalid choice. Please try again.");
+    }
+}
+
+fn collect_custom_settings(
+    settings: &mut JsonValue,
+) -> Result<(), ApplicationError> {
+    loop {
+        print!("Enter a custom key (or press Enter to finish): ");
         io::stdout().flush()?;
         let mut key = String::new();
         io::stdin().read_line(&mut key)?;
@@ -55,17 +105,215 @@ fn collect_profile_settings() -> Result<JsonValue, ApplicationError> {
         let value = get_value_for_key(key)?;
         let encrypt = should_encrypt_value()?;
 
-        if encrypt {
-            settings[key] = json!({
-                "content": value,
-                "encryption_key": "",
-            });
-        } else {
-            settings[key] = JsonValue::String(value);
+        if let JsonValue::Object(ref mut map) = settings {
+            if encrypt {
+                map.insert(
+                    key.to_string(),
+                    json!({
+                        "content": value,
+                        "encryption_key": "",
+                    }),
+                );
+            } else {
+                map.insert(key.to_string(), JsonValue::String(value));
+            }
         }
     }
 
+    Ok(())
+}
+
+fn get_predefined_settings(
+    profile_type: &str,
+) -> Result<JsonValue, ApplicationError> {
+    let mut settings = JsonValue::Object(Map::new());
+
+    if ask_yes_no("Do you want to set a project directory?", true)? {
+        let dir = get_project_directory()?;
+        settings["PROJECT_DIRECTORY"] = JsonValue::String(dir);
+    }
+
+    if profile_type != "Custom" {
+        let model_server = ModelServer::from_str(profile_type)?;
+        let server_settings = model_server.get_profile_settings();
+
+        if let JsonValue::Object(map) = server_settings {
+            for (key, value) in map {
+                settings[key] = value;
+            }
+        }
+    } else {
+        println!(
+            "Custom profile selected. You can add custom key-value pairs."
+        );
+    }
+
     Ok(settings)
+}
+
+fn collect_profile_settings(
+    settings: &mut JsonValue,
+    profile_type: &str,
+) -> Result<(), ApplicationError> {
+    if let JsonValue::Object(ref mut map) = settings {
+        let mut updates = Vec::new();
+        let mut removals = Vec::new();
+
+        for (key, value) in map.iter() {
+            if *value == JsonValue::Null {
+                if let Some(new_value) = get_optional_value(key)? {
+                    updates.push((key.clone(), JsonValue::String(new_value)));
+                } else {
+                    removals.push(key.clone());
+                }
+            } else if let JsonValue::Object(obj) = value {
+                if obj.contains_key("content")
+                    && obj.contains_key("encryption_key")
+                {
+                    if let Some(new_value) = get_secure_value(key)? {
+                        updates.push((
+                            key.clone(),
+                            json!({
+                                "content": new_value,
+                                "encryption_key": "",
+                            }),
+                        ));
+                    } else {
+                        removals.push(key.clone());
+                    }
+                }
+            }
+        }
+
+        // Apply updates
+        for (key, value) in updates {
+            map.insert(key, value);
+        }
+
+        // Apply removals
+        for key in removals {
+            map.remove(&key);
+        }
+    }
+
+    if profile_type == "Custom" {
+        loop {
+            print!("Enter a custom key (or press Enter to finish): ");
+            io::stdout().flush()?;
+            let mut key = String::new();
+            io::stdin().read_line(&mut key)?;
+            let key = key.trim();
+
+            if key.is_empty() {
+                break;
+            }
+
+            let value = get_value_for_key(key)?;
+            let encrypt = should_encrypt_value()?;
+
+            if let JsonValue::Object(ref mut map) = settings {
+                if encrypt {
+                    map.insert(
+                        key.to_string(),
+                        json!({
+                            "content": value,
+                            "encryption_key": "",
+                        }),
+                    );
+                } else {
+                    map.insert(key.to_string(), JsonValue::String(value));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn ask_yes_no(question: &str, default: bool) -> Result<bool, ApplicationError> {
+    let default_option = if default { "Y/n" } else { "y/N" };
+    print!("{} [{}]: ", question, default_option);
+    io::stdout().flush()?;
+    let mut response = String::new();
+    io::stdin().read_line(&mut response)?;
+    let response = response.trim().to_lowercase();
+    Ok(match response.as_str() {
+        "y" | "yes" => true,
+        "n" | "no" => false,
+        "" => default,
+        _ => ask_yes_no(question, default)?,
+    })
+}
+
+fn path_to_tilde_string(path: &PathBuf) -> String {
+    if let Ok(home_dir) = env::var("HOME") {
+        let home_path = PathBuf::from(home_dir);
+        if let Ok(relative_path) = path.strip_prefix(&home_path) {
+            return format!("~/{}", relative_path.display());
+        }
+    }
+    path.to_string_lossy().to_string()
+}
+
+fn get_project_directory() -> Result<String, ApplicationError> {
+    let current_dir = env::current_dir()?;
+    let tilde_current_dir = path_to_tilde_string(&current_dir);
+
+    println!("Current directory:");
+    println!("  {}", tilde_current_dir);
+
+    print!("Enter project directory (or press Enter for current directory): ");
+    io::stdout().flush()?;
+    let mut dir = String::new();
+    io::stdin().read_line(&mut dir)?;
+    let dir = dir.trim();
+
+    let path = if dir.is_empty() {
+        current_dir.clone()
+    } else {
+        PathBuf::from(dir)
+    };
+
+    // Convert to absolute path
+    let absolute_path = if path.is_absolute() {
+        path
+    } else {
+        current_dir.join(path)
+    };
+
+    Ok(path_to_tilde_string(&absolute_path))
+}
+
+fn get_optional_value(key: &str) -> Result<Option<String>, ApplicationError> {
+    print!(
+        "Enter the value for '{}' (optional, press Enter to skip): ",
+        key
+    );
+    io::stdout().flush()?;
+    let mut value = String::new();
+    io::stdin().read_line(&mut value)?;
+    let value = value.trim().to_string();
+    Ok(if value.is_empty() { None } else { Some(value) })
+}
+
+fn get_secure_value(key: &str) -> Result<Option<String>, ApplicationError> {
+    print!(
+        "Enter the secure value for '{}' (optional, press Enter to skip): ",
+        key
+    );
+    io::stdout().flush()?;
+    let mut value = String::new();
+    io::stdin().read_line(&mut value)?;
+    let value = value.trim().to_string();
+    Ok(if value.is_empty() { None } else { Some(value) })
+}
+
+fn get_profile_name() -> Result<String, ApplicationError> {
+    print!("Enter a name for the new profile: ");
+    io::stdout().flush()?;
+    let mut profile_name = String::new();
+    io::stdin().read_line(&mut profile_name)?;
+    Ok(profile_name.trim().to_string())
 }
 
 fn get_value_for_key(key: &str) -> Result<String, ApplicationError> {

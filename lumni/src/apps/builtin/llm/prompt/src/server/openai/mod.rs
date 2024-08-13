@@ -15,6 +15,7 @@ use lumni::api::error::ApplicationError;
 use lumni::HttpClient;
 use request::{OpenAIChatMessage, OpenAIRequestPayload, StreamOptions};
 use response::StreamParser;
+use serde_json::{json, Value as JsonValue};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
@@ -89,6 +90,16 @@ impl OpenAI {
 impl ServerTrait for OpenAI {
     fn get_spec(&self) -> &dyn ServerSpecTrait {
         &self.spec
+    }
+
+    fn get_profile_settings(&self) -> JsonValue {
+        json!({
+            "MODEL_SERVER": "openai",
+            "OPENAI_API_KEY": {
+                "content": "",
+                "encryption_key": "",
+            }
+        })
     }
 
     async fn initialize_with_model(

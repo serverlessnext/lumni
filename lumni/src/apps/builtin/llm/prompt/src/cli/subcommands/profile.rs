@@ -4,8 +4,8 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
-use super::profile_helper::interactive_profile_creation;
-use super::{EncryptionMode, MaskMode, UserProfileDbHandler};
+use super::profile_helper::interactive_profile_edit;
+use super::{MaskMode, UserProfileDbHandler};
 use crate::external as lumni;
 
 pub fn create_profile_subcommand() -> Command {
@@ -19,7 +19,7 @@ pub fn create_profile_subcommand() -> Command {
         .subcommand(create_rm_subcommand())
         .subcommand(create_set_default_subcommand())
         .subcommand(create_show_default_subcommand())
-        .subcommand(create_add_profile_subcommand())
+        .subcommand(create_edit_subcommand())
         .subcommand(create_key_subcommand())
         .subcommand(create_export_subcommand())
 }
@@ -98,8 +98,10 @@ fn create_show_default_subcommand() -> Command {
         )
 }
 
-fn create_add_profile_subcommand() -> Command {
-    Command::new("add").about("Add a new profile with guided setup")
+fn create_edit_subcommand() -> Command {
+    Command::new("edit")
+        .about("Add a new profile or edit an existing one with guided setup")
+        .arg(Arg::new("name").help("Name of the profile to edit (optional)"))
 }
 
 fn create_key_subcommand() -> Command {
@@ -339,8 +341,9 @@ pub async fn handle_profile_subcommand(
             }
         }
 
-        Some(("add", _)) => {
-            interactive_profile_creation(db_handler).await?;
+        Some(("edit", edit_matches)) => {
+            let profile_name = edit_matches.get_one::<String>("name").cloned();
+            interactive_profile_edit(db_handler, profile_name).await?;
         }
 
         Some(("key", key_matches)) => match key_matches.subcommand() {

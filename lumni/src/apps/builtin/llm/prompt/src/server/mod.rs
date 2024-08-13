@@ -21,6 +21,7 @@ pub use ollama::Ollama;
 pub use openai::OpenAI;
 pub use response::{CompletionResponse, CompletionStats};
 use send::{http_get_with_response, http_post, http_post_with_response};
+use serde_json::Value as JsonValue;
 pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
@@ -78,6 +79,15 @@ impl ServerTrait for ModelServer {
             ModelServer::Ollama(ollama) => ollama.get_spec(),
             ModelServer::Bedrock(bedrock) => bedrock.get_spec(),
             ModelServer::OpenAI(openai) => openai.get_spec(),
+        }
+    }
+
+    fn get_profile_settings(&self) -> JsonValue {
+        match self {
+            ModelServer::Llama(llama) => llama.get_profile_settings(),
+            ModelServer::Ollama(ollama) => ollama.get_profile_settings(),
+            ModelServer::Bedrock(bedrock) => bedrock.get_profile_settings(),
+            ModelServer::OpenAI(openai) => openai.get_profile_settings(),
         }
     }
 
@@ -169,6 +179,10 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_spec(&self) -> &dyn ServerSpecTrait;
+
+    fn get_profile_settings(&self) -> JsonValue {
+        JsonValue::Object(serde_json::Map::new())
+    }
 
     async fn initialize_with_model(
         &mut self,

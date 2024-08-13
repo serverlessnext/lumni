@@ -12,7 +12,7 @@ use eventstream::EventStreamMessage;
 use lumni::api::error::ApplicationError;
 use lumni::{AWSCredentials, AWSRequestBuilder, HttpClient};
 use request::*;
-use serde_json::Value;
+use serde_json::{json, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
@@ -119,6 +119,14 @@ impl Bedrock {
 impl ServerTrait for Bedrock {
     fn get_spec(&self) -> &dyn ServerSpecTrait {
         &self.spec
+    }
+
+    fn get_profile_settings(&self) -> JsonValue {
+        json!({
+            "MODEL_SERVER": "bedrock",
+            "AWS_PROFILE": null,
+            "AWS_REGION": null
+        })
     }
 
     async fn initialize_with_model(
@@ -307,7 +315,7 @@ fn process_event_payload(
     (None, true, tokens_predicted, tokens_in_prompt)
 }
 
-fn parse_payload(payload: Option<Bytes>) -> Option<Value> {
+fn parse_payload(payload: Option<Bytes>) -> Option<JsonValue> {
     payload.and_then(|p| match serde_json::from_slice(&p) {
         Ok(json) => Some(json),
         Err(_) => {

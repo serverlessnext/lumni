@@ -11,6 +11,7 @@ use super::chat::db::{
     ConversationDatabase, EncryptionHandler, EncryptionMode, MaskMode,
     UserProfileDbHandler,
 };
+use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};
 use crate::external as lumni;
 
 pub fn parse_cli_arguments(spec: ApplicationSpec) -> Command {

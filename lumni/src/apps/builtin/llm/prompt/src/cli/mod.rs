@@ -8,7 +8,7 @@ use subcommands::profile::create_profile_subcommand;
 pub use subcommands::profile::handle_profile_subcommand;
 
 use super::chat::db::{
-    ConversationDatabase, EncryptionHandler, EncryptionMode, MaskMode,
+    ConversationDatabase, EncryptionHandler, MaskMode, ModelSpec,
     UserProfileDbHandler,
 };
 use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};

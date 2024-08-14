@@ -113,8 +113,15 @@ async fn select_model(
             }
             Err(ApplicationError::NotReady(msg)) => {
                 println!("Error: {}", msg);
-                if let Err(e) = handle_not_ready() {
-                    return Err(e);
+                match handle_not_ready()? {
+                    ModelSelection::Reload => continue,
+                    ModelSelection::Quit => {
+                        return Err(ApplicationError::UserCancelled(
+                            "Model selection cancelled by user".to_string(),
+                        ))
+                    }
+                    ModelSelection::Skip => return Ok(None),
+                    _ => unreachable!(),
                 }
             }
             Err(e) => return Err(e), // propagate other errors
@@ -164,24 +171,19 @@ fn select_model_from_list(
     }
 }
 
-fn handle_not_ready() -> Result<(), ApplicationError> {
+fn handle_not_ready() -> Result<ModelSelection, ApplicationError> {
     loop {
         print!(
-            "Press Enter to retry, 'q' to quit, or 's' to skip model \
-             selection: "
+            "Press Enter to retry, 'q' to quit, or 's' to skip model selection: "
         );
         io::stdout().flush()?;
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
 
         match input.trim().to_lowercase().as_str() {
-            "" => return Ok(()),
-            "q" => {
-                return Err(ApplicationError::UserCancelled(
-                    "Model selection cancelled by user".to_string(),
-                ))
-            }
-            "s" => return Ok(()),
+            "" => return Ok(ModelSelection::Reload),
+            "q" => return Ok(ModelSelection::Quit),
+            "s" => return Ok(ModelSelection::Skip),
             _ => println!("Invalid input. Please try again."),
         }
     }

@@ -362,8 +362,14 @@ pub async fn handle_profile_subcommand(
 
         Some(("edit", edit_matches)) => {
             let profile_name = edit_matches.get_one::<String>("name").cloned();
-            let custom_ssh_key_path = edit_matches.get_one::<String>("ssh-key-path").cloned();
-            interactive_profile_edit(db_handler, profile_name, custom_ssh_key_path).await?;
+            let custom_ssh_key_path =
+                edit_matches.get_one::<String>("ssh-key-path").cloned();
+            interactive_profile_edit(
+                db_handler,
+                profile_name,
+                custom_ssh_key_path,
+            )
+            .await?;
         }
 
         Some(("key", key_matches)) => match key_matches.subcommand() {

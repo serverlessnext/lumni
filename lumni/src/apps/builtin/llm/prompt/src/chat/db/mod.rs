@@ -15,7 +15,7 @@ pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
-pub use user_profile::{EncryptionMode, MaskMode, UserProfileDbHandler};
+pub use user_profile::{MaskMode, UserProfileDbHandler};
 
 pub use super::ConversationCache;
 use super::PromptRole;

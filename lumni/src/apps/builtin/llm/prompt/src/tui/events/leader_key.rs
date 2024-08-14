@@ -53,7 +53,7 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
                 // NOTE: should match define_commands! macro
                 let window_event = match cmd.as_str() {
                     "pe" => Some(WindowEvent::Modal(
-                        ModalWindowType::SelectEndpoint,
+                        ModalWindowType::ProfileEdit,
                     )),
                     "pc" => Some(WindowEvent::Modal(
                         ModalWindowType::ConversationList(None),

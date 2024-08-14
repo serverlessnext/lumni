@@ -1,11 +1,16 @@
+use std::sync::Arc;
+
 use lumni::api::error::ApplicationError;
 
-use super::modals::{ConversationListModal, SelectEndpointModal};
-use super::{
-    CommandLine, ConversationDbHandler, ModalWindowTrait, ModalWindowType,
-    PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowEvent,
-    WindowKind,
+use super::modals::{
+    ConversationListModal, ProfileEditModal, SelectEndpointModal,
 };
+use super::{
+    CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
+    ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
+    WindowEvent, WindowKind,
+};
+use crate::apps::builtin::llm::prompt::src::chat::db;
 pub use crate::external as lumni;
 
 pub struct AppUi<'a> {
@@ -47,14 +52,20 @@ impl AppUi<'_> {
     pub async fn set_new_modal(
         &mut self,
         modal_type: ModalWindowType,
-        handler: &ConversationDbHandler,
+        db_conn: &Arc<ConversationDatabase>,
+        conversation_id: Option<ConversationId>,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
             ModalWindowType::SelectEndpoint => {
                 Some(Box::new(SelectEndpointModal::new()))
             }
             ModalWindowType::ConversationList(_) => {
+                let handler = db_conn.get_conversation_handler(conversation_id);
                 Some(Box::new(ConversationListModal::new(handler).await?))
+            }
+            ModalWindowType::ProfileEdit => {
+                let handler = db_conn.get_profile_handler(None);
+                Some(Box::new(ProfileEditModal::new(handler).await?))
             }
         };
         Ok(())

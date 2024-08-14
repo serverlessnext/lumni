@@ -34,7 +34,11 @@ pub async fn interactive_profile_edit(
 
     // validate key first if provided
     if custom_ssh_key_path.is_some() {
-        setup_custom_encryption(db_handler, custom_ssh_key_path.as_ref().unwrap()).await?;
+        setup_custom_encryption(
+            db_handler,
+            custom_ssh_key_path.as_ref().unwrap(),
+        )
+        .await?;
     }
 
     let (mut settings, is_updating) = match profile_name_to_update {
@@ -103,7 +107,6 @@ pub async fn interactive_profile_edit(
     )? {
         collect_custom_settings(&mut settings)?;
     }
-
 
     db_handler
         .create_or_update(&profile_name, &settings)
@@ -520,13 +523,16 @@ async fn setup_custom_encryption(
         }
         Ok(None) => {
             return Err(ApplicationError::InvalidInput(
-                "Failed to create encryption handler with the provided SSH key path.".to_string(),
+                "Failed to create encryption handler with the provided SSH \
+                 key path."
+                    .to_string(),
             ));
         }
         Err(e) => {
-            return Err(ApplicationError::InvalidInput(
-                format!("Error registering SSH key: {}.", e),
-            ));
+            return Err(ApplicationError::InvalidInput(format!(
+                "Error registering SSH key: {}.",
+                e
+            )));
         }
     }
     Ok(())

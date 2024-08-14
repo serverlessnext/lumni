@@ -5,9 +5,9 @@ mod profile_operations;
 use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
+use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value as JsonValue};
 use tokio::sync::Mutex as TokioMutex;
-use rusqlite::{params, OptionalExtension};
 
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
@@ -55,7 +55,9 @@ impl UserProfileDbHandler {
     ) -> Result<(), ApplicationError> {
         // If profile is not yet set, return error as we need to know the profile to validate against existing encryption handler
         let profile_name = self.profile_name.as_ref().ok_or_else(|| {
-            ApplicationError::InvalidInput("Profile name is not yet set".to_string())
+            ApplicationError::InvalidInput(
+                "Profile name must be defined before setting encryption handler".to_string(),
+            )
         })?;
 
         // Check if the profile exists in the database and compare encryption handlers
@@ -66,9 +68,12 @@ impl UserProfileDbHandler {
                 db.process_queue_with_result(|tx| {
                     let existing_key: Option<(String, String)> = tx
                         .query_row(
-                            "SELECT encryption_keys.file_path, encryption_keys.sha256_hash
+                            "SELECT encryption_keys.file_path, \
+                             encryption_keys.sha256_hash
                              FROM user_profiles
-                             JOIN encryption_keys ON user_profiles.encryption_key_id = encryption_keys.id
+                             JOIN encryption_keys ON \
+                             user_profiles.encryption_key_id = \
+                             encryption_keys.id
                              WHERE user_profiles.name = ?",
                             params![profile_name],
                             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -78,14 +83,20 @@ impl UserProfileDbHandler {
 
                     if let Some((_, existing_hash)) = existing_key {
                         let new_path = encryption_handler.get_key_path();
-                        let new_hash = EncryptionHandler::get_private_key_hash(&new_path)?;
+                        let new_hash =
+                            EncryptionHandler::get_private_key_hash(&new_path)?;
 
                         if existing_hash != new_hash {
-                            return Err(DatabaseOperationError::ApplicationError(
-                                ApplicationError::InvalidInput(
-                                    "New encryption handler does not match the existing one for this profile".to_string(),
+                            return Err(
+                                DatabaseOperationError::ApplicationError(
+                                    ApplicationError::InvalidInput(
+                                        "New encryption handler does not \
+                                         match the existing one for this \
+                                         profile"
+                                            .to_string(),
+                                    ),
                                 ),
-                            ));
+                            );
                         }
                     }
 
@@ -95,7 +106,9 @@ impl UserProfileDbHandler {
         });
 
         result.map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => ApplicationError::DatabaseError(sqlite_err.to_string()),
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
             DatabaseOperationError::ApplicationError(app_err) => app_err,
         })?;
 

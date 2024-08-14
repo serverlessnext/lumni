@@ -23,21 +23,29 @@ pub use crate::external as lumni;
 pub async fn prompt_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App<'_>,
-    db_conn: Arc<ConversationDatabase>,
+    mut db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     let color_scheme = app.color_scheme.clone();
     let mut tick = interval(Duration::from_millis(16)); // ~60 fps
     let keep_running = Arc::new(AtomicBool::new(true));
+
+    let mut redraw_ui = true;
     let mut current_mode = Some(WindowEvent::PromptWindow(None));
     let mut key_event_handler = KeyEventHandler::new();
-    let mut redraw_ui = true;
-    let conversation_id = app.get_conversation_id_for_active_session();
-    let mut db_handler = db_conn.get_conversation_handler(conversation_id);
 
     loop {
         tokio::select! {
             _ = tick.tick().fuse() => {
-                handle_tick(terminal, &mut app, &mut redraw_ui, &mut current_mode, &mut key_event_handler, &keep_running, &mut db_handler, &color_scheme).await?;
+                handle_tick(
+                    terminal,
+                    &mut app,
+                    &mut redraw_ui,
+                    &mut current_mode,
+                    &mut key_event_handler,
+                    &keep_running,
+                    &mut db_conn,
+                    &color_scheme
+                ).await?;
             }
             _ = async {
                 // Process chat events
@@ -75,7 +83,7 @@ async fn handle_tick<B: Backend>(
     current_mode: &mut Option<WindowEvent>,
     key_event_handler: &mut KeyEventHandler,
     keep_running: &Arc<AtomicBool>,
-    db_handler: &mut ConversationDbHandler,
+    db_conn: &mut Arc<ConversationDatabase>,
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
     if *redraw_ui {
@@ -93,7 +101,7 @@ async fn handle_tick<B: Backend>(
                     key_event_handler,
                     key_event,
                     keep_running,
-                    db_handler,
+                    db_conn,
                     color_scheme,
                 )
                 .await?;
@@ -116,10 +124,13 @@ async fn handle_key_event(
     key_event_handler: &mut KeyEventHandler,
     key_event: KeyEvent,
     keep_running: &Arc<AtomicBool>,
-    db_handler: &mut ConversationDbHandler,
+    db_conn: &mut Arc<ConversationDatabase>,
     color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
     *current_mode = if let Some(mode) = current_mode.take() {
+        let mut conversation_handler = db_conn.get_conversation_handler(
+            app.get_conversation_id_for_active_session(),
+        );
         key_event_handler
             .process_key(
                 key_event,
@@ -127,7 +138,7 @@ async fn handle_key_event(
                 app.chat_manager.get_active_session()?,
                 mode,
                 keep_running.clone(),
-                db_handler,
+                &mut conversation_handler,
             )
             .await?
     } else {
@@ -143,10 +154,18 @@ async fn handle_key_event(
             handle_command_line_action(app, action.clone());
         }
         Some(WindowEvent::Modal(modal_window_type)) => {
-            handle_modal_window(app, modal_window_type, db_handler).await?;
+            handle_modal_window(app, modal_window_type, db_conn).await?;
         }
         Some(WindowEvent::PromptWindow(event)) => {
-            handle_prompt_window_event(app, event.clone(), db_handler).await?;
+            let mut conversation_handler = db_conn.get_conversation_handler(
+                app.get_conversation_id_for_active_session(),
+            );
+            handle_prompt_window_event(
+                app,
+                event.clone(),
+                &mut conversation_handler,
+            )
+            .await?;
         }
         _ => {}
     }
@@ -210,7 +229,7 @@ fn handle_command_line_action(
 async fn handle_modal_window(
     app: &mut App<'_>,
     modal_window_type: &ModalWindowType,
-    handler: &ConversationDbHandler,
+    db_conn: &mut Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     // switch to, or stay in modal window
     match modal_window_type {
@@ -223,8 +242,9 @@ async fn handle_modal_window(
     }
 
     if app.ui.needs_modal_update(modal_window_type) {
+        let conversation_id = app.get_conversation_id_for_active_session();
         app.ui
-            .set_new_modal(modal_window_type.clone(), handler)
+            .set_new_modal(modal_window_type.clone(), db_conn, conversation_id)
             .await?;
     }
     Ok(())

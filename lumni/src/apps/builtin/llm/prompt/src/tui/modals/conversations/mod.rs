@@ -38,7 +38,7 @@ pub struct ConversationListModal<'a> {
 
 impl<'a> ConversationListModal<'a> {
     pub async fn new(
-        handler: &ConversationDbHandler,
+        handler: ConversationDbHandler,
     ) -> Result<Self, ApplicationError> {
         let conversations = handler.fetch_conversation_list(100).await?;
 

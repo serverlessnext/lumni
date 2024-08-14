@@ -19,7 +19,7 @@ impl UserProfileDbHandler {
     ) -> Result<(), ApplicationError> {
         let has_encryption_handler = self.encryption_handler.is_some();
         let mut created_encryption_handler: Option<EncryptionHandler> = None;
-    
+
         let (encryption_key_id, merged_settings) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
@@ -204,6 +204,7 @@ impl UserProfileDbHandler {
                 .map_err(DatabaseOperationError::SqliteError)
             })?
         };
+        self.profile_name = Some(profile_name.to_string());
         if self.encryption_handler.is_none() {
             let encryption_handler =
                 EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?

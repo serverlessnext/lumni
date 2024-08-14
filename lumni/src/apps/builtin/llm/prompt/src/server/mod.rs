@@ -179,10 +179,7 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_spec(&self) -> &dyn ServerSpecTrait;
-
-    fn get_profile_settings(&self) -> JsonValue {
-        JsonValue::Object(serde_json::Map::new())
-    }
+    fn get_profile_settings(&self) -> JsonValue;
 
     async fn initialize_with_model(
         &mut self,

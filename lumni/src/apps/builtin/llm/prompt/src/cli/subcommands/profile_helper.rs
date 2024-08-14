@@ -8,7 +8,7 @@ use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
 use super::{
-    EncryptionHandler, ModelServer, ModelSpec, ServerTrait,
+    EncryptionHandler, MaskMode, ModelServer, ModelSpec, ServerTrait,
     UserProfileDbHandler, SUPPORTED_MODEL_ENDPOINTS,
 };
 use crate::external as lumni;
@@ -24,7 +24,7 @@ pub async fn interactive_profile_edit(
     db_handler: &mut UserProfileDbHandler,
     profile_name_to_update: Option<String>,
 ) -> Result<(), ApplicationError> {
-    println!("Welcome to the profile creation wizard!");
+    println!("Welcome to the profile creation/editing wizard!");
 
     let profile_name = match &profile_name_to_update {
         Some(name) => name.clone(),
@@ -32,14 +32,40 @@ pub async fn interactive_profile_edit(
     };
     db_handler.set_profile_name(profile_name.clone());
 
-    let profile_type = select_profile_type()?;
-    let mut settings = JsonValue::Object(Map::new());
+    let (mut settings, is_updating) = match profile_name_to_update {
+        Some(name) => match db_handler
+            .get_profile_settings(&name, MaskMode::Unmask)
+            .await
+        {
+            Ok(existing_settings) => (existing_settings, true),
+            Err(ApplicationError::DatabaseError(_)) => {
+                println!(
+                    "Profile '{}' does not exist. Creating a new profile.",
+                    name
+                );
+                (JsonValue::Object(Map::new()), false)
+            }
+            Err(e) => return Err(e),
+        },
+        None => (JsonValue::Object(Map::new()), false),
+    };
 
-    if profile_type != "Custom" {
+    let profile_type = if is_updating {
+        settings["__PROFILE_TYPE"]
+            .as_str()
+            .unwrap_or("Custom")
+            .to_string()
+    } else {
+        let selected_type = select_profile_type()?;
+        settings["__PROFILE_TYPE"] = JsonValue::String(selected_type.clone());
+        selected_type
+    };
+
+    if !is_updating && profile_type != "Custom" {
         let model_server = ModelServer::from_str(&profile_type)?;
 
         if let Some(selected_model) = select_model(&model_server).await? {
-            settings["MODEL_IDENTIFIER"] =
+            settings["__MODEL_IDENTIFIER"] =
                 JsonValue::String(selected_model.identifier.0);
         } else {
             println!("No model selected. Skipping model selection.");
@@ -49,23 +75,31 @@ pub async fn interactive_profile_edit(
         let server_settings = model_server.get_profile_settings();
         if let JsonValue::Object(map) = server_settings {
             for (key, value) in map {
-                settings[key] = value;
+                if settings.get(&key).is_none() {
+                    settings[key] = value;
+                }
             }
         }
     }
 
-    if ask_yes_no("Do you want to set a project directory?", true)? {
-        let dir = get_project_directory()?;
-        settings["PROJECT_DIRECTORY"] = JsonValue::String(dir);
+    if !is_updating || settings.get("__PROJECT_DIRECTORY").is_none() {
+        if ask_yes_no("Do you want to set a project directory?", true)? {
+            let dir = get_project_directory()?;
+            settings["__PROJECT_DIRECTORY"] = JsonValue::String(dir);
+        }
     }
 
-    if profile_type == "Custom" {
+    collect_profile_settings(&mut settings, is_updating)?;
+
+    // Allow adding custom keys, but default to No if updating or if a specific profile type is chosen
+    if ask_yes_no(
+        "Do you want to add custom keys?",
+        !is_updating && profile_type == "Custom",
+    )? {
         collect_custom_settings(&mut settings)?;
-    } else {
-        collect_profile_settings(&mut settings, &profile_type)?;
     }
 
-    if ask_for_custom_ssh_key()? {
+    if !is_updating && ask_for_custom_ssh_key()? {
         setup_custom_encryption(db_handler).await?;
     }
 
@@ -76,14 +110,160 @@ pub async fn interactive_profile_edit(
     println!(
         "Profile '{}' {} successfully!",
         profile_name,
-        if profile_name_to_update.is_some() {
-            "updated"
-        } else {
-            "created"
-        }
+        if is_updating { "updated" } else { "created" }
     );
 
     Ok(())
+}
+
+fn collect_profile_settings(
+    settings: &mut JsonValue,
+    is_updating: bool,
+) -> Result<(), ApplicationError> {
+    if let JsonValue::Object(ref mut map) = settings {
+        for (key, value) in map.clone().iter() {
+            if key.starts_with("__") {
+                // Skip protected values when editing
+                if is_updating {
+                    continue;
+                }
+                // For new profiles, just display the value of protected settings
+                println!("{}: {}", key, value);
+                continue;
+            }
+
+            let current_value = parse_value(value);
+
+            let prompt = if is_updating {
+                format!(
+                    "Current value for '{}' is '{}'. Enter new value (or \
+                     press Enter to keep current): ",
+                    key, current_value
+                )
+            } else {
+                format!("Enter value for '{}': ", key)
+            };
+
+            print!("{}", prompt);
+            io::stdout().flush()?;
+            let mut new_value = String::new();
+            io::stdin().read_line(&mut new_value)?;
+            let new_value = new_value.trim();
+
+            if !new_value.is_empty() {
+                match value {
+                    JsonValue::Object(obj)
+                        if obj.contains_key("content")
+                            && obj.contains_key("encryption_key") =>
+                    {
+                        // This is a predefined encrypted value, maintain its structure
+                        map.insert(
+                            key.to_string(),
+                            json!({
+                                "content": new_value,
+                                "encryption_key": "",
+                            }),
+                        );
+                    }
+                    JsonValue::Null => {
+                        // This is a predefined non-encrypted value
+                        map.insert(
+                            key.to_string(),
+                            JsonValue::String(new_value.to_string()),
+                        );
+                    }
+                    _ => {
+                        // For custom keys or updating existing values
+                        if !is_updating && should_encrypt_value()? {
+                            map.insert(
+                                key.to_string(),
+                                json!({
+                                    "content": new_value,
+                                    "encryption_key": "",
+                                }),
+                            );
+                        } else {
+                            map.insert(
+                                key.to_string(),
+                                JsonValue::String(new_value.to_string()),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_custom_settings(
+    settings: &mut JsonValue,
+) -> Result<(), ApplicationError> {
+    loop {
+        print!("Enter a new custom key (or press Enter to finish): ");
+        io::stdout().flush()?;
+        let mut key = String::new();
+        io::stdin().read_line(&mut key)?;
+        let key = key.trim();
+
+        if key.is_empty() {
+            break;
+        }
+
+        if key.starts_with("__") {
+            println!(
+                "Keys starting with '__' are reserved. Please choose a \
+                 different key."
+            );
+            continue;
+        }
+
+        if let JsonValue::Object(ref map) = settings {
+            if map.get(key).is_some() {
+                println!(
+                    "Key '{}' already exists. Please choose a different key.",
+                    key
+                );
+                continue;
+            }
+        }
+
+        let value = get_value_for_key(key)?;
+        let encrypt = should_encrypt_value()?;
+
+        if let JsonValue::Object(ref mut map) = settings {
+            if encrypt {
+                map.insert(
+                    key.to_string(),
+                    json!({
+                        "content": value,
+                        "encryption_key": "",
+                    }),
+                );
+            } else {
+                map.insert(key.to_string(), JsonValue::String(value));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_value(value: &JsonValue) -> String {
+    match value {
+        JsonValue::Object(obj)
+            if obj.contains_key("content")
+                && obj.contains_key("encryption_key") =>
+        {
+            obj.get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string()
+        }
+        JsonValue::Null => "[Not set]".to_string(),
+        _ => value.as_str().unwrap_or_default().to_string(),
+    }
 }
 
 async fn select_model(
@@ -174,7 +354,8 @@ fn select_model_from_list(
 fn handle_not_ready() -> Result<ModelSelection, ApplicationError> {
     loop {
         print!(
-            "Press Enter to retry, 'q' to quit, or 's' to skip model selection: "
+            "Press Enter to retry, 'q' to quit, or 's' to skip model \
+             selection: "
         );
         io::stdout().flush()?;
         let mut input = String::new();
@@ -219,120 +400,6 @@ fn select_profile_type() -> Result<String, ApplicationError> {
         }
         println!("Invalid choice. Please try again.");
     }
-}
-
-fn collect_custom_settings(
-    settings: &mut JsonValue,
-) -> Result<(), ApplicationError> {
-    loop {
-        print!("Enter a custom key (or press Enter to finish): ");
-        io::stdout().flush()?;
-        let mut key = String::new();
-        io::stdin().read_line(&mut key)?;
-        let key = key.trim();
-
-        if key.is_empty() {
-            break;
-        }
-
-        let value = get_value_for_key(key)?;
-        let encrypt = should_encrypt_value()?;
-
-        if let JsonValue::Object(ref mut map) = settings {
-            if encrypt {
-                map.insert(
-                    key.to_string(),
-                    json!({
-                        "content": value,
-                        "encryption_key": "",
-                    }),
-                );
-            } else {
-                map.insert(key.to_string(), JsonValue::String(value));
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn collect_profile_settings(
-    settings: &mut JsonValue,
-    profile_type: &str,
-) -> Result<(), ApplicationError> {
-    if let JsonValue::Object(ref mut map) = settings {
-        let mut updates = Vec::new();
-        let mut removals = Vec::new();
-
-        for (key, value) in map.iter() {
-            if *value == JsonValue::Null {
-                if let Some(new_value) = get_optional_value(key)? {
-                    updates.push((key.clone(), JsonValue::String(new_value)));
-                } else {
-                    removals.push(key.clone());
-                }
-            } else if let JsonValue::Object(obj) = value {
-                if obj.contains_key("content")
-                    && obj.contains_key("encryption_key")
-                {
-                    if let Some(new_value) = get_secure_value(key)? {
-                        updates.push((
-                            key.clone(),
-                            json!({
-                                "content": new_value,
-                                "encryption_key": "",
-                            }),
-                        ));
-                    } else {
-                        removals.push(key.clone());
-                    }
-                }
-            }
-        }
-
-        // Apply updates
-        for (key, value) in updates {
-            map.insert(key, value);
-        }
-
-        // Apply removals
-        for key in removals {
-            map.remove(&key);
-        }
-    }
-
-    if profile_type == "Custom" {
-        loop {
-            print!("Enter a custom key (or press Enter to finish): ");
-            io::stdout().flush()?;
-            let mut key = String::new();
-            io::stdin().read_line(&mut key)?;
-            let key = key.trim();
-
-            if key.is_empty() {
-                break;
-            }
-
-            let value = get_value_for_key(key)?;
-            let encrypt = should_encrypt_value()?;
-
-            if let JsonValue::Object(ref mut map) = settings {
-                if encrypt {
-                    map.insert(
-                        key.to_string(),
-                        json!({
-                            "content": value,
-                            "encryption_key": "",
-                        }),
-                    );
-                } else {
-                    map.insert(key.to_string(), JsonValue::String(value));
-                }
-            }
-        }
-    }
-
-    Ok(())
 }
 
 fn ask_yes_no(question: &str, default: bool) -> Result<bool, ApplicationError> {

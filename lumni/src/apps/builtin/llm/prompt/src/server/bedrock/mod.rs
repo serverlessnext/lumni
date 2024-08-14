@@ -123,7 +123,7 @@ impl ServerTrait for Bedrock {
 
     fn get_profile_settings(&self) -> JsonValue {
         json!({
-            "MODEL_SERVER": "bedrock",
+            "__MODEL_SERVER": "bedrock",
             "AWS_PROFILE": null,
             "AWS_REGION": null
         })

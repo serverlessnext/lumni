@@ -7,6 +7,7 @@ use bytes::Bytes;
 use formatters::{ModelFormatter, ModelFormatterTrait};
 use lumni::api::error::ApplicationError;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
@@ -135,6 +136,12 @@ impl Llama {
 impl ServerTrait for Llama {
     fn get_spec(&self) -> &dyn ServerSpecTrait {
         &self.spec
+    }
+
+    fn get_profile_settings(&self) -> JsonValue {
+        json!({
+            "__MODEL_SERVER": "llama",
+        })
     }
 
     fn process_response(

@@ -3,6 +3,7 @@ use std::error::Error;
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
@@ -67,6 +68,12 @@ impl Ollama {
 impl ServerTrait for Ollama {
     fn get_spec(&self) -> &dyn ServerSpecTrait {
         &self.spec
+    }
+
+    fn get_profile_settings(&self) -> JsonValue {
+        json!({
+            "__MODEL_SERVER": "ollama",
+        })
     }
 
     async fn initialize_with_model(

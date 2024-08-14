@@ -32,6 +32,11 @@ pub async fn interactive_profile_edit(
     };
     db_handler.set_profile_name(profile_name.clone());
 
+    // validate key first if provided
+    if custom_ssh_key_path.is_some() {
+        setup_custom_encryption(db_handler, custom_ssh_key_path.as_ref().unwrap()).await?;
+    }
+
     let (mut settings, is_updating) = match profile_name_to_update {
         Some(name) => match db_handler
             .get_profile_settings(&name, MaskMode::Unmask)
@@ -99,9 +104,6 @@ pub async fn interactive_profile_edit(
         collect_custom_settings(&mut settings)?;
     }
 
-    if custom_ssh_key_path.is_some() {
-        setup_custom_encryption(db_handler, custom_ssh_key_path.as_ref().unwrap()).await?;
-    }
 
     db_handler
         .create_or_update(&profile_name, &settings)

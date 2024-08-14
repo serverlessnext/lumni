@@ -107,4 +107,29 @@ impl UserProfileDbHandler {
             _ => JsonValue::Null,
         }
     }
+
+    pub async fn truncate_and_vacuum(&self) -> Result<(), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            // Disable foreign key constraints temporarily
+            tx.execute("PRAGMA foreign_keys = OFF", [])?;
+
+            // NOTE: encryption_keys is currently only used in user_profiles, if this changes (e.g. keys used to encrypt conversations) we should add a check so we only delete unused keys -- for now, just delete everything
+            tx.execute_batch(
+                "
+                DELETE FROM user_profiles;
+                DELETE FROM encryption_keys;
+            ",
+            )?;
+
+            // Re-enable foreign key constraints
+            tx.execute("PRAGMA foreign_keys = ON", [])?;
+
+            Ok(())
+        })?;
+
+        // Vacuum the database to reclaim unused space
+        db.vacuum()?;
+        Ok(())
+    }
 }

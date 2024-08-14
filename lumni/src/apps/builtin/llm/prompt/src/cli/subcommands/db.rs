@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
 
 use super::ConversationDatabase;

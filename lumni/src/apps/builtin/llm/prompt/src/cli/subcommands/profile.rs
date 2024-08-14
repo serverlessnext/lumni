@@ -22,6 +22,7 @@ pub fn create_profile_subcommand() -> Command {
         .subcommand(create_edit_subcommand())
         .subcommand(create_key_subcommand())
         .subcommand(create_export_subcommand())
+        .subcommand(create_truncate_subcommand())
 }
 
 fn create_list_subcommand() -> Command {
@@ -167,6 +168,18 @@ fn create_export_subcommand() -> Command {
                 .long("output")
                 .help("Output file path (if not specified, prints to stdout)")
                 .value_name("FILE"),
+        )
+}
+
+fn create_truncate_subcommand() -> Command {
+    Command::new("truncate")
+        .about("Remove all profiles and related data")
+        .arg(
+            Arg::new("confirm")
+                .short('y')
+                .long("yes")
+                .help("Confirm the truncation without prompting")
+                .action(ArgAction::SetTrue),
         )
 }
 
@@ -427,6 +440,29 @@ pub async fn handle_profile_subcommand(
                 output_file,
                 "Profiles exported to JSON",
             )?;
+        }
+
+        Some(("truncate", truncate_matches)) => {
+            if truncate_matches.get_flag("confirm") {
+                db_handler.truncate_and_vacuum().await?;
+                println!("All profiles and related data have been removed.");
+            } else {
+                println!(
+                    "Are you sure you want to remove all profiles and related \
+                     data? This action cannot be undone."
+                );
+                println!("Type 'yes' to confirm or any other input to cancel:");
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if input.trim().eq_ignore_ascii_case("yes") {
+                    db_handler.truncate_and_vacuum().await?;
+                    println!(
+                        "All profiles and related data have been removed."
+                    );
+                } else {
+                    println!("Operation cancelled.");
+                }
+            }
         }
 
         _ => {

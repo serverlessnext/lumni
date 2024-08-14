@@ -59,8 +59,17 @@ impl UserProfileDbHandler {
     pub fn set_encryption_handler(
         &mut self,
         encryption_handler: Arc<EncryptionHandler>,
-    ) {
+    ) -> Result<(), ApplicationError> {
+        // if profile is not yet set, return error as we need to know the profile to validate against existing encryption handler
+        if self.profile_name.is_none() {
+            return Err(ApplicationError::InvalidInput(
+                "Profile name is not yet set".to_string(),
+            ));
+        }
+
+        // TODO: for profiles that are already in database, check if encryption handler in database matches the new one, if it does not throw an error as updating encryption handler is not yet supported
         self.encryption_handler = Some(encryption_handler);
+        Ok(())
     }
 
     pub async fn export_profile_settings(

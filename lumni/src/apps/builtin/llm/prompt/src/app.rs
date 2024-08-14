@@ -171,8 +171,8 @@ pub async fn run_cli(
 
     let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file, None)?);
 
-    let mut profile_handler = db_conn.get_profile_handler(None);
     if let Some(ref matches) = matches {
+        let mut profile_handler = db_conn.get_profile_handler(None);
         if let Some(db_matches) = matches.subcommand_matches("db") {
             return handle_db_subcommand(db_matches, &db_conn).await;
         }

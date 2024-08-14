@@ -103,6 +103,12 @@ fn create_edit_subcommand() -> Command {
     Command::new("edit")
         .about("Add a new profile or edit an existing one with guided setup")
         .arg(Arg::new("name").help("Name of the profile to edit (optional)"))
+        .arg(
+            Arg::new("ssh-key-path")
+                .long("ssh-key-path")
+                .help("Custom SSH key path")
+                .value_name("PATH"),
+        )
 }
 
 fn create_key_subcommand() -> Command {
@@ -356,7 +362,8 @@ pub async fn handle_profile_subcommand(
 
         Some(("edit", edit_matches)) => {
             let profile_name = edit_matches.get_one::<String>("name").cloned();
-            interactive_profile_edit(db_handler, profile_name).await?;
+            let custom_ssh_key_path = edit_matches.get_one::<String>("ssh-key-path").cloned();
+            interactive_profile_edit(db_handler, profile_name, custom_ssh_key_path).await?;
         }
 
         Some(("key", key_matches)) => match key_matches.subcommand() {

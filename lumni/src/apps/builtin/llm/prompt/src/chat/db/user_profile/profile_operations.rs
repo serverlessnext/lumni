@@ -19,6 +19,7 @@ impl UserProfileDbHandler {
     ) -> Result<(), ApplicationError> {
         let has_encryption_handler = self.encryption_handler.is_some();
         let mut created_encryption_handler: Option<EncryptionHandler> = None;
+    
         let (encryption_key_id, merged_settings) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
@@ -106,8 +107,8 @@ impl UserProfileDbHandler {
         if self.encryption_handler.is_none() {
             // Set new encryption handler outside the closure
             if let Some(new_encryption_handler) = created_encryption_handler {
-                self.encryption_handler =
-                    Some(Arc::new(new_encryption_handler));
+                // use method as it protects against overwriting existing encryption configuration
+                self.set_encryption_handler(Arc::new(new_encryption_handler))?;
             } else {
                 return Err(ApplicationError::InvalidInput(
                     "Failed to create encryption handler".to_string(),
@@ -211,7 +212,8 @@ impl UserProfileDbHandler {
                             "Failed to load encryption handler".to_string(),
                         )
                     })?;
-            self.encryption_handler = Some(Arc::new(encryption_handler));
+            // use method as it protects against overwriting existing encryption configuration
+            self.set_encryption_handler(Arc::new(encryption_handler))?;
         }
         self.verify_encryption_key_hash(&key_hash)?;
         let settings: JsonValue =

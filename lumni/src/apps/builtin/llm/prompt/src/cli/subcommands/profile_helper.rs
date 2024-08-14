@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use dirs::home_dir;
 use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
@@ -23,6 +22,7 @@ enum ModelSelection {
 pub async fn interactive_profile_edit(
     db_handler: &mut UserProfileDbHandler,
     profile_name_to_update: Option<String>,
+    custom_ssh_key_path: Option<String>,
 ) -> Result<(), ApplicationError> {
     println!("Welcome to the profile creation/editing wizard!");
 
@@ -99,8 +99,8 @@ pub async fn interactive_profile_edit(
         collect_custom_settings(&mut settings)?;
     }
 
-    if !is_updating && ask_for_custom_ssh_key()? {
-        setup_custom_encryption(db_handler).await?;
+    if custom_ssh_key_path.is_some() {
+        setup_custom_encryption(db_handler, custom_ssh_key_path.as_ref().unwrap()).await?;
     }
 
     db_handler
@@ -504,54 +504,28 @@ fn should_encrypt_value() -> Result<bool, ApplicationError> {
     Ok(encrypt.trim().to_lowercase() == "y")
 }
 
-fn ask_for_custom_ssh_key() -> Result<bool, ApplicationError> {
-    print!("Do you want to use a custom SSH key for encryption? (y/N): ");
-    io::stdout().flush()?;
-    let mut response = String::new();
-    io::stdin().read_line(&mut response)?;
-    Ok(response.trim().to_lowercase() == "y")
-}
-
 async fn setup_custom_encryption(
     db_handler: &mut UserProfileDbHandler,
+    custom_ssh_key_path: &str,
 ) -> Result<(), ApplicationError> {
     println!("Setting up custom SSH key for encryption.");
 
-    let default_key_path =
-        home_dir().unwrap_or_default().join(".ssh").join("id_rsa");
-    let default_key_str = default_key_path.to_str().unwrap_or("~/.ssh/id_rsa");
+    let key_path = PathBuf::from(custom_ssh_key_path);
 
-    loop {
-        println!("Default SSH key path: {}", default_key_str);
-        print!("Enter the path to your SSH key (or press Enter for default): ");
-        io::stdout().flush()?;
-        let mut key_path = String::new();
-        io::stdin().read_line(&mut key_path)?;
-        let key_path = key_path.trim();
-
-        let key_path = if key_path.is_empty() {
-            default_key_path.clone()
-        } else {
-            PathBuf::from(key_path)
-        };
-
-        match EncryptionHandler::new_from_path(&key_path) {
-            Ok(Some(handler)) => {
-                println!("Custom SSH key registered successfully.");
-                db_handler.set_encryption_handler(Arc::new(handler));
-                break;
-            }
-            Ok(None) => {
-                println!(
-                    "Failed to create encryption handler. Please try again \
-                     with a valid SSH key path."
-                );
-            }
-            Err(e) => {
-                println!("Error registering SSH key: {}. Please try again.", e);
-            }
+    match EncryptionHandler::new_from_path(&key_path) {
+        Ok(Some(handler)) => {
+            db_handler.set_encryption_handler(Arc::new(handler))?;
+        }
+        Ok(None) => {
+            return Err(ApplicationError::InvalidInput(
+                "Failed to create encryption handler with the provided SSH key path.".to_string(),
+            ));
+        }
+        Err(e) => {
+            return Err(ApplicationError::InvalidInput(
+                format!("Error registering SSH key: {}.", e),
+            ));
         }
     }
-
     Ok(())
 }

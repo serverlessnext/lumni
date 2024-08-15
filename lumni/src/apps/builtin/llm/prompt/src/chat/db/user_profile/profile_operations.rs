@@ -231,12 +231,65 @@ impl UserProfileDbHandler {
             serde_json::from_str(&json_string).map_err(|e| {
                 ApplicationError::InvalidInput(format!("Invalid JSON: {}", e))
             })?;
-        let r = self.process_settings_with_metadata(
+        self.process_settings_with_metadata(
             &settings,
             EncryptionMode::Decrypt,
             mask_mode,
-        );
-        eprintln!("get_profile_settings: {:?}", r);
-        r
+        )
+    }
+
+    pub async fn rename_profile(
+        &self,
+        old_name: &str,
+        new_name: &str,
+    ) -> Result<(), ApplicationError> {
+        log::debug!("Renaming profile '{}' to '{}'", old_name, new_name);
+        if old_name == new_name {
+            return Ok(()); // No need to rename if the names are the same
+        }
+
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            // Check if the new name already exists
+            let exists: bool = tx
+                .query_row(
+                    "SELECT 1 FROM user_profiles WHERE name = ?",
+                    params![new_name],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+
+            if exists {
+                return Err(DatabaseOperationError::ApplicationError(
+                    ApplicationError::InvalidInput(format!(
+                        "Profile '{}' already exists",
+                        new_name
+                    )),
+                ));
+            }
+
+            // Perform the rename
+            let updated_rows = tx.execute(
+                "UPDATE user_profiles SET name = ? WHERE name = ?",
+                params![new_name, old_name],
+            )?;
+
+            if updated_rows == 0 {
+                Err(DatabaseOperationError::ApplicationError(
+                    ApplicationError::InvalidInput(format!(
+                        "Profile '{}' not found",
+                        old_name
+                    )),
+                ))
+            } else {
+                Ok(())
+            }
+        })
+        .map_err(|e| match e {
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
+            DatabaseOperationError::ApplicationError(app_err) => app_err,
+        })
     }
 }

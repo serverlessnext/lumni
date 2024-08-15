@@ -26,8 +26,11 @@ impl UserProfileDbHandler {
                 "encryption_key": encryption_key,
             }))
         } else {
-            eprintln!("Encryption handler required to encrypt value");
-            Ok(JsonValue::String(content.to_string()))
+            Err(ApplicationError::EncryptionError(
+                EncryptionError::InvalidKey(
+                    "Encryption handler required to encrypt value".to_string(),
+                ),
+            ))
         }
     }
 
@@ -50,12 +53,6 @@ impl UserProfileDbHandler {
                         .decrypt_string(content, encrypted_key)
                         .map(JsonValue::String)
                         .map_err(|e| {
-                            eprintln!("Decryption error: {:?}", e);
-                            eprintln!(
-                                "Content length: {}, Key length: {}",
-                                content.len(),
-                                encrypted_key.len()
-                            );
                             ApplicationError::EncryptionError(
                                 EncryptionError::DecryptionFailed(
                                     e.to_string(),

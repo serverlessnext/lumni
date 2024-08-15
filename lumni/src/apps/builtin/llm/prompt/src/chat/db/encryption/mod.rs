@@ -438,10 +438,17 @@ impl EncryptionHandler {
         fs::write(&key_path, private_key_pem.as_bytes())
             .map_err(|e| ApplicationError::IOError(e))?;
 
-        println!("RSA private key generated and saved successfully.");
-        println!("Private key location: {:?}", key_path);
         if password.is_some() {
-            println!("The private key is password-protected.");
+            log::info!(
+                "RSA private key (password-protected) generated and saved \
+                 successfully at {:?}",
+                key_path
+            );
+        } else {
+            log::info!(
+                "RSA private key generated and saved successfully at {:?}",
+                key_path
+            );
         }
 
         // Create and return a new EncryptionHandler instance

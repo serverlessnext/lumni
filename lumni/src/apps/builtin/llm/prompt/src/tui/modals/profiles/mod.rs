@@ -42,7 +42,6 @@ enum EditMode {
     EditingValue,
     AddingNewKey,
     AddingNewValue,
-    ChoosingValueType,
 }
 
 impl ProfileEditModal {
@@ -130,28 +129,20 @@ impl ProfileEditModal {
 
         // Add new key input field if in AddingNewKey mode
         if matches!(self.edit_mode, EditMode::AddingNewKey) {
+            let secure_indicator = if self.is_new_value_secure {
+                "🔒 "
+            } else {
+                ""
+            };
             items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!("New key: {}", self.new_key_buffer),
-                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
-            )])));
-        }
-
-        // Add value type choice if in ChoosingValueType mode
-        if matches!(self.edit_mode, EditMode::ChoosingValueType) {
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!(
-                    "New key: {} | Choose type: [{}] Regular  [{}] Secure",
-                    self.new_key_buffer,
-                    if !self.is_new_value_secure { "X" } else { " " },
-                    if self.is_new_value_secure { "X" } else { " " }
-                ),
+                format!("{}New key: {}", secure_indicator, self.new_key_buffer),
                 Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
             )])));
         }
 
         // Add new value input field if in AddingNewValue mode
         if matches!(self.edit_mode, EditMode::AddingNewValue) {
-            let lock_icon = if self.is_new_value_secure {
+            let secure_indicator = if self.is_new_value_secure {
                 "🔒 "
             } else {
                 ""
@@ -159,7 +150,7 @@ impl ProfileEditModal {
             items.push(ListItem::new(Line::from(vec![Span::styled(
                 format!(
                     "{}{}: {}",
-                    lock_icon, self.new_key_buffer, self.edit_buffer
+                    secure_indicator, self.new_key_buffer, self.edit_buffer
                 ),
                 Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
             )])));
@@ -182,17 +173,14 @@ impl ProfileEditModal {
                 "↑↓: Navigate | Enter: Select | Tab: Settings | Esc: Close"
             }
             (Focus::SettingsList, EditMode::NotEditing) => {
-                "↑↓: Navigate | Enter: Edit | N: New | S: Show/Hide Secure | \
-                 Tab: Profiles | Esc: Close"
+                "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | S: \
+                 Show/Hide Secure | Tab: Profiles | Esc: Close"
             }
             (Focus::SettingsList, EditMode::EditingValue) => {
                 "Enter: Save | Esc: Cancel"
             }
             (Focus::SettingsList, EditMode::AddingNewKey) => {
                 "Enter: Confirm Key | Esc: Cancel"
-            }
-            (Focus::SettingsList, EditMode::ChoosingValueType) => {
-                "←→: Choose Type | Enter: Confirm | Esc: Cancel"
             }
             (Focus::SettingsList, EditMode::AddingNewValue) => {
                 "Enter: Save New Value | Esc: Cancel"
@@ -203,25 +191,17 @@ impl ProfileEditModal {
         f.render_widget(paragraph, area);
     }
 
-    fn start_adding_new_value(&mut self) {
+    fn start_adding_new_value(&mut self, is_secure: bool) {
         self.edit_mode = EditMode::AddingNewKey;
         self.new_key_buffer.clear();
         self.edit_buffer.clear();
-        self.is_new_value_secure = false;
+        self.is_new_value_secure = is_secure;
     }
 
     fn confirm_new_key(&mut self) {
         if !self.new_key_buffer.is_empty() {
-            self.edit_mode = EditMode::ChoosingValueType;
+            self.edit_mode = EditMode::AddingNewValue;
         }
-    }
-
-    fn toggle_new_value_type(&mut self) {
-        self.is_new_value_secure = !self.is_new_value_secure;
-    }
-
-    fn confirm_value_type(&mut self) {
-        self.edit_mode = EditMode::AddingNewValue;
     }
 
     async fn save_edit(&mut self) -> Result<(), ApplicationError> {
@@ -417,6 +397,7 @@ impl ModalWindowTrait for ProfileEditModal {
         _handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
         match (&self.focus, &self.edit_mode, key_event.current_key().code) {
+            // Profile List Navigation
             (Focus::ProfileList, _, KeyCode::Up) => {
                 if self.selected_profile > 0 {
                     self.selected_profile -= 1;
@@ -435,6 +416,8 @@ impl ModalWindowTrait for ProfileEditModal {
             (Focus::ProfileList, _, KeyCode::Tab) => {
                 self.focus = Focus::SettingsList;
             }
+
+            // Settings List Navigation and Editing
             (Focus::SettingsList, EditMode::NotEditing, KeyCode::Up) => {
                 self.move_selection_up()
             }
@@ -454,13 +437,14 @@ impl ModalWindowTrait for ProfileEditModal {
             ) => {
                 self.toggle_secure_visibility().await?;
             }
-            (
-                Focus::SettingsList,
-                EditMode::NotEditing,
-                KeyCode::Char('n') | KeyCode::Char('N'),
-            ) => {
-                self.start_adding_new_value();
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Char('n')) => {
+                self.start_adding_new_value(false);
             }
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Char('N')) => {
+                self.start_adding_new_value(true);
+            }
+
+            // Editing Existing Value
             (Focus::SettingsList, EditMode::EditingValue, KeyCode::Enter) => {
                 self.save_edit().await?
             }
@@ -474,6 +458,8 @@ impl ModalWindowTrait for ProfileEditModal {
             ) => {
                 self.edit_buffer.pop();
             }
+
+            // Adding New Key
             (Focus::SettingsList, EditMode::AddingNewKey, KeyCode::Enter) => {
                 self.confirm_new_key();
             }
@@ -487,6 +473,8 @@ impl ModalWindowTrait for ProfileEditModal {
             ) => {
                 self.new_key_buffer.pop();
             }
+
+            // Adding New Value
             (Focus::SettingsList, EditMode::AddingNewValue, KeyCode::Enter) => {
                 self.save_edit().await?;
             }
@@ -504,28 +492,20 @@ impl ModalWindowTrait for ProfileEditModal {
             ) => {
                 self.edit_buffer.pop();
             }
-            (
-                Focus::SettingsList,
-                EditMode::ChoosingValueType,
-                KeyCode::Left | KeyCode::Right,
-            ) => {
-                self.toggle_new_value_type();
-            }
-            (
-                Focus::SettingsList,
-                EditMode::ChoosingValueType,
-                KeyCode::Enter,
-            ) => {
-                self.confirm_value_type();
-            }
+
+            // Global Escape Handling
             (_, _, KeyCode::Esc) => match self.edit_mode {
                 EditMode::NotEditing => {
                     return Ok(Some(WindowEvent::PromptWindow(None)))
                 }
                 _ => self.cancel_edit(),
             },
+
+            // Ignore any other key combinations
             _ => {}
         }
+
+        // Stay in the Modal window
         Ok(Some(WindowEvent::Modal(ModalWindowType::ProfileEdit)))
     }
 }

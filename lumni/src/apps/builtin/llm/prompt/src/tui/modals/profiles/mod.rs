@@ -9,7 +9,7 @@ use ratatui::widgets::{
     Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs,
 };
 use ratatui::Frame;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode,
@@ -73,6 +73,48 @@ impl ProfileEditModal {
         })
     }
 
+    async fn delete_current_key(&mut self) -> Result<(), ApplicationError> {
+        if let Some(current_key) = self
+            .settings
+            .as_object()
+            .unwrap()
+            .keys()
+            .nth(self.current_field)
+        {
+            let current_key = current_key.to_string();
+            if !current_key.starts_with("__") {
+                let mut settings = Map::new();
+                settings.insert(current_key, Value::Null); // Null indicates deletion
+                let profile = &self.profiles[self.selected_profile];
+                self.db_handler
+                    .create_or_update(profile, &Value::Object(settings))
+                    .await?;
+                self.load_profile().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn clear_current_key(&mut self) -> Result<(), ApplicationError> {
+        if let Some(current_key) = self
+            .settings
+            .as_object()
+            .unwrap()
+            .keys()
+            .nth(self.current_field)
+        {
+            let current_key = current_key.to_string();
+            if !current_key.starts_with("__") {
+                self.settings[&current_key] = Value::String("".to_string());
+                let profile = &self.profiles[self.selected_profile];
+                self.db_handler
+                    .create_or_update(profile, &self.settings)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     fn render_settings_list(&self, f: &mut Frame, area: Rect) {
         let mut items: Vec<ListItem> = self
             .settings
@@ -112,7 +154,15 @@ impl ProfileEditModal {
                         } else {
                             ""
                         };
-                        format!("{}{}: {}", lock_icon, key, display_value)
+                        let empty_indicator = if display_value.is_empty() {
+                            " (empty)"
+                        } else {
+                            ""
+                        };
+                        format!(
+                            "{}{}: {}{}",
+                            lock_icon, key, display_value, empty_indicator
+                        )
                     };
                 let style = if i == self.current_field
                     && matches!(self.focus, Focus::SettingsList)
@@ -126,7 +176,6 @@ impl ProfileEditModal {
                 ListItem::new(Line::from(vec![Span::styled(content, style)]))
             })
             .collect();
-
         // Add new key input field if in AddingNewKey mode
         if matches!(self.edit_mode, EditMode::AddingNewKey) {
             let secure_indicator = if self.is_new_value_secure {
@@ -173,8 +222,9 @@ impl ProfileEditModal {
                 "↑↓: Navigate | Enter: Select | Tab: Settings | Esc: Close"
             }
             (Focus::SettingsList, EditMode::NotEditing) => {
-                "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | S: \
-                 Show/Hide Secure | Tab: Profiles | Esc: Close"
+                "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | D: \
+                 Delete | C: Clear | S: Show/Hide Secure | Tab: Profiles | \
+                 Esc: Close"
             }
             (Focus::SettingsList, EditMode::EditingValue) => {
                 "Enter: Save | Esc: Cancel"
@@ -491,6 +541,14 @@ impl ModalWindowTrait for ProfileEditModal {
                 KeyCode::Backspace,
             ) => {
                 self.edit_buffer.pop();
+            }
+
+            // Delete and clear
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Char('D')) => {
+                self.delete_current_key().await?;
+            }
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Char('C')) => {
+                self.clear_current_key().await?;
             }
 
             // Global Escape Handling

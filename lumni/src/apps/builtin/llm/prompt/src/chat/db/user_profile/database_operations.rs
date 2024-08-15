@@ -97,6 +97,27 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
+    pub async fn get_profile_list(
+        &self,
+    ) -> Result<Vec<String>, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            let mut stmt =
+                tx.prepare("SELECT name FROM user_profiles ORDER BY name ASC")?;
+            let profiles = stmt
+                .query_map([], |row| row.get(0))?
+                .collect::<Result<Vec<String>, _>>()
+                .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+            Ok(profiles)
+        })
+        .map_err(|e| match e {
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
+            DatabaseOperationError::ApplicationError(app_err) => app_err,
+        })
+    }
+
     pub async fn register_encryption_key(
         &self,
         name: &str,

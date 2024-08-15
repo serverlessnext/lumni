@@ -26,7 +26,7 @@ impl UserProfileDbHandler {
                 "encryption_key": encryption_key,
             }))
         } else {
-            eprintln!("No encryption handler available");
+            eprintln!("Encryption handler required to encrypt value");
             Ok(JsonValue::String(content.to_string()))
         }
     }
@@ -79,7 +79,7 @@ impl UserProfileDbHandler {
         } else {
             Err(ApplicationError::EncryptionError(
                 EncryptionError::InvalidKey(
-                    "No encryption handler available".to_string(),
+                    "Encryption handler required to decrypt value".to_string(),
                 ),
             ))
         }
@@ -114,7 +114,7 @@ impl UserProfileDbHandler {
         } else {
             Err(ApplicationError::EncryptionError(
                 EncryptionError::InvalidKey(
-                    "No encryption handler available".to_string(),
+                    "Encryption handler required to validate hash".to_string(),
                 ),
             ))
         }

@@ -20,13 +20,13 @@ pub struct UserProfileDbHandler {
     encryption_handler: Option<Arc<EncryptionHandler>>,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum EncryptionMode {
     Encrypt,
     Decrypt,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MaskMode {
     Mask,
     Unmask,
@@ -56,7 +56,9 @@ impl UserProfileDbHandler {
         // If profile is not yet set, return error as we need to know the profile to validate against existing encryption handler
         let profile_name = self.profile_name.as_ref().ok_or_else(|| {
             ApplicationError::InvalidInput(
-                "Profile name must be defined before setting encryption handler".to_string(),
+                "Profile name must be defined before setting encryption \
+                 handler"
+                    .to_string(),
             )
         })?;
 
@@ -115,6 +117,15 @@ impl UserProfileDbHandler {
         // If we've made it this far, either the profile doesn't exist yet or the encryption handler matches
         self.encryption_handler = Some(encryption_handler);
         Ok(())
+    }
+
+    pub fn set_profile_with_encryption_handler(
+        &mut self,
+        profile_name: String,
+        encryption_handler: Arc<EncryptionHandler>,
+    ) -> Result<(), ApplicationError> {
+        self.set_profile_name(profile_name);
+        self.set_encryption_handler(encryption_handler)
     }
 
     pub async fn export_profile_settings(

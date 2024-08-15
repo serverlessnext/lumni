@@ -377,7 +377,8 @@ impl EncryptionHandler {
         let handler = EncryptionHandler::new_from_path(private_key_path)?
             .ok_or_else(|| {
                 ApplicationError::EncryptionError(EncryptionError::InvalidKey(
-                    "No encryption handler available".to_string(),
+                    "Encryption handler required to get private key hash"
+                        .to_string(),
                 ))
             })?;
 

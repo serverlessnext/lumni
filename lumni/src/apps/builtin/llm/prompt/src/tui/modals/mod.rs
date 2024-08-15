@@ -1,25 +1,21 @@
 mod conversations;
-mod endpoint;
 mod profiles;
 
 use async_trait::async_trait;
 pub use conversations::ConversationListModal;
-pub use endpoint::SelectEndpointModal;
 pub use profiles::ProfileEditModal;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
 use super::{
     ApplicationError, CommandLine, Conversation, ConversationDbHandler,
-    ConversationEvent, ConversationStatus, KeyTrack, MaskMode, ModelServer,
-    NewConversation, PromptInstruction, Scroller, ServerManager, ServerTrait,
-    TextWindowTrait, ThreadedChatSession, UserProfileDbHandler, WindowEvent,
-    SUPPORTED_MODEL_ENDPOINTS,
+    ConversationEvent, ConversationStatus, KeyTrack, MaskMode,
+    PromptInstruction, TextWindowTrait, ThreadedChatSession,
+    UserProfileDbHandler, WindowEvent,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalWindowType {
-    SelectEndpoint,
     ConversationList(Option<ConversationEvent>),
     ProfileEdit,
 }

@@ -108,7 +108,10 @@ impl UserProfileDbHandler {
             // Set new encryption handler outside the closure
             if let Some(new_encryption_handler) = created_encryption_handler {
                 // use method as it protects against overwriting existing encryption configuration
-                self.set_encryption_handler(Arc::new(new_encryption_handler))?;
+                self.set_profile_with_encryption_handler(
+                    profile_name.to_string(),
+                    Arc::new(new_encryption_handler),
+                )?;
             } else {
                 return Err(ApplicationError::InvalidInput(
                     "Failed to create encryption handler".to_string(),
@@ -188,6 +191,11 @@ impl UserProfileDbHandler {
         profile_name: &str,
         mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
+        log::debug!(
+            "Getting settings for profile: {} ({:?})",
+            profile_name,
+            mask_mode
+        );
         let (json_string, key_hash, key_path): (String, String, String) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
@@ -204,8 +212,8 @@ impl UserProfileDbHandler {
                 .map_err(DatabaseOperationError::SqliteError)
             })?
         };
-        self.profile_name = Some(profile_name.to_string());
-        if self.encryption_handler.is_none() {
+        if mask_mode == MaskMode::Unmask && self.encryption_handler.is_none() {
+            // encryption handled required for decryption
             let encryption_handler =
                 EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?
                     .ok_or_else(|| {
@@ -213,18 +221,22 @@ impl UserProfileDbHandler {
                             "Failed to load encryption handler".to_string(),
                         )
                     })?;
-            // use method as it protects against overwriting existing encryption configuration
-            self.set_encryption_handler(Arc::new(encryption_handler))?;
+            self.set_profile_with_encryption_handler(
+                profile_name.to_string(),
+                Arc::new(encryption_handler),
+            )?;
+            self.verify_encryption_key_hash(&key_hash)?;
         }
-        self.verify_encryption_key_hash(&key_hash)?;
         let settings: JsonValue =
             serde_json::from_str(&json_string).map_err(|e| {
                 ApplicationError::InvalidInput(format!("Invalid JSON: {}", e))
             })?;
-        self.process_settings_with_metadata(
+        let r = self.process_settings_with_metadata(
             &settings,
             EncryptionMode::Decrypt,
             mask_mode,
-        )
+        );
+        eprintln!("get_profile_settings: {:?}", r);
+        r
     }
 }

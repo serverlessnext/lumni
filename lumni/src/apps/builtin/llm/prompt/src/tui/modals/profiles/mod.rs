@@ -9,7 +9,7 @@ use ratatui::widgets::{
     Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs,
 };
 use ratatui::Frame;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode,
@@ -23,8 +23,10 @@ pub struct ProfileEditModal {
     selected_profile: usize,
     settings: Value,
     current_field: usize,
-    editing: bool,
+    edit_mode: EditMode,
     edit_buffer: String,
+    new_key_buffer: String,
+    is_new_value_secure: bool,
     db_handler: UserProfileDbHandler,
     focus: Focus,
     show_secure: bool,
@@ -33,6 +35,14 @@ pub struct ProfileEditModal {
 enum Focus {
     ProfileList,
     SettingsList,
+}
+
+enum EditMode {
+    NotEditing,
+    EditingValue,
+    AddingNewKey,
+    AddingNewValue,
+    ChoosingValueType,
 }
 
 impl ProfileEditModal {
@@ -54,12 +64,227 @@ impl ProfileEditModal {
             selected_profile,
             settings,
             current_field: 0,
-            editing: false,
+            edit_mode: EditMode::NotEditing,
             edit_buffer: String::new(),
+            new_key_buffer: String::new(),
+            is_new_value_secure: false,
             db_handler,
             focus: Focus::ProfileList,
             show_secure: false,
         })
+    }
+
+    fn render_settings_list(&self, f: &mut Frame, area: Rect) {
+        let mut items: Vec<ListItem> = self
+            .settings
+            .as_object()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, (key, value))| {
+                let is_editable = !key.starts_with("__");
+                let is_secure = value.is_object()
+                    && value.get("was_encrypted") == Some(&Value::Bool(true));
+                let content =
+                    if matches!(self.edit_mode, EditMode::EditingValue)
+                        && i == self.current_field
+                        && is_editable
+                    {
+                        format!("{}: {}", key, self.edit_buffer)
+                    } else {
+                        let display_value = if is_secure {
+                            if self.show_secure {
+                                value["value"]
+                                    .as_str()
+                                    .unwrap_or("")
+                                    .to_string()
+                            } else {
+                                "*****".to_string()
+                            }
+                        } else {
+                            value.as_str().unwrap_or("").to_string()
+                        };
+                        let lock_icon = if is_secure {
+                            if self.show_secure {
+                                "🔓 "
+                            } else {
+                                "🔒 "
+                            }
+                        } else {
+                            ""
+                        };
+                        format!("{}{}: {}", lock_icon, key, display_value)
+                    };
+                let style = if i == self.current_field
+                    && matches!(self.focus, Focus::SettingsList)
+                {
+                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
+                } else if is_editable {
+                    Style::default().bg(Color::Black).fg(Color::Cyan)
+                } else {
+                    Style::default().bg(Color::Black).fg(Color::DarkGray)
+                };
+                ListItem::new(Line::from(vec![Span::styled(content, style)]))
+            })
+            .collect();
+
+        // Add new key input field if in AddingNewKey mode
+        if matches!(self.edit_mode, EditMode::AddingNewKey) {
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!("New key: {}", self.new_key_buffer),
+                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+            )])));
+        }
+
+        // Add value type choice if in ChoosingValueType mode
+        if matches!(self.edit_mode, EditMode::ChoosingValueType) {
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!(
+                    "New key: {} | Choose type: [{}] Regular  [{}] Secure",
+                    self.new_key_buffer,
+                    if !self.is_new_value_secure { "X" } else { " " },
+                    if self.is_new_value_secure { "X" } else { " " }
+                ),
+                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+            )])));
+        }
+
+        // Add new value input field if in AddingNewValue mode
+        if matches!(self.edit_mode, EditMode::AddingNewValue) {
+            let lock_icon = if self.is_new_value_secure {
+                "🔒 "
+            } else {
+                ""
+            };
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!(
+                    "{}{}: {}",
+                    lock_icon, self.new_key_buffer, self.edit_buffer
+                ),
+                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+            )])));
+        }
+
+        let list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("Settings"))
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> ");
+
+        let mut state = ListState::default();
+        state.select(Some(self.current_field));
+
+        f.render_stateful_widget(list, area, &mut state);
+    }
+
+    fn render_instructions(&self, f: &mut Frame, area: Rect) {
+        let instructions = match (&self.focus, &self.edit_mode) {
+            (Focus::ProfileList, _) => {
+                "↑↓: Navigate | Enter: Select | Tab: Settings | Esc: Close"
+            }
+            (Focus::SettingsList, EditMode::NotEditing) => {
+                "↑↓: Navigate | Enter: Edit | N: New | S: Show/Hide Secure | \
+                 Tab: Profiles | Esc: Close"
+            }
+            (Focus::SettingsList, EditMode::EditingValue) => {
+                "Enter: Save | Esc: Cancel"
+            }
+            (Focus::SettingsList, EditMode::AddingNewKey) => {
+                "Enter: Confirm Key | Esc: Cancel"
+            }
+            (Focus::SettingsList, EditMode::ChoosingValueType) => {
+                "←→: Choose Type | Enter: Confirm | Esc: Cancel"
+            }
+            (Focus::SettingsList, EditMode::AddingNewValue) => {
+                "Enter: Save New Value | Esc: Cancel"
+            }
+        };
+        let paragraph = Paragraph::new(instructions)
+            .style(Style::default().fg(Color::Cyan));
+        f.render_widget(paragraph, area);
+    }
+
+    fn start_adding_new_value(&mut self) {
+        self.edit_mode = EditMode::AddingNewKey;
+        self.new_key_buffer.clear();
+        self.edit_buffer.clear();
+        self.is_new_value_secure = false;
+    }
+
+    fn confirm_new_key(&mut self) {
+        if !self.new_key_buffer.is_empty() {
+            self.edit_mode = EditMode::ChoosingValueType;
+        }
+    }
+
+    fn toggle_new_value_type(&mut self) {
+        self.is_new_value_secure = !self.is_new_value_secure;
+    }
+
+    fn confirm_value_type(&mut self) {
+        self.edit_mode = EditMode::AddingNewValue;
+    }
+
+    async fn save_edit(&mut self) -> Result<(), ApplicationError> {
+        match self.edit_mode {
+            EditMode::EditingValue => {
+                let current_key = self
+                    .settings
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .nth(self.current_field)
+                    .unwrap()
+                    .to_string();
+                self.settings[&current_key] =
+                    Value::String(self.edit_buffer.clone());
+            }
+            EditMode::AddingNewValue => {
+                if self.is_new_value_secure {
+                    self.settings[&self.new_key_buffer] = json!({
+                        "value": self.edit_buffer,
+                        "was_encrypted": true
+                    });
+                } else {
+                    self.settings[&self.new_key_buffer] =
+                        Value::String(self.edit_buffer.clone());
+                }
+            }
+            _ => return Ok(()),
+        }
+
+        let profile = &self.profiles[self.selected_profile];
+        self.db_handler
+            .create_or_update(profile, &self.settings)
+            .await?;
+
+        self.edit_mode = EditMode::NotEditing;
+        self.edit_buffer.clear();
+        self.new_key_buffer.clear();
+        self.is_new_value_secure = false;
+        Ok(())
+    }
+
+    fn cancel_edit(&mut self) {
+        self.edit_mode = EditMode::NotEditing;
+        self.edit_buffer.clear();
+        self.new_key_buffer.clear();
+        self.is_new_value_secure = false;
+    }
+    fn start_editing(&mut self) {
+        let current_key = self
+            .settings
+            .as_object()
+            .unwrap()
+            .keys()
+            .nth(self.current_field)
+            .unwrap();
+        if !current_key.starts_with("__") {
+            self.edit_mode = EditMode::EditingValue;
+            self.edit_buffer = self.settings[current_key]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+        }
     }
 
     fn render_profiles_list(&self, f: &mut Frame, area: Rect) {
@@ -90,67 +315,6 @@ impl ProfileEditModal {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_settings_list(&self, f: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self
-            .settings
-            .as_object()
-            .unwrap()
-            .iter()
-            .enumerate()
-            .map(|(i, (key, value))| {
-                let is_editable = !key.starts_with("__");
-                let is_secure = value.is_object()
-                    && value.get("was_encrypted") == Some(&Value::Bool(true));
-                let content = if self.editing
-                    && i == self.current_field
-                    && is_editable
-                {
-                    format!("{}: {}", key, self.edit_buffer)
-                } else {
-                    let display_value = if is_secure {
-                        if self.show_secure {
-                            value["value"].as_str().unwrap_or("").to_string()
-                        } else {
-                            "*****".to_string()
-                        }
-                    } else {
-                        value.as_str().unwrap_or("").to_string()
-                    };
-                    let lock_icon = if is_secure {
-                        if self.show_secure {
-                            "🔓 "
-                        } else {
-                            "🔒 "
-                        }
-                    } else {
-                        ""
-                    };
-                    format!("{}{}: {}", lock_icon, key, display_value)
-                };
-                let style = if i == self.current_field
-                    && matches!(self.focus, Focus::SettingsList)
-                {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else if is_editable {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::DarkGray)
-                };
-                ListItem::new(Line::from(vec![Span::styled(content, style)]))
-            })
-            .collect();
-
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Settings"))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-
-        let mut state = ListState::default();
-        state.select(Some(self.current_field));
-
-        f.render_stateful_widget(list, area, &mut state);
-    }
-
     fn render_selected_profile(&self, f: &mut Frame, area: Rect) {
         let profile = &self.profiles[self.selected_profile];
         let secure_status = if self.show_secure {
@@ -176,25 +340,6 @@ impl ProfileEditModal {
                 .borders(Borders::ALL)
                 .title("Selected Profile"),
         );
-        f.render_widget(paragraph, area);
-    }
-
-    fn render_instructions(&self, f: &mut Frame, area: Rect) {
-        let instructions = match self.focus {
-            Focus::ProfileList => {
-                "↑↓: Navigate | Enter: Select | Tab: Settings | Esc: Close"
-            }
-            Focus::SettingsList => {
-                if self.editing {
-                    "Enter: Save | Esc: Cancel"
-                } else {
-                    "↑↓: Navigate | Enter: Edit | S: Show/Hide Secure | Tab: \
-                     Profiles | Esc: Close"
-                }
-            }
-        };
-        let paragraph = Paragraph::new(instructions)
-            .style(Style::default().fg(Color::Cyan));
         f.render_widget(paragraph, area);
     }
 
@@ -230,49 +375,6 @@ impl ProfileEditModal {
         if self.current_field < self.settings.as_object().unwrap().len() - 1 {
             self.current_field += 1;
         }
-    }
-
-    fn start_editing(&mut self) {
-        let current_key = self
-            .settings
-            .as_object()
-            .unwrap()
-            .keys()
-            .nth(self.current_field)
-            .unwrap();
-        if !current_key.starts_with("__") {
-            self.editing = true;
-            self.edit_buffer = self.settings[current_key]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
-        }
-    }
-
-    async fn save_edit(&mut self) -> Result<(), ApplicationError> {
-        self.editing = false;
-        let current_key = self
-            .settings
-            .as_object()
-            .unwrap()
-            .keys()
-            .nth(self.current_field)
-            .unwrap()
-            .to_string();
-        if !current_key.starts_with("__") {
-            self.settings[&current_key] =
-                Value::String(self.edit_buffer.clone());
-            let profile = &self.profiles[self.selected_profile];
-            self.db_handler
-                .create_or_update(profile, &self.settings)
-                .await?;
-        }
-        Ok(())
-    }
-
-    fn cancel_edit(&mut self) {
-        self.editing = false;
-        self.edit_buffer.clear();
     }
 }
 
@@ -314,7 +416,7 @@ impl ModalWindowTrait for ProfileEditModal {
         _tab_chat: &'b mut ThreadedChatSession,
         _handler: &mut ConversationDbHandler,
     ) -> Result<Option<WindowEvent>, ApplicationError> {
-        match (&self.focus, self.editing, key_event.current_key().code) {
+        match (&self.focus, &self.edit_mode, key_event.current_key().code) {
             (Focus::ProfileList, _, KeyCode::Up) => {
                 if self.selected_profile > 0 {
                     self.selected_profile -= 1;
@@ -333,38 +435,95 @@ impl ModalWindowTrait for ProfileEditModal {
             (Focus::ProfileList, _, KeyCode::Tab) => {
                 self.focus = Focus::SettingsList;
             }
-            (Focus::SettingsList, false, KeyCode::Up) => {
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Up) => {
                 self.move_selection_up()
             }
-            (Focus::SettingsList, false, KeyCode::Down) => {
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Down) => {
                 self.move_selection_down()
             }
-            (Focus::SettingsList, false, KeyCode::Enter) => {
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Enter) => {
                 self.start_editing()
             }
-            (Focus::SettingsList, false, KeyCode::Tab) => {
+            (Focus::SettingsList, EditMode::NotEditing, KeyCode::Tab) => {
                 self.focus = Focus::ProfileList;
             }
             (
                 Focus::SettingsList,
-                false,
+                EditMode::NotEditing,
                 KeyCode::Char('s') | KeyCode::Char('S'),
             ) => {
                 self.toggle_secure_visibility().await?;
             }
-            (Focus::SettingsList, true, KeyCode::Enter) => {
+            (
+                Focus::SettingsList,
+                EditMode::NotEditing,
+                KeyCode::Char('n') | KeyCode::Char('N'),
+            ) => {
+                self.start_adding_new_value();
+            }
+            (Focus::SettingsList, EditMode::EditingValue, KeyCode::Enter) => {
                 self.save_edit().await?
             }
-            (Focus::SettingsList, true, KeyCode::Esc) => self.cancel_edit(),
-            (Focus::SettingsList, true, KeyCode::Char(c)) => {
+            (Focus::SettingsList, EditMode::EditingValue, KeyCode::Char(c)) => {
                 self.edit_buffer.push(c)
             }
-            (Focus::SettingsList, true, KeyCode::Backspace) => {
+            (
+                Focus::SettingsList,
+                EditMode::EditingValue,
+                KeyCode::Backspace,
+            ) => {
                 self.edit_buffer.pop();
             }
-            (_, _, KeyCode::Esc) => {
-                return Ok(Some(WindowEvent::PromptWindow(None)))
+            (Focus::SettingsList, EditMode::AddingNewKey, KeyCode::Enter) => {
+                self.confirm_new_key();
             }
+            (Focus::SettingsList, EditMode::AddingNewKey, KeyCode::Char(c)) => {
+                self.new_key_buffer.push(c);
+            }
+            (
+                Focus::SettingsList,
+                EditMode::AddingNewKey,
+                KeyCode::Backspace,
+            ) => {
+                self.new_key_buffer.pop();
+            }
+            (Focus::SettingsList, EditMode::AddingNewValue, KeyCode::Enter) => {
+                self.save_edit().await?;
+            }
+            (
+                Focus::SettingsList,
+                EditMode::AddingNewValue,
+                KeyCode::Char(c),
+            ) => {
+                self.edit_buffer.push(c);
+            }
+            (
+                Focus::SettingsList,
+                EditMode::AddingNewValue,
+                KeyCode::Backspace,
+            ) => {
+                self.edit_buffer.pop();
+            }
+            (
+                Focus::SettingsList,
+                EditMode::ChoosingValueType,
+                KeyCode::Left | KeyCode::Right,
+            ) => {
+                self.toggle_new_value_type();
+            }
+            (
+                Focus::SettingsList,
+                EditMode::ChoosingValueType,
+                KeyCode::Enter,
+            ) => {
+                self.confirm_value_type();
+            }
+            (_, _, KeyCode::Esc) => match self.edit_mode {
+                EditMode::NotEditing => {
+                    return Ok(Some(WindowEvent::PromptWindow(None)))
+                }
+                _ => self.cancel_edit(),
+            },
             _ => {}
         }
         Ok(Some(WindowEvent::Modal(ModalWindowType::ProfileEdit)))

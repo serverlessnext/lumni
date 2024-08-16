@@ -14,9 +14,9 @@ use tokio::time::{interval, Duration};
 use super::chat_session_manager::ChatEvent;
 use super::db::{ConversationDatabase, ConversationDbHandler};
 use super::{
-    App, ColorScheme, CommandLineAction, ConversationEvent, KeyEventHandler,
-    ModalWindowType, PromptAction, PromptInstruction, TextWindowTrait,
-    WindowEvent, WindowKind,
+    App, CommandLineAction, ConversationEvent, KeyEventHandler, ModalAction,
+    PromptAction, PromptInstruction, TextWindowTrait, UserEvent, WindowEvent,
+    WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -36,15 +36,13 @@ pub async fn prompt_app<B: Backend>(
     loop {
         tokio::select! {
             _ = tick.tick().fuse() => {
-                handle_tick(
-                    terminal,
+                handle_input_event(
                     &mut app,
                     &mut redraw_ui,
                     &mut current_mode,
                     &mut key_event_handler,
                     &keep_running,
                     &mut db_conn,
-                    &color_scheme
                 ).await?;
             }
             _ = async {
@@ -72,25 +70,34 @@ pub async fn prompt_app<B: Backend>(
         if let Some(WindowEvent::Quit) = current_mode {
             break;
         }
+
+        // Handle processing state
+        if app.is_processing {
+            redraw_ui = true;
+
+            // Handle modal refresh if it's responsible for the processing state
+            if let Some(WindowEvent::Modal(_)) = current_mode {
+                current_mode =
+                    Some(handle_modal_refresh(&mut app, &mut db_conn).await?);
+            }
+        }
+
+        if redraw_ui {
+            app.draw_ui(terminal).await?;
+            redraw_ui = false;
+        }
     }
     Ok(())
 }
 
-async fn handle_tick<B: Backend>(
-    terminal: &mut Terminal<B>,
+async fn handle_input_event(
     app: &mut App<'_>,
     redraw_ui: &mut bool,
     current_mode: &mut Option<WindowEvent>,
     key_event_handler: &mut KeyEventHandler,
     keep_running: &Arc<AtomicBool>,
     db_conn: &mut Arc<ConversationDatabase>,
-    color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
-    if *redraw_ui {
-        app.draw_ui(terminal).await?;
-        *redraw_ui = false;
-    }
-
     if poll(Duration::from_millis(1))? {
         let event = read()?;
         match event {
@@ -102,7 +109,6 @@ async fn handle_tick<B: Backend>(
                     key_event,
                     keep_running,
                     db_conn,
-                    color_scheme,
                 )
                 .await?;
             }
@@ -125,13 +131,12 @@ async fn handle_key_event(
     key_event: KeyEvent,
     keep_running: &Arc<AtomicBool>,
     db_conn: &mut Arc<ConversationDatabase>,
-    color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
-    *current_mode = if let Some(mode) = current_mode.take() {
+    if let Some(mode) = current_mode.take() {
         let mut conversation_handler = db_conn.get_conversation_handler(
             app.get_conversation_id_for_active_session(),
         );
-        key_event_handler
+        let new_window_event = key_event_handler
             .process_key(
                 key_event,
                 &mut app.ui,
@@ -140,23 +145,75 @@ async fn handle_key_event(
                 keep_running.clone(),
                 &mut conversation_handler,
             )
-            .await?
-    } else {
-        None
-    };
-    match current_mode.as_mut() {
-        Some(WindowEvent::Prompt(prompt_action)) => {
-            handle_prompt_action(app, prompt_action.clone(), color_scheme)
-                .await?;
-            *current_mode = Some(app.ui.set_prompt_window(false));
+            .await?;
+        let result =
+            handle_window_event(app, new_window_event, db_conn).await?;
+        *current_mode = Some(result);
+    }
+
+    Ok(())
+}
+
+async fn handle_modal_refresh(
+    app: &mut App<'_>,
+    db_conn: &mut Arc<ConversationDatabase>,
+) -> Result<WindowEvent, ApplicationError> {
+    let modal = app
+        .ui
+        .modal
+        .as_mut()
+        .expect("Modal should exist when in Modal mode");
+    let refresh_result = modal.refresh().await?;
+    match refresh_result {
+        WindowEvent::Modal(ModalAction::Refresh) => {
+            // If the modal still needs refreshing, keep the processing state
+            app.is_processing = true;
+            Ok(WindowEvent::Modal(ModalAction::Refresh))
         }
-        Some(WindowEvent::CommandLine(action)) => {
+        other_event => {
+            // Handle the event returned by refresh
+            app.is_processing = false;
+            handle_window_event(app, other_event, db_conn).await
+        }
+    }
+}
+
+async fn handle_window_event(
+    app: &mut App<'_>,
+    window_event: WindowEvent,
+    db_conn: &mut Arc<ConversationDatabase>,
+) -> Result<WindowEvent, ApplicationError> {
+    match window_event {
+        WindowEvent::Prompt(ref prompt_action) => {
+            handle_prompt_action(app, prompt_action.clone()).await?;
+            Ok(app.ui.set_prompt_window(false))
+        }
+        WindowEvent::CommandLine(ref action) => {
             handle_command_line_action(app, action.clone());
+            Ok(window_event)
         }
-        Some(WindowEvent::Modal(modal_window_type)) => {
-            handle_modal_window(app, modal_window_type, db_conn).await?;
-        }
-        Some(WindowEvent::PromptWindow(event)) => {
+        WindowEvent::Modal(ref action) => match action {
+            ModalAction::Refresh => {
+                app.is_processing = true;
+                Ok(window_event)
+            }
+            ModalAction::Open(ref modal_window_type) => {
+                app.ui
+                    .set_new_modal(
+                        modal_window_type.clone(),
+                        db_conn,
+                        app.get_conversation_id_for_active_session(),
+                    )
+                    .await?;
+                Ok(window_event)
+            }
+            ModalAction::Event(ref user_event) => {
+                handle_modal_user_event(app, user_event, db_conn).await?;
+                Ok(window_event)
+            }
+            _ => Ok(window_event),
+        },
+        WindowEvent::PromptWindow(ref event) => {
             let mut conversation_handler = db_conn.get_conversation_handler(
                 app.get_conversation_id_for_active_session(),
             );
@@ -166,10 +223,10 @@ async fn handle_key_event(
                 &mut conversation_handler,
             )
             .await?;
+            Ok(window_event)
         }
-        _ => {}
+        _ => Ok(window_event),
     }
-    Ok(())
 }
 
 fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) -> bool {
@@ -190,11 +247,11 @@ fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) -> bool {
 async fn handle_prompt_action(
     app: &mut App<'_>,
     prompt_action: PromptAction,
-    color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
+    let color_scheme = app.color_scheme.clone();
     match prompt_action {
         PromptAction::Write(prompt) => {
-            send_prompt(app, &prompt, color_scheme).await?;
+            send_prompt(app, &prompt).await?;
         }
         PromptAction::Stop => {
             app.stop_active_chat_session().await?;
@@ -226,26 +283,18 @@ fn handle_command_line_action(
     }
 }
 
-async fn handle_modal_window(
+async fn handle_modal_user_event(
     app: &mut App<'_>,
-    modal_window_type: &ModalWindowType,
-    db_conn: &mut Arc<ConversationDatabase>,
+    user_event: &UserEvent,
+    _db_conn: &mut Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     // switch to, or stay in modal window
-    match modal_window_type {
-        ModalWindowType::ConversationList(Some(_)) => {
-            // reload chat on any conversation event
+    match user_event {
+        UserEvent::ReloadConversation => {
             _ = app.reload_conversation().await;
             return Ok(());
         }
         _ => {}
-    }
-
-    if app.ui.needs_modal_update(modal_window_type) {
-        let conversation_id = app.get_conversation_id_for_active_session();
-        app.ui
-            .set_new_modal(modal_window_type.clone(), db_conn, conversation_id)
-            .await?;
     }
     Ok(())
 }
@@ -283,9 +332,9 @@ async fn handle_prompt_window_event(
 async fn send_prompt<'a>(
     app: &mut App<'a>,
     prompt: &str,
-    color_scheme: &ColorScheme,
 ) -> Result<(), ApplicationError> {
     // prompt should end with single newline
+    let color_scheme = app.color_scheme.clone();
     let formatted_prompt = format!("{}\n", prompt.trim_end());
     let result = app
         .chat_manager

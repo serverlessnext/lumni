@@ -10,13 +10,13 @@ pub use colorscheme::{ColorScheme, ColorSchemeType};
 pub use draw::draw_ui;
 pub use events::{
     CommandLineAction, ConversationEvent, KeyEventHandler, KeyTrack,
-    PromptAction, WindowEvent,
+    PromptAction, UserEvent, WindowEvent,
 };
 use lumni::api::error::ApplicationError;
-pub use modals::{ModalWindowTrait, ModalWindowType};
+pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
 pub use ui::AppUi;
 pub use window::{
-    CommandLine, PromptWindow, ResponseWindow, Scroller, TextLine, TextSegment,
+    CommandLine, PromptWindow, ResponseWindow, TextLine, TextSegment,
     TextWindowTrait, WindowKind,
 };
 

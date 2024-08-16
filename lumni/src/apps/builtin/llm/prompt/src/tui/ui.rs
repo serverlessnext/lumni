@@ -53,7 +53,7 @@ impl AppUi<'_> {
         conversation_id: Option<ConversationId>,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
-            ModalWindowType::ConversationList(_) => {
+            ModalWindowType::ConversationList => {
                 let handler = db_conn.get_conversation_handler(conversation_id);
                 Some(Box::new(ConversationListModal::new(handler).await?))
             }

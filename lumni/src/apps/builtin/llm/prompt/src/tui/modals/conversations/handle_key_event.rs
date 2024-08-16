@@ -5,7 +5,7 @@ impl<'a> ConversationListModal<'a> {
         &mut self,
         tab_chat: &mut ThreadedChatSession,
         db_handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         match self.current_tab {
             ConversationStatus::Deleted => {
                 self.undo_delete_and_load_conversation(tab_chat, db_handler)
@@ -13,16 +13,16 @@ impl<'a> ConversationListModal<'a> {
             }
             _ => self.load_and_set_conversation(tab_chat, db_handler).await?,
         }
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
-            Some(ConversationEvent::ReloadConversation),
-        ))))
+        Ok(WindowEvent::Modal(ModalAction::Event(
+            UserEvent::ReloadConversation,
+        )))
     }
 
     pub async fn handle_edit_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
         handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Enter => self.save_edited_name(handler).await?,
             KeyCode::Esc => self.cancel_edit_mode(),
@@ -32,9 +32,7 @@ impl<'a> ConversationListModal<'a> {
                 }
             }
         }
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
-            None,
-        ))))
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
     pub async fn handle_normal_mode_key_event(
@@ -42,7 +40,7 @@ impl<'a> ConversationListModal<'a> {
         key_event: &mut KeyTrack,
         tab_chat: &mut ThreadedChatSession,
         db_handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => {
                 self.move_selection_up();
@@ -55,10 +53,10 @@ impl<'a> ConversationListModal<'a> {
                 return self.reload_conversation(tab_chat, db_handler).await;
             }
             KeyCode::Enter => {
-                return Ok(Some(WindowEvent::PromptWindow(None)));
+                return Ok(WindowEvent::PromptWindow(None));
             }
             KeyCode::Char('q') => {
-                return Ok(Some(WindowEvent::PromptWindow(None)));
+                return Ok(WindowEvent::PromptWindow(None));
             }
             KeyCode::Tab => {
                 self.switch_tab();
@@ -79,13 +77,11 @@ impl<'a> ConversationListModal<'a> {
             KeyCode::Char('e') | KeyCode::Char('E') => {
                 self.edit_conversation_name().await?
             }
-            KeyCode::Esc => return Ok(Some(WindowEvent::PromptWindow(None))),
+            KeyCode::Esc => return Ok(WindowEvent::PromptWindow(None)),
             _ => {}
         }
-        // stay in the Modal window
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ConversationList(
-            None,
-        ))))
+        // stay in the Modal window, waiting for next key event
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
     async fn save_edited_name(

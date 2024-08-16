@@ -1,5 +1,5 @@
 use super::key_event::KeyTrack;
-use super::{ModalWindowType, WindowEvent};
+use super::{ModalAction, ModalWindowType, WindowEvent};
 
 pub const LEADER_KEY: char = ' ';
 
@@ -52,12 +52,12 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
             MatchOutcome::FullMatch(cmd) => {
                 // NOTE: should match define_commands! macro
                 let window_event = match cmd.as_str() {
-                    "pe" => {
-                        Some(WindowEvent::Modal(ModalWindowType::ProfileEdit))
-                    }
-                    "pc" => Some(WindowEvent::Modal(
-                        ModalWindowType::ConversationList(None),
-                    )),
+                    "pe" => Some(WindowEvent::Modal(ModalAction::Open(
+                        ModalWindowType::ProfileEdit,
+                    ))),
+                    "pc" => Some(WindowEvent::Modal(ModalAction::Open(
+                        ModalWindowType::ConversationList,
+                    ))),
                     _ => None,
                 };
                 key_track.set_leader_key(false);

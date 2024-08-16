@@ -13,7 +13,7 @@ use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
 use crate::external as lumni;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UserProfileDbHandler {
     profile_name: Option<String>,
     db: Arc<TokioMutex<DatabaseConnector>>,

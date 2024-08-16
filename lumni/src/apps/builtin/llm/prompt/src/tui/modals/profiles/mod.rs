@@ -1,19 +1,21 @@
+use std::sync::Arc;
+use std::time::Instant;
+
 use async_trait::async_trait;
-use crossterm::event::{KeyCode, KeyEvent};
-pub use lumni::Timestamp;
-use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
+use crossterm::event::KeyCode;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph,
-    Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs,
+    Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph,
 };
 use ratatui::Frame;
 use serde_json::{json, Map, Value};
+use tokio::sync::{mpsc, Mutex};
 
 use super::{
-    ApplicationError, ConversationDbHandler, KeyTrack, MaskMode,
-    ModalWindowTrait, ModalWindowType, TextWindowTrait, ThreadedChatSession,
+    ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
+    ModalWindowTrait, ModalWindowType, ThreadedChatSession,
     UserProfileDbHandler, WindowEvent,
 };
 pub use crate::external as lumni;
@@ -32,8 +34,15 @@ pub struct ProfileEditModal {
     show_secure: bool,
     predefined_types: Vec<String>,
     selected_type: usize,
+    background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
+    task_start_time: Option<Instant>,
+    spinner_state: usize,
+    new_profile_name: Option<String>,
 }
 
+enum BackgroundTaskResult {
+    ProfileCreated(Result<(), ApplicationError>),
+}
 enum Focus {
     ProfileList,
     SettingsList,
@@ -86,6 +95,10 @@ impl ProfileEditModal {
             show_secure: false,
             predefined_types,
             selected_type: 0,
+            background_task: None,
+            task_start_time: None,
+            spinner_state: 0,
+            new_profile_name: None,
         })
     }
 
@@ -397,7 +410,7 @@ impl ProfileEditModal {
     async fn create_new_profile(&mut self) -> Result<(), ApplicationError> {
         let new_profile_name =
             format!("New_Profile_{}", self.profiles.len() + 1);
-        let profile_type = &self.predefined_types[self.selected_type];
+        let profile_type = self.predefined_types[self.selected_type].clone();
 
         let mut settings = Map::new();
         settings.insert(
@@ -405,7 +418,7 @@ impl ProfileEditModal {
             Value::String(profile_type.clone()),
         );
 
-        // Add any default settings for the chosen profile type
+        // Add default settings based on the profile type
         match profile_type.as_str() {
             "OpenAI" => {
                 settings.insert(
@@ -427,21 +440,67 @@ impl ProfileEditModal {
                     Value::String("claude-2".to_string()),
                 );
             }
-            _ => {}
+            "Custom" => {
+                // No default settings for custom profiles
+            }
+            _ => {
+                // Handle unexpected profile types
+                return Err(ApplicationError::InvalidInput(
+                    "Unknown profile type".to_string(),
+                ));
+            }
         }
 
-        self.db_handler
-            .create_or_update(&new_profile_name, &Value::Object(settings))
-            .await?;
+        let db_handler = Arc::new(Mutex::new(self.db_handler.clone()));
+        let (tx, rx) = mpsc::channel(1);
 
-        self.profiles.push(new_profile_name);
-        self.selected_profile = self.profiles.len() - 1;
-        self.load_profile().await?;
-        self.edit_mode = EditMode::NotEditing;
-        self.focus = Focus::SettingsList;
+        let new_profile_name_clone = new_profile_name.clone();
+        tokio::spawn(async move {
+            let result = db_handler
+                .lock()
+                .await
+                .create_or_update(
+                    &new_profile_name_clone,
+                    &Value::Object(settings),
+                )
+                .await;
+            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
+        });
+
+        self.background_task = Some(rx);
+        self.task_start_time = Some(std::time::Instant::now());
+        self.spinner_state = 0;
+        self.edit_mode = EditMode::CreatingNewProfile;
+        self.focus = Focus::NewProfileType;
+        self.new_profile_name = Some(new_profile_name);
 
         Ok(())
     }
+
+    fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
+        const SPINNER: &[char] =
+            &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+        let spinner_char = SPINNER[self.spinner_state];
+        self.spinner_state = (self.spinner_state + 1) % SPINNER.len();
+
+        let elapsed = self
+            .task_start_time
+            .map(|start| start.elapsed().as_secs())
+            .unwrap_or(0);
+        let content = format!(
+            "{} Creating profile... ({} seconds)",
+            spinner_char, elapsed
+        );
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL));
+
+        frame.render_widget(paragraph, area);
+    }
+
     fn start_adding_new_value(&mut self, is_secure: bool) {
         self.edit_mode = EditMode::AddingNewKey;
         self.new_key_buffer.clear();
@@ -562,7 +621,7 @@ impl ModalWindowTrait for ProfileEditModal {
     fn render_on_frame(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
 
-        let chunks = Layout::default()
+        let main_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),
@@ -571,24 +630,84 @@ impl ModalWindowTrait for ProfileEditModal {
             ])
             .split(area);
 
-        let main_chunks = Layout::default()
+        let title = Paragraph::new("Profile Editor")
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Center);
+        frame.render_widget(title, main_chunks[0]);
+
+        let content_area = main_chunks[1];
+
+        let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(30),
                 Constraint::Percentage(70),
             ])
-            .split(chunks[1]);
+            .split(content_area);
 
-        self.render_profile_list(frame, main_chunks[0]);
+        self.render_profile_list(frame, content_chunks[0]);
 
         match self.edit_mode {
             EditMode::CreatingNewProfile => {
-                self.render_new_profile_type(frame, main_chunks[1])
+                self.render_new_profile_type(frame, content_chunks[1])
             }
-            _ => self.render_settings_list(frame, main_chunks[1]),
+            _ => self.render_settings_list(frame, content_chunks[1]),
         }
 
-        self.render_instructions(frame, chunks[2]);
+        self.render_instructions(frame, main_chunks[2]);
+
+        // Render activity indicator if a background task is running
+        if self.background_task.is_some() {
+            let indicator_area = Rect {
+                x: area.x + 10,
+                y: area.bottom() - 3,
+                width: area.width - 20,
+                height: 3,
+            };
+
+            self.render_activity_indicator(frame, indicator_area);
+        }
+    }
+
+    async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
+        if let Some(ref mut rx) = self.background_task {
+            match rx.try_recv() {
+                Ok(BackgroundTaskResult::ProfileCreated(result)) => {
+                    self.background_task = None;
+                    self.task_start_time = None;
+                    match result {
+                        Ok(()) => {
+                            if let Some(new_profile_name) =
+                                self.new_profile_name.take()
+                            {
+                                self.profiles.push(new_profile_name);
+                                self.selected_profile = self.profiles.len() - 1;
+                                self.load_profile().await?;
+                            }
+                            self.edit_mode = EditMode::NotEditing;
+                            self.focus = Focus::SettingsList;
+                        }
+                        Err(e) => {
+                            log::error!("Failed to create profile: {}", e);
+                        }
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    // Task is still running, update will happen in render_activity_indicator
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    // Task has ended unexpectedly
+                    self.background_task = None;
+                    self.task_start_time = None;
+                    self.new_profile_name = None;
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+            }
+        } else {
+            Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        }
     }
 
     async fn handle_key_event<'b>(
@@ -596,7 +715,7 @@ impl ModalWindowTrait for ProfileEditModal {
         key_event: &'b mut KeyTrack,
         _tab_chat: &'b mut ThreadedChatSession,
         _handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         match (&self.focus, &self.edit_mode, key_event.current_key().code) {
             // Profile List Navigation and Actions
             (Focus::ProfileList, EditMode::NotEditing, KeyCode::Up) => {
@@ -701,6 +820,7 @@ impl ModalWindowTrait for ProfileEditModal {
                 KeyCode::Enter,
             ) => {
                 self.create_new_profile().await?;
+                return Ok(WindowEvent::Modal(ModalAction::Refresh));
             }
 
             // Settings List Navigation and Editing
@@ -790,7 +910,7 @@ impl ModalWindowTrait for ProfileEditModal {
             // Global Escape Handling
             (_, _, KeyCode::Esc) => match self.edit_mode {
                 EditMode::NotEditing => {
-                    return Ok(Some(WindowEvent::PromptWindow(None)))
+                    return Ok(WindowEvent::PromptWindow(None))
                 }
                 EditMode::RenamingProfile => {
                     self.edit_mode = EditMode::NotEditing;
@@ -804,7 +924,7 @@ impl ModalWindowTrait for ProfileEditModal {
             _ => {}
         }
 
-        // Stay in the Modal window
-        Ok(Some(WindowEvent::Modal(ModalWindowType::ProfileEdit)))
+        // Stay in the Modal window, waiting for next key event
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 }

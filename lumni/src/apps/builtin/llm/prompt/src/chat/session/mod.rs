@@ -16,10 +16,10 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, ConversationEvent, KeyEventHandler, ModalWindowType,
-    ModelServer, PromptAction, PromptError, PromptInstruction,
-    PromptNotReadyReason, ServerManager, TextWindowTrait, WindowEvent,
-    WindowKind,
+    CompletionResponse, ConversationEvent, KeyEventHandler, ModalAction,
+    ModalWindowType, ModelServer, PromptAction, PromptError, PromptInstruction,
+    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
+    WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -27,6 +27,7 @@ pub struct App<'a> {
     pub ui: AppUi<'a>,
     pub chat_manager: ChatSessionManager,
     pub color_scheme: ColorScheme,
+    pub is_processing: bool, // flag to indicate if the app is busy processing
 }
 
 impl App<'_> {
@@ -57,6 +58,7 @@ impl App<'_> {
             ui,
             chat_manager,
             color_scheme,
+            is_processing: false,
         })
     }
 

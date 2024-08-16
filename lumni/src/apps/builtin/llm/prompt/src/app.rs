@@ -20,9 +20,7 @@ use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::{
-    ConversationDatabase, EncryptionHandler, ModelServerName,
-};
+use super::chat::db::{ConversationDatabase, ModelServerName};
 use super::chat::{
     prompt_app, App, AssistantManager, ChatEvent, NewConversation,
     PromptInstruction, ThreadedChatSession,

@@ -17,9 +17,9 @@ use ratatui::Frame;
 
 use super::{
     ApplicationError, CommandLine, Conversation, ConversationDbHandler,
-    ConversationEvent, ConversationStatus, KeyTrack, ModalWindowTrait,
+    ConversationStatus, KeyTrack, ModalAction, ModalWindowTrait,
     ModalWindowType, PromptInstruction, TextWindowTrait, ThreadedChatSession,
-    WindowEvent,
+    UserEvent, WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
 pub use crate::external as lumni;
@@ -290,7 +290,7 @@ impl<'a> ConversationListModal<'a> {
 #[async_trait]
 impl<'a> ModalWindowTrait for ConversationListModal<'a> {
     fn get_type(&self) -> ModalWindowType {
-        ModalWindowType::ConversationList(None)
+        ModalWindowType::ConversationList
     }
 
     fn render_on_frame(&mut self, frame: &mut Frame, mut area: Rect) {
@@ -320,7 +320,7 @@ impl<'a> ModalWindowTrait for ConversationListModal<'a> {
         key_event: &'b mut KeyTrack,
         tab_chat: &'b mut ThreadedChatSession,
         handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         log::debug!(
             "Key: {:?}, Modifiers: {:?}",
             key_event.current_key().code,

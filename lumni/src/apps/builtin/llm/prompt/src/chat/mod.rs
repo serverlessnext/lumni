@@ -16,8 +16,9 @@ pub use super::error::{PromptError, PromptNotReadyReason};
 use super::server::{CompletionResponse, ModelServer, ServerManager};
 use super::tui::{
     draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    ConversationEvent, KeyEventHandler, ModalWindowType, PromptAction,
-    TextLine, TextSegment, TextWindowTrait, WindowEvent, WindowKind,
+    ConversationEvent, KeyEventHandler, ModalAction, ModalWindowType,
+    PromptAction, TextLine, TextSegment, TextWindowTrait, UserEvent,
+    WindowEvent, WindowKind,
 };
 
 // gets PERSONAS from the generated code

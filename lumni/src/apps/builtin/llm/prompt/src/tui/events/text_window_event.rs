@@ -16,7 +16,7 @@ pub fn handle_text_window_event<'a, T, D>(
     key_track: &mut KeyTrack,
     window: &mut T,
     _is_running: Arc<AtomicBool>,
-) -> Result<Option<WindowEvent>, ApplicationError>
+) -> Result<WindowEvent, ApplicationError>
 where
     T: TextWindowTrait<'a, D>,
     D: TextDocumentTrait,
@@ -35,9 +35,8 @@ where
         key_track.set_leader_key(true); // enable leader key capture
     } else if key_track.leader_key_set() {
         // process captured leader key string
-        let window_event = process_leader_key(key_track);
-        if window_event.is_some() {
-            return Ok(window_event);
+        if let Some(event) = process_leader_key(key_track) {
+            return Ok(event);
         }
     } else {
         // process regular key
@@ -104,14 +103,14 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
-    Ok(Some(kind))
+    Ok(kind)
 }
 
 fn handle_char_key<'a, T, D>(
     character: char,
     key_track: &mut KeyTrack,
     window: &mut T,
-) -> Result<Option<WindowEvent>, ApplicationError>
+) -> Result<WindowEvent, ApplicationError>
 where
     T: TextWindowTrait<'a, D>,
     D: TextDocumentTrait,
@@ -199,9 +198,9 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return Ok(Some(WindowEvent::CommandLine(Some(
+            return Ok(WindowEvent::CommandLine(Some(
                 CommandLineAction::Write(":".to_string()),
-            ))));
+            )));
         }
         // ignore other characters
         _ => {}
@@ -211,7 +210,7 @@ where
         WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
-    Ok(Some(kind))
+    Ok(kind)
 }
 
 fn yank_text<'a, T, D>(window: &mut T, lines_to_yank: Option<usize>)

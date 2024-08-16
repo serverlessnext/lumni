@@ -16,34 +16,32 @@ pub fn handle_prompt_window_event(
     app_ui: &mut AppUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
-) -> Result<Option<WindowEvent>, ApplicationError> {
+) -> Result<WindowEvent, ApplicationError> {
     match key_track.current_key().code {
         KeyCode::Up => {
             if !app_ui.response.text_buffer().is_empty() {
                 let (_, row) = app_ui.prompt.get_column_row();
                 if row == 0 {
                     // jump from prompt window to response window
-                    return Ok(Some(app_ui.set_response_window()));
+                    return Ok(app_ui.set_response_window());
                 }
             }
         }
         KeyCode::Tab => {
             if !in_editing_block(&mut app_ui.prompt) {
-                return Ok(Some(app_ui.prompt.next_window_status()));
+                return Ok(app_ui.prompt.next_window_status());
             }
         }
         KeyCode::Enter => {
             // handle enter if not in editing mode
             if !app_ui.prompt.is_status_insert() {
                 let question = app_ui.prompt.text_buffer().to_string();
-                return Ok(Some(WindowEvent::Prompt(PromptAction::Write(
-                    question,
-                ))));
+                return Ok(WindowEvent::Prompt(PromptAction::Write(question)));
             }
         }
         KeyCode::Backspace => {
             if app_ui.prompt.text_buffer().is_empty() {
-                return Ok(Some(app_ui.set_prompt_window(false)));
+                return Ok(app_ui.set_prompt_window(false));
             }
             if !app_ui.prompt.is_status_insert() {
                 // change to insert mode
@@ -55,7 +53,7 @@ pub fn handle_prompt_window_event(
             if app_ui.prompt.is_status_insert() {
                 ensure_closed_block(&mut app_ui.prompt)?;
             }
-            return Ok(Some(app_ui.set_prompt_window(false)));
+            return Ok(app_ui.set_prompt_window(false));
         }
         KeyCode::Char(key) => {
             // catch Ctrl + shortcut key
@@ -63,13 +61,13 @@ pub fn handle_prompt_window_event(
                 match key {
                     'c' => {
                         if app_ui.prompt.text_buffer().is_empty() {
-                            return Ok(Some(WindowEvent::Quit));
+                            return Ok(WindowEvent::Quit);
                         } else {
                             app_ui.prompt.text_empty();
                         }
                     }
                     'q' => {
-                        return Ok(Some(WindowEvent::Quit));
+                        return Ok(WindowEvent::Quit);
                     }
                     'a' => {
                         app_ui.prompt.text_select_all();
@@ -79,15 +77,15 @@ pub fn handle_prompt_window_event(
                     }
                     _ => {}
                 }
-                return Ok(Some(WindowEvent::PromptWindow(None)));
+                return Ok(WindowEvent::PromptWindow(None));
             } else if !app_ui.prompt.is_status_insert() {
                 // process regular key
                 match key {
                     't' | 'T' => {
-                        return Ok(Some(app_ui.set_response_window()));
+                        return Ok(app_ui.set_response_window());
                     }
                     'i' | 'I' => {
-                        return Ok(Some(app_ui.set_prompt_window(true)));
+                        return Ok(app_ui.set_prompt_window(true));
                     }
                     '+' => {
                         app_ui.set_primary_window(WindowKind::PromptWindow);
@@ -99,9 +97,7 @@ pub fn handle_prompt_window_event(
                         if let Some(prev) = key_track.previous_key_str() {
                             if prev == " " {
                                 // change to insert mode if double space
-                                return Ok(Some(
-                                    app_ui.set_prompt_window(true),
-                                ));
+                                return Ok(app_ui.set_prompt_window(true));
                             }
                         }
                     }

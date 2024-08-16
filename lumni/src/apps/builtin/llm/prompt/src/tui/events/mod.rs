@@ -9,7 +9,7 @@ pub use key_event::{KeyEventHandler, KeyTrack};
 use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
-use super::modals::ModalWindowType;
+use super::modals::{ModalAction, ModalWindowType};
 use super::ui::AppUi;
 use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
@@ -18,14 +18,14 @@ use super::window::{
 use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};
 pub use crate::external as lumni;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     Quit,
     PromptWindow(Option<ConversationEvent>),
     ResponseWindow,
     CommandLine(Option<CommandLineAction>),
     Prompt(PromptAction),
-    Modal(ModalWindowType),
+    Modal(ModalAction),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,4 +43,12 @@ pub enum CommandLineAction {
 pub enum ConversationEvent {
     NewConversation(NewConversation),
     ReloadConversation, // only reload conversation
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UserEvent {
+    NewConversation(NewConversation), // prepare for future conversation
+    ReloadConversation,               // reload conversation
+    NewProfile,                       // prepare for future profile switch
+    ReloadProfile,                    // prepare for future profile switch
 }

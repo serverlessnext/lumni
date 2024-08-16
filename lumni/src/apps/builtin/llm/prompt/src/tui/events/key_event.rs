@@ -7,8 +7,8 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ConversationDbHandler, ThreadedChatSession,
-    WindowEvent,
+    AppUi, ApplicationError, ConversationDbHandler, ModalAction,
+    ThreadedChatSession, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -162,7 +162,7 @@ impl KeyEventHandler {
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
         handler: &mut ConversationDbHandler,
-    ) -> Result<Option<WindowEvent>, ApplicationError> {
+    ) -> Result<WindowEvent, ApplicationError> {
         if !self.key_track.leader_key_set()
             || self
                 .key_track
@@ -190,13 +190,13 @@ impl KeyEventHandler {
                 &mut self.key_track,
                 is_running,
             ),
-            WindowEvent::Modal(window_type) => {
+            WindowEvent::Modal(_) => {
                 // catch forced quit key events before passing control to modal
                 let current_key = self.key_track.current_key();
                 if current_key.modifiers == KeyModifiers::CONTROL {
                     match current_key.code {
                         KeyCode::Char('c') | KeyCode::Char('q') => {
-                            return Ok(Some(WindowEvent::Quit));
+                            return Ok(WindowEvent::Quit);
                         }
                         _ => {}
                     }
@@ -211,17 +211,11 @@ impl KeyEventHandler {
                         )
                         .await
                     {
-                        Ok(Some(WindowEvent::Modal(next_window_type))) => {
-                            if next_window_type == window_type {
-                                // window remains un-changed
-                                return Ok(Some(WindowEvent::Modal(
-                                    window_type,
-                                )));
-                            }
-                            WindowEvent::Modal(next_window_type)
+                        Ok(WindowEvent::Modal(action)) => {
+                            // pass as-is
+                            WindowEvent::Modal(action)
                         }
-                        Ok(Some(new_window_event)) => new_window_event,
-                        Ok(None) => WindowEvent::PromptWindow(None), // default
+                        Ok(new_window_event) => new_window_event,
                         Err(modal_error) => {
                             match modal_error {
                                 ApplicationError::NotReady(message) => {
@@ -231,9 +225,9 @@ impl KeyEventHandler {
                                         "Not Ready: {}",
                                         message
                                     ))?;
-                                    return Ok(Some(WindowEvent::Modal(
-                                        window_type,
-                                    )));
+                                    return Ok(WindowEvent::Modal(
+                                        ModalAction::WaitForKeyEvent,
+                                    ));
                                 }
                                 _ => {
                                     log::error!(
@@ -245,12 +239,12 @@ impl KeyEventHandler {
                             }
                         }
                     };
-                    return Ok(Some(new_window_event));
+                    return Ok(new_window_event);
                 } else {
-                    Ok(Some(WindowEvent::Modal(window_type)))
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
             }
-            _ => Ok(Some(current_mode)),
+            _ => Ok(current_mode),
         }
     }
 }

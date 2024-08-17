@@ -1,7 +1,7 @@
 mod profile_list;
+mod settings_editor;
 mod ui_state;
 
-use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -15,6 +15,7 @@ use ratatui::widgets::{
 };
 use ratatui::Frame;
 use serde_json::{json, Map, Value};
+use settings_editor::SettingsEditor;
 use tokio::sync::{mpsc, Mutex};
 use ui_state::{EditMode, Focus, UIState};
 
@@ -24,25 +25,20 @@ use super::{
     UserProfileDbHandler, WindowEvent,
 };
 
+enum BackgroundTaskResult {
+    ProfileCreated(Result<(), ApplicationError>),
+}
 pub struct ProfileEditModal {
     profile_list: ProfileList,
+    settings_editor: SettingsEditor,
     ui_state: UIState,
     db_handler: UserProfileDbHandler,
-    settings: Value,
-    current_field: usize,
-    edit_buffer: String,
-    new_key_buffer: String,
-    is_new_value_secure: bool,
     predefined_types: Vec<String>,
     selected_type: usize,
     background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
     task_start_time: Option<Instant>,
     spinner_state: usize,
     new_profile_name: Option<String>,
-}
-
-enum BackgroundTaskResult {
-    ProfileCreated(Result<(), ApplicationError>),
 }
 
 impl ProfileEditModal {
@@ -59,6 +55,7 @@ impl ProfileEditModal {
             } else {
                 Value::Object(serde_json::Map::new())
             };
+        let settings_editor = SettingsEditor::new(settings);
 
         let predefined_types = vec![
             "Custom".to_string(),
@@ -68,13 +65,9 @@ impl ProfileEditModal {
 
         Ok(Self {
             profile_list,
+            settings_editor,
             ui_state: UIState::new(),
             db_handler,
-            settings,
-            current_field: 0,
-            edit_buffer: String::new(),
-            new_key_buffer: String::new(),
-            is_new_value_secure: false,
             predefined_types,
             selected_type: 0,
             background_task: None,
@@ -85,8 +78,8 @@ impl ProfileEditModal {
     }
 
     fn render_settings_list(&self, f: &mut Frame, area: Rect) {
-        let mut items: Vec<ListItem> = self
-            .settings
+        let settings = self.settings_editor.get_settings();
+        let mut items: Vec<ListItem> = settings
             .as_object()
             .unwrap()
             .iter()
@@ -98,13 +91,18 @@ impl ProfileEditModal {
                 let content = if matches!(
                     self.ui_state.edit_mode,
                     EditMode::EditingValue
-                ) && i == self.current_field
+                ) && i
+                    == self.settings_editor.get_current_field()
                     && is_editable
                 {
-                    format!("{}: {}", key, self.edit_buffer)
+                    format!(
+                        "{}: {}",
+                        key,
+                        self.settings_editor.get_edit_buffer()
+                    )
                 } else {
                     let display_value = if is_secure {
-                        if self.ui_state.show_secure {
+                        if self.settings_editor.is_show_secure() {
                             value["value"].as_str().unwrap_or("").to_string()
                         } else {
                             "*****".to_string()
@@ -113,7 +111,7 @@ impl ProfileEditModal {
                         value.as_str().unwrap_or("").to_string()
                     };
                     let lock_icon = if is_secure {
-                        if self.ui_state.show_secure {
+                        if self.settings_editor.is_show_secure() {
                             "🔓 "
                         } else {
                             "🔒 "
@@ -131,7 +129,7 @@ impl ProfileEditModal {
                         lock_icon, key, display_value, empty_indicator
                     )
                 };
-                let style = if i == self.current_field
+                let style = if i == self.settings_editor.get_current_field()
                     && matches!(self.ui_state.focus, Focus::SettingsList)
                 {
                     Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
@@ -146,20 +144,26 @@ impl ProfileEditModal {
 
         // Add new key input field if in AddingNewKey mode
         if matches!(self.ui_state.edit_mode, EditMode::AddingNewKey) {
-            let secure_indicator = if self.is_new_value_secure {
+            let secure_indicator = if self.settings_editor.is_new_value_secure()
+            {
                 "🔒 "
             } else {
                 ""
             };
             items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!("{}New key: {}", secure_indicator, self.new_key_buffer),
+                format!(
+                    "{}New key: {}",
+                    secure_indicator,
+                    self.settings_editor.get_new_key_buffer()
+                ),
                 Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
             )])));
         }
 
         // Add new value input field if in AddingNewValue mode
         if matches!(self.ui_state.edit_mode, EditMode::AddingNewValue) {
-            let secure_indicator = if self.is_new_value_secure {
+            let secure_indicator = if self.settings_editor.is_new_value_secure()
+            {
                 "🔒 "
             } else {
                 ""
@@ -167,7 +171,9 @@ impl ProfileEditModal {
             items.push(ListItem::new(Line::from(vec![Span::styled(
                 format!(
                     "{}{}: {}",
-                    secure_indicator, self.new_key_buffer, self.edit_buffer
+                    secure_indicator,
+                    self.settings_editor.get_new_key_buffer(),
+                    self.settings_editor.get_edit_buffer()
                 ),
                 Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
             )])));
@@ -179,7 +185,7 @@ impl ProfileEditModal {
             .highlight_symbol(">> ");
 
         let mut state = ListState::default();
-        state.select(Some(self.current_field));
+        state.select(Some(self.settings_editor.get_current_field()));
 
         f.render_stateful_widget(list, area, &mut state);
     }
@@ -195,7 +201,7 @@ impl ProfileEditModal {
                         self.ui_state.edit_mode,
                         EditMode::RenamingProfile
                     ) {
-                    &self.edit_buffer
+                    self.new_profile_name.as_ref().unwrap_or(profile)
                 } else {
                     profile
                 };
@@ -259,9 +265,11 @@ impl ProfileEditModal {
             }
             (EditMode::NotEditing, KeyCode::Char('r') | KeyCode::Char('R')) => {
                 if !self.profile_list.is_new_profile_selected() {
-                    self.edit_buffer = self.profile_list.start_renaming();
                     self.ui_state.set_edit_mode(EditMode::RenamingProfile);
                     self.ui_state.set_focus(Focus::RenamingProfile);
+                    // Use a temporary buffer for renaming
+                    self.new_profile_name =
+                        Some(self.profile_list.start_renaming());
                 }
             }
             (EditMode::NotEditing, KeyCode::Char('D')) => {
@@ -276,26 +284,28 @@ impl ProfileEditModal {
                 self.ui_state.set_focus(Focus::SettingsList);
             }
             (EditMode::RenamingProfile, KeyCode::Enter) => {
-                self.profile_list
-                    .rename_profile(
-                        self.edit_buffer.clone(),
-                        &mut self.db_handler,
-                    )
-                    .await?;
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
-                self.ui_state.set_focus(Focus::ProfileList);
-                self.edit_buffer.clear();
+                if let Some(new_name) = self.new_profile_name.take() {
+                    self.profile_list
+                        .rename_profile(new_name, &mut self.db_handler)
+                        .await?;
+                    self.ui_state.set_edit_mode(EditMode::NotEditing);
+                    self.ui_state.set_focus(Focus::ProfileList);
+                }
             }
             (EditMode::RenamingProfile, KeyCode::Char(c)) => {
-                self.edit_buffer.push(c);
+                if let Some(ref mut name) = self.new_profile_name {
+                    name.push(c);
+                }
             }
             (EditMode::RenamingProfile, KeyCode::Backspace) => {
-                self.edit_buffer.pop();
+                if let Some(ref mut name) = self.new_profile_name {
+                    name.pop();
+                }
             }
             (EditMode::RenamingProfile, KeyCode::Esc) => {
+                self.new_profile_name = None;
                 self.ui_state.set_edit_mode(EditMode::NotEditing);
                 self.ui_state.set_focus(Focus::ProfileList);
-                self.edit_buffer.clear();
             }
             (EditMode::NotEditing, KeyCode::Char('q') | KeyCode::Esc) => {
                 return Ok(WindowEvent::PromptWindow(None));
@@ -446,16 +456,9 @@ impl ProfileEditModal {
 
     async fn load_profile(&mut self) -> Result<(), ApplicationError> {
         if let Some(profile) = self.profile_list.get_selected_profile() {
-            let mask_mode = if self.ui_state.show_secure {
-                MaskMode::Unmask
-            } else {
-                MaskMode::Mask
-            };
-            self.settings = self
-                .db_handler
-                .get_profile_settings(profile, mask_mode)
+            self.settings_editor
+                .load_settings(profile, &mut self.db_handler)
                 .await?;
-            self.current_field = 0;
         }
         Ok(())
     }
@@ -466,72 +469,117 @@ impl ProfileEditModal {
     ) -> Result<WindowEvent, ApplicationError> {
         match (self.ui_state.edit_mode, key_code) {
             (EditMode::NotEditing, KeyCode::Up) => {
-                if self.current_field > 0 {
-                    self.current_field -= 1;
-                }
+                self.settings_editor.move_selection_up()
             }
             (EditMode::NotEditing, KeyCode::Down) => {
-                if self.current_field
-                    < self.settings.as_object().unwrap().len() - 1
-                {
-                    self.current_field += 1;
-                }
+                self.settings_editor.move_selection_down()
             }
             (EditMode::NotEditing, KeyCode::Enter) => {
-                self.start_editing();
+                if let Some(edit_value) = self.settings_editor.start_editing() {
+                    self.ui_state.set_edit_mode(EditMode::EditingValue);
+                }
             }
             (EditMode::NotEditing, KeyCode::Tab) => {
                 self.ui_state.set_focus(Focus::ProfileList);
             }
             (EditMode::NotEditing, KeyCode::Char('s') | KeyCode::Char('S')) => {
-                self.ui_state.toggle_secure();
-                self.load_profile().await?;
+                self.settings_editor.toggle_secure_visibility();
+                if let Some(profile) = self.profile_list.get_selected_profile()
+                {
+                    self.settings_editor
+                        .load_settings(profile, &mut self.db_handler)
+                        .await?;
+                }
             }
             (EditMode::NotEditing, KeyCode::Char('n')) => {
-                self.start_adding_new_value(false);
+                self.settings_editor.start_adding_new_value(false);
+                self.ui_state.set_edit_mode(EditMode::AddingNewKey);
             }
             (EditMode::NotEditing, KeyCode::Char('N')) => {
-                self.start_adding_new_value(true);
+                self.settings_editor.start_adding_new_value(true);
+                self.ui_state.set_edit_mode(EditMode::AddingNewKey);
             }
             (EditMode::NotEditing, KeyCode::Char('D')) => {
-                self.delete_current_key().await?;
+                if let Some(profile) = self.profile_list.get_selected_profile()
+                {
+                    self.settings_editor
+                        .delete_current_key(profile, &mut self.db_handler)
+                        .await?;
+                }
             }
             (EditMode::NotEditing, KeyCode::Char('C')) => {
-                self.clear_current_key().await?;
+                if let Some(profile) = self.profile_list.get_selected_profile()
+                {
+                    self.settings_editor
+                        .clear_current_key(profile, &mut self.db_handler)
+                        .await?;
+                }
             }
             (EditMode::EditingValue, KeyCode::Enter) => {
-                self.save_edit().await?;
+                if let Some(profile) = self.profile_list.get_selected_profile()
+                {
+                    self.settings_editor
+                        .save_edit(profile, &mut self.db_handler)
+                        .await?;
+                }
+                self.ui_state.set_edit_mode(EditMode::NotEditing);
             }
             (EditMode::EditingValue, KeyCode::Char(c)) => {
-                self.edit_buffer.push(c);
+                let mut current_value =
+                    self.settings_editor.get_edit_buffer().to_string();
+                current_value.push(c);
+                self.settings_editor.set_edit_buffer(current_value);
             }
             (EditMode::EditingValue, KeyCode::Backspace) => {
-                self.edit_buffer.pop();
+                let mut current_value =
+                    self.settings_editor.get_edit_buffer().to_string();
+                current_value.pop();
+                self.settings_editor.set_edit_buffer(current_value);
             }
             (EditMode::AddingNewKey, KeyCode::Enter) => {
-                self.confirm_new_key();
+                if self.settings_editor.confirm_new_key() {
+                    self.ui_state.set_edit_mode(EditMode::AddingNewValue);
+                }
             }
             (EditMode::AddingNewKey, KeyCode::Char(c)) => {
-                self.new_key_buffer.push(c);
+                let mut current_value =
+                    self.settings_editor.get_new_key_buffer().to_string();
+                current_value.push(c);
+                self.settings_editor.set_new_key_buffer(current_value);
             }
             (EditMode::AddingNewKey, KeyCode::Backspace) => {
-                self.new_key_buffer.pop();
+                let mut current_value =
+                    self.settings_editor.get_new_key_buffer().to_string();
+                current_value.pop();
+                self.settings_editor.set_new_key_buffer(current_value);
             }
             (EditMode::AddingNewValue, KeyCode::Enter) => {
-                self.save_edit().await?;
+                if let Some(profile) = self.profile_list.get_selected_profile()
+                {
+                    self.settings_editor
+                        .save_new_value(profile, &mut self.db_handler)
+                        .await?;
+                }
+                self.ui_state.set_edit_mode(EditMode::NotEditing);
             }
             (EditMode::AddingNewValue, KeyCode::Char(c)) => {
-                self.edit_buffer.push(c);
+                let mut current_value =
+                    self.settings_editor.get_edit_buffer().to_string();
+                current_value.push(c);
+                self.settings_editor.set_edit_buffer(current_value);
             }
             (EditMode::AddingNewValue, KeyCode::Backspace) => {
-                self.edit_buffer.pop();
+                let mut current_value =
+                    self.settings_editor.get_edit_buffer().to_string();
+                current_value.pop();
+                self.settings_editor.set_edit_buffer(current_value);
             }
             (_, KeyCode::Esc) => {
-                self.cancel_edit();
+                self.settings_editor.cancel_edit();
+                self.ui_state.set_edit_mode(EditMode::NotEditing);
             }
             _ => {}
         }
-
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
@@ -562,130 +610,6 @@ impl ProfileEditModal {
         }
 
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
-    fn start_editing(&mut self) {
-        let current_key = self
-            .settings
-            .as_object()
-            .unwrap()
-            .keys()
-            .nth(self.current_field)
-            .unwrap();
-        if !current_key.starts_with("__") {
-            self.ui_state.set_edit_mode(EditMode::EditingValue);
-            self.edit_buffer = self.settings[current_key]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
-        }
-    }
-
-    fn start_adding_new_value(&mut self, is_secure: bool) {
-        self.ui_state.set_edit_mode(EditMode::AddingNewKey);
-        self.new_key_buffer.clear();
-        self.edit_buffer.clear();
-        self.is_new_value_secure = is_secure;
-    }
-
-    fn confirm_new_key(&mut self) {
-        if !self.new_key_buffer.is_empty() {
-            self.ui_state.set_edit_mode(EditMode::AddingNewValue);
-        }
-    }
-
-    async fn save_edit(&mut self) -> Result<(), ApplicationError> {
-        match self.ui_state.edit_mode {
-            EditMode::EditingValue => {
-                let current_key = self
-                    .settings
-                    .as_object()
-                    .unwrap()
-                    .keys()
-                    .nth(self.current_field)
-                    .unwrap()
-                    .to_string();
-                self.settings[&current_key] =
-                    Value::String(self.edit_buffer.clone());
-            }
-            EditMode::AddingNewValue => {
-                if self.is_new_value_secure {
-                    self.settings[&self.new_key_buffer] = json!({
-                        "value": self.edit_buffer,
-                        "was_encrypted": true
-                    });
-                } else {
-                    self.settings[&self.new_key_buffer] =
-                        Value::String(self.edit_buffer.clone());
-                }
-            }
-            _ => return Ok(()),
-        }
-
-        if let Some(profile) = self.profile_list.get_selected_profile() {
-            self.db_handler
-                .create_or_update(profile, &self.settings)
-                .await?;
-        }
-
-        self.ui_state.set_edit_mode(EditMode::NotEditing);
-        self.edit_buffer.clear();
-        self.new_key_buffer.clear();
-        self.is_new_value_secure = false;
-        Ok(())
-    }
-
-    fn cancel_edit(&mut self) {
-        self.ui_state.set_edit_mode(EditMode::NotEditing);
-        self.edit_buffer.clear();
-        self.new_key_buffer.clear();
-        self.is_new_value_secure = false;
-    }
-
-    async fn delete_current_key(&mut self) -> Result<(), ApplicationError> {
-        if let Some(current_key) = self
-            .settings
-            .as_object()
-            .unwrap()
-            .keys()
-            .nth(self.current_field)
-        {
-            let current_key = current_key.to_string();
-            if !current_key.starts_with("__") {
-                let mut settings = serde_json::Map::new();
-                settings.insert(current_key, Value::Null); // Null indicates deletion
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.db_handler
-                        .create_or_update(profile, &Value::Object(settings))
-                        .await?;
-                    self.load_profile().await?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    async fn clear_current_key(&mut self) -> Result<(), ApplicationError> {
-        if let Some(current_key) = self
-            .settings
-            .as_object()
-            .unwrap()
-            .keys()
-            .nth(self.current_field)
-        {
-            let current_key = current_key.to_string();
-            if !current_key.starts_with("__") {
-                self.settings[&current_key] = Value::String("".to_string());
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.db_handler
-                        .create_or_update(profile, &self.settings)
-                        .await?;
-                }
-            }
-        }
-        Ok(())
     }
 }
 

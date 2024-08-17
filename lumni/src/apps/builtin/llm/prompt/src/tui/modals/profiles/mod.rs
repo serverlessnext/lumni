@@ -1,3 +1,4 @@
+mod new_profile_creator;
 mod profile_list;
 mod settings_editor;
 mod ui_state;
@@ -6,6 +7,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
+use new_profile_creator::{BackgroundTaskResult, NewProfileCreator};
 use profile_list::ProfileList;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -25,19 +27,12 @@ use super::{
     UserProfileDbHandler, WindowEvent,
 };
 
-enum BackgroundTaskResult {
-    ProfileCreated(Result<(), ApplicationError>),
-}
 pub struct ProfileEditModal {
     profile_list: ProfileList,
     settings_editor: SettingsEditor,
+    new_profile_creator: NewProfileCreator,
     ui_state: UIState,
     db_handler: UserProfileDbHandler,
-    predefined_types: Vec<String>,
-    selected_type: usize,
-    background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
-    task_start_time: Option<Instant>,
-    spinner_state: usize,
     new_profile_name: Option<String>,
 }
 
@@ -56,23 +51,14 @@ impl ProfileEditModal {
                 Value::Object(serde_json::Map::new())
             };
         let settings_editor = SettingsEditor::new(settings);
-
-        let predefined_types = vec![
-            "Custom".to_string(),
-            "OpenAI".to_string(),
-            "Anthropic".to_string(),
-        ];
+        let new_profile_creator = NewProfileCreator::new();
 
         Ok(Self {
             profile_list,
             settings_editor,
+            new_profile_creator,
             ui_state: UIState::new(),
             db_handler,
-            predefined_types,
-            selected_type: 0,
-            background_task: None,
-            task_start_time: None,
-            spinner_state: 0,
             new_profile_name: None,
         })
     }
@@ -257,7 +243,7 @@ impl ProfileEditModal {
                 if self.profile_list.is_new_profile_selected() {
                     self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
                     self.ui_state.set_focus(Focus::NewProfileType);
-                    self.selected_type = 0;
+                    self.new_profile_creator.selected_type = 0;
                 } else {
                     self.ui_state.set_focus(Focus::SettingsList);
                     self.load_profile().await?;
@@ -318,11 +304,12 @@ impl ProfileEditModal {
 
     fn render_new_profile_type(&self, f: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self
+            .new_profile_creator
             .predefined_types
             .iter()
             .enumerate()
             .map(|(i, profile_type)| {
-                let style = if i == self.selected_type {
+                let style = if i == self.new_profile_creator.selected_type {
                     Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
                 } else {
                     Style::default().bg(Color::Black).fg(Color::Cyan)
@@ -344,7 +331,7 @@ impl ProfileEditModal {
             .highlight_symbol(">> ");
 
         let mut state = ListState::default();
-        state.select(Some(self.selected_type));
+        state.select(Some(self.new_profile_creator.selected_type));
 
         f.render_stateful_widget(list, area, &mut state);
     }
@@ -383,61 +370,16 @@ impl ProfileEditModal {
         f.render_widget(paragraph, area);
     }
 
-    async fn create_new_profile(&mut self) -> Result<(), ApplicationError> {
-        let new_profile_name =
-            format!("New_Profile_{}", self.profile_list.total_items());
-        let profile_type = &self.predefined_types[self.selected_type];
-
-        let mut settings = serde_json::Map::new();
-        settings.insert("__PROFILE_TYPE".to_string(), json!(profile_type));
-
-        // Add default settings based on the profile type
-        match profile_type.as_str() {
-            "OpenAI" => {
-                settings.insert("api_key".to_string(), json!(""));
-                settings.insert("model".to_string(), json!("gpt-3.5-turbo"));
-            }
-            "Anthropic" => {
-                settings.insert("api_key".to_string(), json!(""));
-                settings.insert("model".to_string(), json!("claude-2"));
-            }
-            "Custom" => {}
-            _ => {
-                return Err(ApplicationError::InvalidInput(
-                    "Unknown profile type".to_string(),
-                ))
-            }
-        }
-
-        let mut db_handler = self.db_handler.clone();
-        let (tx, rx) = mpsc::channel(1);
-
-        let new_profile_name_clone = new_profile_name.clone();
-        tokio::spawn(async move {
-            let result = db_handler
-                .create_or_update(&new_profile_name_clone, &json!(settings))
-                .await;
-            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
-        });
-
-        self.background_task = Some(rx);
-        self.task_start_time = Some(Instant::now());
-        self.spinner_state = 0;
-        self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
-        self.ui_state.set_focus(Focus::NewProfileType);
-        self.new_profile_name = Some(new_profile_name);
-
-        Ok(())
-    }
-
     fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
         const SPINNER: &[char] =
             &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-        let spinner_char = SPINNER[self.spinner_state];
-        self.spinner_state = (self.spinner_state + 1) % SPINNER.len();
+        let spinner_char = SPINNER[self.new_profile_creator.spinner_state];
+        self.new_profile_creator.spinner_state =
+            (self.new_profile_creator.spinner_state + 1) % SPINNER.len();
 
         let elapsed = self
+            .new_profile_creator
             .task_start_time
             .map(|start| start.elapsed().as_secs())
             .unwrap_or(0);
@@ -475,7 +417,7 @@ impl ProfileEditModal {
                 self.settings_editor.move_selection_down()
             }
             (EditMode::NotEditing, KeyCode::Enter) => {
-                if let Some(edit_value) = self.settings_editor.start_editing() {
+                if self.settings_editor.start_editing().is_some() {
                     self.ui_state.set_edit_mode(EditMode::EditingValue);
                 }
             }
@@ -589,17 +531,22 @@ impl ProfileEditModal {
     ) -> Result<WindowEvent, ApplicationError> {
         match key_code {
             KeyCode::Up => {
-                if self.selected_type > 0 {
-                    self.selected_type -= 1;
+                if self.new_profile_creator.selected_type > 0 {
+                    self.new_profile_creator.selected_type -= 1;
                 }
             }
             KeyCode::Down => {
-                if self.selected_type < self.predefined_types.len() - 1 {
-                    self.selected_type += 1;
+                if self.new_profile_creator.selected_type
+                    < self.new_profile_creator.predefined_types.len() - 1
+                {
+                    self.new_profile_creator.selected_type += 1;
                 }
             }
             KeyCode::Enter => {
-                self.create_new_profile().await?;
+                let profile_count = self.profile_list.total_items();
+                self.new_profile_creator
+                    .create_new_profile(&self.db_handler, profile_count)
+                    .await?;
                 return Ok(WindowEvent::Modal(ModalAction::Refresh));
             }
             KeyCode::Esc => {
@@ -658,7 +605,7 @@ impl ModalWindowTrait for ProfileEditModal {
         self.render_instructions(frame, main_chunks[2]);
 
         // Render activity indicator if a background task is running
-        if self.background_task.is_some() {
+        if self.new_profile_creator.background_task.is_some() {
             let indicator_area = Rect {
                 x: area.x + 10,
                 y: area.bottom() - 3,
@@ -671,15 +618,15 @@ impl ModalWindowTrait for ProfileEditModal {
     }
 
     async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
-        if let Some(ref mut rx) = self.background_task {
+        if let Some(ref mut rx) = self.new_profile_creator.background_task {
             match rx.try_recv() {
                 Ok(BackgroundTaskResult::ProfileCreated(result)) => {
-                    self.background_task = None;
-                    self.task_start_time = None;
+                    self.new_profile_creator.background_task = None;
+                    self.new_profile_creator.task_start_time = None;
                     match result {
                         Ok(()) => {
                             if let Some(new_profile_name) =
-                                self.new_profile_name.take()
+                                self.new_profile_creator.new_profile_name.take()
                             {
                                 self.profile_list.add_profile(new_profile_name);
                                 self.load_profile().await?;
@@ -689,30 +636,22 @@ impl ModalWindowTrait for ProfileEditModal {
                         }
                         Err(e) => {
                             log::error!("Failed to create profile: {}", e);
-                            // Optionally, you could set an error message to display to the user
                         }
                     }
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    // Task is still running, continue to show the activity indicator
                     Ok(WindowEvent::Modal(ModalAction::Refresh))
                 }
                 Err(mpsc::error::TryRecvError::Disconnected) => {
-                    // Task has ended unexpectedly
-                    self.background_task = None;
-                    self.task_start_time = None;
-                    self.new_profile_name = None;
+                    self.new_profile_creator.background_task = None;
+                    self.new_profile_creator.task_start_time = None;
+                    self.new_profile_creator.new_profile_name = None;
                     self.ui_state.set_edit_mode(EditMode::NotEditing);
                     self.ui_state.set_focus(Focus::ProfileList);
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
             }
-        } else if self.ui_state.edit_mode == EditMode::CreatingNewProfile {
-            // If we're in the process of creating a new profile but the background task isn't set,
-            // it means we need to start the background task
-            self.create_new_profile().await?;
-            Ok(WindowEvent::Modal(ModalAction::Refresh))
         } else {
             Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
         }

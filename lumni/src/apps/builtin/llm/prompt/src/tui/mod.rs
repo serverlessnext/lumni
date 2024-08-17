@@ -22,12 +22,10 @@ pub use window::{
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, UserProfileDbHandler,
+    ConversationStatus, MaskMode, ModelSpec, UserProfileDbHandler,
 };
 use super::chat::{
     App, NewConversation, PromptInstruction, ThreadedChatSession,
 };
-use super::server::{
-    ModelServer, ServerManager, ServerTrait, SUPPORTED_MODEL_ENDPOINTS,
-};
+use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};
 use crate::external as lumni;

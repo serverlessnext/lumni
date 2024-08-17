@@ -1,7 +1,7 @@
 use super::*;
 
 pub struct SettingsEditor {
-    settings: Value,
+    settings: JsonValue,
     current_field: usize,
     edit_buffer: String,
     new_key_buffer: String,
@@ -10,7 +10,7 @@ pub struct SettingsEditor {
 }
 
 impl SettingsEditor {
-    pub fn new(settings: Value) -> Self {
+    pub fn new(settings: JsonValue) -> Self {
         Self {
             settings,
             current_field: 0,
@@ -21,7 +21,7 @@ impl SettingsEditor {
         }
     }
 
-    pub fn get_settings(&self) -> &Value {
+    pub fn get_settings(&self) -> &JsonValue {
         &self.settings
     }
 
@@ -79,7 +79,8 @@ impl SettingsEditor {
             .nth(self.current_field)
             .unwrap()
             .to_string();
-        self.settings[&current_key] = Value::String(self.edit_buffer.clone());
+        self.settings[&current_key] =
+            JsonValue::String(self.edit_buffer.clone());
         db_handler.create_or_update(profile, &self.settings).await
     }
 
@@ -95,7 +96,7 @@ impl SettingsEditor {
             });
         } else {
             self.settings[&self.new_key_buffer] =
-                Value::String(self.edit_buffer.clone());
+                JsonValue::String(self.edit_buffer.clone());
         }
         db_handler.create_or_update(profile, &self.settings).await
     }
@@ -121,9 +122,9 @@ impl SettingsEditor {
             let current_key = current_key.to_string();
             if !current_key.starts_with("__") {
                 let mut settings = Map::new();
-                settings.insert(current_key, Value::Null); // Null indicates deletion
+                settings.insert(current_key, JsonValue::Null); // Null indicates deletion
                 db_handler
-                    .create_or_update(profile, &Value::Object(settings))
+                    .create_or_update(profile, &JsonValue::Object(settings))
                     .await?;
                 self.load_settings(profile, db_handler).await?;
             }
@@ -145,7 +146,7 @@ impl SettingsEditor {
         {
             let current_key = current_key.to_string();
             if !current_key.starts_with("__") {
-                self.settings[&current_key] = Value::String("".to_string());
+                self.settings[&current_key] = JsonValue::String("".to_string());
                 db_handler.create_or_update(profile, &self.settings).await?;
             }
         }

@@ -1,11 +1,10 @@
-use super::*;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Focus {
     ProfileList,
     SettingsList,
     NewProfileType,
     RenamingProfile,
+    ModelSelection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

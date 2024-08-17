@@ -18,15 +18,16 @@ use ratatui::widgets::{
     Block, Borders, Clear, List, ListItem, ListState, Paragraph,
 };
 use ratatui::Frame;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Map, Value as JsonValue};
 use settings_editor::SettingsEditor;
 use tokio::sync::mpsc;
 use ui_state::{EditMode, Focus, UIState};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
-    ModalWindowTrait, ModalWindowType, ThreadedChatSession,
-    UserProfileDbHandler, WindowEvent,
+    ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ServerTrait,
+    ThreadedChatSession, UserProfileDbHandler, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 pub struct ProfileEditModal {
@@ -50,10 +51,10 @@ impl ProfileEditModal {
                     .get_profile_settings(profile, MaskMode::Mask)
                     .await?
             } else {
-                Value::Object(serde_json::Map::new())
+                JsonValue::Object(serde_json::Map::new())
             };
         let settings_editor = SettingsEditor::new(settings);
-        let new_profile_creator = NewProfileCreator::new();
+        let new_profile_creator = NewProfileCreator::new(db_handler.clone());
 
         Ok(Self {
             profile_list,
@@ -313,20 +314,127 @@ impl ProfileEditModal {
                 }
             }
             KeyCode::Enter => {
-                let profile_count = self.profile_list.total_items();
-                self.new_profile_creator
-                    .create_new_profile(&self.db_handler, profile_count)
-                    .await?;
+                if self
+                    .new_profile_creator
+                    .prepare_for_model_selection()
+                    .await?
+                {
+                    self.ui_state.set_focus(Focus::ModelSelection);
+                } else {
+                    // If no model selection is needed, create the profile without a model
+                    let profile_count = self.profile_list.total_items();
+                    self.new_profile_creator
+                        .create_new_profile(&self.db_handler, profile_count)
+                        .await?;
+                    self.ui_state.set_focus(Focus::ProfileList);
+                }
                 return Ok(WindowEvent::Modal(ModalAction::Refresh));
             }
             KeyCode::Esc => {
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
                 self.ui_state.set_focus(Focus::ProfileList);
             }
             _ => {}
         }
-
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+    }
+
+    async fn handle_model_selection_input(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<WindowEvent, ApplicationError> {
+        match key_code {
+            KeyCode::Up => {
+                self.new_profile_creator.move_model_selection_up();
+            }
+            KeyCode::Down => {
+                self.new_profile_creator.move_model_selection_down();
+            }
+            KeyCode::Enter => {
+                let profile_count = self.profile_list.total_items();
+                self.new_profile_creator
+                    .create_new_profile(&self.db_handler, profile_count)
+                    .await?;
+                self.ui_state.set_focus(Focus::ProfileList);
+                return Ok(WindowEvent::Modal(ModalAction::Refresh));
+            }
+            KeyCode::Esc => {
+                // Cancel model selection, create profile without a model
+                self.new_profile_creator.model_selection_pending = false;
+                let profile_count = self.profile_list.total_items();
+                self.new_profile_creator
+                    .create_new_profile(&self.db_handler, profile_count)
+                    .await?;
+                self.ui_state.set_focus(Focus::ProfileList);
+                return Ok(WindowEvent::Modal(ModalAction::Refresh));
+            }
+            _ => {}
+        }
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+    }
+
+    fn render_model_selection(&self, f: &mut Frame, area: Rect) {
+        let models = &self.new_profile_creator.available_models;
+        let items: Vec<ListItem> = models
+            .iter()
+            .enumerate()
+            .map(|(i, model)| {
+                let style = if i
+                    == self.new_profile_creator.selected_model_index
+                {
+                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
+                } else {
+                    Style::default().bg(Color::Black).fg(Color::Cyan)
+                };
+                ListItem::new(Line::from(vec![Span::styled(
+                    &model.identifier.0,
+                    style,
+                )]))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("Select Model"))
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> ");
+
+        let mut state = ListState::default();
+        state.select(Some(self.new_profile_creator.selected_model_index));
+
+        f.render_stateful_widget(list, area, &mut state);
+    }
+
+    fn render_new_profile_type(&self, f: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self
+            .new_profile_creator
+            .predefined_types
+            .iter()
+            .enumerate()
+            .map(|(i, profile_type)| {
+                let style = if i == self.new_profile_creator.selected_type {
+                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
+                } else {
+                    Style::default().bg(Color::Black).fg(Color::Cyan)
+                };
+                ListItem::new(Line::from(vec![Span::styled(
+                    profile_type,
+                    style,
+                )]))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Select Profile Type"),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> ");
+
+        let mut state = ListState::default();
+        state.select(Some(self.new_profile_creator.selected_type));
+
+        f.render_stateful_widget(list, area, &mut state);
     }
 
     fn cancel_edit(&mut self) {
@@ -366,10 +474,13 @@ impl ModalWindowTrait for ProfileEditModal {
         self.renderer
             .render_profile_list(frame, content_chunks[0], self);
 
-        match self.ui_state.edit_mode {
-            EditMode::CreatingNewProfile => self
-                .renderer
-                .render_new_profile_type(frame, content_chunks[1], self),
+        match self.ui_state.focus {
+            Focus::NewProfileType => {
+                self.render_new_profile_type(frame, content_chunks[1])
+            }
+            Focus::ModelSelection => {
+                self.render_model_selection(frame, content_chunks[1])
+            }
             _ => self.renderer.render_settings_list(
                 frame,
                 content_chunks[1],
@@ -438,7 +549,6 @@ impl ModalWindowTrait for ProfileEditModal {
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         let key_code = key_event.current_key().code;
-
         let result = match self.ui_state.focus {
             Focus::ProfileList => match key_code {
                 KeyCode::Right | KeyCode::Tab => {
@@ -470,8 +580,10 @@ impl ModalWindowTrait for ProfileEditModal {
             Focus::RenamingProfile => {
                 Ok(self.handle_profile_list_input(key_code).await?)
             }
+            Focus::ModelSelection => {
+                Ok(self.handle_model_selection_input(key_code).await?)
+            }
         };
-
         result
     }
 }

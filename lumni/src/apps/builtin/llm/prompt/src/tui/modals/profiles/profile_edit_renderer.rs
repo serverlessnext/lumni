@@ -209,51 +209,6 @@ impl ProfileEditRenderer {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    pub fn render_new_profile_type(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        profile_edit_modal: &ProfileEditModal,
-    ) {
-        let items: Vec<ListItem> = profile_edit_modal
-            .new_profile_creator
-            .get_predefined_types()
-            .iter()
-            .enumerate()
-            .map(|(i, profile_type)| {
-                let style = if i
-                    == profile_edit_modal
-                        .new_profile_creator
-                        .get_selected_type()
-                {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                };
-                ListItem::new(Line::from(vec![Span::styled(
-                    profile_type,
-                    style,
-                )]))
-            })
-            .collect();
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Select Profile Type"),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-
-        let mut state = ListState::default();
-        state.select(Some(
-            profile_edit_modal.new_profile_creator.get_selected_type(),
-        ));
-
-        f.render_stateful_widget(list, area, &mut state);
-    }
-
     pub fn render_instructions(
         &self,
         f: &mut Frame,

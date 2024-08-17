@@ -1,4 +1,5 @@
 mod new_profile_creator;
+mod profile_edit_renderer;
 mod profile_list;
 mod settings_editor;
 mod ui_state;
@@ -8,6 +9,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
 use new_profile_creator::{BackgroundTaskResult, NewProfileCreator};
+use profile_edit_renderer::ProfileEditRenderer;
 use profile_list::ProfileList;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -18,7 +20,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use serde_json::{json, Map, Value};
 use settings_editor::SettingsEditor;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use ui_state::{EditMode, Focus, UIState};
 
 use super::{
@@ -34,8 +36,8 @@ pub struct ProfileEditModal {
     ui_state: UIState,
     db_handler: UserProfileDbHandler,
     new_profile_name: Option<String>,
+    renderer: ProfileEditRenderer,
 }
-
 impl ProfileEditModal {
     pub async fn new(
         mut db_handler: UserProfileDbHandler,
@@ -60,172 +62,8 @@ impl ProfileEditModal {
             ui_state: UIState::new(),
             db_handler,
             new_profile_name: None,
+            renderer: ProfileEditRenderer::new(),
         })
-    }
-
-    fn render_settings_list(&self, f: &mut Frame, area: Rect) {
-        let settings = self.settings_editor.get_settings();
-        let mut items: Vec<ListItem> = settings
-            .as_object()
-            .unwrap()
-            .iter()
-            .enumerate()
-            .map(|(i, (key, value))| {
-                let is_editable = !key.starts_with("__");
-                let is_secure = value.is_object()
-                    && value.get("was_encrypted") == Some(&Value::Bool(true));
-                let content = if matches!(
-                    self.ui_state.edit_mode,
-                    EditMode::EditingValue
-                ) && i
-                    == self.settings_editor.get_current_field()
-                    && is_editable
-                {
-                    format!(
-                        "{}: {}",
-                        key,
-                        self.settings_editor.get_edit_buffer()
-                    )
-                } else {
-                    let display_value = if is_secure {
-                        if self.settings_editor.is_show_secure() {
-                            value["value"].as_str().unwrap_or("").to_string()
-                        } else {
-                            "*****".to_string()
-                        }
-                    } else {
-                        value.as_str().unwrap_or("").to_string()
-                    };
-                    let lock_icon = if is_secure {
-                        if self.settings_editor.is_show_secure() {
-                            "🔓 "
-                        } else {
-                            "🔒 "
-                        }
-                    } else {
-                        ""
-                    };
-                    let empty_indicator = if display_value.is_empty() {
-                        " (empty)"
-                    } else {
-                        ""
-                    };
-                    format!(
-                        "{}{}: {}{}",
-                        lock_icon, key, display_value, empty_indicator
-                    )
-                };
-                let style = if i == self.settings_editor.get_current_field()
-                    && matches!(self.ui_state.focus, Focus::SettingsList)
-                {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else if is_editable {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::DarkGray)
-                };
-                ListItem::new(Line::from(vec![Span::styled(content, style)]))
-            })
-            .collect();
-
-        // Add new key input field if in AddingNewKey mode
-        if matches!(self.ui_state.edit_mode, EditMode::AddingNewKey) {
-            let secure_indicator = if self.settings_editor.is_new_value_secure()
-            {
-                "🔒 "
-            } else {
-                ""
-            };
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!(
-                    "{}New key: {}",
-                    secure_indicator,
-                    self.settings_editor.get_new_key_buffer()
-                ),
-                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
-            )])));
-        }
-
-        // Add new value input field if in AddingNewValue mode
-        if matches!(self.ui_state.edit_mode, EditMode::AddingNewValue) {
-            let secure_indicator = if self.settings_editor.is_new_value_secure()
-            {
-                "🔒 "
-            } else {
-                ""
-            };
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                format!(
-                    "{}{}: {}",
-                    secure_indicator,
-                    self.settings_editor.get_new_key_buffer(),
-                    self.settings_editor.get_edit_buffer()
-                ),
-                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
-            )])));
-        }
-
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Settings"))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-
-        let mut state = ListState::default();
-        state.select(Some(self.settings_editor.get_current_field()));
-
-        f.render_stateful_widget(list, area, &mut state);
-    }
-
-    fn render_profile_list(&self, f: &mut Frame, area: Rect) {
-        let profiles = self.profile_list.get_profiles();
-        let mut items: Vec<ListItem> = profiles
-            .iter()
-            .enumerate()
-            .map(|(i, profile)| {
-                let content = if i == self.profile_list.get_selected_index()
-                    && matches!(
-                        self.ui_state.edit_mode,
-                        EditMode::RenamingProfile
-                    ) {
-                    self.new_profile_name.as_ref().unwrap_or(profile)
-                } else {
-                    profile
-                };
-                let style = if i == self.profile_list.get_selected_index()
-                    && matches!(
-                        self.ui_state.focus,
-                        Focus::ProfileList | Focus::RenamingProfile
-                    ) {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                };
-                ListItem::new(Line::from(vec![Span::styled(content, style)]))
-            })
-            .collect();
-
-        // Add "New Profile" option
-        let new_profile_style = if self.profile_list.is_new_profile_selected()
-            && matches!(self.ui_state.focus, Focus::ProfileList)
-        {
-            Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-        } else {
-            Style::default().bg(Color::Black).fg(Color::Green)
-        };
-        items.push(ListItem::new(Line::from(vec![Span::styled(
-            "+ New Profile",
-            new_profile_style,
-        )])));
-
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Profiles"))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-
-        let mut state = ListState::default();
-        state.select(Some(self.profile_list.get_selected_index()));
-
-        f.render_stateful_widget(list, area, &mut state);
     }
 
     async fn handle_profile_list_input(
@@ -300,74 +138,6 @@ impl ProfileEditModal {
         }
 
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
-    fn render_new_profile_type(&self, f: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self
-            .new_profile_creator
-            .predefined_types
-            .iter()
-            .enumerate()
-            .map(|(i, profile_type)| {
-                let style = if i == self.new_profile_creator.selected_type {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                };
-                ListItem::new(Line::from(vec![Span::styled(
-                    profile_type,
-                    style,
-                )]))
-            })
-            .collect();
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Select Profile Type"),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
-
-        let mut state = ListState::default();
-        state.select(Some(self.new_profile_creator.selected_type));
-
-        f.render_stateful_widget(list, area, &mut state);
-    }
-
-    fn render_instructions(&self, f: &mut Frame, area: Rect) {
-        let instructions =
-            match (&self.ui_state.focus, &self.ui_state.edit_mode) {
-                (Focus::ProfileList, EditMode::NotEditing) => {
-                    "↑↓: Navigate | Enter: Select/Create | R: Rename | D: \
-                     Delete | Tab: Settings | Esc: Close"
-                }
-                (Focus::RenamingProfile, EditMode::RenamingProfile) => {
-                    "Enter: Confirm Rename | Esc: Cancel"
-                }
-                (Focus::SettingsList, EditMode::NotEditing) => {
-                    "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | D: \
-                     Delete | C: Clear | S: Show/Hide Secure | Tab: Profiles | \
-                     Esc: Close"
-                }
-                (Focus::SettingsList, EditMode::EditingValue) => {
-                    "Enter: Save | Esc: Cancel"
-                }
-                (Focus::SettingsList, EditMode::AddingNewKey) => {
-                    "Enter: Confirm Key | Esc: Cancel"
-                }
-                (Focus::SettingsList, EditMode::AddingNewValue) => {
-                    "Enter: Save New Value | Esc: Cancel"
-                }
-                (Focus::NewProfileType, EditMode::CreatingNewProfile) => {
-                    "↑↓: Select Type | Enter: Create Profile | Esc: Cancel"
-                }
-                _ => "",
-            };
-        let paragraph = Paragraph::new(instructions)
-            .style(Style::default().fg(Color::Cyan));
-        f.render_widget(paragraph, area);
     }
 
     fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
@@ -578,12 +348,7 @@ impl ModalWindowTrait for ProfileEditModal {
             ])
             .split(area);
 
-        let title = Paragraph::new("Profile Editor")
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(Alignment::Center);
-        frame.render_widget(title, main_chunks[0]);
-
-        let content_area = main_chunks[1];
+        self.renderer.render_title(frame, main_chunks[0]);
 
         let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -591,20 +356,25 @@ impl ModalWindowTrait for ProfileEditModal {
                 Constraint::Percentage(30),
                 Constraint::Percentage(70),
             ])
-            .split(content_area);
+            .split(main_chunks[1]);
 
-        self.render_profile_list(frame, content_chunks[0]);
+        self.renderer
+            .render_profile_list(frame, content_chunks[0], self);
 
         match self.ui_state.edit_mode {
-            EditMode::CreatingNewProfile => {
-                self.render_new_profile_type(frame, content_chunks[1])
-            }
-            _ => self.render_settings_list(frame, content_chunks[1]),
+            EditMode::CreatingNewProfile => self
+                .renderer
+                .render_new_profile_type(frame, content_chunks[1], self),
+            _ => self.renderer.render_settings_list(
+                frame,
+                content_chunks[1],
+                self,
+            ),
         }
 
-        self.render_instructions(frame, main_chunks[2]);
+        self.renderer
+            .render_instructions(frame, main_chunks[2], self);
 
-        // Render activity indicator if a background task is running
         if self.new_profile_creator.background_task.is_some() {
             let indicator_area = Rect {
                 x: area.x + 10,
@@ -612,7 +382,6 @@ impl ModalWindowTrait for ProfileEditModal {
                 width: area.width - 20,
                 height: 3,
             };
-
             self.render_activity_indicator(frame, indicator_area);
         }
     }

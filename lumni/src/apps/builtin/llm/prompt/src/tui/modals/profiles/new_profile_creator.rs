@@ -29,18 +29,6 @@ impl NewProfileCreator {
         }
     }
 
-    pub fn move_selection_up(&mut self) {
-        if self.selected_type > 0 {
-            self.selected_type -= 1;
-        }
-    }
-
-    pub fn move_selection_down(&mut self) {
-        if self.selected_type < self.predefined_types.len() - 1 {
-            self.selected_type += 1;
-        }
-    }
-
     pub async fn create_new_profile(
         &mut self,
         db_handler: &UserProfileDbHandler,
@@ -95,32 +83,5 @@ impl NewProfileCreator {
 
     pub fn get_selected_type(&self) -> usize {
         self.selected_type
-    }
-
-    pub fn get_background_task(
-        &mut self,
-    ) -> Option<&mut mpsc::Receiver<BackgroundTaskResult>> {
-        self.background_task.as_mut()
-    }
-
-    pub fn get_task_start_time(&self) -> Option<Instant> {
-        self.task_start_time
-    }
-
-    pub fn get_spinner_state(&self) -> usize {
-        self.spinner_state
-    }
-
-    pub fn increment_spinner_state(&mut self) {
-        self.spinner_state = (self.spinner_state + 1) % 10; // Assuming 10 spinner states
-    }
-
-    pub fn take_new_profile_name(&mut self) -> Option<String> {
-        self.new_profile_name.take()
-    }
-
-    pub fn clear_background_task(&mut self) {
-        self.background_task = None;
-        self.task_start_time = None;
     }
 }

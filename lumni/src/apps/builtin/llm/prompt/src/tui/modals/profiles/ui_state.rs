@@ -41,18 +41,4 @@ impl UIState {
     pub fn set_edit_mode(&mut self, mode: EditMode) {
         self.edit_mode = mode;
     }
-
-    pub fn toggle_secure(&mut self) {
-        self.show_secure = !self.show_secure;
-    }
-
-    pub fn is_editing(&self) -> bool {
-        matches!(
-            self.edit_mode,
-            EditMode::EditingValue
-                | EditMode::AddingNewKey
-                | EditMode::AddingNewValue
-                | EditMode::RenamingProfile
-        )
-    }
 }

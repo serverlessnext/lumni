@@ -193,7 +193,6 @@ impl SettingsEditor {
         self.show_secure
     }
 
-    // Setter methods
     pub fn set_edit_buffer(&mut self, value: String) {
         self.edit_buffer = value;
     }

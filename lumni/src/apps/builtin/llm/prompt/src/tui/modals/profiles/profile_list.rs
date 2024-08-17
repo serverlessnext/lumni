@@ -77,12 +77,6 @@ impl ProfileList {
         self.selected_index
     }
 
-    pub fn set_selected_index(&mut self, index: usize) {
-        if index <= self.profiles.len() {
-            self.selected_index = index;
-        }
-    }
-
     pub fn is_new_profile_selected(&self) -> bool {
         self.selected_index == self.profiles.len()
     }

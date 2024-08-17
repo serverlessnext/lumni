@@ -266,15 +266,15 @@ impl ProfileEditRenderer {
         ) {
             (Focus::ProfileList, EditMode::NotEditing) => {
                 "↑↓: Navigate | Enter: Select/Create | R: Rename | D: Delete | \
-                 Tab: Settings | Esc: Close"
+                 →/Tab: Settings | Esc: Close"
             }
             (Focus::RenamingProfile, EditMode::RenamingProfile) => {
                 "Enter: Confirm Rename | Esc: Cancel"
             }
             (Focus::SettingsList, EditMode::NotEditing) => {
                 "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | D: \
-                 Delete | C: Clear | S: Show/Hide Secure | Tab: Profiles | \
-                 Esc: Close"
+                 Delete | C: Clear | S: Show/Hide Secure | ←/Tab/q/Esc: \
+                 Profiles"
             }
             (Focus::SettingsList, EditMode::EditingValue) => {
                 "Enter: Save | Esc: Cancel"

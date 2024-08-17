@@ -13,6 +13,10 @@ impl ProfileList {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.profiles.is_empty()
+    }
+
     pub fn get_selected_profile(&self) -> Option<&str> {
         self.profiles.get(self.selected_index).map(|s| s.as_str())
     }

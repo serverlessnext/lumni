@@ -328,6 +328,11 @@ impl ProfileEditModal {
 
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
+
+    fn cancel_edit(&mut self) {
+        self.settings_editor.cancel_edit();
+        self.ui_state.set_edit_mode(EditMode::NotEditing);
+    }
 }
 
 #[async_trait]
@@ -434,16 +439,39 @@ impl ModalWindowTrait for ProfileEditModal {
     ) -> Result<WindowEvent, ApplicationError> {
         let key_code = key_event.current_key().code;
 
-        match self.ui_state.focus {
-            Focus::ProfileList | Focus::RenamingProfile => {
-                self.handle_profile_list_input(key_code).await
-            }
-            Focus::SettingsList => {
-                self.handle_settings_list_input(key_code).await
-            }
+        let result = match self.ui_state.focus {
+            Focus::ProfileList => match key_code {
+                KeyCode::Right | KeyCode::Tab => {
+                    if !self.profile_list.is_empty() {
+                        self.ui_state.set_focus(Focus::SettingsList);
+                        self.load_profile().await?;
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                _ => Ok(self.handle_profile_list_input(key_code).await?),
+            },
+            Focus::SettingsList => match key_code {
+                KeyCode::Left
+                | KeyCode::Char('q')
+                | KeyCode::Esc
+                | KeyCode::Tab => {
+                    if self.ui_state.edit_mode == EditMode::NotEditing {
+                        self.ui_state.set_focus(Focus::ProfileList);
+                    } else {
+                        self.cancel_edit();
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                _ => Ok(self.handle_settings_list_input(key_code).await?),
+            },
             Focus::NewProfileType => {
-                self.handle_new_profile_type_input(key_code).await
+                Ok(self.handle_new_profile_type_input(key_code).await?)
             }
-        }
+            Focus::RenamingProfile => {
+                Ok(self.handle_profile_list_input(key_code).await?)
+            }
+        };
+
+        result
     }
 }

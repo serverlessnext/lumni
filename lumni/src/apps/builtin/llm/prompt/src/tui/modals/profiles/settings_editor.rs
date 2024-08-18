@@ -21,6 +21,15 @@ impl SettingsEditor {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.settings = JsonValue::Object(serde_json::Map::new());
+        self.current_field = 0;
+        self.edit_buffer.clear();
+        self.new_key_buffer.clear();
+        self.is_new_value_secure = false;
+        self.show_secure = false;
+    }
+
     pub fn get_settings(&self) -> &JsonValue {
         &self.settings
     }
@@ -32,7 +41,8 @@ impl SettingsEditor {
     }
 
     pub fn move_selection_down(&mut self) {
-        if self.current_field < self.settings.as_object().unwrap().len() - 1 {
+        let settings_len = self.settings.as_object().map_or(0, |obj| obj.len());
+        if settings_len > 0 && self.current_field < settings_len - 1 {
             self.current_field += 1;
         }
     }

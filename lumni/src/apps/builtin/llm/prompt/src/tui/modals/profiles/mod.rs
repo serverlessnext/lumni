@@ -73,40 +73,45 @@ impl ProfileEditModal {
     ) -> Result<WindowEvent, ApplicationError> {
         match (self.ui_state.edit_mode, key_code) {
             (EditMode::NotEditing, KeyCode::Up) => {
-                self.profile_list.move_selection_up()
+                self.profile_list.move_selection_up();
+                self.load_profile_or_clear().await?;
             }
             (EditMode::NotEditing, KeyCode::Down) => {
-                self.profile_list.move_selection_down()
+                self.profile_list.move_selection_down();
+                self.load_profile_or_clear().await?;
             }
             (EditMode::NotEditing, KeyCode::Enter) => {
                 if self.profile_list.is_new_profile_selected() {
-                    self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
-                    self.ui_state.set_focus(Focus::NewProfileType);
-                    self.new_profile_creator.selected_type = 0;
+                    self.start_new_profile_creation();
                 } else {
                     self.ui_state.set_focus(Focus::SettingsList);
-                    self.load_profile().await?;
+                }
+            }
+            (EditMode::NotEditing, KeyCode::Tab) => {
+                if !self.profile_list.is_new_profile_selected() {
+                    self.ui_state.set_focus(Focus::SettingsList);
                 }
             }
             (EditMode::NotEditing, KeyCode::Char('r') | KeyCode::Char('R')) => {
                 if !self.profile_list.is_new_profile_selected() {
                     self.ui_state.set_edit_mode(EditMode::RenamingProfile);
                     self.ui_state.set_focus(Focus::RenamingProfile);
-                    // Use a temporary buffer for renaming
                     self.new_profile_name =
                         Some(self.profile_list.start_renaming());
                 }
             }
             (EditMode::NotEditing, KeyCode::Char('D')) => {
                 if !self.profile_list.is_new_profile_selected() {
+                    self.set_default_profile().await?;
+                }
+            }
+            (EditMode::NotEditing, KeyCode::Char('X')) => {
+                if !self.profile_list.is_new_profile_selected() {
                     self.profile_list
                         .delete_profile(&mut self.db_handler)
                         .await?;
-                    self.load_profile().await?;
+                    self.load_profile_or_clear().await?;
                 }
-            }
-            (EditMode::NotEditing, KeyCode::Tab) => {
-                self.ui_state.set_focus(Focus::SettingsList);
             }
             (EditMode::RenamingProfile, KeyCode::Enter) => {
                 if let Some(new_name) = self.new_profile_name.take() {
@@ -132,6 +137,10 @@ impl ProfileEditModal {
                 self.ui_state.set_edit_mode(EditMode::NotEditing);
                 self.ui_state.set_focus(Focus::ProfileList);
             }
+            (EditMode::CreatingNewProfile, KeyCode::Esc) => {
+                self.cancel_new_profile_creation();
+                self.load_profile_or_clear().await?;
+            }
             (EditMode::NotEditing, KeyCode::Char('q') | KeyCode::Esc) => {
                 return Ok(WindowEvent::PromptWindow(None));
             }
@@ -141,58 +150,23 @@ impl ProfileEditModal {
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
-    fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
-        const SPINNER: &[char] =
-            &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-        let spinner_char = SPINNER[self.new_profile_creator.spinner_state];
-        self.new_profile_creator.spinner_state =
-            (self.new_profile_creator.spinner_state + 1) % SPINNER.len();
-
-        let elapsed = self
-            .new_profile_creator
-            .task_start_time
-            .map(|start| start.elapsed().as_secs())
-            .unwrap_or(0);
-        let content = format!(
-            "{} Creating profile... ({} seconds)",
-            spinner_char, elapsed
-        );
-
-        let paragraph = Paragraph::new(content)
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
-
-        frame.render_widget(paragraph, area);
-    }
-
-    async fn load_profile(&mut self) -> Result<(), ApplicationError> {
-        if let Some(profile) = self.profile_list.get_selected_profile() {
-            self.settings_editor
-                .load_settings(profile, &mut self.db_handler)
-                .await?;
-        }
-        Ok(())
-    }
-
     async fn handle_settings_list_input(
         &mut self,
         key_code: KeyCode,
     ) -> Result<WindowEvent, ApplicationError> {
         match (self.ui_state.edit_mode, key_code) {
             (EditMode::NotEditing, KeyCode::Up) => {
-                self.settings_editor.move_selection_up()
+                self.settings_editor.move_selection_up();
             }
             (EditMode::NotEditing, KeyCode::Down) => {
-                self.settings_editor.move_selection_down()
+                self.settings_editor.move_selection_down();
             }
             (EditMode::NotEditing, KeyCode::Enter) => {
                 if self.settings_editor.start_editing().is_some() {
                     self.ui_state.set_edit_mode(EditMode::EditingValue);
                 }
             }
-            (EditMode::NotEditing, KeyCode::Tab) => {
+            (EditMode::NotEditing, KeyCode::Tab | KeyCode::Left) => {
                 self.ui_state.set_focus(Focus::ProfileList);
             }
             (EditMode::NotEditing, KeyCode::Char('s') | KeyCode::Char('S')) => {
@@ -294,6 +268,89 @@ impl ProfileEditModal {
             _ => {}
         }
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+    }
+
+    async fn update_selected_profile(
+        &mut self,
+    ) -> Result<(), ApplicationError> {
+        if self.profile_list.is_new_profile_selected() {
+            self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
+            self.ui_state.set_focus(Focus::NewProfileType);
+            self.new_profile_creator.selected_type = 0;
+            self.settings_editor.clear();
+        } else {
+            self.ui_state.set_focus(Focus::SettingsList);
+            self.load_profile().await?;
+        }
+        Ok(())
+    }
+
+    async fn set_default_profile(&mut self) -> Result<(), ApplicationError> {
+        let selected_profile =
+            self.profile_list.get_selected_profile().map(String::from);
+        if let Some(profile) = selected_profile {
+            self.db_handler.set_default_profile(&profile).await?;
+            self.profile_list.mark_as_default(&profile);
+        }
+        Ok(())
+    }
+
+    fn start_new_profile_creation(&mut self) {
+        self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
+        self.ui_state.set_focus(Focus::NewProfileType);
+        self.new_profile_creator.selected_type = 0;
+        self.settings_editor.clear();
+    }
+
+    fn cancel_new_profile_creation(&mut self) {
+        self.ui_state.set_edit_mode(EditMode::NotEditing);
+        self.ui_state.set_focus(Focus::ProfileList);
+        self.profile_list.reset_selection();
+        self.settings_editor.clear();
+    }
+
+    async fn load_profile_or_clear(&mut self) -> Result<(), ApplicationError> {
+        if self.profile_list.is_new_profile_selected() {
+            self.settings_editor.clear();
+            Ok(())
+        } else {
+            self.load_profile().await
+        }
+    }
+
+    fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
+        const SPINNER: &[char] =
+            &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+        let spinner_char = SPINNER[self.new_profile_creator.spinner_state];
+        self.new_profile_creator.spinner_state =
+            (self.new_profile_creator.spinner_state + 1) % SPINNER.len();
+
+        let elapsed = self
+            .new_profile_creator
+            .task_start_time
+            .map(|start| start.elapsed().as_secs())
+            .unwrap_or(0);
+        let content = format!(
+            "{} Creating profile... ({} seconds)",
+            spinner_char, elapsed
+        );
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL));
+
+        frame.render_widget(paragraph, area);
+    }
+
+    async fn load_profile(&mut self) -> Result<(), ApplicationError> {
+        if let Some(profile) = self.profile_list.get_selected_profile() {
+            self.settings_editor
+                .load_settings(profile, &mut self.db_handler)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn handle_new_profile_type_input(

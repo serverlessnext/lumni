@@ -7,11 +7,11 @@ pub struct ProfileList {
 }
 
 impl ProfileList {
-    pub fn new(profiles: Vec<String>) -> Self {
+    pub fn new(profiles: Vec<String>, default_profile: Option<String>) -> Self {
         ProfileList {
             profiles,
             selected_index: 0,
-            default_profile: None,
+            default_profile,
         }
     }
 
@@ -94,11 +94,15 @@ impl ProfileList {
         self.default_profile = Some(profile.to_string());
     }
 
+    pub fn is_default_profile(&self, profile: &str) -> bool {
+        self.default_profile.as_ref().map_or(false, |default| default == profile)
+    }
+
     pub fn get_profiles(&self) -> Vec<String> {
         self.profiles
             .iter()
             .map(|p| {
-                if Some(p) == self.default_profile.as_ref() {
+                if self.is_default_profile(p) {
                     format!("* {}", p) // Prepend an asterisk to mark the default profile
                 } else {
                     p.clone()

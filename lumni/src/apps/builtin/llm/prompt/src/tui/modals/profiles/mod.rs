@@ -44,7 +44,9 @@ impl ProfileEditModal {
         mut db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
         let profiles = db_handler.get_profile_list().await?;
-        let profile_list = ProfileList::new(profiles);
+        let default_profile = db_handler.get_default_profile().await?;
+        let profile_list = ProfileList::new(profiles, default_profile);
+
         let settings =
             if let Some(profile) = profile_list.get_selected_profile() {
                 db_handler

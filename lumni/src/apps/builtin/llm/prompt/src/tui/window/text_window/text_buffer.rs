@@ -337,9 +337,7 @@ impl<'a, T: TextDocumentTrait> TextBuffer<'a, T> {
             line_styled.add_segment(self.placeholder.clone(), Some(style));
             text_lines.push(line_styled);
         }
-
         self.text_display.update(&text_lines, &self.cursor);
-
         self.mark_code_blocks();
         self.cursor.update_real_position(&text_lines);
         self.update_cursor_style();

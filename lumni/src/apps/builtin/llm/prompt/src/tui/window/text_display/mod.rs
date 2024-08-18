@@ -115,8 +115,6 @@ impl<'a> TextDisplay<'a> {
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
             let wrapped_lines = text_wrapper.wrap_text_styled(line, None);
-
-            // length of the wrapped lines content
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(trailing_spaces, line.get_background());
             } else {
@@ -241,8 +239,6 @@ impl<'a> TextDisplay<'a> {
         &mut self,
         wrapped_lines: Vec<TextLine>,
         unwrapped_line_index: usize,
-        // trailing spaces of the unwrapped line are removed during wrapping,
-        // this is added back to the first and last (wrapped) line respectively
         trailing_spaces: usize,
         cursor: &Cursor,
         background: Option<Color>,
@@ -251,49 +247,62 @@ impl<'a> TextDisplay<'a> {
             cursor.get_selection_bounds();
         let mut char_pos = 0;
 
-        for (idx, line) in wrapped_lines.iter().enumerate() {
-            let mut spans = Vec::new();
+        let wrapped_lines_len = wrapped_lines.len();
+        for (idx, line) in wrapped_lines.into_iter().enumerate() {
+            let mut spans = Vec::with_capacity(line.segments.len());
 
-            // Start character position for this line from the cumulative offset
-            for segment in line.segments() {
-                let chars: Vec<char> = segment.text.chars().collect();
-                for ch in chars.into_iter() {
-                    // Adjust row based on the index in wrapped lines
+            for segment in line.segments {
+                let mut segment_start = 0;
+                let mut current_style = segment.style;
+
+                for (i, _) in segment.text.char_indices() {
                     let should_select = cursor.should_select(
                         unwrapped_line_index,
-                        char_pos,
+                        char_pos + i,
                         start_row,
                         start_col,
                         end_row,
                         end_col,
                     );
 
-                    let mut effective_style =
-                        segment.style.unwrap_or(Style::default());
-                    if should_select {
-                        effective_style = effective_style.bg(Color::Blue);
+                    let effective_style = if should_select {
+                        Some(current_style.unwrap_or_default().bg(Color::Blue))
+                    } else {
+                        current_style
+                    };
+
+                    if effective_style != current_style {
+                        if segment_start < i {
+                            spans.push(Span::styled(
+                                segment.text[segment_start..i].to_string(),
+                                current_style.unwrap_or_default(),
+                            ));
+                        }
+                        segment_start = i;
+                        current_style = effective_style;
                     }
-                    spans.push(Span::styled(ch.to_string(), effective_style));
-                    char_pos += 1;
                 }
+
+                if segment_start < segment.text.len() {
+                    spans.push(Span::styled(
+                        segment.text[segment_start..].to_string(),
+                        current_style.unwrap_or_default(),
+                    ));
+                }
+
+                char_pos += segment.text.len();
             }
 
-            let mut current_line = Line::from(spans);
-
-            let last_segment = idx == wrapped_lines.len() - 1;
+            let last_segment = idx == wrapped_lines_len - 1;
 
             if last_segment && trailing_spaces > 0 {
-                // Add trailing spaces back to end of the last line
-                let spaces = std::iter::repeat(' ')
-                    .take(trailing_spaces)
-                    .collect::<String>();
-                current_line.spans.push(Span::raw(spaces));
+                spans.push(Span::raw(" ".repeat(trailing_spaces)));
             }
-            let current_line_length = current_line
-                .spans
-                .iter()
-                .map(|span| span.content.len())
-                .sum::<usize>();
+
+            let current_line = Line::from(spans);
+            let current_line_length =
+                line.length + if last_segment { trailing_spaces } else { 0 };
+
             self.push_line(
                 current_line,
                 current_line_length,

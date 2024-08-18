@@ -1,4 +1,11 @@
 use ratatui::style::{Color, Style};
+use super::simple_string::SimpleString;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextSegment {
+    pub text: SimpleString,
+    pub style: Option<Style>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextLine {
@@ -16,18 +23,22 @@ impl TextLine {
         }
     }
 
-    pub fn add_segment(&mut self, text: String, style: Option<Style>) {
+    pub fn add_segment<S: Into<SimpleString>>(
+        &mut self,
+        text: S,
+        style: Option<Style>,
+    ) {
+        let text = text.into();
         self.length += text.len();
-
         if let Some(last) = self.segments.last_mut() {
-            // update the length of the last segment
             if last.style == style {
-                // Append text to the last segment if styles are the same
-                last.text.push_str(&text);
+                // Concatenate the strings if they have the same style
+                let new_text =
+                    SimpleString::from(format!("{}{}", last.text, text));
+                last.text = new_text;
                 return;
             }
         }
-        // Otherwise, create a new segment
         self.segments.push(TextSegment { text, style });
         if let Some(style) = style {
             self.background = style.bg;
@@ -51,16 +62,10 @@ impl TextLine {
     }
 
     pub fn to_string(&self) -> String {
-        let mut content = String::new();
+        let mut content = String::with_capacity(self.length);
         for segment in &self.segments {
-            content.push_str(&segment.text);
+            content.push_str(segment.text.as_str());
         }
         content
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TextSegment {
-    pub text: String,
-    pub style: Option<Style>,
 }

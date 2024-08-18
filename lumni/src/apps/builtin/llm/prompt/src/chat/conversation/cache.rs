@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ratatui::style::Style;
 
 use super::db::{Attachment, AttachmentId, ConversationId, Message, MessageId};
-use super::{ColorScheme, PromptRole, TextLine, TextSegment};
+use super::{ColorScheme, PromptRole, SimpleString, TextLine, TextSegment};
 
 #[derive(Debug, Clone)]
 pub struct ConversationCache {
@@ -128,7 +128,7 @@ impl ConversationCache {
             for line in message.content.lines() {
                 lines.push(TextLine {
                     segments: vec![TextSegment {
-                        text: line.to_string(),
+                        text: SimpleString::from(line.to_string()),
                         style: style.clone(),
                     }],
                     length: line.len(),
@@ -139,7 +139,7 @@ impl ConversationCache {
             // Add an empty line after each message
             lines.push(TextLine {
                 segments: vec![TextSegment {
-                    text: String::new(),
+                    text: SimpleString::new(""),
                     style: Some(Style::reset()),
                 }],
                 length: 0,
@@ -150,7 +150,7 @@ impl ConversationCache {
             if message.role == PromptRole::Assistant {
                 lines.push(TextLine {
                     segments: vec![TextSegment {
-                        text: String::new(),
+                        text: SimpleString::new(""),
                         style: Some(Style::reset()),
                     }],
                     length: 0,

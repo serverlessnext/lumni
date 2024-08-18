@@ -357,14 +357,12 @@ impl ProfileEditModal {
                 self.ui_state.set_focus(Focus::ProfileList);
                 return Ok(WindowEvent::Modal(ModalAction::Refresh));
             }
-            KeyCode::Esc => {
-                // Cancel model selection, create profile without a model
+            KeyCode::Char('q') | KeyCode::Esc => {
+                // Cancel model selection and go back to profile type selection
                 self.new_profile_creator.model_selection_pending = false;
-                let profile_count = self.profile_list.total_items();
-                self.new_profile_creator
-                    .create_new_profile(&self.db_handler, profile_count)
-                    .await?;
-                self.ui_state.set_focus(Focus::ProfileList);
+                self.new_profile_creator.available_models.clear();
+                self.new_profile_creator.selected_model_index = 0;
+                self.ui_state.set_focus(Focus::NewProfileType);
                 return Ok(WindowEvent::Modal(ModalAction::Refresh));
             }
             _ => {}
@@ -479,7 +477,12 @@ impl ModalWindowTrait for ProfileEditModal {
                 self.render_new_profile_type(frame, content_chunks[1])
             }
             Focus::ModelSelection => {
-                self.render_model_selection(frame, content_chunks[1])
+                if self.new_profile_creator.model_selection_pending {
+                    self.render_model_selection(frame, content_chunks[1]);
+                } else {
+                    // If model selection was cancelled, render profile type selection instead
+                    self.render_new_profile_type(frame, content_chunks[1]);
+                }
             }
             _ => self.renderer.render_settings_list(
                 frame,

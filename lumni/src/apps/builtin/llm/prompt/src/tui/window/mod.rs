@@ -13,7 +13,8 @@ use ratatui::style::{Color, Style};
 pub use scroller::Scroller;
 pub use text_display::LineType;
 pub use text_document::{
-    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine, TextSegment,
+    ReadDocument, ReadWriteDocument, SimpleString, TextDocumentTrait, TextLine,
+    TextSegment,
 };
 pub use text_window::{TextWindow, TextWindowTrait};
 pub use window_config::{

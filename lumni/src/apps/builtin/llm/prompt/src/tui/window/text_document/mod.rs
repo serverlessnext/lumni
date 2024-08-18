@@ -1,6 +1,7 @@
 mod piece_table;
 mod read_document;
 mod read_write_document;
+mod simple_string;
 mod text_line;
 mod text_wrapper;
 
@@ -8,6 +9,7 @@ use lumni::api::error::ApplicationError;
 use ratatui::style::Style;
 pub use read_document::ReadDocument;
 pub use read_write_document::ReadWriteDocument;
+pub use simple_string::SimpleString;
 pub use text_line::{TextLine, TextSegment};
 pub use text_wrapper::TextWrapper;
 

@@ -1,4 +1,5 @@
 use ratatui::style::{Color, Style};
+
 use super::simple_string::SimpleString;
 
 #[derive(Clone, Debug, PartialEq)]

@@ -41,12 +41,6 @@ pub fn parse_cli_arguments(spec: ApplicationSpec) -> Command {
                 .short('a')
                 .help("Specify an assistant to use"),
         )
-        .arg(
-            Arg::new("server")
-                .long("server")
-                .short('S')
-                .help("Server to use for processing the request"),
-        )
         .arg(Arg::new("options").long("options").short('o').help(
             "Comma-separated list of model options e.g., \
              temperature=1,max_tokens=100",

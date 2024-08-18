@@ -95,7 +95,9 @@ impl ProfileList {
     }
 
     pub fn is_default_profile(&self, profile: &str) -> bool {
-        self.default_profile.as_ref().map_or(false, |default| default == profile)
+        self.default_profile
+            .as_ref()
+            .map_or(false, |default| default == profile)
     }
 
     pub fn get_profiles(&self) -> Vec<String> {

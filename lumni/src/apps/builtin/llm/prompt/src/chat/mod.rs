@@ -13,7 +13,9 @@ pub use session::{prompt_app, App, ChatEvent, ThreadedChatSession};
 
 pub use super::defaults::*;
 pub use super::error::{PromptError, PromptNotReadyReason};
-use super::server::{CompletionResponse, ModelServer, ServerManager};
+use super::server::{
+    CompletionResponse, ModelBackend, ModelServer, ServerManager,
+};
 use super::tui::{
     draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
     ConversationEvent, KeyEventHandler, ModalAction, ModalWindowType,

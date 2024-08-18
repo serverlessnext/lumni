@@ -11,6 +11,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
+use super::{ModelBackend, ModelServer, ModelSpec};
 use crate::external as lumni;
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,43 @@ impl UserProfileDbHandler {
 
     pub fn set_profile_name(&mut self, profile_name: String) {
         self.profile_name = Some(profile_name);
+    }
+
+    pub fn get_profile_name(&self) -> Option<&str> {
+        self.profile_name.as_deref()
+    }
+
+    pub async fn model_backend(
+        &mut self,
+    ) -> Result<Option<ModelBackend>, ApplicationError> {
+        let profile_name = self.profile_name.clone();
+
+        if let Some(profile_name) = profile_name {
+            let settings = self
+                .get_profile_settings(&profile_name, MaskMode::Unmask)
+                .await?;
+
+            let model_server = settings
+                .get("__MODEL_SERVER")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    ApplicationError::InvalidInput(
+                        "__MODEL_SERVER not found in profile".to_string(),
+                    )
+                })?;
+
+            let server = ModelServer::from_str(model_server)?;
+
+            let model = settings
+                .get("__MODEL_IDENTIFIER")
+                .and_then(|v| v.as_str())
+                .map(|identifier| ModelSpec::new_with_validation(identifier))
+                .transpose()?;
+
+            Ok(Some(ModelBackend { server, model }))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn set_encryption_handler(

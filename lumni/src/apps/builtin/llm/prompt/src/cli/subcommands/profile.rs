@@ -191,7 +191,7 @@ fn create_truncate_subcommand() -> Command {
 
 pub async fn handle_profile_subcommand(
     profile_matches: &ArgMatches,
-    db_handler: &mut UserProfileDbHandler,
+    mut db_handler: UserProfileDbHandler,
 ) -> Result<(), ApplicationError> {
     match profile_matches.subcommand() {
         Some(("list", _)) => {
@@ -365,7 +365,7 @@ pub async fn handle_profile_subcommand(
             let custom_ssh_key_path =
                 edit_matches.get_one::<String>("ssh-key-path").cloned();
             interactive_profile_edit(
-                db_handler,
+                &mut db_handler,
                 profile_name,
                 custom_ssh_key_path,
             )

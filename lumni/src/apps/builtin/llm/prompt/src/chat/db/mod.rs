@@ -18,7 +18,7 @@ pub use store::ConversationDatabase;
 pub use user_profile::{MaskMode, UserProfileDbHandler};
 
 pub use super::ConversationCache;
-use super::PromptRole;
+use super::{ModelBackend, ModelServer, PromptRole};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

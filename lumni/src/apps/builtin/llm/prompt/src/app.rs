@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::{ArgMatches, Command};
@@ -40,20 +39,37 @@ async fn create_prompt_instruction(
     let assistant =
         matches.and_then(|m| m.get_one::<String>("assistant").cloned());
     let user_options = matches.and_then(|m| m.get_one::<String>("options"));
-    let server_name = matches
-        .and_then(|m| m.get_one::<String>("server"))
-        .map(|s| s.to_lowercase())
-        .unwrap_or_else(|| "ollama".to_lowercase());
 
-    // create new (un-initialized) server from requested server name
-    let server = ModelServer::from_str(&server_name)?;
-    let default_model = match server.get_default_model().await {
-        Ok(model) => Some(model),
-        Err(e) => {
-            log::error!("Failed to get default model during startup: {}", e);
-            None
+    let mut profile_handler = db_conn.get_profile_handler(None);
+
+    // Handle --profile option
+    if let Some(profile_name) =
+        matches.and_then(|m| m.get_one::<String>("profile"))
+    {
+        profile_handler.set_profile_name(profile_name.to_string());
+    } else {
+        // Use default profile if set
+        if let Some(default_profile) =
+            profile_handler.get_default_profile().await?
+        {
+            profile_handler.set_profile_name(default_profile);
         }
-    };
+    }
+
+    // Check if a profile is set
+    if profile_handler.get_profile_name().is_none() {
+        return Err(ApplicationError::InvalidInput(
+            "No profile set".to_string(),
+        ));
+    }
+
+    // Get model_backend
+    let model_backend =
+        profile_handler.model_backend().await?.ok_or_else(|| {
+            ApplicationError::InvalidInput(
+                "Failed to get model backend".to_string(),
+            )
+        })?;
 
     let assistant_manager =
         AssistantManager::new(assistant, instruction.clone())?;
@@ -62,8 +78,8 @@ async fn create_prompt_instruction(
     let mut completion_options =
         assistant_manager.get_completion_options().clone();
 
-    let model_server = ModelServerName::from_str(&server_name);
-    completion_options.model_server = Some(model_server.clone());
+    let model_server_name = model_backend.server_name();
+    completion_options.model_server = Some(model_server_name.clone());
 
     // overwrite default options with options set by the user
     if let Some(s) = user_options {
@@ -72,8 +88,8 @@ async fn create_prompt_instruction(
     }
 
     let new_conversation = NewConversation {
-        server: model_server,
-        model: default_model,
+        server: model_server_name,
+        model: model_backend.model.clone(),
         options: Some(serde_json::to_value(completion_options)?),
         system_prompt: instruction,
         initial_messages: Some(initial_messages),
@@ -170,32 +186,16 @@ pub async fn run_cli(
     let db_conn = Arc::new(ConversationDatabase::new(&sqlite_file, None)?);
 
     if let Some(ref matches) = matches {
-        let mut profile_handler = db_conn.get_profile_handler(None);
         if let Some(db_matches) = matches.subcommand_matches("db") {
             return handle_db_subcommand(db_matches, &db_conn).await;
         }
         if let Some(profile_matches) = matches.subcommand_matches("profile") {
-            return handle_profile_subcommand(
-                profile_matches,
-                &mut profile_handler,
-            )
-            .await;
-        }
-
-        // Handle --profile option
-        if let Some(profile_name) = matches.get_one::<String>("profile") {
-            profile_handler.set_profile_name(profile_name.to_string());
-        } else {
-            // Use default profile if set
-            if let Some(default_profile) =
-                profile_handler.get_default_profile().await?
-            {
-                profile_handler.set_profile_name(default_profile);
-            }
+            let profile_handler = db_conn.get_profile_handler(None);
+            return handle_profile_subcommand(profile_matches, profile_handler)
+                .await;
         }
     }
 
-    // TODO: Add support for --profile option in the prompt command
     let prompt_instruction =
         create_prompt_instruction(matches.as_ref(), &db_conn).await?;
 

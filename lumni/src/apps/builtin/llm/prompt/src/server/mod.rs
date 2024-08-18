@@ -2,6 +2,7 @@
 #[macro_use]
 mod spec;
 
+mod backend;
 mod bedrock;
 mod endpoints;
 mod llama;
@@ -11,6 +12,7 @@ mod response;
 mod send;
 
 use async_trait::async_trait;
+pub use backend::ModelBackend;
 pub use bedrock::Bedrock;
 use bytes::Bytes;
 pub use endpoints::Endpoints;

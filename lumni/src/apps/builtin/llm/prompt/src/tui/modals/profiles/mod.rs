@@ -87,11 +87,6 @@ impl ProfileEditModal {
                     self.ui_state.set_focus(Focus::SettingsList);
                 }
             }
-            (EditMode::NotEditing, KeyCode::Tab) => {
-                if !self.profile_list.is_new_profile_selected() {
-                    self.ui_state.set_focus(Focus::SettingsList);
-                }
-            }
             (EditMode::NotEditing, KeyCode::Char('r') | KeyCode::Char('R')) => {
                 if !self.profile_list.is_new_profile_selected() {
                     self.ui_state.set_edit_mode(EditMode::RenamingProfile);
@@ -305,7 +300,7 @@ impl ProfileEditModal {
     fn cancel_new_profile_creation(&mut self) {
         self.ui_state.set_edit_mode(EditMode::NotEditing);
         self.ui_state.set_focus(Focus::ProfileList);
-        self.profile_list.reset_selection();
+        self.profile_list.select_new_profile();
         self.settings_editor.clear();
     }
 
@@ -611,10 +606,19 @@ impl ModalWindowTrait for ProfileEditModal {
         let key_code = key_event.current_key().code;
         let result = match self.ui_state.focus {
             Focus::ProfileList => match key_code {
-                KeyCode::Right | KeyCode::Tab => {
-                    if !self.profile_list.is_empty() {
+                KeyCode::Tab => {
+                    if !self.profile_list.is_new_profile_selected() {
                         self.ui_state.set_focus(Focus::SettingsList);
                         self.load_profile().await?;
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                KeyCode::Esc => {
+                    if self.ui_state.edit_mode == EditMode::CreatingNewProfile {
+                        self.cancel_new_profile_creation();
+                        self.load_profile_or_clear().await?;
+                    } else {
+                        return Ok(WindowEvent::PromptWindow(None));
                     }
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
@@ -634,9 +638,14 @@ impl ModalWindowTrait for ProfileEditModal {
                 }
                 _ => Ok(self.handle_settings_list_input(key_code).await?),
             },
-            Focus::NewProfileType => {
-                Ok(self.handle_new_profile_type_input(key_code).await?)
-            }
+            Focus::NewProfileType => match key_code {
+                KeyCode::Esc => {
+                    self.cancel_new_profile_creation();
+                    self.load_profile_or_clear().await?;
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                _ => Ok(self.handle_new_profile_type_input(key_code).await?),
+            },
             Focus::RenamingProfile => {
                 Ok(self.handle_profile_list_input(key_code).await?)
             }

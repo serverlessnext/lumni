@@ -15,30 +15,25 @@ impl ProfileList {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.profiles.is_empty()
-    }
-
     pub fn get_selected_profile(&self) -> Option<&str> {
         self.profiles.get(self.selected_index).map(|s| s.as_str())
     }
 
-    pub fn reset_selection(&mut self) {
-        if !self.profiles.is_empty() {
-            self.selected_index = self.profiles.len() - 1;
-        } else {
-            self.selected_index = 0;
-        }
-    }
-
-    pub fn is_new_profile_selected(&self) -> bool {
-        self.selected_index == self.profiles.len()
+    pub fn select_new_profile(&mut self) {
+        self.selected_index = self.profiles.len();
     }
 
     pub fn move_selection_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
+        } else if self.selected_index == 0 && !self.profiles.is_empty() {
+            // If at the top and "New Profile" is selected, wrap to the bottom
+            self.selected_index = self.profiles.len() - 1;
         }
+    }
+
+    pub fn is_new_profile_selected(&self) -> bool {
+        self.selected_index == self.profiles.len()
     }
 
     pub fn move_selection_down(&mut self) {

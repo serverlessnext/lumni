@@ -95,12 +95,12 @@ impl ProfileEditModal {
                         Some(self.profile_list.start_renaming());
                 }
             }
-            (EditMode::NotEditing, KeyCode::Char('D')) => {
+            (EditMode::NotEditing, KeyCode::Char(' ')) => {
                 if !self.profile_list.is_new_profile_selected() {
                     self.set_default_profile().await?;
                 }
             }
-            (EditMode::NotEditing, KeyCode::Char('X')) => {
+            (EditMode::NotEditing, KeyCode::Char('D')) => {
                 if !self.profile_list.is_new_profile_selected() {
                     self.profile_list
                         .delete_profile(&mut self.db_handler)
@@ -263,21 +263,6 @@ impl ProfileEditModal {
             _ => {}
         }
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
-    async fn update_selected_profile(
-        &mut self,
-    ) -> Result<(), ApplicationError> {
-        if self.profile_list.is_new_profile_selected() {
-            self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
-            self.ui_state.set_focus(Focus::NewProfileType);
-            self.new_profile_creator.selected_type = 0;
-            self.settings_editor.clear();
-        } else {
-            self.ui_state.set_focus(Focus::SettingsList);
-            self.load_profile().await?;
-        }
-        Ok(())
     }
 
     async fn set_default_profile(&mut self) -> Result<(), ApplicationError> {
@@ -613,7 +598,7 @@ impl ModalWindowTrait for ProfileEditModal {
                     }
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
-                KeyCode::Esc => {
+                KeyCode::Esc | KeyCode::Char('q') => {
                     if self.ui_state.edit_mode == EditMode::CreatingNewProfile {
                         self.cancel_new_profile_creation();
                         self.load_profile_or_clear().await?;
@@ -639,7 +624,7 @@ impl ModalWindowTrait for ProfileEditModal {
                 _ => Ok(self.handle_settings_list_input(key_code).await?),
             },
             Focus::NewProfileType => match key_code {
-                KeyCode::Esc => {
+                KeyCode::Esc | KeyCode::Char('q') => {
                     self.cancel_new_profile_creation();
                     self.load_profile_or_clear().await?;
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))

@@ -221,7 +221,7 @@ impl ProfileEditRenderer {
         ) {
             (Focus::ProfileList, EditMode::NotEditing) => {
                 "↑↓: Navigate | Enter: Select/Create | R: Rename | D: Delete | \
-                 →/Tab: Settings | Esc: Close"
+                 Space: Set Default | →/Tab: Settings | Esc: Close"
             }
             (Focus::RenamingProfile, EditMode::RenamingProfile) => {
                 "Enter: Confirm Rename | Esc: Cancel"
@@ -241,7 +241,11 @@ impl ProfileEditRenderer {
                 "Enter: Save New Value | Esc: Cancel"
             }
             (Focus::NewProfileType, EditMode::CreatingNewProfile) => {
-                "↑↓: Select Type | Enter: Create Profile | Esc: Cancel"
+                "↑↓: Select Type | Enter: Create Profile | q/Esc: Cancel"
+            }
+            (Focus::ModelSelection, EditMode::CreatingNewProfile) => {
+                "↑↓: Select Model | Enter: Confirm | q/Esc: Back to Profile \
+                 Types"
             }
             _ => "",
         };

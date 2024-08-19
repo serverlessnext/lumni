@@ -12,6 +12,7 @@ pub enum NewProfileCreationStep {
     EnterName,
     SelectProfileType,
     SelectSubOption,
+    ConfirmCreate,
     CreatingProfile,
 }
 
@@ -50,6 +51,7 @@ pub struct NewProfileCreator {
     pub selection_state: SelectionState,
     pub ready_to_create: bool,
     pub skipped_type_selection: bool,
+    pub previous_step: Option<NewProfileCreationStep>,
 }
 
 impl NewProfileCreator {
@@ -90,6 +92,246 @@ impl NewProfileCreator {
             selection_state: SelectionState::ProfileType(0),
             skipped_type_selection: false,
             ready_to_create: false,
+            previous_step: None,
+        }
+    }
+
+    pub async fn handle_input(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
+        match self.creation_step {
+            NewProfileCreationStep::EnterName => match key_code {
+                KeyCode::Char(c) => {
+                    self.new_profile_name.push(c);
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Backspace => {
+                    self.new_profile_name.pop();
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Enter => {
+                    if !self.new_profile_name.is_empty() {
+                        self.move_to_next_step(
+                            NewProfileCreationStep::SelectProfileType,
+                        )
+                    } else {
+                        Ok(NewProfileCreatorAction::WaitForKeyEvent)
+                    }
+                }
+                KeyCode::Esc => Ok(NewProfileCreatorAction::Cancel),
+                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
+            },
+            NewProfileCreationStep::SelectProfileType => match key_code {
+                KeyCode::Up => {
+                    if !self.skipped_type_selection {
+                        if let SelectionState::ProfileType(index) =
+                            &mut self.selection_state
+                        {
+                            if *index > 0 {
+                                *index -= 1;
+                                self.selected_type_index = *index;
+                            }
+                        }
+                    }
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Down => {
+                    if !self.skipped_type_selection {
+                        if let SelectionState::ProfileType(index) =
+                            &mut self.selection_state
+                        {
+                            if *index < self.predefined_types.len() - 1 {
+                                *index += 1;
+                                self.selected_type_index = *index;
+                            }
+                        }
+                    }
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Enter => {
+                    if self.skipped_type_selection {
+                        self.move_to_next_step(
+                            NewProfileCreationStep::ConfirmCreate,
+                        )
+                    } else {
+                        self.selected_type_index =
+                            self.get_selected_type_index();
+                        match self.prepare_for_model_selection().await {
+                            Ok(()) => self.move_to_next_step(
+                                NewProfileCreationStep::SelectSubOption,
+                            ),
+                            Err(e) => Err(e),
+                        }
+                    }
+                }
+                KeyCode::Char('s') | KeyCode::Char('S') => {
+                    self.skipped_type_selection = !self.skipped_type_selection;
+                    self.ready_to_create = self.skipped_type_selection;
+                    if self.skipped_type_selection {
+                        self.selection_state = SelectionState::CreateButton;
+                    } else {
+                        self.selection_state = SelectionState::ProfileType(0);
+                    }
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.move_to_previous_step()
+                }
+                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
+            },
+            NewProfileCreationStep::SelectSubOption => match key_code {
+                KeyCode::Up => {
+                    if let SelectionState::SubOption(index) =
+                        self.selection_state
+                    {
+                        if index > 0 {
+                            self.selection_state =
+                                SelectionState::SubOption(index - 1);
+                        }
+                    }
+                    self.update_selected_model();
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Down => {
+                    let max_index = self.get_max_sub_option_index();
+                    if let SelectionState::SubOption(index) =
+                        self.selection_state
+                    {
+                        if index < max_index - 1 {
+                            self.selection_state =
+                                SelectionState::SubOption(index + 1);
+                        }
+                    }
+                    self.update_selected_model();
+                    Ok(NewProfileCreatorAction::Refresh)
+                }
+                KeyCode::Enter => {
+                    self.update_selected_model();
+                    self.ready_to_create = true;
+                    self.move_to_next_step(
+                        NewProfileCreationStep::ConfirmCreate,
+                    )
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.move_to_previous_step()
+                }
+                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
+            },
+            NewProfileCreationStep::ConfirmCreate => {
+                match key_code {
+                    KeyCode::Enter => {
+                        self.creation_step =
+                            NewProfileCreationStep::CreatingProfile;
+                        self.create_new_profile(0).await?; // Assuming 0 as profile_count, adjust as needed
+                        Ok(NewProfileCreatorAction::Refresh)
+                    }
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.move_to_previous_step()
+                    }
+                    _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
+                }
+            }
+            NewProfileCreationStep::CreatingProfile => {
+                // Once profile creation has started, we don't allow going back
+                Ok(NewProfileCreatorAction::WaitForKeyEvent)
+            }
+        }
+    }
+
+    fn move_to_next_step(
+        &mut self,
+        next_step: NewProfileCreationStep,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
+        self.previous_step = Some(self.creation_step.clone());
+        self.creation_step = next_step;
+        Ok(NewProfileCreatorAction::Refresh)
+    }
+
+    fn move_to_previous_step(
+        &mut self,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
+        if let Some(previous_step) = self.previous_step.take() {
+            self.creation_step = previous_step;
+            match self.creation_step {
+                NewProfileCreationStep::EnterName => {
+                    self.ready_to_create = false;
+                    self.skipped_type_selection = false;
+                }
+                NewProfileCreationStep::SelectProfileType => {
+                    self.selection_state = SelectionState::ProfileType(
+                        self.get_selected_type_index(),
+                    );
+                    self.ready_to_create = false;
+                }
+                NewProfileCreationStep::SelectSubOption => {
+                    self.selection_state = SelectionState::SubOption(0);
+                    self.ready_to_create = false;
+                }
+                _ => {}
+            }
+            Ok(NewProfileCreatorAction::Refresh)
+        } else {
+            Ok(NewProfileCreatorAction::Cancel)
+        }
+    }
+
+    fn render_create_button(&self, f: &mut Frame, area: Rect) {
+        let (border_style, text_style) = if self.ready_to_create
+            && self.creation_step == NewProfileCreationStep::ConfirmCreate
+        {
+            (
+                Style::default().fg(Self::COLOR_SUCCESS),
+                Style::default()
+                    .fg(Self::COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            )
+        } else {
+            (
+                Style::default().fg(Color::DarkGray),
+                Style::default().fg(Color::DarkGray),
+            )
+        };
+
+        let button_content = Span::styled("Create Profile", text_style);
+
+        let button = Paragraph::new(button_content)
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(border_style)
+                    .padding(ratatui::widgets::Padding::horizontal(1)),
+            );
+
+        f.render_widget(button, area);
+    }
+
+    fn get_step_title(&self) -> &'static str {
+        match self.creation_step {
+            NewProfileCreationStep::EnterName => "Enter Profile Name",
+            NewProfileCreationStep::SelectProfileType => "Select Profile Type",
+            NewProfileCreationStep::SelectSubOption => "Select Model",
+            NewProfileCreationStep::ConfirmCreate => "Confirm Creation",
+            NewProfileCreationStep::CreatingProfile => "Creating Profile",
+        }
+    }
+
+    pub fn get_instructions(&self) -> &'static str {
+        match self.creation_step {
+            NewProfileCreationStep::EnterName => {
+                "Enter profile name | Enter: Confirm | Esc: Cancel"
+            }
+            NewProfileCreationStep::SelectProfileType => {
+                "↑↓: Select Type | Enter: Confirm | Esc: Back"
+            }
+            NewProfileCreationStep::SelectSubOption => {
+                "↑↓: Select Model | Enter: Confirm | Esc: Back to Profile Types"
+            }
+            NewProfileCreationStep::ConfirmCreate => {
+                "Enter: Create Profile | Esc: Back to Model Selection"
+            }
+            NewProfileCreationStep::CreatingProfile => "Creating profile...",
         }
     }
 
@@ -146,12 +388,25 @@ impl NewProfileCreator {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Name input
-                Constraint::Min(1),    // Type and sub-option selection
+                Constraint::Min(1), // Type and sub-option selection or profile creation
             ])
             .split(area);
 
         self.render_profile_name_input(f, chunks[0]);
-        self.render_type_and_sub_options(f, chunks[1]);
+
+        match self.creation_step {
+            NewProfileCreationStep::EnterName => {
+                // No need to render anything else
+            }
+            NewProfileCreationStep::SelectProfileType
+            | NewProfileCreationStep::SelectSubOption
+            | NewProfileCreationStep::ConfirmCreate => {
+                self.render_type_and_sub_options(f, chunks[1]);
+            }
+            NewProfileCreationStep::CreatingProfile => {
+                self.render_creating_profile(f, chunks[1]);
+            }
+        }
     }
 
     fn render_profile_name_input(&self, f: &mut Frame, area: Rect) {
@@ -198,10 +453,6 @@ impl NewProfileCreator {
         let mut items = Vec::new();
 
         match self.creation_step {
-            NewProfileCreationStep::CreatingProfile => {
-                self.render_creating_profile(f, area);
-                return;
-            }
             NewProfileCreationStep::SelectProfileType => {
                 if self.skipped_type_selection {
                     items.push(ListItem::new(Line::from(vec![Span::styled(
@@ -244,8 +495,7 @@ impl NewProfileCreator {
                     )])));
                 }
             }
-            NewProfileCreationStep::SelectSubOption
-            | NewProfileCreationStep::EnterName => {
+            NewProfileCreationStep::SelectSubOption => {
                 let selected_type_index = self.get_selected_type_index();
                 if let Some(profile_type) =
                     self.predefined_types.get(selected_type_index)
@@ -305,6 +555,48 @@ impl NewProfileCreator {
                     }
                 }
             }
+            NewProfileCreationStep::ConfirmCreate => {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled(
+                        "Selected Profile Type: ",
+                        Style::default().fg(Self::COLOR_SECONDARY),
+                    ),
+                    Span::styled(
+                        self.predefined_types[self.selected_type_index].clone(),
+                        Style::default().fg(Self::COLOR_HIGHLIGHT),
+                    ),
+                ])));
+
+                if let Some(sub_selections) = self
+                    .sub_selections
+                    .get(&self.predefined_types[self.selected_type_index])
+                {
+                    for sub_selection in sub_selections {
+                        if let Some(selected) = sub_selection.selected {
+                            items.push(ListItem::new(Line::from(vec![
+                                Span::styled(
+                                    format!(
+                                        "Selected {}: ",
+                                        sub_selection.name
+                                    ),
+                                    Style::default().fg(Self::COLOR_SECONDARY),
+                                ),
+                                Span::styled(
+                                    sub_selection.options[selected].clone(),
+                                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                                ),
+                            ])));
+                        }
+                    }
+                }
+
+                items.push(ListItem::new(""));
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    "Press Enter to create the profile",
+                    Style::default().fg(Self::COLOR_SUCCESS),
+                )])));
+            }
+            _ => {}
         }
 
         let title = self.get_step_title();
@@ -328,145 +620,6 @@ impl NewProfileCreator {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Self::COLOR_FOREGROUND));
             f.render_widget(empty_block, chunks[1]);
-        }
-    }
-
-    pub async fn handle_input(
-        &mut self,
-        key_code: KeyCode,
-    ) -> Result<NewProfileCreatorAction, ApplicationError> {
-        match self.creation_step {
-            NewProfileCreationStep::EnterName => match key_code {
-                KeyCode::Char(c) => {
-                    self.new_profile_name.push(c);
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Backspace => {
-                    self.new_profile_name.pop();
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Enter => {
-                    if !self.new_profile_name.is_empty() {
-                        self.creation_step =
-                            NewProfileCreationStep::SelectProfileType;
-                        self.skipped_type_selection = false; // Reset skip flag
-                        self.selection_state = SelectionState::ProfileType(0); // Reset selection
-                        self.ready_to_create = false; // Reset ready flag
-                        Ok(NewProfileCreatorAction::Refresh)
-                    } else {
-                        Ok(NewProfileCreatorAction::WaitForKeyEvent)
-                    }
-                }
-                KeyCode::Esc => Ok(NewProfileCreatorAction::Cancel),
-                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
-            },
-            NewProfileCreationStep::SelectProfileType => match key_code {
-                KeyCode::Up => {
-                    if !self.skipped_type_selection {
-                        if let SelectionState::ProfileType(index) =
-                            &mut self.selection_state
-                        {
-                            if *index > 0 {
-                                *index -= 1;
-                                self.selected_type_index = *index;
-                            }
-                        }
-                    }
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Down => {
-                    if !self.skipped_type_selection {
-                        if let SelectionState::ProfileType(index) =
-                            &mut self.selection_state
-                        {
-                            if *index < self.predefined_types.len() - 1 {
-                                *index += 1;
-                                self.selected_type_index = *index;
-                            }
-                        }
-                    }
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Enter => {
-                    if self.skipped_type_selection {
-                        self.creation_step =
-                            NewProfileCreationStep::CreatingProfile;
-                        self.create_new_profile(0).await?; // Assuming 0 as profile_count, adjust as needed
-                        Ok(NewProfileCreatorAction::Refresh)
-                    } else {
-                        self.selected_type_index =
-                            self.get_selected_type_index();
-                        match self.prepare_for_model_selection().await {
-                            Ok(()) => Ok(NewProfileCreatorAction::Refresh),
-                            Err(e) => Err(e),
-                        }
-                    }
-                }
-                KeyCode::Char('s') | KeyCode::Char('S') => {
-                    self.skipped_type_selection = !self.skipped_type_selection;
-                    self.ready_to_create = self.skipped_type_selection;
-                    if self.skipped_type_selection {
-                        self.selection_state = SelectionState::CreateButton;
-                    } else {
-                        self.selection_state = SelectionState::ProfileType(0);
-                    }
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    // Go back to EnterName step
-                    self.creation_step = NewProfileCreationStep::EnterName;
-                    self.skipped_type_selection = false;
-                    self.ready_to_create = false;
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
-            },
-            NewProfileCreationStep::SelectSubOption => match key_code {
-                KeyCode::Up => {
-                    if let SelectionState::SubOption(index) =
-                        self.selection_state
-                    {
-                        if index > 0 {
-                            self.selection_state =
-                                SelectionState::SubOption(index - 1);
-                        }
-                    }
-                    self.update_selected_model();
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Down => {
-                    let max_index = self.get_max_sub_option_index();
-                    if let SelectionState::SubOption(index) =
-                        self.selection_state
-                    {
-                        if index < max_index - 1 {
-                            self.selection_state =
-                                SelectionState::SubOption(index + 1);
-                        }
-                    }
-                    self.update_selected_model();
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Enter => {
-                    self.update_selected_model();
-                    self.ready_to_create = true;
-                    self.selection_state = SelectionState::CreateButton;
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.creation_step =
-                        NewProfileCreationStep::SelectProfileType;
-                    self.selection_state = SelectionState::ProfileType(
-                        self.get_selected_type_index(),
-                    );
-                    Ok(NewProfileCreatorAction::Refresh)
-                }
-                _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
-            },
-            NewProfileCreationStep::CreatingProfile => {
-                // Once profile creation has started, we don't allow going back
-                Ok(NewProfileCreatorAction::WaitForKeyEvent)
-            }
         }
     }
 
@@ -611,66 +764,6 @@ impl NewProfileCreator {
                 );
 
             f.render_widget(paragraph, area);
-        }
-    }
-
-    pub fn get_instructions(&self) -> &'static str {
-        match self.creation_step {
-            NewProfileCreationStep::EnterName => {
-                "Enter profile name | Enter: Confirm | Esc: Cancel"
-            }
-            NewProfileCreationStep::SelectProfileType => {
-                "↑↓: Select Type | Enter: Confirm | Esc: Cancel"
-            }
-            NewProfileCreationStep::SelectSubOption => {
-                "↑↓: Select Model | Enter: Confirm | Esc: Back to Profile Types"
-            }
-            NewProfileCreationStep::CreatingProfile => "Creating profile...",
-        }
-    }
-
-    fn render_create_button(&self, f: &mut Frame, area: Rect) {
-        let (border_style, text_style) = if self.ready_to_create {
-            if matches!(self.selection_state, SelectionState::CreateButton) {
-                (
-                    Style::default().fg(Self::COLOR_SUCCESS),
-                    Style::default()
-                        .fg(Self::COLOR_SUCCESS)
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                (
-                    Style::default().fg(Self::COLOR_HIGHLIGHT),
-                    Style::default().fg(Self::COLOR_HIGHLIGHT),
-                )
-            }
-        } else {
-            (
-                Style::default().fg(Color::DarkGray),
-                Style::default().fg(Color::DarkGray),
-            )
-        };
-
-        let button_content = Span::styled("Create Profile", text_style);
-
-        let button = Paragraph::new(button_content)
-            .alignment(ratatui::layout::Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(border_style)
-                    .padding(ratatui::widgets::Padding::horizontal(1)),
-            );
-
-        f.render_widget(button, area);
-    }
-
-    fn get_step_title(&self) -> &'static str {
-        match self.creation_step {
-            NewProfileCreationStep::EnterName => "Enter Profile Name",
-            NewProfileCreationStep::SelectProfileType => "Select Profile Type",
-            NewProfileCreationStep::SelectSubOption => "Select Model",
-            NewProfileCreationStep::CreatingProfile => "Creating Profile",
         }
     }
 }

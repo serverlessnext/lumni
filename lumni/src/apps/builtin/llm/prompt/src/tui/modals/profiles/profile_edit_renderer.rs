@@ -240,27 +240,12 @@ impl ProfileEditRenderer {
             (Focus::SettingsList, EditMode::AddingNewValue) => {
                 "Enter: Save New Value | Esc: Cancel"
             }
-            (Focus::NewProfileCreation, _) => {
-                if let Some(creator) =
-                    &profile_edit_modal.ui_state.new_profile_creator
-                {
-                    match creator.creation_step {
-                        NewProfileCreationStep::SelectType => {
-                            "↑↓: Select Type | Enter: Create Profile | q/Esc: \
-                             Cancel"
-                        }
-                        NewProfileCreationStep::SelectModel => {
-                            "↑↓: Select Model | Enter: Confirm | q/Esc: Back \
-                             to Profile Types"
-                        }
-                        NewProfileCreationStep::CreatingProfile => {
-                            "Creating profile..."
-                        }
-                    }
-                } else {
-                    ""
-                }
-            }
+            (Focus::NewProfileCreation, _) => profile_edit_modal
+                .ui_state
+                .new_profile_creator
+                .as_ref()
+                .map(|creator| creator.get_instructions())
+                .unwrap_or(""),
             _ => "",
         };
         let paragraph = Paragraph::new(instructions)

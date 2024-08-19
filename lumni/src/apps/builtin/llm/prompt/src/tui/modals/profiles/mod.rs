@@ -9,8 +9,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
 use new_profile_creator::{
-    BackgroundTaskResult, NewProfileCreationStep, NewProfileCreator,
-    NewProfileCreatorAction,
+    BackgroundTaskResult, NewProfileCreator, NewProfileCreatorAction,
 };
 use profile_edit_renderer::ProfileEditRenderer;
 use profile_list::ProfileList;
@@ -28,7 +27,7 @@ use ui_state::{EditMode, Focus, UIState};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
-    ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ServerTrait,
+    ModalWindowTrait, ModalWindowType, ModelServer, ServerTrait,
     ThreadedChatSession, UserProfileDbHandler, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
@@ -70,200 +69,6 @@ impl ProfileEditModal {
         })
     }
 
-    async fn handle_profile_list_input(
-        &mut self,
-        key_code: KeyCode,
-    ) -> Result<WindowEvent, ApplicationError> {
-        match (self.ui_state.edit_mode, key_code) {
-            (EditMode::NotEditing, KeyCode::Up) => {
-                self.profile_list.move_selection_up();
-                self.load_profile_or_clear().await?;
-            }
-            (EditMode::NotEditing, KeyCode::Down) => {
-                self.profile_list.move_selection_down();
-                self.load_profile_or_clear().await?;
-            }
-            (EditMode::NotEditing, KeyCode::Enter) => {
-                if self.profile_list.is_new_profile_selected() {
-                    self.start_new_profile_creation();
-                } else {
-                    self.ui_state.set_focus(Focus::SettingsList);
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Char('r') | KeyCode::Char('R')) => {
-                if !self.profile_list.is_new_profile_selected() {
-                    self.ui_state.set_edit_mode(EditMode::RenamingProfile);
-                    self.ui_state.set_focus(Focus::RenamingProfile);
-                    self.new_profile_name =
-                        Some(self.profile_list.start_renaming());
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Char(' ')) => {
-                if !self.profile_list.is_new_profile_selected() {
-                    self.set_default_profile().await?;
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Char('D')) => {
-                if !self.profile_list.is_new_profile_selected() {
-                    self.profile_list
-                        .delete_profile(&mut self.db_handler)
-                        .await?;
-                    self.load_profile_or_clear().await?;
-                }
-            }
-            (EditMode::RenamingProfile, KeyCode::Enter) => {
-                if let Some(new_name) = self.new_profile_name.take() {
-                    self.profile_list
-                        .rename_profile(new_name, &mut self.db_handler)
-                        .await?;
-                    self.ui_state.set_edit_mode(EditMode::NotEditing);
-                    self.ui_state.set_focus(Focus::ProfileList);
-                }
-            }
-            (EditMode::RenamingProfile, KeyCode::Char(c)) => {
-                if let Some(ref mut name) = self.new_profile_name {
-                    name.push(c);
-                }
-            }
-            (EditMode::RenamingProfile, KeyCode::Backspace) => {
-                if let Some(ref mut name) = self.new_profile_name {
-                    name.pop();
-                }
-            }
-            (EditMode::RenamingProfile, KeyCode::Esc) => {
-                self.new_profile_name = None;
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
-                self.ui_state.set_focus(Focus::ProfileList);
-            }
-            (EditMode::NotEditing, KeyCode::Char('q') | KeyCode::Esc) => {
-                return Ok(WindowEvent::PromptWindow(None));
-            }
-            _ => {}
-        }
-
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
-    async fn handle_settings_list_input(
-        &mut self,
-        key_code: KeyCode,
-    ) -> Result<WindowEvent, ApplicationError> {
-        match (self.ui_state.edit_mode, key_code) {
-            (EditMode::NotEditing, KeyCode::Up) => {
-                self.settings_editor.move_selection_up();
-            }
-            (EditMode::NotEditing, KeyCode::Down) => {
-                self.settings_editor.move_selection_down();
-            }
-            (EditMode::NotEditing, KeyCode::Enter) => {
-                if self.settings_editor.start_editing().is_some() {
-                    self.ui_state.set_edit_mode(EditMode::EditingValue);
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Tab | KeyCode::Left) => {
-                self.ui_state.set_focus(Focus::ProfileList);
-            }
-            (EditMode::NotEditing, KeyCode::Char('s') | KeyCode::Char('S')) => {
-                self.settings_editor.toggle_secure_visibility();
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.settings_editor
-                        .load_settings(profile, &mut self.db_handler)
-                        .await?;
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Char('n')) => {
-                self.settings_editor.start_adding_new_value(false);
-                self.ui_state.set_edit_mode(EditMode::AddingNewKey);
-            }
-            (EditMode::NotEditing, KeyCode::Char('N')) => {
-                self.settings_editor.start_adding_new_value(true);
-                self.ui_state.set_edit_mode(EditMode::AddingNewKey);
-            }
-            (EditMode::NotEditing, KeyCode::Char('D')) => {
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.settings_editor
-                        .delete_current_key(profile, &mut self.db_handler)
-                        .await?;
-                }
-            }
-            (EditMode::NotEditing, KeyCode::Char('C')) => {
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.settings_editor
-                        .clear_current_key(profile, &mut self.db_handler)
-                        .await?;
-                }
-            }
-            (EditMode::EditingValue, KeyCode::Enter) => {
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.settings_editor
-                        .save_edit(profile, &mut self.db_handler)
-                        .await?;
-                }
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
-            }
-            (EditMode::EditingValue, KeyCode::Char(c)) => {
-                let mut current_value =
-                    self.settings_editor.get_edit_buffer().to_string();
-                current_value.push(c);
-                self.settings_editor.set_edit_buffer(current_value);
-            }
-            (EditMode::EditingValue, KeyCode::Backspace) => {
-                let mut current_value =
-                    self.settings_editor.get_edit_buffer().to_string();
-                current_value.pop();
-                self.settings_editor.set_edit_buffer(current_value);
-            }
-            (EditMode::AddingNewKey, KeyCode::Enter) => {
-                if self.settings_editor.confirm_new_key() {
-                    self.ui_state.set_edit_mode(EditMode::AddingNewValue);
-                }
-            }
-            (EditMode::AddingNewKey, KeyCode::Char(c)) => {
-                let mut current_value =
-                    self.settings_editor.get_new_key_buffer().to_string();
-                current_value.push(c);
-                self.settings_editor.set_new_key_buffer(current_value);
-            }
-            (EditMode::AddingNewKey, KeyCode::Backspace) => {
-                let mut current_value =
-                    self.settings_editor.get_new_key_buffer().to_string();
-                current_value.pop();
-                self.settings_editor.set_new_key_buffer(current_value);
-            }
-            (EditMode::AddingNewValue, KeyCode::Enter) => {
-                if let Some(profile) = self.profile_list.get_selected_profile()
-                {
-                    self.settings_editor
-                        .save_new_value(profile, &mut self.db_handler)
-                        .await?;
-                }
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
-            }
-            (EditMode::AddingNewValue, KeyCode::Char(c)) => {
-                let mut current_value =
-                    self.settings_editor.get_edit_buffer().to_string();
-                current_value.push(c);
-                self.settings_editor.set_edit_buffer(current_value);
-            }
-            (EditMode::AddingNewValue, KeyCode::Backspace) => {
-                let mut current_value =
-                    self.settings_editor.get_edit_buffer().to_string();
-                current_value.pop();
-                self.settings_editor.set_edit_buffer(current_value);
-            }
-            (_, KeyCode::Esc) => {
-                self.settings_editor.cancel_edit();
-                self.ui_state.set_edit_mode(EditMode::NotEditing);
-            }
-            _ => {}
-        }
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
     async fn set_default_profile(&mut self) -> Result<(), ApplicationError> {
         let selected_profile =
             self.profile_list.get_selected_profile().map(String::from);
@@ -283,32 +88,6 @@ impl ProfileEditModal {
         }
     }
 
-    fn render_activity_indicator(&mut self, frame: &mut Frame, area: Rect) {
-        const SPINNER: &[char] =
-            &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-        if let Some(creator) = &mut self.ui_state.new_profile_creator {
-            let spinner_char = SPINNER[creator.spinner_state];
-            creator.spinner_state = (creator.spinner_state + 1) % SPINNER.len();
-
-            let elapsed = creator
-                .task_start_time
-                .map(|start| start.elapsed().as_secs())
-                .unwrap_or(0);
-            let content = format!(
-                "{} Creating profile... ({} seconds)",
-                spinner_char, elapsed
-            );
-
-            let paragraph = Paragraph::new(content)
-                .style(Style::default().fg(Color::Cyan))
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL));
-
-            frame.render_widget(paragraph, area);
-        }
-    }
-
     async fn load_profile(&mut self) -> Result<(), ApplicationError> {
         if let Some(profile) = self.profile_list.get_selected_profile() {
             self.settings_editor
@@ -318,94 +97,9 @@ impl ProfileEditModal {
         Ok(())
     }
 
-    fn render_model_selection(&self, f: &mut Frame, area: Rect) {
-        if let Some(creator) = &self.ui_state.new_profile_creator {
-            let items: Vec<ListItem> = creator
-                .available_models
-                .iter()
-                .enumerate()
-                .map(|(i, model)| {
-                    let style = if i == creator.selected_model_index {
-                        Style::default()
-                            .bg(Color::Rgb(40, 40, 40))
-                            .fg(Color::White)
-                    } else {
-                        Style::default().bg(Color::Black).fg(Color::Cyan)
-                    };
-                    ListItem::new(Line::from(vec![Span::styled(
-                        &model.identifier.0,
-                        style,
-                    )]))
-                })
-                .collect();
-
-            let list = List::new(items)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Select Model"),
-                )
-                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-                .highlight_symbol(">> ");
-
-            let mut state = ListState::default();
-            state.select(Some(creator.selected_model_index));
-
-            f.render_stateful_widget(list, area, &mut state);
-        }
-    }
-
-    fn render_new_profile_type(&self, f: &mut Frame, area: Rect) {
-        if let Some(creator) = &self.ui_state.new_profile_creator {
-            let items: Vec<ListItem> = creator
-                .predefined_types
-                .iter()
-                .enumerate()
-                .map(|(i, profile_type)| {
-                    let style = if i == creator.selected_type {
-                        Style::default()
-                            .bg(Color::Rgb(40, 40, 40))
-                            .fg(Color::White)
-                    } else {
-                        Style::default().bg(Color::Black).fg(Color::Cyan)
-                    };
-                    ListItem::new(Line::from(vec![Span::styled(
-                        profile_type,
-                        style,
-                    )]))
-                })
-                .collect();
-
-            let list = List::new(items)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title("Select Profile Type"),
-                )
-                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-                .highlight_symbol(">> ");
-
-            let mut state = ListState::default();
-            state.select(Some(creator.selected_type));
-
-            f.render_stateful_widget(list, area, &mut state);
-        }
-    }
-
     fn cancel_edit(&mut self) {
         self.settings_editor.cancel_edit();
         self.ui_state.set_edit_mode(EditMode::NotEditing);
-    }
-
-    fn start_new_profile_creation(&mut self) {
-        self.ui_state.new_profile_creator =
-            Some(NewProfileCreator::new(self.db_handler.clone()));
-        self.ui_state.set_focus(Focus::NewProfileCreation);
-    }
-
-    fn cancel_new_profile_creation(&mut self) {
-        self.ui_state.new_profile_creator = None;
-        self.ui_state.set_focus(Focus::ProfileList);
     }
 }
 
@@ -443,34 +137,7 @@ impl ModalWindowTrait for ProfileEditModal {
         match self.ui_state.focus {
             Focus::NewProfileCreation => {
                 if let Some(creator) = &self.ui_state.new_profile_creator {
-                    match creator.creation_step {
-                        NewProfileCreationStep::SelectType => {
-                            self.render_new_profile_type(
-                                frame,
-                                content_chunks[1],
-                            );
-                        }
-                        NewProfileCreationStep::SelectModel => {
-                            self.render_model_selection(
-                                frame,
-                                content_chunks[1],
-                            );
-                        }
-                        NewProfileCreationStep::CreatingProfile => {
-                            if creator.background_task.is_some() {
-                                let indicator_area = Rect {
-                                    x: area.x + 10,
-                                    y: area.bottom() - 3,
-                                    width: area.width - 20,
-                                    height: 3,
-                                };
-                                self.render_activity_indicator(
-                                    frame,
-                                    indicator_area,
-                                );
-                            }
-                        }
-                    }
+                    creator.render(frame, content_chunks[1]);
                 }
             }
             _ => self.renderer.render_settings_list(
@@ -492,14 +159,15 @@ impl ModalWindowTrait for ProfileEditModal {
                         creator.background_task = None;
                         creator.task_start_time = None;
                         match result {
-                            Ok(()) => {
-                                if let Some(new_profile_name) =
-                                    creator.new_profile_name.take()
-                                {
-                                    self.profile_list
-                                        .add_profile(new_profile_name);
-                                    self.load_profile().await?;
-                                }
+                            Ok(new_profile_name) => {
+                                log::debug!(
+                                    "Profile created: {}",
+                                    new_profile_name
+                                );
+                                self.profile_list
+                                    .add_profile(new_profile_name.clone());
+
+                                self.load_profile().await?;
                                 self.ui_state.cancel_new_profile_creation();
                                 self.ui_state.set_focus(Focus::SettingsList);
                             }
@@ -747,7 +415,11 @@ impl ModalWindowTrait for ProfileEditModal {
             Focus::NewProfileCreation => {
                 if let Some(creator) = &mut self.ui_state.new_profile_creator {
                     let profile_count = self.profile_list.total_items();
-                    match creator.handle_input(key_code, profile_count).await? {
+                    if creator.ready_to_create && key_code == KeyCode::Enter {
+                        creator.create_new_profile(profile_count).await?;
+                        return Ok(WindowEvent::Modal(ModalAction::Refresh));
+                    }
+                    match creator.handle_input(key_code).await? {
                         NewProfileCreatorAction::Refresh => {
                             Ok(WindowEvent::Modal(ModalAction::Refresh))
                         }
@@ -755,7 +427,7 @@ impl ModalWindowTrait for ProfileEditModal {
                             Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                         }
                         NewProfileCreatorAction::Cancel => {
-                            self.cancel_new_profile_creation();
+                            self.ui_state.cancel_new_profile_creation();
                             Ok(WindowEvent::Modal(ModalAction::Refresh))
                         }
                     }

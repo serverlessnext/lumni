@@ -1,18 +1,35 @@
 use super::*;
 
+#[derive(Debug)]
 pub enum BackgroundTaskResult {
     ProfileCreated(Result<(), ApplicationError>),
 }
+
+#[derive(Debug, Clone)]
+pub enum NewProfileCreationStep {
+    SelectType,
+    SelectModel,
+    CreatingProfile,
+}
+
+#[derive(Debug, Clone)]
+pub enum NewProfileCreatorAction {
+    Refresh,
+    WaitForKeyEvent,
+    Cancel,
+}
+
+#[derive(Debug)]
 pub struct NewProfileCreator {
     pub predefined_types: Vec<String>,
     pub selected_type: usize,
-    pub selected_model_index: usize, // New field for model selection
+    pub selected_model_index: usize,
     pub background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
     pub task_start_time: Option<Instant>,
     pub spinner_state: usize,
     pub new_profile_name: Option<String>,
     pub available_models: Vec<ModelSpec>,
-    pub model_selection_pending: bool,
+    pub creation_step: NewProfileCreationStep,
     pub db_handler: UserProfileDbHandler,
 }
 
@@ -24,15 +41,59 @@ impl NewProfileCreator {
                 .map(|s| s.to_string())
                 .collect(),
             selected_type: 0,
-            selected_model_index: 0, // Initialize the new field
+            selected_model_index: 0,
             background_task: None,
             task_start_time: None,
             spinner_state: 0,
             new_profile_name: None,
             available_models: Vec::new(),
-            model_selection_pending: false,
+            creation_step: NewProfileCreationStep::SelectType,
             db_handler,
         }
+    }
+
+    pub async fn handle_input(
+        &mut self,
+        key_code: KeyCode,
+        profile_count: usize,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
+        match self.creation_step {
+            NewProfileCreationStep::SelectType => match key_code {
+                KeyCode::Up => self.move_type_selection_up(),
+                KeyCode::Down => self.move_type_selection_down(),
+                KeyCode::Enter => {
+                    if self.prepare_for_model_selection().await? {
+                        return Ok(NewProfileCreatorAction::Refresh);
+                    } else {
+                        self.create_new_profile(profile_count).await?;
+                        return Ok(NewProfileCreatorAction::Refresh);
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    return Ok(NewProfileCreatorAction::Cancel);
+                }
+                _ => {}
+            },
+            NewProfileCreationStep::SelectModel => match key_code {
+                KeyCode::Up => self.move_model_selection_up(),
+                KeyCode::Down => self.move_model_selection_down(),
+                KeyCode::Enter => {
+                    self.create_new_profile(profile_count).await?;
+                    return Ok(NewProfileCreatorAction::Refresh);
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.creation_step = NewProfileCreationStep::SelectType;
+                    self.available_models.clear();
+                    self.selected_model_index = 0;
+                    return Ok(NewProfileCreatorAction::Refresh);
+                }
+                _ => {}
+            },
+            NewProfileCreationStep::CreatingProfile => {
+                // Handle any input during profile creation, if necessary
+            }
+        }
+        Ok(NewProfileCreatorAction::WaitForKeyEvent)
     }
 
     pub async fn prepare_for_model_selection(
@@ -44,13 +105,13 @@ impl NewProfileCreator {
         match model_server.list_models().await {
             Ok(models) if !models.is_empty() => {
                 self.available_models = models;
-                self.model_selection_pending = true;
-                self.selected_model_index = 0; // Reset model selection index
+                self.creation_step = NewProfileCreationStep::SelectModel;
+                self.selected_model_index = 0;
                 Ok(true)
             }
             Ok(_) => {
                 println!("No models available for this server.");
-                self.model_selection_pending = false;
+                self.creation_step = NewProfileCreationStep::CreatingProfile;
                 Ok(false)
             }
             Err(ApplicationError::NotReady(msg)) => {
@@ -58,7 +119,7 @@ impl NewProfileCreator {
                     "Server not ready: {}. Model selection will be skipped.",
                     msg
                 );
-                self.model_selection_pending = false;
+                self.creation_step = NewProfileCreationStep::CreatingProfile;
                 Ok(false)
             }
             Err(e) => Err(e),
@@ -67,7 +128,6 @@ impl NewProfileCreator {
 
     pub async fn create_new_profile(
         &mut self,
-        db_handler: &UserProfileDbHandler,
         profile_count: usize,
     ) -> Result<(), ApplicationError> {
         let new_profile_name = format!("New_Profile_{}", profile_count + 1);
@@ -83,7 +143,7 @@ impl NewProfileCreator {
             }
         }
 
-        if self.model_selection_pending {
+        if let NewProfileCreationStep::SelectModel = self.creation_step {
             if let Some(selected_model) =
                 self.available_models.get(self.selected_model_index)
             {
@@ -94,10 +154,10 @@ impl NewProfileCreator {
             }
         }
 
-        let mut db_handler = db_handler.clone();
         let (tx, rx) = mpsc::channel(1);
         let new_profile_name_clone = new_profile_name.clone();
         let settings_clone = settings.clone();
+        let mut db_handler = self.db_handler.clone();
         tokio::spawn(async move {
             let result = db_handler
                 .create_or_update(
@@ -111,10 +171,31 @@ impl NewProfileCreator {
         self.task_start_time = Some(Instant::now());
         self.spinner_state = 0;
         self.new_profile_name = Some(new_profile_name);
+        self.creation_step = NewProfileCreationStep::CreatingProfile;
         Ok(())
     }
 
-    // Add methods to manipulate selected_model_index
+    pub fn cancel_creation(&mut self) {
+        self.creation_step = NewProfileCreationStep::SelectType;
+        self.available_models.clear();
+        self.selected_model_index = 0;
+        self.new_profile_name = None;
+        self.background_task = None;
+        self.task_start_time = None;
+    }
+
+    pub fn move_type_selection_up(&mut self) {
+        if self.selected_type > 0 {
+            self.selected_type -= 1;
+        }
+    }
+
+    pub fn move_type_selection_down(&mut self) {
+        if self.selected_type < self.predefined_types.len() - 1 {
+            self.selected_type += 1;
+        }
+    }
+
     pub fn move_model_selection_up(&mut self) {
         if self.selected_model_index > 0 {
             self.selected_model_index -= 1;

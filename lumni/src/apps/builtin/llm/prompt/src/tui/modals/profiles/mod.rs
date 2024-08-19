@@ -8,7 +8,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
-use new_profile_creator::{BackgroundTaskResult, NewProfileCreator};
+use new_profile_creator::{
+    BackgroundTaskResult, NewProfileCreationStep, NewProfileCreator,
+    NewProfileCreatorAction,
+};
 use profile_edit_renderer::ProfileEditRenderer;
 use profile_list::ProfileList;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -33,12 +36,12 @@ use super::{
 pub struct ProfileEditModal {
     profile_list: ProfileList,
     settings_editor: SettingsEditor,
-    new_profile_creator: NewProfileCreator,
     ui_state: UIState,
     db_handler: UserProfileDbHandler,
     new_profile_name: Option<String>,
     renderer: ProfileEditRenderer,
 }
+
 impl ProfileEditModal {
     pub async fn new(
         mut db_handler: UserProfileDbHandler,
@@ -56,12 +59,10 @@ impl ProfileEditModal {
                 JsonValue::Object(serde_json::Map::new())
             };
         let settings_editor = SettingsEditor::new(settings);
-        let new_profile_creator = NewProfileCreator::new(db_handler.clone());
 
         Ok(Self {
             profile_list,
             settings_editor,
-            new_profile_creator,
             ui_state: UIState::new(),
             db_handler,
             new_profile_name: None,
@@ -133,10 +134,6 @@ impl ProfileEditModal {
                 self.new_profile_name = None;
                 self.ui_state.set_edit_mode(EditMode::NotEditing);
                 self.ui_state.set_focus(Focus::ProfileList);
-            }
-            (EditMode::CreatingNewProfile, KeyCode::Esc) => {
-                self.cancel_new_profile_creation();
-                self.load_profile_or_clear().await?;
             }
             (EditMode::NotEditing, KeyCode::Char('q') | KeyCode::Esc) => {
                 return Ok(WindowEvent::PromptWindow(None));
@@ -277,20 +274,6 @@ impl ProfileEditModal {
         Ok(())
     }
 
-    fn start_new_profile_creation(&mut self) {
-        self.ui_state.set_edit_mode(EditMode::CreatingNewProfile);
-        self.ui_state.set_focus(Focus::NewProfileType);
-        self.new_profile_creator.selected_type = 0;
-        self.settings_editor.clear();
-    }
-
-    fn cancel_new_profile_creation(&mut self) {
-        self.ui_state.set_edit_mode(EditMode::NotEditing);
-        self.ui_state.set_focus(Focus::ProfileList);
-        self.profile_list.select_new_profile();
-        self.settings_editor.clear();
-    }
-
     async fn load_profile_or_clear(&mut self) -> Result<(), ApplicationError> {
         if self.profile_list.is_new_profile_selected() {
             self.settings_editor.clear();
@@ -304,26 +287,26 @@ impl ProfileEditModal {
         const SPINNER: &[char] =
             &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-        let spinner_char = SPINNER[self.new_profile_creator.spinner_state];
-        self.new_profile_creator.spinner_state =
-            (self.new_profile_creator.spinner_state + 1) % SPINNER.len();
+        if let Some(creator) = &mut self.ui_state.new_profile_creator {
+            let spinner_char = SPINNER[creator.spinner_state];
+            creator.spinner_state = (creator.spinner_state + 1) % SPINNER.len();
 
-        let elapsed = self
-            .new_profile_creator
-            .task_start_time
-            .map(|start| start.elapsed().as_secs())
-            .unwrap_or(0);
-        let content = format!(
-            "{} Creating profile... ({} seconds)",
-            spinner_char, elapsed
-        );
+            let elapsed = creator
+                .task_start_time
+                .map(|start| start.elapsed().as_secs())
+                .unwrap_or(0);
+            let content = format!(
+                "{} Creating profile... ({} seconds)",
+                spinner_char, elapsed
+            );
 
-        let paragraph = Paragraph::new(content)
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            let paragraph = Paragraph::new(content)
+                .style(Style::default().fg(Color::Cyan))
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::ALL));
 
-        frame.render_widget(paragraph, area);
+            frame.render_widget(paragraph, area);
+        }
     }
 
     async fn load_profile(&mut self) -> Result<(), ApplicationError> {
@@ -335,148 +318,94 @@ impl ProfileEditModal {
         Ok(())
     }
 
-    async fn handle_new_profile_type_input(
-        &mut self,
-        key_code: KeyCode,
-    ) -> Result<WindowEvent, ApplicationError> {
-        match key_code {
-            KeyCode::Up => {
-                if self.new_profile_creator.selected_type > 0 {
-                    self.new_profile_creator.selected_type -= 1;
-                }
-            }
-            KeyCode::Down => {
-                if self.new_profile_creator.selected_type
-                    < self.new_profile_creator.predefined_types.len() - 1
-                {
-                    self.new_profile_creator.selected_type += 1;
-                }
-            }
-            KeyCode::Enter => {
-                if self
-                    .new_profile_creator
-                    .prepare_for_model_selection()
-                    .await?
-                {
-                    self.ui_state.set_focus(Focus::ModelSelection);
-                } else {
-                    // If no model selection is needed, create the profile without a model
-                    let profile_count = self.profile_list.total_items();
-                    self.new_profile_creator
-                        .create_new_profile(&self.db_handler, profile_count)
-                        .await?;
-                    self.ui_state.set_focus(Focus::ProfileList);
-                }
-                return Ok(WindowEvent::Modal(ModalAction::Refresh));
-            }
-            KeyCode::Esc => {
-                self.ui_state.set_focus(Focus::ProfileList);
-            }
-            _ => {}
-        }
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
-    async fn handle_model_selection_input(
-        &mut self,
-        key_code: KeyCode,
-    ) -> Result<WindowEvent, ApplicationError> {
-        match key_code {
-            KeyCode::Up => {
-                self.new_profile_creator.move_model_selection_up();
-            }
-            KeyCode::Down => {
-                self.new_profile_creator.move_model_selection_down();
-            }
-            KeyCode::Enter => {
-                let profile_count = self.profile_list.total_items();
-                self.new_profile_creator
-                    .create_new_profile(&self.db_handler, profile_count)
-                    .await?;
-                self.ui_state.set_focus(Focus::ProfileList);
-                return Ok(WindowEvent::Modal(ModalAction::Refresh));
-            }
-            KeyCode::Char('q') | KeyCode::Esc => {
-                // Cancel model selection and go back to profile type selection
-                self.new_profile_creator.model_selection_pending = false;
-                self.new_profile_creator.available_models.clear();
-                self.new_profile_creator.selected_model_index = 0;
-                self.ui_state.set_focus(Focus::NewProfileType);
-                return Ok(WindowEvent::Modal(ModalAction::Refresh));
-            }
-            _ => {}
-        }
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-    }
-
     fn render_model_selection(&self, f: &mut Frame, area: Rect) {
-        let models = &self.new_profile_creator.available_models;
-        let items: Vec<ListItem> = models
-            .iter()
-            .enumerate()
-            .map(|(i, model)| {
-                let style = if i
-                    == self.new_profile_creator.selected_model_index
-                {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                };
-                ListItem::new(Line::from(vec![Span::styled(
-                    &model.identifier.0,
-                    style,
-                )]))
-            })
-            .collect();
+        if let Some(creator) = &self.ui_state.new_profile_creator {
+            let items: Vec<ListItem> = creator
+                .available_models
+                .iter()
+                .enumerate()
+                .map(|(i, model)| {
+                    let style = if i == creator.selected_model_index {
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White)
+                    } else {
+                        Style::default().bg(Color::Black).fg(Color::Cyan)
+                    };
+                    ListItem::new(Line::from(vec![Span::styled(
+                        &model.identifier.0,
+                        style,
+                    )]))
+                })
+                .collect();
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Select Model"))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Select Model"),
+                )
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .highlight_symbol(">> ");
 
-        let mut state = ListState::default();
-        state.select(Some(self.new_profile_creator.selected_model_index));
+            let mut state = ListState::default();
+            state.select(Some(creator.selected_model_index));
 
-        f.render_stateful_widget(list, area, &mut state);
+            f.render_stateful_widget(list, area, &mut state);
+        }
     }
 
     fn render_new_profile_type(&self, f: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self
-            .new_profile_creator
-            .predefined_types
-            .iter()
-            .enumerate()
-            .map(|(i, profile_type)| {
-                let style = if i == self.new_profile_creator.selected_type {
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                } else {
-                    Style::default().bg(Color::Black).fg(Color::Cyan)
-                };
-                ListItem::new(Line::from(vec![Span::styled(
-                    profile_type,
-                    style,
-                )]))
-            })
-            .collect();
+        if let Some(creator) = &self.ui_state.new_profile_creator {
+            let items: Vec<ListItem> = creator
+                .predefined_types
+                .iter()
+                .enumerate()
+                .map(|(i, profile_type)| {
+                    let style = if i == creator.selected_type {
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White)
+                    } else {
+                        Style::default().bg(Color::Black).fg(Color::Cyan)
+                    };
+                    ListItem::new(Line::from(vec![Span::styled(
+                        profile_type,
+                        style,
+                    )]))
+                })
+                .collect();
 
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Select Profile Type"),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol(">> ");
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Select Profile Type"),
+                )
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .highlight_symbol(">> ");
 
-        let mut state = ListState::default();
-        state.select(Some(self.new_profile_creator.selected_type));
+            let mut state = ListState::default();
+            state.select(Some(creator.selected_type));
 
-        f.render_stateful_widget(list, area, &mut state);
+            f.render_stateful_widget(list, area, &mut state);
+        }
     }
 
     fn cancel_edit(&mut self) {
         self.settings_editor.cancel_edit();
         self.ui_state.set_edit_mode(EditMode::NotEditing);
+    }
+
+    fn start_new_profile_creation(&mut self) {
+        self.ui_state.new_profile_creator =
+            Some(NewProfileCreator::new(self.db_handler.clone()));
+        self.ui_state.set_focus(Focus::NewProfileCreation);
+    }
+
+    fn cancel_new_profile_creation(&mut self) {
+        self.ui_state.new_profile_creator = None;
+        self.ui_state.set_focus(Focus::ProfileList);
     }
 }
 
@@ -512,15 +441,36 @@ impl ModalWindowTrait for ProfileEditModal {
             .render_profile_list(frame, content_chunks[0], self);
 
         match self.ui_state.focus {
-            Focus::NewProfileType => {
-                self.render_new_profile_type(frame, content_chunks[1])
-            }
-            Focus::ModelSelection => {
-                if self.new_profile_creator.model_selection_pending {
-                    self.render_model_selection(frame, content_chunks[1]);
-                } else {
-                    // If model selection was cancelled, render profile type selection instead
-                    self.render_new_profile_type(frame, content_chunks[1]);
+            Focus::NewProfileCreation => {
+                if let Some(creator) = &self.ui_state.new_profile_creator {
+                    match creator.creation_step {
+                        NewProfileCreationStep::SelectType => {
+                            self.render_new_profile_type(
+                                frame,
+                                content_chunks[1],
+                            );
+                        }
+                        NewProfileCreationStep::SelectModel => {
+                            self.render_model_selection(
+                                frame,
+                                content_chunks[1],
+                            );
+                        }
+                        NewProfileCreationStep::CreatingProfile => {
+                            if creator.background_task.is_some() {
+                                let indicator_area = Rect {
+                                    x: area.x + 10,
+                                    y: area.bottom() - 3,
+                                    width: area.width - 20,
+                                    height: 3,
+                                };
+                                self.render_activity_indicator(
+                                    frame,
+                                    indicator_area,
+                                );
+                            }
+                        }
+                    }
                 }
             }
             _ => self.renderer.render_settings_list(
@@ -532,56 +482,44 @@ impl ModalWindowTrait for ProfileEditModal {
 
         self.renderer
             .render_instructions(frame, main_chunks[2], self);
-
-        if self.new_profile_creator.background_task.is_some() {
-            let indicator_area = Rect {
-                x: area.x + 10,
-                y: area.bottom() - 3,
-                width: area.width - 20,
-                height: 3,
-            };
-            self.render_activity_indicator(frame, indicator_area);
-        }
     }
 
     async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
-        if let Some(ref mut rx) = self.new_profile_creator.background_task {
-            match rx.try_recv() {
-                Ok(BackgroundTaskResult::ProfileCreated(result)) => {
-                    self.new_profile_creator.background_task = None;
-                    self.new_profile_creator.task_start_time = None;
-                    match result {
-                        Ok(()) => {
-                            if let Some(new_profile_name) =
-                                self.new_profile_creator.new_profile_name.take()
-                            {
-                                self.profile_list.add_profile(new_profile_name);
-                                self.load_profile().await?;
+        if let Some(creator) = &mut self.ui_state.new_profile_creator {
+            if let Some(ref mut rx) = creator.background_task {
+                match rx.try_recv() {
+                    Ok(BackgroundTaskResult::ProfileCreated(result)) => {
+                        creator.background_task = None;
+                        creator.task_start_time = None;
+                        match result {
+                            Ok(()) => {
+                                if let Some(new_profile_name) =
+                                    creator.new_profile_name.take()
+                                {
+                                    self.profile_list
+                                        .add_profile(new_profile_name);
+                                    self.load_profile().await?;
+                                }
+                                self.ui_state.cancel_new_profile_creation();
+                                self.ui_state.set_focus(Focus::SettingsList);
                             }
-                            self.ui_state.set_edit_mode(EditMode::NotEditing);
-                            self.ui_state.set_focus(Focus::SettingsList);
+                            Err(e) => {
+                                log::error!("Failed to create profile: {}", e);
+                            }
                         }
-                        Err(e) => {
-                            log::error!("Failed to create profile: {}", e);
-                        }
+                        return Ok(WindowEvent::Modal(ModalAction::Refresh));
                     }
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-                }
-                Err(mpsc::error::TryRecvError::Empty) => {
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                Err(mpsc::error::TryRecvError::Disconnected) => {
-                    self.new_profile_creator.background_task = None;
-                    self.new_profile_creator.task_start_time = None;
-                    self.new_profile_creator.new_profile_name = None;
-                    self.ui_state.set_edit_mode(EditMode::NotEditing);
-                    self.ui_state.set_focus(Focus::ProfileList);
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    Err(mpsc::error::TryRecvError::Empty) => {
+                        return Ok(WindowEvent::Modal(ModalAction::Refresh));
+                    }
+                    Err(mpsc::error::TryRecvError::Disconnected) => {
+                        self.ui_state.cancel_new_profile_creation();
+                        return Ok(WindowEvent::Modal(ModalAction::Refresh));
+                    }
                 }
             }
-        } else {
-            Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
         }
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
     async fn handle_key_event<'b>(
@@ -591,7 +529,7 @@ impl ModalWindowTrait for ProfileEditModal {
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         let key_code = key_event.current_key().code;
-        let result = match self.ui_state.focus {
+        match self.ui_state.focus {
             Focus::ProfileList => match key_code {
                 KeyCode::Tab => {
                     if !self.profile_list.is_new_profile_selected() {
@@ -601,15 +539,60 @@ impl ModalWindowTrait for ProfileEditModal {
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
                 KeyCode::Esc | KeyCode::Char('q') => {
-                    if self.ui_state.edit_mode == EditMode::CreatingNewProfile {
-                        self.cancel_new_profile_creation();
-                        self.load_profile_or_clear().await?;
-                    } else {
-                        return Ok(WindowEvent::PromptWindow(None));
-                    }
+                    Ok(WindowEvent::PromptWindow(None))
+                }
+                KeyCode::Up => {
+                    self.profile_list.move_selection_up();
+                    self.load_profile_or_clear().await?;
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
-                _ => Ok(self.handle_profile_list_input(key_code).await?),
+                KeyCode::Down => {
+                    self.profile_list.move_selection_down();
+                    self.load_profile_or_clear().await?;
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                KeyCode::Enter => {
+                    if self.profile_list.is_new_profile_selected() {
+                        self.ui_state.start_new_profile_creation(
+                            self.db_handler.clone(),
+                        );
+                        Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    } else {
+                        self.ui_state.set_focus(Focus::SettingsList);
+                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    }
+                }
+                KeyCode::Char('r') | KeyCode::Char('R') => {
+                    if !self.profile_list.is_new_profile_selected() {
+                        self.ui_state.set_edit_mode(EditMode::RenamingProfile);
+                        self.ui_state.set_focus(Focus::RenamingProfile);
+                        self.new_profile_name =
+                            Some(self.profile_list.start_renaming());
+                        Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    } else {
+                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    }
+                }
+                KeyCode::Char(' ') => {
+                    if !self.profile_list.is_new_profile_selected() {
+                        self.set_default_profile().await?;
+                        Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    } else {
+                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    }
+                }
+                KeyCode::Char('D') => {
+                    if !self.profile_list.is_new_profile_selected() {
+                        self.profile_list
+                            .delete_profile(&mut self.db_handler)
+                            .await?;
+                        self.load_profile_or_clear().await?;
+                        Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    } else {
+                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    }
+                }
+                _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
             },
             Focus::SettingsList => match key_code {
                 KeyCode::Left
@@ -623,23 +606,194 @@ impl ModalWindowTrait for ProfileEditModal {
                     }
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
-                _ => Ok(self.handle_settings_list_input(key_code).await?),
-            },
-            Focus::NewProfileType => match key_code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.cancel_new_profile_creation();
-                    self.load_profile_or_clear().await?;
+                KeyCode::Up => {
+                    self.settings_editor.move_selection_up();
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
                 }
-                _ => Ok(self.handle_new_profile_type_input(key_code).await?),
+                KeyCode::Down => {
+                    self.settings_editor.move_selection_down();
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
+                KeyCode::Enter => {
+                    match self.ui_state.edit_mode {
+                        EditMode::NotEditing => {
+                            if self.settings_editor.start_editing().is_some() {
+                                self.ui_state
+                                    .set_edit_mode(EditMode::EditingValue);
+                            }
+                        }
+                        EditMode::EditingValue => {
+                            if let Some(profile) =
+                                self.profile_list.get_selected_profile()
+                            {
+                                self.settings_editor
+                                    .save_edit(profile, &mut self.db_handler)
+                                    .await?;
+                            }
+                            self.ui_state.set_edit_mode(EditMode::NotEditing);
+                        }
+                        EditMode::AddingNewKey => {
+                            if self.settings_editor.confirm_new_key() {
+                                self.ui_state
+                                    .set_edit_mode(EditMode::AddingNewValue);
+                            }
+                        }
+                        EditMode::AddingNewValue => {
+                            if let Some(profile) =
+                                self.profile_list.get_selected_profile()
+                            {
+                                self.settings_editor
+                                    .save_new_value(
+                                        profile,
+                                        &mut self.db_handler,
+                                    )
+                                    .await?;
+                            }
+                            self.ui_state.set_edit_mode(EditMode::NotEditing);
+                        }
+                        _ => {}
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char('s') | KeyCode::Char('S') => {
+                    self.settings_editor.toggle_secure_visibility();
+                    if let Some(profile) =
+                        self.profile_list.get_selected_profile()
+                    {
+                        self.settings_editor
+                            .load_settings(profile, &mut self.db_handler)
+                            .await?;
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char('n') => {
+                    self.settings_editor.start_adding_new_value(false);
+                    self.ui_state.set_edit_mode(EditMode::AddingNewKey);
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char('N') => {
+                    self.settings_editor.start_adding_new_value(true);
+                    self.ui_state.set_edit_mode(EditMode::AddingNewKey);
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char('D') => {
+                    if let Some(profile) =
+                        self.profile_list.get_selected_profile()
+                    {
+                        self.settings_editor
+                            .delete_current_key(profile, &mut self.db_handler)
+                            .await?;
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char('C') => {
+                    if let Some(profile) =
+                        self.profile_list.get_selected_profile()
+                    {
+                        self.settings_editor
+                            .clear_current_key(profile, &mut self.db_handler)
+                            .await?;
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char(c) => {
+                    match self.ui_state.edit_mode {
+                        EditMode::EditingValue | EditMode::AddingNewValue => {
+                            let mut current_value = self
+                                .settings_editor
+                                .get_edit_buffer()
+                                .to_string();
+                            current_value.push(c);
+                            self.settings_editor.set_edit_buffer(current_value);
+                        }
+                        EditMode::AddingNewKey => {
+                            let mut current_value = self
+                                .settings_editor
+                                .get_new_key_buffer()
+                                .to_string();
+                            current_value.push(c);
+                            self.settings_editor
+                                .set_new_key_buffer(current_value);
+                        }
+                        _ => {}
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Backspace => {
+                    match self.ui_state.edit_mode {
+                        EditMode::EditingValue | EditMode::AddingNewValue => {
+                            let mut current_value = self
+                                .settings_editor
+                                .get_edit_buffer()
+                                .to_string();
+                            current_value.pop();
+                            self.settings_editor.set_edit_buffer(current_value);
+                        }
+                        EditMode::AddingNewKey => {
+                            let mut current_value = self
+                                .settings_editor
+                                .get_new_key_buffer()
+                                .to_string();
+                            current_value.pop();
+                            self.settings_editor
+                                .set_new_key_buffer(current_value);
+                        }
+                        _ => {}
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
             },
-            Focus::RenamingProfile => {
-                Ok(self.handle_profile_list_input(key_code).await?)
+            Focus::NewProfileCreation => {
+                if let Some(creator) = &mut self.ui_state.new_profile_creator {
+                    let profile_count = self.profile_list.total_items();
+                    match creator.handle_input(key_code, profile_count).await? {
+                        NewProfileCreatorAction::Refresh => {
+                            Ok(WindowEvent::Modal(ModalAction::Refresh))
+                        }
+                        NewProfileCreatorAction::WaitForKeyEvent => {
+                            Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                        }
+                        NewProfileCreatorAction::Cancel => {
+                            self.cancel_new_profile_creation();
+                            Ok(WindowEvent::Modal(ModalAction::Refresh))
+                        }
+                    }
+                } else {
+                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                }
             }
-            Focus::ModelSelection => {
-                Ok(self.handle_model_selection_input(key_code).await?)
-            }
-        };
-        result
+            Focus::RenamingProfile => match key_code {
+                KeyCode::Enter => {
+                    if let Some(new_name) = self.new_profile_name.take() {
+                        self.profile_list
+                            .rename_profile(new_name, &mut self.db_handler)
+                            .await?;
+                        self.ui_state.set_edit_mode(EditMode::NotEditing);
+                        self.ui_state.set_focus(Focus::ProfileList);
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Char(c) => {
+                    if let Some(ref mut name) = self.new_profile_name {
+                        name.push(c);
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Backspace => {
+                    if let Some(ref mut name) = self.new_profile_name {
+                        name.pop();
+                    }
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                KeyCode::Esc => {
+                    self.new_profile_name = None;
+                    self.ui_state.set_edit_mode(EditMode::NotEditing);
+                    self.ui_state.set_focus(Focus::ProfileList);
+                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                }
+                _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
+            },
+        }
     }
 }

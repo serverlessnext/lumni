@@ -430,6 +430,9 @@ impl ModalWindowTrait for ProfileEditModal {
                             self.ui_state.cancel_new_profile_creation();
                             Ok(WindowEvent::Modal(ModalAction::Refresh))
                         }
+                        NewProfileCreatorAction::Complete(_) => {
+                            Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                        }
                     }
                 } else {
                     Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))

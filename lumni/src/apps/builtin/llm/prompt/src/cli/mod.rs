@@ -4,11 +4,11 @@ use clap::{Arg, Command};
 use lumni::api::spec::ApplicationSpec;
 use subcommands::db::create_db_subcommand;
 pub use subcommands::db::handle_db_subcommand;
+
 use subcommands::profile::create_profile_subcommand;
 pub use subcommands::profile::handle_profile_subcommand;
-
 use super::chat::db::{
-    ConversationDatabase, EncryptionHandler, MaskMode, ModelSpec,
+    ConversationDatabase, EncryptionHandler, MaskMode, ModelSpec, UserProfile,
     UserProfileDbHandler,
 };
 use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};

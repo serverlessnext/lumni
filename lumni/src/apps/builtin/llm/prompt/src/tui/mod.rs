@@ -22,7 +22,7 @@ pub use window::{
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, ModelSpec, UserProfileDbHandler,
+    ConversationStatus, MaskMode, ModelSpec, UserProfileDbHandler, UserProfile,
 };
 use super::chat::{
     App, NewConversation, PromptInstruction, ThreadedChatSession,

@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug)]
 pub enum BackgroundTaskResult {
-    ProfileCreated(Result<String, ApplicationError>),
+    ProfileCreated(Result<UserProfile, ApplicationError>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -96,25 +96,40 @@ impl NewProfileCreator {
             previous_step: None,
             navigation_stack: VecDeque::new(),
         };
-        creator.navigation_stack.push_back(NewProfileCreationStep::EnterName);
+        creator
+            .navigation_stack
+            .push_back(NewProfileCreationStep::EnterName);
         creator
     }
 
-    pub async fn handle_input(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    pub async fn handle_input(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match self.creation_step {
             // for EnterName, handle Esc in handle_enter_name as cant use q
-            NewProfileCreationStep::EnterName => self.handle_enter_name(key_code),
+            NewProfileCreationStep::EnterName => {
+                self.handle_enter_name(key_code)
+            }
             _ => match key_code {
-                KeyCode::Esc | KeyCode::Char('q') => self.handle_back_navigation(),
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.handle_back_navigation()
+                }
                 _ => self.handle_step_input(key_code).await,
             },
         }
     }
 
-    fn handle_back_navigation(&mut self) -> Result<NewProfileCreatorAction, ApplicationError> {
+    fn handle_back_navigation(
+        &mut self,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         if self.navigation_stack.len() > 1 {
             self.navigation_stack.pop_back();
-            self.creation_step = self.navigation_stack.back().cloned().unwrap_or(NewProfileCreationStep::EnterName);
+            self.creation_step = self
+                .navigation_stack
+                .back()
+                .cloned()
+                .unwrap_or(NewProfileCreationStep::EnterName);
             self.reset_step_state();
             Ok(NewProfileCreatorAction::Refresh)
         } else {
@@ -127,36 +142,46 @@ impl NewProfileCreator {
             NewProfileCreationStep::EnterName => {
                 self.skipped_type_selection = false;
                 self.ready_to_create = false;
-            },
+            }
             NewProfileCreationStep::SelectProfileType => {
                 self.skipped_type_selection = false;
                 self.ready_to_create = false;
-                self.selection_state = SelectionState::ProfileType(self.selected_type_index);
-            },
+                self.selection_state =
+                    SelectionState::ProfileType(self.selected_type_index);
+            }
             NewProfileCreationStep::SelectSubOption => {
-                if let Some(profile_type) = self.predefined_types.get(self.selected_type_index) {
-                    if let Some(sub_selections) = self.sub_selections.get(profile_type) {
+                if let Some(profile_type) =
+                    self.predefined_types.get(self.selected_type_index)
+                {
+                    if let Some(sub_selections) =
+                        self.sub_selections.get(profile_type)
+                    {
                         if let Some(sub_selection) = sub_selections.first() {
                             if let Some(selected) = sub_selection.selected {
-                                self.selection_state = SelectionState::SubOption(selected);
+                                self.selection_state =
+                                    SelectionState::SubOption(selected);
                             } else {
-                                self.selection_state = SelectionState::SubOption(0);
+                                self.selection_state =
+                                    SelectionState::SubOption(0);
                             }
                         }
                     }
                 }
                 self.ready_to_create = false;
-            },
+            }
             NewProfileCreationStep::ConfirmCreate => {
                 // Do not reset ready_to_create here
-            },
+            }
             NewProfileCreationStep::CreatingProfile => {
                 // This state shouldn't be reached through back navigation
-            },
+            }
         }
     }
 
-    fn handle_enter_name(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    fn handle_enter_name(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match key_code {
             KeyCode::Char(c) => {
                 self.new_profile_name.push(c);
@@ -170,7 +195,9 @@ impl NewProfileCreator {
                 if !self.new_profile_name.is_empty() {
                     self.selection_state = SelectionState::ProfileType(0);
                     self.selected_type_index = 0;
-                    self.move_to_next_step(NewProfileCreationStep::SelectProfileType)
+                    self.move_to_next_step(
+                        NewProfileCreationStep::SelectProfileType,
+                    )
                 } else {
                     Ok(NewProfileCreatorAction::WaitForKeyEvent)
                 }
@@ -180,21 +207,39 @@ impl NewProfileCreator {
         }
     }
 
-    async fn handle_step_input(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    async fn handle_step_input(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match self.creation_step {
-            NewProfileCreationStep::EnterName => self.handle_enter_name(key_code),
-            NewProfileCreationStep::SelectProfileType => self.handle_select_profile_type(key_code).await,
-            NewProfileCreationStep::SelectSubOption => self.handle_select_sub_option(key_code),
-            NewProfileCreationStep::ConfirmCreate => self.handle_confirm_create(key_code).await,
-            NewProfileCreationStep::CreatingProfile => Ok(NewProfileCreatorAction::WaitForKeyEvent),
+            NewProfileCreationStep::EnterName => {
+                self.handle_enter_name(key_code)
+            }
+            NewProfileCreationStep::SelectProfileType => {
+                self.handle_select_profile_type(key_code).await
+            }
+            NewProfileCreationStep::SelectSubOption => {
+                self.handle_select_sub_option(key_code)
+            }
+            NewProfileCreationStep::ConfirmCreate => {
+                self.handle_confirm_create(key_code).await
+            }
+            NewProfileCreationStep::CreatingProfile => {
+                Ok(NewProfileCreatorAction::WaitForKeyEvent)
+            }
         }
     }
 
-    async fn handle_select_profile_type(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    async fn handle_select_profile_type(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match key_code {
             KeyCode::Up => {
                 if !self.skipped_type_selection {
-                    if let SelectionState::ProfileType(index) = &mut self.selection_state {
+                    if let SelectionState::ProfileType(index) =
+                        &mut self.selection_state
+                    {
                         if *index > 0 {
                             *index -= 1;
                             self.selected_type_index = *index;
@@ -205,7 +250,9 @@ impl NewProfileCreator {
             }
             KeyCode::Down => {
                 if !self.skipped_type_selection {
-                    if let SelectionState::ProfileType(index) = &mut self.selection_state {
+                    if let SelectionState::ProfileType(index) =
+                        &mut self.selection_state
+                    {
                         if *index < self.predefined_types.len() - 1 {
                             *index += 1;
                             self.selected_type_index = *index;
@@ -217,7 +264,9 @@ impl NewProfileCreator {
             KeyCode::Enter => {
                 if self.skipped_type_selection {
                     self.ready_to_create = true;
-                    self.move_to_next_step(NewProfileCreationStep::ConfirmCreate)
+                    self.move_to_next_step(
+                        NewProfileCreationStep::ConfirmCreate,
+                    )
                 } else {
                     self.selected_type_index = self.get_selected_type_index();
                     self.prepare_for_model_selection().await
@@ -229,7 +278,8 @@ impl NewProfileCreator {
                 if self.skipped_type_selection {
                     self.selection_state = SelectionState::CreateButton;
                 } else {
-                    self.selection_state = SelectionState::ProfileType(self.selected_type_index);
+                    self.selection_state =
+                        SelectionState::ProfileType(self.selected_type_index);
                 }
                 Ok(NewProfileCreatorAction::Refresh)
             }
@@ -237,18 +287,24 @@ impl NewProfileCreator {
         }
     }
 
-    fn handle_select_sub_option(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    fn handle_select_sub_option(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match key_code {
             KeyCode::Up | KeyCode::Down => {
                 let max_index = self.get_max_sub_option_index();
                 if max_index > 0 {
-                    if let SelectionState::SubOption(index) = self.selection_state {
+                    if let SelectionState::SubOption(index) =
+                        self.selection_state
+                    {
                         let new_index = if key_code == KeyCode::Up {
                             (index + max_index - 1) % max_index
                         } else {
                             (index + 1) % max_index
                         };
-                        self.selection_state = SelectionState::SubOption(new_index);
+                        self.selection_state =
+                            SelectionState::SubOption(new_index);
                         self.update_selected_model();
                     }
                 }
@@ -276,8 +332,12 @@ impl NewProfileCreator {
     fn update_selected_model(&mut self) {
         if let SelectionState::SubOption(index) = self.selection_state {
             let selected_type_index = self.get_selected_type_index();
-            if let Some(profile_type) = self.predefined_types.get(selected_type_index) {
-                if let Some(sub_selections) = self.sub_selections.get_mut(profile_type) {
+            if let Some(profile_type) =
+                self.predefined_types.get(selected_type_index)
+            {
+                if let Some(sub_selections) =
+                    self.sub_selections.get_mut(profile_type)
+                {
                     if let Some(sub_selection) = sub_selections.first_mut() {
                         sub_selection.selected = Some(index);
                     }
@@ -286,7 +346,10 @@ impl NewProfileCreator {
         }
     }
 
-    fn move_to_next_step(&mut self, next_step: NewProfileCreationStep) -> Result<NewProfileCreatorAction, ApplicationError> {
+    fn move_to_next_step(
+        &mut self,
+        next_step: NewProfileCreationStep,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         self.creation_step = next_step.clone();
         self.navigation_stack.push_back(next_step);
         self.reset_step_state();
@@ -294,15 +357,19 @@ impl NewProfileCreator {
     }
 
     fn render_create_button(&self, f: &mut Frame, area: Rect) {
-        let (border_style, text_style) = if self.ready_to_create && self.creation_step == NewProfileCreationStep::ConfirmCreate {
+        let (border_style, text_style) = if self.ready_to_create
+            && self.creation_step == NewProfileCreationStep::ConfirmCreate
+        {
             (
                 Style::default().fg(Self::COLOR_SUCCESS),
-                Style::default().fg(Self::COLOR_SUCCESS).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Self::COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
             )
         } else {
             (
                 Style::default().fg(Color::DarkGray),
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(Color::DarkGray),
             )
         };
 
@@ -314,7 +381,7 @@ impl NewProfileCreator {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(border_style)
-                    .padding(ratatui::widgets::Padding::horizontal(1))
+                    .padding(ratatui::widgets::Padding::horizontal(1)),
             );
 
         f.render_widget(button, area);
@@ -348,14 +415,19 @@ impl NewProfileCreator {
         }
     }
 
-    async fn prepare_for_model_selection(&mut self) -> Result<NewProfileCreatorAction, ApplicationError> {
+    async fn prepare_for_model_selection(
+        &mut self,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         let selected_type_index = self.get_selected_type_index();
-        if let Some(profile_type) = self.predefined_types.get(selected_type_index).cloned() {
+        if let Some(profile_type) =
+            self.predefined_types.get(selected_type_index).cloned()
+        {
             let model_server = ModelServer::from_str(&profile_type)?;
 
             match model_server.list_models().await {
                 Ok(models) if !models.is_empty() => {
-                    let model_options: Vec<String> = models.iter().map(|m| m.identifier.0.clone()).collect();
+                    let model_options: Vec<String> =
+                        models.iter().map(|m| m.identifier.0.clone()).collect();
 
                     // Create a new SubSelection for models
                     let model_selection = SubSelection {
@@ -365,22 +437,31 @@ impl NewProfileCreator {
                     };
 
                     // Update or insert the sub_selection for this profile type
-                    self.sub_selections.insert(profile_type, vec![model_selection]);
+                    self.sub_selections
+                        .insert(profile_type, vec![model_selection]);
 
                     // Set the selection state to SubOption(0)
                     self.selection_state = SelectionState::SubOption(0);
                     self.ready_to_create = false;
 
-                    self.move_to_next_step(NewProfileCreationStep::SelectSubOption)
+                    self.move_to_next_step(
+                        NewProfileCreationStep::SelectSubOption,
+                    )
                 }
                 Ok(_) => Err(ApplicationError::NotReady(
-                    "No models available for this server. Please try another profile type.".to_string(),
+                    "No models available for this server. Please try another \
+                     profile type."
+                        .to_string(),
                 )),
-                Err(ApplicationError::NotReady(msg)) => Err(ApplicationError::NotReady(msg)),
+                Err(ApplicationError::NotReady(msg)) => {
+                    Err(ApplicationError::NotReady(msg))
+                }
                 Err(e) => Err(e),
             }
         } else {
-            Err(ApplicationError::NotReady("Invalid profile type selected.".to_string()))
+            Err(ApplicationError::NotReady(
+                "Invalid profile type selected.".to_string(),
+            ))
         }
     }
 
@@ -389,24 +470,24 @@ impl NewProfileCreator {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Name input
-                Constraint::Min(1),    // Type and sub-option selection or profile creation
+                Constraint::Min(1), // Type and sub-option selection or profile creation
             ])
             .split(area);
 
         self.render_profile_name_input(f, chunks[0]);
-        
+
         match self.creation_step {
             NewProfileCreationStep::EnterName => {
                 // No need to render anything else
-            },
-            NewProfileCreationStep::SelectProfileType | 
-            NewProfileCreationStep::SelectSubOption |
-            NewProfileCreationStep::ConfirmCreate => {
+            }
+            NewProfileCreationStep::SelectProfileType
+            | NewProfileCreationStep::SelectSubOption
+            | NewProfileCreationStep::ConfirmCreate => {
                 self.render_type_and_sub_options(f, chunks[1]);
-            },
+            }
             NewProfileCreationStep::CreatingProfile => {
                 self.render_creating_profile(f, chunks[1]);
-            },
+            }
         }
     }
 
@@ -455,23 +536,26 @@ impl NewProfileCreator {
         match self.creation_step {
             NewProfileCreationStep::SelectProfileType => {
                 if self.skipped_type_selection {
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::styled(
-                            "Profile type selection skipped",
-                            Style::default().fg(Self::COLOR_SECONDARY).add_modifier(Modifier::ITALIC)
-                        )
-                    ])));
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        "Profile type selection skipped",
+                        Style::default()
+                            .fg(Self::COLOR_SECONDARY)
+                            .add_modifier(Modifier::ITALIC),
+                    )])));
                     items.push(ListItem::new(""));
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::styled(
-                            "Press 'S' to undo skip and select a profile type",
-                            Style::default().fg(Self::COLOR_HIGHLIGHT)
-                        )
-                    ])));
+                    items.push(ListItem::new(Line::from(vec![Span::styled(
+                        "Press 'S' to undo skip and select a profile type",
+                        Style::default().fg(Self::COLOR_HIGHLIGHT),
+                    )])));
                 } else {
-                    for (i, profile_type) in self.predefined_types.iter().enumerate() {
-                        let style = if matches!(self.selection_state, SelectionState::ProfileType(selected) if selected == i) {
-                            Style::default().fg(Self::COLOR_HIGHLIGHT).add_modifier(Modifier::BOLD)
+                    for (i, profile_type) in
+                        self.predefined_types.iter().enumerate()
+                    {
+                        let style = if matches!(self.selection_state, SelectionState::ProfileType(selected) if selected == i)
+                        {
+                            Style::default()
+                                .fg(Self::COLOR_HIGHLIGHT)
+                                .add_modifier(Modifier::BOLD)
                         } else {
                             Style::default().fg(Self::COLOR_FOREGROUND)
                         };
@@ -491,29 +575,44 @@ impl NewProfileCreator {
                         Style::default().fg(Self::COLOR_SECONDARY),
                     )])));
                 }
-            },
+            }
             NewProfileCreationStep::SelectSubOption => {
                 let selected_type_index = self.get_selected_type_index();
-                if let Some(profile_type) = self.predefined_types.get(selected_type_index) {
+                if let Some(profile_type) =
+                    self.predefined_types.get(selected_type_index)
+                {
                     items.push(ListItem::new(Line::from(vec![
                         Span::raw("Selected Type: "),
-                        Span::styled(profile_type, Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                        Span::styled(
+                            profile_type,
+                            Style::default().fg(Self::COLOR_HIGHLIGHT),
+                        ),
                     ])));
                     items.push(ListItem::new(""));
 
-                    if let Some(sub_selections) = self.sub_selections.get(profile_type) {
+                    if let Some(sub_selections) =
+                        self.sub_selections.get(profile_type)
+                    {
                         for sub_selection in sub_selections {
                             items.push(ListItem::new(Line::from(vec![
-                                Span::styled(&sub_selection.name, Style::default().fg(Self::COLOR_SECONDARY)),
+                                Span::styled(
+                                    &sub_selection.name,
+                                    Style::default().fg(Self::COLOR_SECONDARY),
+                                ),
                                 Span::raw(":"),
                             ])));
 
-                            for (i, option) in sub_selection.options.iter().enumerate() {
-                                let is_selected = sub_selection.selected == Some(i);
+                            for (i, option) in
+                                sub_selection.options.iter().enumerate()
+                            {
+                                let is_selected =
+                                    sub_selection.selected == Some(i);
                                 let is_highlighted = matches!(self.selection_state, SelectionState::SubOption(selected) if selected == i);
-                            
+
                                 let style = if is_selected || is_highlighted {
-                                    Style::default().fg(Self::COLOR_HIGHLIGHT).add_modifier(Modifier::BOLD)
+                                    Style::default()
+                                        .fg(Self::COLOR_HIGHLIGHT)
+                                        .add_modifier(Modifier::BOLD)
                                 } else {
                                     Style::default().fg(Self::COLOR_FOREGROUND)
                                 };
@@ -521,8 +620,13 @@ impl NewProfileCreator {
                                 items.push(ListItem::new(Line::from(vec![
                                     Span::raw("  "),
                                     Span::styled(
-                                        if is_selected || is_highlighted { ">" } else { " " },
-                                        Style::default().fg(Self::COLOR_SECONDARY),
+                                        if is_selected || is_highlighted {
+                                            ">"
+                                        } else {
+                                            " "
+                                        },
+                                        Style::default()
+                                            .fg(Self::COLOR_SECONDARY),
                                     ),
                                     Span::raw(" "),
                                     Span::styled(option, style),
@@ -531,38 +635,59 @@ impl NewProfileCreator {
                         }
                     }
                 }
-            },
+            }
             NewProfileCreationStep::ConfirmCreate => {
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled("Selected Profile Type: ", Style::default().fg(Self::COLOR_SECONDARY)),
-                    Span::styled(self.predefined_types[self.selected_type_index].clone(), Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                    Span::styled(
+                        "Selected Profile Type: ",
+                        Style::default().fg(Self::COLOR_SECONDARY),
+                    ),
+                    Span::styled(
+                        self.predefined_types[self.selected_type_index].clone(),
+                        Style::default().fg(Self::COLOR_HIGHLIGHT),
+                    ),
                 ])));
-            
-                if let Some(sub_selections) = self.sub_selections.get(&self.predefined_types[self.selected_type_index]) {
+
+                if let Some(sub_selections) = self
+                    .sub_selections
+                    .get(&self.predefined_types[self.selected_type_index])
+                {
                     for sub_selection in sub_selections {
                         if let Some(selected) = sub_selection.selected {
                             items.push(ListItem::new(Line::from(vec![
-                                Span::styled(format!("Selected {}: ", sub_selection.name), Style::default().fg(Self::COLOR_SECONDARY)),
-                                Span::styled(sub_selection.options[selected].clone(), Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                                Span::styled(
+                                    format!(
+                                        "Selected {}: ",
+                                        sub_selection.name
+                                    ),
+                                    Style::default().fg(Self::COLOR_SECONDARY),
+                                ),
+                                Span::styled(
+                                    sub_selection.options[selected].clone(),
+                                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                                ),
                             ])));
                         }
                     }
                 }
-            
+
                 items.push(ListItem::new(""));
-                items.push(ListItem::new(Line::from(vec![
-                    Span::styled("Press Enter to create the profile", Style::default().fg(Self::COLOR_SUCCESS)),
-                ])));
-            },
-            _ => {},
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    "Press Enter to create the profile",
+                    Style::default().fg(Self::COLOR_SUCCESS),
+                )])));
+            }
+            _ => {}
         }
 
         let title = self.get_step_title();
         let list = List::new(items)
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(Style::default().fg(Self::COLOR_HIGHLIGHT)))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .border_style(Style::default().fg(Self::COLOR_HIGHLIGHT)),
+            )
             .style(Style::default().bg(Self::COLOR_BACKGROUND));
 
         f.render_widget(list, chunks[0]);
@@ -587,11 +712,16 @@ impl NewProfileCreator {
         }
     }
 
-    async fn handle_confirm_create(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
+    async fn handle_confirm_create(
+        &mut self,
+        key_code: KeyCode,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         match key_code {
             KeyCode::Enter => {
                 if self.ready_to_create {
-                    self.move_to_next_step(NewProfileCreationStep::CreatingProfile)?;
+                    self.move_to_next_step(
+                        NewProfileCreationStep::CreatingProfile,
+                    )?;
                     self.create_new_profile(0).await
                 } else {
                     Ok(NewProfileCreatorAction::WaitForKeyEvent)
@@ -601,9 +731,14 @@ impl NewProfileCreator {
         }
     }
 
-    pub async fn create_new_profile(&mut self, profile_count: usize) -> Result<NewProfileCreatorAction, ApplicationError> {
+    pub async fn create_new_profile(
+        &mut self,
+        profile_count: usize,
+    ) -> Result<NewProfileCreatorAction, ApplicationError> {
         if !self.ready_to_create {
-            return Err(ApplicationError::NotReady("Profile is not ready to be created.".to_string()));
+            return Err(ApplicationError::NotReady(
+                "Profile is not ready to be created.".to_string(),
+            ));
         }
 
         let selected_type_index = self.get_selected_type_index();
@@ -649,15 +784,13 @@ impl NewProfileCreator {
 
         tokio::spawn(async move {
             let result = db_handler
-                .create_or_update(
+                .create(
                     &new_profile_name_clone,
                     &json!(settings_clone),
                 )
                 .await;
             let _ = tx
-                .send(BackgroundTaskResult::ProfileCreated(
-                    result.map(|_| new_profile_name_clone),
-                ))
+                .send(BackgroundTaskResult::ProfileCreated(result))
                 .await;
         });
 
@@ -706,7 +839,9 @@ impl NewProfileCreator {
         }
     }
 
-    pub fn check_profile_creation(&mut self) -> Option<Result<String, ApplicationError>> {
+    pub fn check_profile_creation(
+        &mut self,
+    ) -> Option<Result<UserProfile, ApplicationError>> {
         if let Some(ref mut rx) = self.background_task {
             match rx.try_recv() {
                 Ok(BackgroundTaskResult::ProfileCreated(result)) => {

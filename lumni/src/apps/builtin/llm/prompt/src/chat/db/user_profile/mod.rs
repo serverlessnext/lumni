@@ -14,9 +14,15 @@ use super::encryption::EncryptionHandler;
 use super::{ModelBackend, ModelServer, ModelSpec};
 use crate::external as lumni;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserProfile {
+    pub id: i64,
+    pub name: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct UserProfileDbHandler {
-    profile_name: Option<String>,
+    pub profile: Option<UserProfile>,
     db: Arc<TokioMutex<DatabaseConnector>>,
     encryption_handler: Option<Arc<EncryptionHandler>>,
 }
@@ -35,33 +41,40 @@ pub enum MaskMode {
 
 impl UserProfileDbHandler {
     pub fn new(
-        profile_name: Option<String>,
+        profile: Option<UserProfile>,
         db: Arc<TokioMutex<DatabaseConnector>>,
         encryption_handler: Option<Arc<EncryptionHandler>>,
     ) -> Self {
         UserProfileDbHandler {
-            profile_name,
+            profile,
             db,
             encryption_handler,
         }
     }
 
-    pub fn set_profile_name(&mut self, profile_name: String) {
-        self.profile_name = Some(profile_name);
+    pub fn set_profile(&mut self, profile: UserProfile) {
+        self.profile = Some(profile);
     }
 
-    pub fn get_profile_name(&self) -> Option<&str> {
-        self.profile_name.as_deref()
+    pub fn get_profile(&self) -> Option<&UserProfile> {
+        self.profile.as_ref()
     }
 
     pub async fn model_backend(
         &mut self,
     ) -> Result<Option<ModelBackend>, ApplicationError> {
-        let profile_name = self.profile_name.clone();
+        // TODO:
+        return Ok(Some(
+            ModelBackend {
+                server: ModelServer::from_str("ollama")?,
+                model: None,
+            }
+        ));
+        let user_profile = self.profile.clone();
 
-        if let Some(profile_name) = profile_name {
+        if let Some(profile) = user_profile {
             let settings = self
-                .get_profile_settings(&profile_name, MaskMode::Unmask)
+                .get_profile_settings(&profile, MaskMode::Unmask)
                 .await?;
 
             let model_server = settings
@@ -92,10 +105,9 @@ impl UserProfileDbHandler {
         encryption_handler: Arc<EncryptionHandler>,
     ) -> Result<(), ApplicationError> {
         // If profile is not yet set, return error as we need to know the profile to validate against existing encryption handler
-        let profile_name = self.profile_name.as_ref().ok_or_else(|| {
+        let profile = self.profile.as_ref().ok_or_else(|| {
             ApplicationError::InvalidInput(
-                "Profile name must be defined before setting encryption \
-                 handler"
+                "UserProfile must be defined before setting encryption handler"
                     .to_string(),
             )
         })?;
@@ -115,7 +127,7 @@ impl UserProfileDbHandler {
                              user_profiles.encryption_key_id = \
                              encryption_keys.id
                              WHERE user_profiles.name = ?",
-                            params![profile_name],
+                            params![profile.name],
                             |row| Ok((row.get(0)?, row.get(1)?)),
                         )
                         .optional()
@@ -159,20 +171,19 @@ impl UserProfileDbHandler {
 
     pub fn set_profile_with_encryption_handler(
         &mut self,
-        profile_name: String,
+        profile: UserProfile,
         encryption_handler: Arc<EncryptionHandler>,
     ) -> Result<(), ApplicationError> {
-        self.set_profile_name(profile_name);
+        self.set_profile(profile);
         self.set_encryption_handler(encryption_handler)
     }
 
     pub async fn export_profile_settings(
         &mut self,
-        profile_name: &str,
+        profile: &UserProfile,
     ) -> Result<JsonValue, ApplicationError> {
-        let settings = self
-            .get_profile_settings(profile_name, MaskMode::Unmask)
-            .await?;
+        let settings =
+            self.get_profile_settings(profile, MaskMode::Unmask).await?;
         Ok(self.create_export_json(&settings))
     }
 

@@ -3,20 +3,24 @@ use std::path::PathBuf;
 use lumni::api::error::ApplicationError;
 use rusqlite::{params, OptionalExtension};
 
-use super::{DatabaseOperationError, EncryptionHandler, UserProfileDbHandler};
+use super::{
+    DatabaseOperationError, EncryptionHandler, UserProfile,
+    UserProfileDbHandler,
+};
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
     pub async fn profile_exists(
         &self,
-        profile_name: &str,
+        profile: &UserProfile,
     ) -> Result<bool, ApplicationError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let count: i64 = tx
                 .query_row(
-                    "SELECT COUNT(*) FROM user_profiles WHERE name = ?",
-                    params![profile_name],
+                    "SELECT COUNT(*) FROM user_profiles WHERE id = ? AND name \
+                     = ?",
+                    params![profile.id, profile.name],
                     |row| row.get(0),
                 )
                 .map_err(DatabaseOperationError::SqliteError)?;
@@ -25,16 +29,63 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
+    pub async fn get_profile_by_id(
+        &self,
+        id: i64,
+    ) -> Result<Option<UserProfile>, ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            tx.query_row(
+                "SELECT id, name FROM user_profiles WHERE id = ?",
+                params![id],
+                |row| {
+                    Ok(UserProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|e| DatabaseOperationError::SqliteError(e))
+        })
+        .map_err(ApplicationError::from)
+    }
+
+    pub async fn get_profiles_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Vec<UserProfile>, ApplicationError> {
+        let mut db = self.db.lock().await;
+
+        db.process_queue_with_result(|tx| {
+            let mut stmt = tx
+                .prepare("SELECT id, name FROM user_profiles WHERE name = ?")
+                .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+            let profiles = stmt
+                .query_map(params![name], |row| {
+                    Ok(UserProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                })
+                .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?
+                .collect::<Result<Vec<UserProfile>, _>>()
+                .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
+            Ok(profiles)
+        })
+        .map_err(ApplicationError::from)
+    }
+
     pub async fn delete_profile(
         &self,
-        profile_name: &str,
+        profile: &UserProfile,
     ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
             tx.execute(
-                "DELETE FROM user_profiles WHERE name = ?",
-                params![profile_name],
+                "DELETE FROM user_profiles WHERE id = ? AND name = ?",
+                params![profile.id, profile.name],
             )
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             Ok(())
@@ -42,17 +93,22 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn list_profiles(&self) -> Result<Vec<String>, ApplicationError> {
+    pub async fn list_profiles(&self) -> Result<Vec<UserProfile>, ApplicationError> {
         let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
             let mut stmt = tx
-                .prepare("SELECT name FROM user_profiles")
+                .prepare("SELECT id, name FROM user_profiles ORDER BY created_at DESC")
                 .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             let profiles = stmt
-                .query_map([], |row| row.get(0))
+                .query_map([], |row| {
+                    Ok(UserProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                })
                 .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?
-                .collect::<Result<Vec<String>, _>>()
+                .collect::<Result<Vec<UserProfile>, _>>()
                 .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             Ok(profiles)
         })
@@ -61,13 +117,18 @@ impl UserProfileDbHandler {
 
     pub async fn get_default_profile(
         &self,
-    ) -> Result<Option<String>, ApplicationError> {
+    ) -> Result<Option<UserProfile>, ApplicationError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             tx.query_row(
-                "SELECT name FROM user_profiles WHERE is_default = 1",
+                "SELECT id, name FROM user_profiles WHERE is_default = 1",
                 [],
-                |row| row.get(0),
+                |row| {
+                    Ok(UserProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                },
             )
             .optional()
             .map_err(|e| DatabaseOperationError::SqliteError(e))
@@ -77,10 +138,13 @@ impl UserProfileDbHandler {
 
     pub async fn set_default_profile(
         &self,
-        profile_name: &str,
+        profile: &UserProfile,
     ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
-        eprintln!("Setting default profile to {}", profile_name);
+        eprintln!(
+            "Setting default profile to {} (ID: {})",
+            profile.name, profile.id
+        );
         db.process_queue_with_result(|tx| {
             tx.execute(
                 "UPDATE user_profiles SET is_default = 0 WHERE is_default = 1",
@@ -88,8 +152,9 @@ impl UserProfileDbHandler {
             )
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             tx.execute(
-                "UPDATE user_profiles SET is_default = 1 WHERE name = ?",
-                params![profile_name],
+                "UPDATE user_profiles SET is_default = 1 WHERE id = ? AND \
+                 name = ?",
+                params![profile.id, profile.name],
             )
             .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             Ok(())
@@ -97,26 +162,27 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn get_profile_list(
-        &self,
-    ) -> Result<Vec<String>, ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let mut stmt =
-                tx.prepare("SELECT name FROM user_profiles ORDER BY name ASC")?;
-            let profiles = stmt
-                .query_map([], |row| row.get(0))?
-                .collect::<Result<Vec<String>, _>>()
-                .map_err(|e| DatabaseOperationError::SqliteError(e))?;
-            Ok(profiles)
-        })
-        .map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => {
-                ApplicationError::DatabaseError(sqlite_err.to_string())
-            }
-            DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })
-    }
+    // TODO: should return Vec<UserProfile>
+    //pub async fn get_profile_list(
+    //    &self,
+    //) -> Result<Vec<String>, ApplicationError> {
+    //    let mut db = self.db.lock().await;
+    //    db.process_queue_with_result(|tx| {
+    //        let mut stmt =
+    //            tx.prepare("SELECT name FROM user_profiles ORDER BY name ASC")?;
+    //        let profiles = stmt
+    //            .query_map([], |row| row.get(0))?
+    //            .collect::<Result<Vec<String>, _>>()
+    //            .map_err(|e| DatabaseOperationError::SqliteError(e))?;
+    //        Ok(profiles)
+    //    })
+    //    .map_err(|e| match e {
+    //        DatabaseOperationError::SqliteError(sqlite_err) => {
+    //            ApplicationError::DatabaseError(sqlite_err.to_string())
+    //        }
+    //        DatabaseOperationError::ApplicationError(app_err) => app_err,
+    //    })
+    //}
 
     pub async fn register_encryption_key(
         &self,

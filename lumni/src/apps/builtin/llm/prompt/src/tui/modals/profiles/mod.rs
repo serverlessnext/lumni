@@ -28,7 +28,7 @@ use ui_state::{EditMode, Focus, UIState};
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
     ModalWindowTrait, ModalWindowType, ModelServer, ServerTrait,
-    ThreadedChatSession, UserProfileDbHandler, WindowEvent,
+    ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };
 
@@ -45,7 +45,7 @@ impl ProfileEditModal {
     pub async fn new(
         mut db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
-        let profiles = db_handler.get_profile_list().await?;
+        let profiles = db_handler.list_profiles().await?;
         let default_profile = db_handler.get_default_profile().await?;
         let profile_list = ProfileList::new(profiles, default_profile);
 
@@ -71,7 +71,7 @@ impl ProfileEditModal {
 
     async fn set_default_profile(&mut self) -> Result<(), ApplicationError> {
         let selected_profile =
-            self.profile_list.get_selected_profile().map(String::from);
+            self.profile_list.get_selected_profile().cloned();
         if let Some(profile) = selected_profile {
             self.db_handler.set_default_profile(&profile).await?;
             self.profile_list.mark_as_default(&profile);
@@ -159,13 +159,14 @@ impl ModalWindowTrait for ProfileEditModal {
                         creator.background_task = None;
                         creator.task_start_time = None;
                         match result {
-                            Ok(new_profile_name) => {
+                            Ok(new_profile) => {
                                 log::debug!(
-                                    "Profile created: {}",
-                                    new_profile_name
+                                    "Profile created: {} with id {}",
+                                    new_profile.name,
+                                    new_profile.id
                                 );
                                 self.profile_list
-                                    .add_profile(new_profile_name.clone());
+                                    .add_profile(new_profile);
 
                                 self.load_profile().await?;
                                 self.ui_state.cancel_new_profile_creation();

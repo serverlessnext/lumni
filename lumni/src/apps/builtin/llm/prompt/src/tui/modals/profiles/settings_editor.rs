@@ -78,7 +78,7 @@ impl SettingsEditor {
 
     pub async fn save_edit(
         &mut self,
-        profile: &str,
+        profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
         let current_key = self
@@ -91,12 +91,12 @@ impl SettingsEditor {
             .to_string();
         self.settings[&current_key] =
             JsonValue::String(self.edit_buffer.clone());
-        db_handler.create_or_update(profile, &self.settings).await
+        db_handler.update(profile, &self.settings).await
     }
 
     pub async fn save_new_value(
         &mut self,
-        profile: &str,
+        profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
         if self.is_new_value_secure {
@@ -108,7 +108,7 @@ impl SettingsEditor {
             self.settings[&self.new_key_buffer] =
                 JsonValue::String(self.edit_buffer.clone());
         }
-        db_handler.create_or_update(profile, &self.settings).await
+        db_handler.update(profile, &self.settings).await
     }
 
     pub fn cancel_edit(&mut self) {
@@ -119,7 +119,7 @@ impl SettingsEditor {
 
     pub async fn delete_current_key(
         &mut self,
-        profile: &str,
+        profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(current_key) = self
@@ -134,7 +134,7 @@ impl SettingsEditor {
                 let mut settings = Map::new();
                 settings.insert(current_key, JsonValue::Null); // Null indicates deletion
                 db_handler
-                    .create_or_update(profile, &JsonValue::Object(settings))
+                    .update(profile, &JsonValue::Object(settings))
                     .await?;
                 self.load_settings(profile, db_handler).await?;
             }
@@ -144,7 +144,7 @@ impl SettingsEditor {
 
     pub async fn clear_current_key(
         &mut self,
-        profile: &str,
+        profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(current_key) = self
@@ -157,7 +157,7 @@ impl SettingsEditor {
             let current_key = current_key.to_string();
             if !current_key.starts_with("__") {
                 self.settings[&current_key] = JsonValue::String("".to_string());
-                db_handler.create_or_update(profile, &self.settings).await?;
+                db_handler.update(profile, &self.settings).await?;
             }
         }
         Ok(())
@@ -169,7 +169,7 @@ impl SettingsEditor {
 
     pub async fn load_settings(
         &mut self,
-        profile: &str,
+        profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
         let mask_mode = if self.show_secure {

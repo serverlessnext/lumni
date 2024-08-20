@@ -1,13 +1,13 @@
 use super::*;
 
 pub struct ProfileList {
-    profiles: Vec<String>,
+    profiles: Vec<UserProfile>,
     selected_index: usize,
-    default_profile: Option<String>,
+    default_profile: Option<UserProfile>,
 }
 
 impl ProfileList {
-    pub fn new(profiles: Vec<String>, default_profile: Option<String>) -> Self {
+    pub fn new(profiles: Vec<UserProfile>, default_profile: Option<UserProfile>) -> Self {
         ProfileList {
             profiles,
             selected_index: 0,
@@ -15,8 +15,8 @@ impl ProfileList {
         }
     }
 
-    pub fn get_selected_profile(&self) -> Option<&str> {
-        self.profiles.get(self.selected_index).map(|s| s.as_str())
+    pub fn get_selected_profile(&self) -> Option<&UserProfile> {
+        self.profiles.get(self.selected_index)
     }
 
     pub fn select_new_profile(&mut self) {
@@ -47,9 +47,9 @@ impl ProfileList {
         new_name: String,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
-        if let Some(old_name) = self.profiles.get(self.selected_index) {
-            db_handler.rename_profile(old_name, &new_name).await?;
-            self.profiles[self.selected_index] = new_name;
+        if let Some(profile) = self.profiles.get(self.selected_index) {
+            db_handler.rename_profile(profile, &new_name).await?;
+            self.profiles[self.selected_index].name = new_name;
         }
         Ok(())
     }
@@ -70,15 +70,19 @@ impl ProfileList {
         Ok(())
     }
 
+    // TODO: this does not update the database
     pub fn start_renaming(&self) -> String {
-        self.profiles
-            .get(self.selected_index)
-            .cloned()
-            .unwrap_or_default()
+        let profile = self.profiles
+            .get(self.selected_index);
+        if let Some(profile) = profile {
+            profile.name.clone()
+        } else {
+            "".to_string()
+        }
     }
 
-    pub fn add_profile(&mut self, name: String) {
-        self.profiles.push(name);
+    pub fn add_profile(&mut self, profile: UserProfile) {
+        self.profiles.push(profile);
         self.selected_index = self.profiles.len() - 1;
     }
 
@@ -90,11 +94,11 @@ impl ProfileList {
         self.profiles.len() + 1 // +1 for "New Profile" option
     }
 
-    pub fn mark_as_default(&mut self, profile: &str) {
-        self.default_profile = Some(profile.to_string());
+    pub fn mark_as_default(&mut self, profile: &UserProfile) {
+        self.default_profile = Some(profile.clone());
     }
 
-    pub fn is_default_profile(&self, profile: &str) -> bool {
+    pub fn is_default_profile(&self, profile: &UserProfile) -> bool {
         self.default_profile
             .as_ref()
             .map_or(false, |default| default == profile)
@@ -105,9 +109,9 @@ impl ProfileList {
             .iter()
             .map(|p| {
                 if self.is_default_profile(p) {
-                    format!("* {}", p) // Prepend an asterisk to mark the default profile
+                    format!("* {}", p.name) // Prepend an asterisk to mark the default profile
                 } else {
-                    p.clone()
+                    p.name.clone()
                 }
             })
             .collect()

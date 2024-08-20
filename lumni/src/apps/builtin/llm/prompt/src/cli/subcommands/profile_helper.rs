@@ -30,7 +30,7 @@ pub async fn interactive_profile_edit(
         Some(name) => name.clone(),
         None => get_profile_name()?,
     };
-    db_handler.set_profile_name(profile_name.clone());
+    db_handler.set_profile(profile_name.clone());
 
     // validate key first if provided
     if custom_ssh_key_path.is_some() {

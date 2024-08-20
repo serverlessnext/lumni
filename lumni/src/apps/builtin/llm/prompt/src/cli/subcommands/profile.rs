@@ -4,8 +4,8 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 use lumni::api::error::ApplicationError;
 use serde_json::{json, Map, Value as JsonValue};
 
-use super::profile_helper::interactive_profile_edit;
-use super::{MaskMode, UserProfileDbHandler};
+//use super::profile_helper::interactive_profile_edit;
+use super::{MaskMode, UserProfileDbHandler, UserProfile};
 use crate::external as lumni;
 
 pub fn create_profile_subcommand() -> Command {
@@ -13,13 +13,14 @@ pub fn create_profile_subcommand() -> Command {
         .about("Manage user profiles")
         .subcommand(create_list_subcommand())
         .subcommand(create_show_subcommand())
+        .subcommand(create_create_subcommand())
         .subcommand(create_set_subcommand())
         .subcommand(create_get_subcommand())
         .subcommand(create_del_subcommand())
         .subcommand(create_rm_subcommand())
         .subcommand(create_set_default_subcommand())
         .subcommand(create_show_default_subcommand())
-        .subcommand(create_edit_subcommand())
+        //.subcommand(create_edit_subcommand())
         .subcommand(create_key_subcommand())
         .subcommand(create_export_subcommand())
         .subcommand(create_truncate_subcommand())
@@ -32,7 +33,7 @@ fn create_list_subcommand() -> Command {
 fn create_show_subcommand() -> Command {
     Command::new("show")
         .about("Show profile settings")
-        .arg(Arg::new("name").help("Name of the profile"))
+        .arg(Arg::new("id").help("ID of the profile"))
         .arg(
             Arg::new("show-decrypted")
                 .long("show-decrypted")
@@ -41,10 +42,22 @@ fn create_show_subcommand() -> Command {
         )
 }
 
+fn create_create_subcommand() -> Command {
+    Command::new("create")
+        .about("Create a new profile")
+        .arg(Arg::new("name").help("Name of the new profile").required(true))
+        .arg(
+            Arg::new("settings")
+                .long("settings")
+                .help("Initial settings for the profile (JSON string)")
+                .required(false),
+        )
+}
+
 fn create_set_subcommand() -> Command {
     Command::new("set")
         .about("Set a profile value")
-        .arg(Arg::new("name").help("Name of the profile"))
+        .arg(Arg::new("id").help("ID of the profile"))
         .arg(Arg::new("key").help("Key to set"))
         .arg(Arg::new("value").help("Value to set"))
         .arg(
@@ -58,7 +71,7 @@ fn create_set_subcommand() -> Command {
 fn create_get_subcommand() -> Command {
     Command::new("get")
         .about("Get a specific profile value")
-        .arg(Arg::new("name").help("Name of the profile"))
+        .arg(Arg::new("id").help("ID of the profile"))
         .arg(Arg::new("key").help("Key to get"))
         .arg(
             Arg::new("show-decrypted")
@@ -71,21 +84,20 @@ fn create_get_subcommand() -> Command {
 fn create_del_subcommand() -> Command {
     Command::new("del")
         .about("Delete a key from a profile")
-        .arg(Arg::new("name").help("Name of the profile"))
+        .arg(Arg::new("id").help("ID of the profile"))
         .arg(Arg::new("key").help("Key to delete"))
 }
 
 fn create_rm_subcommand() -> Command {
-    // Renamed from create_delete_subcommand
     Command::new("rm")
         .about("Remove a profile")
-        .arg(Arg::new("name").help("Name of the profile to remove"))
+        .arg(Arg::new("id").help("ID of the profile to remove"))
 }
 
 fn create_set_default_subcommand() -> Command {
     Command::new("set-default")
         .about("Set a profile as default")
-        .arg(Arg::new("name").help("Name of the profile"))
+        .arg(Arg::new("id").help("ID of the profile"))
 }
 
 fn create_show_default_subcommand() -> Command {
@@ -161,9 +173,9 @@ fn create_export_subcommand() -> Command {
     Command::new("export")
         .about("Export profile(s) to JSON")
         .arg(
-            Arg::new("name")
+            Arg::new("id")
                 .help(
-                    "Name of the profile to export (omit to export all \
+                    "ID of the profile to export (omit to export all \
                      profiles)",
                 )
                 .required(false),
@@ -200,27 +212,23 @@ pub async fn handle_profile_subcommand(
             println!("Available profiles:");
             for profile in profiles {
                 if Some(&profile) == default_profile.as_ref() {
-                    println!("  {} (default)", profile);
+                    println!("  ID: {} - {} (default)", profile.id, profile.name);
                 } else {
-                    println!("  {}", profile);
+                    println!("  ID: {} - {}", profile.id, profile.name);
                 }
             }
         }
 
         Some(("show", show_matches)) => {
-            if show_matches.contains_id("name") {
-                eprintln!("Name: {:?}", show_matches.get_one::<String>("name"));
-                let profile_name =
-                    show_matches.get_one::<String>("name").unwrap();
+            if let Some(id_str) = show_matches.get_one::<String>("id") {
                 let mask_mode = if show_matches.get_flag("show-decrypted") {
                     MaskMode::Unmask
                 } else {
                     MaskMode::Mask
                 };
-                let settings = db_handler
-                    .get_profile_settings(profile_name, mask_mode)
-                    .await?;
-                println!("Profile '{}' settings:", profile_name);
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
+                let settings = db_handler.get_profile_settings(&profile, mask_mode).await?;
+                println!("Profile ID: {} - {} settings:", profile.id, profile.name);
                 for (key, value) in settings.as_object().unwrap() {
                     println!("  {}: {}", key, extract_value(value));
                 }
@@ -229,66 +237,61 @@ pub async fn handle_profile_subcommand(
             }
         }
 
+        Some(("create", create_matches)) => {
+            let name = create_matches.get_one::<String>("name").unwrap();
+            let settings = if let Some(settings_str) = create_matches.get_one::<String>("settings") {
+                serde_json::from_str(settings_str)
+                    .map_err(|e| ApplicationError::InvalidInput(format!("Invalid JSON for settings: {}", e)))?
+            } else {
+                JsonValue::Object(Map::new())
+            };
+
+            let new_profile = db_handler.create(name, &settings).await?;
+            println!("Created new profile - ID: {}, Name: {}", new_profile.id, new_profile.name);
+        }
+
         Some(("set", set_matches)) => {
-            if set_matches.contains_id("name")
-                && set_matches.contains_id("key")
-                && set_matches.contains_id("value")
-            {
-                let profile_name =
-                    set_matches.get_one::<String>("name").unwrap();
-                let key = set_matches.get_one::<String>("key").unwrap();
-                let value = set_matches.get_one::<String>("value").unwrap();
+            if let (Some(id_str), Some(key), Some(value)) = (
+                set_matches.get_one::<String>("id"),
+                set_matches.get_one::<String>("key"),
+                set_matches.get_one::<String>("value"),
+            ) {
                 let is_secure = set_matches.get_flag("secure");
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
 
                 let mut settings = JsonValue::Object(Map::new());
                 if is_secure {
-                    settings[key.to_string()] =
-                        JsonValue::Object(Map::from_iter(vec![
-                            (
-                                "content".to_string(),
-                                JsonValue::String(value.to_string()),
-                            ),
-                            (
-                                "encryption_key".to_string(),
-                                JsonValue::String("".to_string()),
-                            ),
-                        ]));
+                    settings[key.to_string()] = JsonValue::Object(Map::from_iter(vec![
+                        ("content".to_string(), JsonValue::String(value.to_string())),
+                        ("encryption_key".to_string(), JsonValue::String("".to_string())),
+                    ]));
                 } else {
-                    settings[key.to_string()] =
-                        JsonValue::String(value.to_string());
+                    settings[key.to_string()] = JsonValue::String(value.to_string());
                 }
 
-                db_handler.create_or_update(profile_name, &settings).await?;
-                println!(
-                    "Profile '{}' updated. Key '{}' set.",
-                    profile_name, key
-                );
+                db_handler.update(&profile, &settings).await?;
+                println!("Profile ID: {} - {} updated. Key '{}' set.", profile.id, profile.name, key);
             } else {
                 create_set_subcommand().print_help()?;
             }
         }
 
         Some(("get", get_matches)) => {
-            if get_matches.contains_id("name") && get_matches.contains_id("key")
-            {
-                let profile_name =
-                    get_matches.get_one::<String>("name").unwrap();
-                let key = get_matches.get_one::<String>("key").unwrap();
+            if let (Some(id_str), Some(key)) = (
+                get_matches.get_one::<String>("id"),
+                get_matches.get_one::<String>("key"),
+            ) {
                 let mask_mode = if get_matches.get_flag("show-decrypted") {
                     MaskMode::Unmask
                 } else {
                     MaskMode::Mask
                 };
-                let settings = db_handler
-                    .get_profile_settings(profile_name, mask_mode)
-                    .await?;
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
+                let settings = db_handler.get_profile_settings(&profile, mask_mode).await?;
                 if let Some(value) = settings.get(key) {
                     println!("{}: {}", key, extract_value(value));
                 } else {
-                    println!(
-                        "Key '{}' not found in profile '{}'",
-                        key, profile_name
-                    );
+                    println!("Key '{}' not found in profile ID: {} - {}", key, profile.id, profile.name);
                 }
             } else {
                 create_get_subcommand().print_help()?;
@@ -296,61 +299,50 @@ pub async fn handle_profile_subcommand(
         }
 
         Some(("del", del_matches)) => {
-            if del_matches.contains_id("name") && del_matches.contains_id("key")
-            {
-                let profile_name =
-                    del_matches.get_one::<String>("name").unwrap();
-                let key = del_matches.get_one::<String>("key").unwrap();
-
+            if let (Some(id_str), Some(key)) = (
+                del_matches.get_one::<String>("id"),
+                del_matches.get_one::<String>("key"),
+            ) {
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
                 let mut settings = JsonValue::Object(Map::new());
                 settings[key.to_string()] = JsonValue::Null; // Null indicates deletion
 
-                db_handler.create_or_update(profile_name, &settings).await?;
-                println!(
-                    "Key '{}' deleted from profile '{}'.",
-                    key, profile_name
-                );
+                db_handler.update(&profile, &settings).await?;
+                println!("Key '{}' deleted from profile ID: {} - {}.", key, profile.id, profile.name);
             } else {
                 create_del_subcommand().print_help()?;
             }
         }
 
         Some(("rm", rm_matches)) => {
-            if rm_matches.contains_id("name") {
-                let profile_name =
-                    rm_matches.get_one::<String>("name").unwrap();
-                db_handler.delete_profile(profile_name).await?;
-                println!("Profile '{}' removed.", profile_name);
+            if let Some(id_str) = rm_matches.get_one::<String>("id") {
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
+                db_handler.delete_profile(&profile).await?;
+                println!("Profile ID: {} - {} removed.", profile.id, profile.name);
             } else {
                 create_rm_subcommand().print_help()?;
             }
         }
 
         Some(("set-default", default_matches)) => {
-            if default_matches.contains_id("name") {
-                let profile_name =
-                    default_matches.get_one::<String>("name").unwrap();
-                db_handler.set_default_profile(profile_name).await?;
-                println!("Profile '{}' set as default.", profile_name);
+            if let Some(id_str) = default_matches.get_one::<String>("id") {
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
+                db_handler.set_default_profile(&profile).await?;
+                println!("Profile ID: {} - {} set as default.", profile.id, profile.name);
             } else {
                 create_set_default_subcommand().print_help()?;
             }
         }
 
         Some(("show-default", show_default_matches)) => {
-            if let Some(default_profile) =
-                db_handler.get_default_profile().await?
-            {
-                println!("Default profile: {}", default_profile);
-                let mask_mode =
-                    if show_default_matches.get_flag("show-decrypted") {
-                        MaskMode::Unmask
-                    } else {
-                        MaskMode::Mask
-                    };
-                let settings = db_handler
-                    .get_profile_settings(&default_profile, mask_mode)
-                    .await?;
+            if let Some(default_profile) = db_handler.get_default_profile().await? {
+                println!("Default profile ID: {} - {}", default_profile.id, default_profile.name);
+                let mask_mode = if show_default_matches.get_flag("show-decrypted") {
+                    MaskMode::Unmask
+                } else {
+                    MaskMode::Mask
+                };
+                let settings = db_handler.get_profile_settings(&default_profile, mask_mode).await?;
                 println!("Settings:");
                 for (key, value) in settings.as_object().unwrap() {
                     println!("  {}: {}", key, extract_value(value));
@@ -360,17 +352,66 @@ pub async fn handle_profile_subcommand(
             }
         }
 
-        Some(("edit", edit_matches)) => {
-            let profile_name = edit_matches.get_one::<String>("name").cloned();
-            let custom_ssh_key_path =
-                edit_matches.get_one::<String>("ssh-key-path").cloned();
-            interactive_profile_edit(
-                &mut db_handler,
-                profile_name,
-                custom_ssh_key_path,
-            )
-            .await?;
+        Some(("export", export_matches)) => {
+            let output_file = export_matches.get_one::<String>("output");
+
+            let default_profile = db_handler.get_default_profile().await?;
+
+            let profiles = if let Some(id_str) = export_matches.get_one::<String>("id") {
+                // Export a single profile
+                let profile = get_profile_by_id(&db_handler, id_str).await?;
+                let settings = db_handler.export_profile_settings(&profile).await?;
+                vec![json!({
+                    "ID": profile.id,
+                    "Name": profile.name,
+                    "Parameters": settings["Parameters"]
+                })]
+            } else {
+                // Export all profiles
+                let mut profiles_vec = Vec::new();
+                let profile_list = db_handler.list_profiles().await?;
+                for profile in profile_list {
+                    let settings = db_handler.export_profile_settings(&profile).await?;
+                    profiles_vec.push(json!({
+                        "ID": profile.id,
+                        "Name": profile.name,
+                        "Parameters": settings["Parameters"]
+                    }));
+                }
+                profiles_vec
+            };
+
+            let mut export_data = json!({
+                "Profiles": profiles,
+            });
+
+            // Add DefaultProfile field only if it's set
+            if let Some(default) = default_profile {
+                export_data["DefaultProfile"] = json!({
+                    "ID": default.id,
+                    "Name": default.name
+                });
+            }
+
+            export_json(
+                &export_data,
+                output_file,
+                "Profiles exported to JSON",
+            )?;
         }
+
+        // TODO: should not required anymore -- may be removed
+        //Some(("edit", edit_matches)) => {
+        //    let profile_name = edit_matches.get_one::<String>("name").cloned();
+        //    let custom_ssh_key_path =
+        //        edit_matches.get_one::<String>("ssh-key-path").cloned();
+        //    interactive_profile_edit(
+        //        &mut db_handler,
+        //        profile_name,
+        //        custom_ssh_key_path,
+        //    )
+        //    .await?;
+        //}
 
         Some(("key", key_matches)) => match key_matches.subcommand() {
             Some(("add", add_matches)) => {
@@ -408,52 +449,6 @@ pub async fn handle_profile_subcommand(
                 create_key_subcommand().print_help()?;
             }
         },
-
-        Some(("export", export_matches)) => {
-            let output_file = export_matches.get_one::<String>("output");
-
-            let default_profile = db_handler.get_default_profile().await?;
-
-            let profiles = if let Some(profile_name) =
-                export_matches.get_one::<String>("name")
-            {
-                // Export a single profile
-                let settings =
-                    db_handler.export_profile_settings(profile_name).await?;
-                vec![json!({
-                    "Name": profile_name,
-                    "Parameters": settings["Parameters"]
-                })]
-            } else {
-                // Export all profiles
-                let mut profiles_vec = Vec::new();
-                let profile_names = db_handler.list_profiles().await?;
-                for name in profile_names {
-                    let settings =
-                        db_handler.export_profile_settings(&name).await?;
-                    profiles_vec.push(json!({
-                        "Name": name,
-                        "Parameters": settings["Parameters"]
-                    }));
-                }
-                profiles_vec
-            };
-
-            let mut export_data = json!({
-                "Profiles": profiles,
-            });
-
-            // Add DefaultProfile field only if it's set
-            if let Some(default) = default_profile {
-                export_data["DefaultProfile"] = JsonValue::String(default);
-            }
-
-            export_json(
-                &export_data,
-                output_file,
-                "Profiles exported to JSON",
-            )?;
-        }
 
         Some(("truncate", truncate_matches)) => {
             if truncate_matches.get_flag("confirm") {
@@ -512,5 +507,15 @@ fn extract_value(value: &JsonValue) -> &JsonValue {
         }
     } else {
         value
+    }
+}
+
+async fn get_profile_by_id(db_handler: &UserProfileDbHandler, id_str: &str) -> Result<UserProfile, ApplicationError> {
+    let id = id_str.parse::<i64>().map_err(|_| 
+        ApplicationError::InvalidInput(format!("Invalid profile ID: {}", id_str)))?;
+    
+    match db_handler.get_profile_by_id(id).await? {
+        Some(profile) => Ok(profile),
+        None => Err(ApplicationError::InvalidInput(format!("No profile found with ID: {}", id)))
     }
 }

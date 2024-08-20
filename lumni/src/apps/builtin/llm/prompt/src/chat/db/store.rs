@@ -8,7 +8,7 @@ use tokio::sync::Mutex as TokioMutex;
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::conversations::ConversationDbHandler;
 use super::encryption::EncryptionHandler;
-use super::user_profile::UserProfileDbHandler;
+use super::user_profile::{UserProfile, UserProfileDbHandler};
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
     ModelIdentifier,
@@ -59,10 +59,10 @@ impl ConversationDatabase {
 
     pub fn get_profile_handler(
         &self,
-        profile_name: Option<String>,
+        profile: Option<UserProfile>,
     ) -> UserProfileDbHandler {
         UserProfileDbHandler::new(
-            profile_name,
+            profile,
             self.db.clone(),
             self.encryption_handler.clone(),
         )

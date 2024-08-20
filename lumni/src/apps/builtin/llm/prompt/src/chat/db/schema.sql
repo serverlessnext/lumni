@@ -6,10 +6,11 @@ CREATE TABLE metadata (
 
 CREATE TABLE user_profiles (
     id INTEGER PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
     options TEXT NOT NULL, -- JSON string
     is_default INTEGER DEFAULT 0,
     encryption_key_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
 );
 

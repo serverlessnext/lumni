@@ -21,7 +21,6 @@ pub enum NewProfileCreatorAction {
     Refresh,
     WaitForKeyEvent,
     Cancel,
-    Complete(String), // New variant to indicate successful profile creation
 }
 
 #[derive(Debug, Clone)]
@@ -102,9 +101,13 @@ impl NewProfileCreator {
     }
 
     pub async fn handle_input(&mut self, key_code: KeyCode) -> Result<NewProfileCreatorAction, ApplicationError> {
-        match key_code {
-            KeyCode::Esc | KeyCode::Char('q') => self.handle_back_navigation(),
-            _ => self.handle_step_input(key_code).await,
+        match self.creation_step {
+            // for EnterName, handle Esc in handle_enter_name as cant use q
+            NewProfileCreationStep::EnterName => self.handle_enter_name(key_code),
+            _ => match key_code {
+                KeyCode::Esc | KeyCode::Char('q') => self.handle_back_navigation(),
+                _ => self.handle_step_input(key_code).await,
+            },
         }
     }
 
@@ -122,23 +125,26 @@ impl NewProfileCreator {
     fn reset_step_state(&mut self) {
         match self.creation_step {
             NewProfileCreationStep::EnterName => {
-                // Reset name-related state if needed
-            },
-            NewProfileCreationStep::SelectProfileType => {
-                self.selected_type_index = 0;
-                self.selection_state = SelectionState::ProfileType(0);
                 self.skipped_type_selection = false;
                 self.ready_to_create = false;
             },
+            NewProfileCreationStep::SelectProfileType => {
+                self.skipped_type_selection = false;
+                self.ready_to_create = false;
+                self.selection_state = SelectionState::ProfileType(self.selected_type_index);
+            },
             NewProfileCreationStep::SelectSubOption => {
                 if let Some(profile_type) = self.predefined_types.get(self.selected_type_index) {
-                    if let Some(sub_selections) = self.sub_selections.get_mut(profile_type) {
-                        if let Some(sub_selection) = sub_selections.first_mut() {
-                            sub_selection.selected = Some(0);
+                    if let Some(sub_selections) = self.sub_selections.get(profile_type) {
+                        if let Some(sub_selection) = sub_selections.first() {
+                            if let Some(selected) = sub_selection.selected {
+                                self.selection_state = SelectionState::SubOption(selected);
+                            } else {
+                                self.selection_state = SelectionState::SubOption(0);
+                            }
                         }
                     }
                 }
-                self.selection_state = SelectionState::SubOption(0);
                 self.ready_to_create = false;
             },
             NewProfileCreationStep::ConfirmCreate => {
@@ -162,11 +168,14 @@ impl NewProfileCreator {
             }
             KeyCode::Enter => {
                 if !self.new_profile_name.is_empty() {
+                    self.selection_state = SelectionState::ProfileType(0);
+                    self.selected_type_index = 0;
                     self.move_to_next_step(NewProfileCreationStep::SelectProfileType)
                 } else {
                     Ok(NewProfileCreatorAction::WaitForKeyEvent)
                 }
             }
+            KeyCode::Esc => self.handle_back_navigation(),
             _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
         }
     }
@@ -207,6 +216,7 @@ impl NewProfileCreator {
             }
             KeyCode::Enter => {
                 if self.skipped_type_selection {
+                    self.ready_to_create = true;
                     self.move_to_next_step(NewProfileCreationStep::ConfirmCreate)
                 } else {
                     self.selected_type_index = self.get_selected_type_index();
@@ -240,18 +250,13 @@ impl NewProfileCreator {
                         };
                         self.selection_state = SelectionState::SubOption(new_index);
                         self.update_selected_model();
-                        Ok(NewProfileCreatorAction::Refresh)
-                    } else {
-                        // If we're not in SubOption state, something went wrong
-                        Err(ApplicationError::NotReady("Unexpected selection state".to_string()))
                     }
-                } else {
-                    Ok(NewProfileCreatorAction::WaitForKeyEvent)
                 }
+                Ok(NewProfileCreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 self.update_selected_model();
-                self.ready_to_create = true;  // Set ready_to_create to true
+                self.ready_to_create = true;
                 self.move_to_next_step(NewProfileCreationStep::ConfirmCreate)
             }
             _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),

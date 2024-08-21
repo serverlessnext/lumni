@@ -93,9 +93,9 @@ impl ProfileEditRenderer {
             .enumerate()
             .map(|(i, (key, value))| {
                 let is_editable = !key.starts_with("__");
-                let is_secure = value.is_object()
-                    && value.get("was_encrypted")
-                        == Some(&serde_json::Value::Bool(true));
+                let display_value =
+                    profile_edit_modal.settings_editor.get_display_value(value);
+
                 let content = if matches!(
                     profile_edit_modal.ui_state.edit_mode,
                     EditMode::EditingValue
@@ -109,34 +109,9 @@ impl ProfileEditRenderer {
                         profile_edit_modal.settings_editor.get_edit_buffer()
                     )
                 } else {
-                    let display_value = if is_secure {
-                        if profile_edit_modal.settings_editor.is_show_secure() {
-                            value["value"].as_str().unwrap_or("").to_string()
-                        } else {
-                            "*****".to_string()
-                        }
-                    } else {
-                        value.as_str().unwrap_or("").to_string()
-                    };
-                    let lock_icon = if is_secure {
-                        if profile_edit_modal.settings_editor.is_show_secure() {
-                            "🔓 "
-                        } else {
-                            "🔒 "
-                        }
-                    } else {
-                        ""
-                    };
-                    let empty_indicator = if display_value.is_empty() {
-                        " (empty)"
-                    } else {
-                        ""
-                    };
-                    format!(
-                        "{}{}: {}{}",
-                        lock_icon, key, display_value, empty_indicator
-                    )
+                    format!("{}: {}", key, display_value)
                 };
+
                 let style = if i
                     == profile_edit_modal.settings_editor.get_current_field()
                     && matches!(

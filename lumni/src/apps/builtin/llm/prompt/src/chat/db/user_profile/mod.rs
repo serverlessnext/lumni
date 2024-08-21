@@ -64,12 +64,10 @@ impl UserProfileDbHandler {
         &mut self,
     ) -> Result<Option<ModelBackend>, ApplicationError> {
         // TODO:
-        return Ok(Some(
-            ModelBackend {
-                server: ModelServer::from_str("ollama")?,
-                model: None,
-            }
-        ));
+        return Ok(Some(ModelBackend {
+            server: ModelServer::from_str("ollama")?,
+            model: None,
+        }));
         let user_profile = self.profile.clone();
 
         if let Some(profile) = user_profile {
@@ -184,42 +182,7 @@ impl UserProfileDbHandler {
     ) -> Result<JsonValue, ApplicationError> {
         let settings =
             self.get_profile_settings(profile, MaskMode::Unmask).await?;
-        Ok(self.create_export_json(&settings))
-    }
-
-    fn create_export_json(&self, settings: &JsonValue) -> JsonValue {
-        match settings {
-            JsonValue::Object(obj) => {
-                let mut parameters = Vec::new();
-                for (key, value) in obj {
-                    let (param_type, param_value) = if let Some(metadata) =
-                        value.as_object()
-                    {
-                        if metadata.get("was_encrypted")
-                            == Some(&JsonValue::Bool(true))
-                        {
-                            (
-                                "SecureString",
-                                metadata.get("value").unwrap_or(value).clone(),
-                            )
-                        } else {
-                            ("String", value.clone())
-                        }
-                    } else {
-                        ("String", value.clone())
-                    };
-                    parameters.push(json!({
-                        "Key": key,
-                        "Value": param_value,
-                        "Type": param_type
-                    }));
-                }
-                json!({
-                    "Parameters": parameters
-                })
-            }
-            _ => JsonValue::Null,
-        }
+        self.create_export_json(&settings).await
     }
 
     pub async fn truncate_and_vacuum(&self) -> Result<(), ApplicationError> {

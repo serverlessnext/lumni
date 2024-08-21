@@ -10,25 +10,6 @@ use super::{
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
-    pub async fn profile_exists(
-        &self,
-        profile: &UserProfile,
-    ) -> Result<bool, ApplicationError> {
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let count: i64 = tx
-                .query_row(
-                    "SELECT COUNT(*) FROM user_profiles WHERE id = ? AND name \
-                     = ?",
-                    params![profile.id, profile.name],
-                    |row| row.get(0),
-                )
-                .map_err(DatabaseOperationError::SqliteError)?;
-            Ok(count > 0)
-        })
-        .map_err(ApplicationError::from)
-    }
-
     pub async fn get_profile_by_id(
         &self,
         id: i64,
@@ -93,12 +74,17 @@ impl UserProfileDbHandler {
         .map_err(ApplicationError::from)
     }
 
-    pub async fn list_profiles(&self) -> Result<Vec<UserProfile>, ApplicationError> {
+    pub async fn list_profiles(
+        &self,
+    ) -> Result<Vec<UserProfile>, ApplicationError> {
         let mut db = self.db.lock().await;
 
         db.process_queue_with_result(|tx| {
             let mut stmt = tx
-                .prepare("SELECT id, name FROM user_profiles ORDER BY created_at DESC")
+                .prepare(
+                    "SELECT id, name FROM user_profiles ORDER BY created_at \
+                     DESC",
+                )
                 .map_err(|e| ApplicationError::DatabaseError(e.to_string()))?;
             let profiles = stmt
                 .query_map([], |row| {
@@ -161,28 +147,6 @@ impl UserProfileDbHandler {
         })
         .map_err(ApplicationError::from)
     }
-
-    // TODO: should return Vec<UserProfile>
-    //pub async fn get_profile_list(
-    //    &self,
-    //) -> Result<Vec<String>, ApplicationError> {
-    //    let mut db = self.db.lock().await;
-    //    db.process_queue_with_result(|tx| {
-    //        let mut stmt =
-    //            tx.prepare("SELECT name FROM user_profiles ORDER BY name ASC")?;
-    //        let profiles = stmt
-    //            .query_map([], |row| row.get(0))?
-    //            .collect::<Result<Vec<String>, _>>()
-    //            .map_err(|e| DatabaseOperationError::SqliteError(e))?;
-    //        Ok(profiles)
-    //    })
-    //    .map_err(|e| match e {
-    //        DatabaseOperationError::SqliteError(sqlite_err) => {
-    //            ApplicationError::DatabaseError(sqlite_err.to_string())
-    //        }
-    //        DatabaseOperationError::ApplicationError(app_err) => app_err,
-    //    })
-    //}
 
     pub async fn register_encryption_key(
         &self,
@@ -268,5 +232,38 @@ impl UserProfileDbHandler {
             Ok(keys)
         })
         .map_err(ApplicationError::from)
+    }
+
+    pub async fn get_encryption_key_info(
+        &self,
+    ) -> Result<(String, String), ApplicationError> {
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            tx.query_row(
+                "SELECT encryption_keys.file_path, encryption_keys.sha256_hash
+                 FROM user_profiles
+                 JOIN encryption_keys ON user_profiles.encryption_key_id = \
+                 encryption_keys.id
+                 WHERE user_profiles.id = ?",
+                params![self.profile.as_ref().map(|p| p.id).unwrap_or(0)],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => {
+                    DatabaseOperationError::ApplicationError(
+                        ApplicationError::InvalidUserConfiguration(
+                            "No encryption key found for profile".to_string(),
+                        ),
+                    )
+                }
+                _ => DatabaseOperationError::SqliteError(e),
+            })
+        })
+        .map_err(|e| match e {
+            DatabaseOperationError::SqliteError(sqlite_err) => {
+                ApplicationError::DatabaseError(sqlite_err.to_string())
+            }
+            DatabaseOperationError::ApplicationError(app_err) => app_err,
+        })
     }
 }

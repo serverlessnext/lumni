@@ -1,5 +1,15 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SettingsAction {
+    ToggleSecureVisibility,
+    DeleteCurrentKey,
+    ClearCurrentKey,
+    SaveEdit,
+    SaveNewValue,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct SettingsEditor {
     settings: JsonValue,
     current_field: usize,
@@ -56,10 +66,22 @@ impl SettingsEditor {
             .nth(self.current_field)
             .unwrap();
         if !current_key.starts_with("__") {
-            self.edit_buffer = self.settings[current_key]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
+            let value = &self.settings[current_key];
+            self.edit_buffer = match value {
+                JsonValue::Object(obj)
+                    if obj.get("was_encrypted")
+                        == Some(&JsonValue::Bool(true)) =>
+                {
+                    match obj.get("value") {
+                        Some(JsonValue::Number(n)) => n.to_string(),
+                        Some(JsonValue::String(s)) => s.clone(),
+                        _ => "".to_string(),
+                    }
+                }
+                JsonValue::Number(n) => n.to_string(),
+                JsonValue::String(s) => s.clone(),
+                _ => value.to_string(),
+            };
             Some(self.edit_buffer.clone())
         } else {
             None
@@ -89,9 +111,57 @@ impl SettingsEditor {
             .nth(self.current_field)
             .unwrap()
             .to_string();
-        self.settings[&current_key] =
-            JsonValue::String(self.edit_buffer.clone());
-        db_handler.update(profile, &self.settings).await
+
+        let current_value = &self.settings[&current_key];
+        let is_encrypted = if let Some(obj) = current_value.as_object() {
+            obj.contains_key("was_encrypted")
+                && obj["was_encrypted"].as_bool().unwrap_or(false)
+        } else {
+            false
+        };
+
+        let new_value = if is_encrypted {
+            json!({
+                "content": self.edit_buffer,
+                "encryption_key": "",
+                "type_info": "string",
+                "was_encrypted": true
+            })
+        } else {
+            serde_json::Value::String(self.edit_buffer.clone())
+        };
+
+        let mut update_settings = JsonValue::Object(serde_json::Map::new());
+        update_settings[&current_key] = new_value;
+        db_handler.update(profile, &update_settings).await?;
+
+        // Reload settings to reflect the changes
+        self.load_settings(profile, db_handler).await?;
+
+        Ok(())
+    }
+
+    pub fn get_display_value(&self, value: &JsonValue) -> String {
+        match value {
+            JsonValue::Object(obj)
+                if obj.get("was_encrypted") == Some(&JsonValue::Bool(true)) =>
+            {
+                let display = if self.show_secure {
+                    match obj.get("content") {
+                        Some(JsonValue::String(s)) => s.clone(),
+                        _ => "Invalid Value".to_string(),
+                    }
+                } else {
+                    "*****".to_string()
+                };
+                format!("{} (Encrypted)", display)
+            }
+            JsonValue::String(s) => s.clone(),
+            JsonValue::Number(n) => n.to_string(),
+            JsonValue::Bool(b) => b.to_string(),
+            JsonValue::Null => "null".to_string(),
+            _ => value.to_string(),
+        }
     }
 
     pub async fn save_new_value(
@@ -99,16 +169,53 @@ impl SettingsEditor {
         profile: &UserProfile,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
-        if self.is_new_value_secure {
-            self.settings[&self.new_key_buffer] = json!({
-                "value": self.edit_buffer,
+        let new_key = self.new_key_buffer.clone();
+        let new_value = if self.is_new_value_secure {
+            json!({
+                "content": self.edit_buffer.clone(),
+                "encryption_key": "",
+                "type_info": "string",
                 "was_encrypted": true
-            });
+            })
         } else {
-            self.settings[&self.new_key_buffer] =
-                JsonValue::String(self.edit_buffer.clone());
+            serde_json::Value::String(self.edit_buffer.clone())
+        };
+
+        let mut update_settings = JsonValue::Object(serde_json::Map::new());
+        update_settings[&new_key] = new_value.clone();
+        db_handler.update(profile, &update_settings).await?;
+
+        // Immediately update the local settings
+        if let Some(obj) = self.settings.as_object_mut() {
+            if self.is_new_value_secure {
+                obj.insert(
+                    new_key.clone(),
+                    json!({
+                        "content": self.edit_buffer.clone(),
+                        "was_encrypted": true
+                    }),
+                );
+            } else {
+                obj.insert(new_key.clone(), new_value);
+            }
         }
-        db_handler.update(profile, &self.settings).await
+
+        // Set the current field to the newly added key
+        self.current_field = self.find_key_index(&new_key);
+
+        // Reset buffers and flags
+        self.edit_buffer.clear();
+        self.new_key_buffer.clear();
+        self.is_new_value_secure = false;
+
+        Ok(())
+    }
+
+    fn find_key_index(&self, key: &str) -> usize {
+        self.settings
+            .as_object()
+            .map(|obj| obj.keys().position(|k| k == key).unwrap_or(0))
+            .unwrap_or(0)
     }
 
     pub fn cancel_edit(&mut self) {
@@ -163,8 +270,30 @@ impl SettingsEditor {
         Ok(())
     }
 
-    pub fn toggle_secure_visibility(&mut self) {
+    pub async fn toggle_secure_visibility(
+        &mut self,
+        profile: &UserProfile,
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<(), ApplicationError> {
+        // Store the current key before toggling
+        let current_key = self.get_current_key().map(String::from);
+
         self.show_secure = !self.show_secure;
+        self.load_settings(profile, db_handler).await?;
+
+        // Restore the selection after reloading settings
+        if let Some(key) = current_key {
+            self.current_field = self.find_key_index(&key);
+        }
+
+        Ok(())
+    }
+
+    fn get_current_key(&self) -> Option<&str> {
+        self.settings
+            .as_object()
+            .and_then(|obj| obj.keys().nth(self.current_field))
+            .map(String::as_str)
     }
 
     pub async fn load_settings(
@@ -179,8 +308,122 @@ impl SettingsEditor {
         };
         self.settings =
             db_handler.get_profile_settings(profile, mask_mode).await?;
+        eprintln!("Settings: {:?}", self.settings);
         self.current_field = 0;
         Ok(())
+    }
+
+    pub fn handle_key_event(
+        &mut self,
+        key_code: KeyCode,
+        current_mode: EditMode,
+    ) -> (EditMode, bool, Option<SettingsAction>) {
+        match current_mode {
+            EditMode::NotEditing => match key_code {
+                KeyCode::Up => {
+                    self.move_selection_up();
+                    (EditMode::NotEditing, true, None)
+                }
+                KeyCode::Down => {
+                    self.move_selection_down();
+                    (EditMode::NotEditing, true, None)
+                }
+                KeyCode::Enter => {
+                    if self.start_editing().is_some() {
+                        (EditMode::EditingValue, true, None)
+                    } else {
+                        (EditMode::NotEditing, false, None)
+                    }
+                }
+                KeyCode::Char('n') => {
+                    self.start_adding_new_value(false);
+                    (EditMode::AddingNewKey, true, None)
+                }
+                KeyCode::Char('N') => {
+                    self.start_adding_new_value(true);
+                    (EditMode::AddingNewKey, true, None)
+                }
+                KeyCode::Char('s') | KeyCode::Char('S') => (
+                    EditMode::NotEditing,
+                    true,
+                    Some(SettingsAction::ToggleSecureVisibility),
+                ),
+                KeyCode::Char('D') => (
+                    EditMode::NotEditing,
+                    true,
+                    Some(SettingsAction::DeleteCurrentKey),
+                ),
+                KeyCode::Char('C') => (
+                    EditMode::NotEditing,
+                    true,
+                    Some(SettingsAction::ClearCurrentKey),
+                ),
+                _ => (EditMode::NotEditing, false, None),
+            },
+            EditMode::EditingValue => match key_code {
+                KeyCode::Enter => {
+                    (EditMode::NotEditing, true, Some(SettingsAction::SaveEdit))
+                }
+                KeyCode::Esc => {
+                    self.cancel_edit();
+                    (EditMode::NotEditing, true, None)
+                }
+                KeyCode::Backspace => {
+                    self.edit_buffer.pop();
+                    (EditMode::EditingValue, true, None)
+                }
+                KeyCode::Char(c) => {
+                    self.edit_buffer.push(c);
+                    (EditMode::EditingValue, true, None)
+                }
+                _ => (EditMode::EditingValue, false, None),
+            },
+            EditMode::AddingNewKey => match key_code {
+                KeyCode::Enter => {
+                    if self.confirm_new_key() {
+                        (EditMode::AddingNewValue, true, None)
+                    } else {
+                        (EditMode::AddingNewKey, false, None)
+                    }
+                }
+                KeyCode::Esc => {
+                    self.cancel_edit();
+                    (EditMode::NotEditing, true, None)
+                }
+                KeyCode::Backspace => {
+                    self.new_key_buffer.pop();
+                    (EditMode::AddingNewKey, true, None)
+                }
+                KeyCode::Char(c) => {
+                    self.new_key_buffer.push(c);
+                    (EditMode::AddingNewKey, true, None)
+                }
+                _ => (EditMode::AddingNewKey, false, None),
+            },
+            EditMode::AddingNewValue => match key_code {
+                KeyCode::Enter => (
+                    EditMode::NotEditing,
+                    true,
+                    Some(SettingsAction::SaveNewValue),
+                ),
+                KeyCode::Esc => {
+                    self.cancel_edit();
+                    (EditMode::NotEditing, true, None)
+                }
+                KeyCode::Backspace => {
+                    self.edit_buffer.pop();
+                    (EditMode::AddingNewValue, true, None)
+                }
+                KeyCode::Char(c) => {
+                    self.edit_buffer.push(c);
+                    (EditMode::AddingNewValue, true, None)
+                }
+                _ => (EditMode::AddingNewValue, false, None),
+            },
+            EditMode::RenamingProfile => {
+                (EditMode::RenamingProfile, false, None)
+            }
+        }
     }
 
     // Getter methods for UI rendering
@@ -199,16 +442,14 @@ impl SettingsEditor {
     pub fn is_new_value_secure(&self) -> bool {
         self.is_new_value_secure
     }
+}
 
-    pub fn is_show_secure(&self) -> bool {
-        self.show_secure
-    }
-
-    pub fn set_edit_buffer(&mut self, value: String) {
-        self.edit_buffer = value;
-    }
-
-    pub fn set_new_key_buffer(&mut self, value: String) {
-        self.new_key_buffer = value;
+fn parse_value(input: &str) -> JsonValue {
+    if let Ok(num) = input.parse::<i64>() {
+        JsonValue::Number(num.into())
+    } else if let Ok(num) = input.parse::<f64>() {
+        JsonValue::Number(serde_json::Number::from_f64(num).unwrap_or(0.into()))
+    } else {
+        JsonValue::String(input.to_string())
     }
 }

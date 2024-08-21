@@ -13,11 +13,26 @@ use crate::external as lumni;
 impl UserProfileDbHandler {
     pub fn encrypt_value(
         &self,
-        content: &str,
+        content: &JsonValue,
     ) -> Result<JsonValue, ApplicationError> {
+        let type_info = match content {
+            JsonValue::Null => "null",
+            JsonValue::Bool(_) => "boolean",
+            JsonValue::Number(_) => "number",
+            JsonValue::String(_) => "string",
+            JsonValue::Array(_) => "array",
+            JsonValue::Object(_) => "object",
+        };
+
+        let content_string = match content {
+            JsonValue::String(s) => s.clone(), // Use the string value directly
+            _ => content.to_string(), // For other types, use JSON serialization
+        };
+
         if let Some(ref encryption_handler) = self.encryption_handler {
-            let (encrypted_content, encryption_key) =
-                encryption_handler.encrypt_string(content).map_err(|e| {
+            let (encrypted_content, encryption_key) = encryption_handler
+                .encrypt_string(&content_string)
+                .map_err(|e| {
                     ApplicationError::EncryptionError(
                         EncryptionError::EncryptionFailed(e.to_string()),
                     )
@@ -25,6 +40,7 @@ impl UserProfileDbHandler {
             Ok(json!({
                 "content": encrypted_content,
                 "encryption_key": encryption_key,
+                "type_info": type_info
             }))
         } else {
             Err(ApplicationError::EncryptionError(
@@ -44,22 +60,63 @@ impl UserProfileDbHandler {
                 if let (
                     Some(JsonValue::String(content)),
                     Some(JsonValue::String(encrypted_key)),
-                ) = (obj.get("content"), obj.get("encryption_key"))
-                {
-                    if encrypted_key.is_empty() {
-                        return Ok(JsonValue::String(content.clone()));
-                    }
-
-                    encryption_handler
+                    Some(JsonValue::String(type_info)),
+                ) = (
+                    obj.get("content"),
+                    obj.get("encryption_key"),
+                    obj.get("type_info"),
+                ) {
+                    let decrypted_string = encryption_handler
                         .decrypt_string(content, encrypted_key)
-                        .map(JsonValue::String)
                         .map_err(|e| {
                             ApplicationError::EncryptionError(
                                 EncryptionError::DecryptionFailed(
                                     e.to_string(),
                                 ),
                             )
-                        })
+                        })?;
+
+                    // Parse the decrypted string based on the type_info
+                    let decrypted_value = match type_info.as_str() {
+                        "null" => JsonValue::Null,
+                        "boolean" => JsonValue::Bool(
+                            decrypted_string.parse().map_err(|_| {
+                                ApplicationError::EncryptionError(
+                                    EncryptionError::DecryptionFailed(
+                                        "Failed to parse boolean".to_string(),
+                                    ),
+                                )
+                            })?,
+                        ),
+                        "number" => serde_json::from_str(&decrypted_string)
+                            .map_err(|_| {
+                                ApplicationError::EncryptionError(
+                                    EncryptionError::DecryptionFailed(
+                                        "Failed to parse number".to_string(),
+                                    ),
+                                )
+                            })?,
+                        "string" => JsonValue::String(decrypted_string), // Don't parse, use the string directly
+                        "array" | "object" => serde_json::from_str(
+                            &decrypted_string,
+                        )
+                        .map_err(|_| {
+                            ApplicationError::EncryptionError(
+                                EncryptionError::DecryptionFailed(
+                                    "Failed to parse complex type".to_string(),
+                                ),
+                            )
+                        })?,
+                        _ => {
+                            return Err(ApplicationError::EncryptionError(
+                                EncryptionError::DecryptionFailed(
+                                    "Unknown type".to_string(),
+                                ),
+                            ))
+                        }
+                    };
+
+                    Ok(decrypted_value)
                 } else {
                     Err(ApplicationError::EncryptionError(
                         EncryptionError::InvalidKey(

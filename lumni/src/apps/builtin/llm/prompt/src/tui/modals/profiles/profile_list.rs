@@ -7,7 +7,10 @@ pub struct ProfileList {
 }
 
 impl ProfileList {
-    pub fn new(profiles: Vec<UserProfile>, default_profile: Option<UserProfile>) -> Self {
+    pub fn new(
+        profiles: Vec<UserProfile>,
+        default_profile: Option<UserProfile>,
+    ) -> Self {
         ProfileList {
             profiles,
             selected_index: 0,
@@ -72,8 +75,7 @@ impl ProfileList {
 
     // TODO: this does not update the database
     pub fn start_renaming(&self) -> String {
-        let profile = self.profiles
-            .get(self.selected_index);
+        let profile = self.profiles.get(self.selected_index);
         if let Some(profile) = profile {
             profile.name.clone()
         } else {

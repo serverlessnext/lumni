@@ -9,9 +9,9 @@ use ratatui::Frame;
 
 use super::{
     ApplicationError, CommandLine, Conversation, ConversationDbHandler,
-    ConversationStatus, KeyTrack, MaskMode, ModelServer, ModelSpec,
-    PromptInstruction, ServerTrait, TextWindowTrait, ThreadedChatSession,
-    UserEvent, UserProfileDbHandler, UserProfile, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ConversationStatus, KeyTrack, MaskMode, ModelServer, PromptInstruction,
+    ServerTrait, TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
+    UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

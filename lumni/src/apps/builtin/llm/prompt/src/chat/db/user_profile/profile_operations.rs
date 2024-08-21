@@ -68,37 +68,22 @@ impl UserProfileDbHandler {
         Ok(profile)
     }
 
-    pub async fn update(&mut self, profile: &UserProfile, new_settings: &JsonValue) -> Result<(), ApplicationError> {
-        let processed_settings = self.process_settings(
-            new_settings,
-            EncryptionMode::Encrypt,
-            MaskMode::Unmask,
-        )?;
+    pub async fn update(
+        &mut self,
+        profile: &UserProfile,
+        new_settings: &JsonValue,
+    ) -> Result<(), ApplicationError> {
+        // Update profile settings
+        self.update_profile_settings(profile, new_settings).await?;
 
-        let json_string = serde_json::to_string(&processed_settings).map_err(|e| {
-            ApplicationError::InvalidInput(format!(
-                "Failed to serialize JSON: {}",
-                e
-            ))
-        })?;
-
+        // Update the name if it has changed
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
-            let updated_rows = tx.execute(
-                "UPDATE user_profiles SET name = ?, options = ? WHERE id = ?",
-                params![profile.name, json_string, profile.id],
+            tx.execute(
+                "UPDATE user_profiles SET name = ? WHERE id = ?",
+                params![profile.name, profile.id],
             )
             .map_err(DatabaseOperationError::SqliteError)?;
-
-            if updated_rows == 0 {
-                return Err(DatabaseOperationError::ApplicationError(
-                    ApplicationError::InvalidInput(format!(
-                        "Profile with id {} not found",
-                        profile.id
-                    )),
-                ));
-            }
-            
             Ok(())
         })
         .map_err(|e| match e {
@@ -144,7 +129,6 @@ impl UserProfileDbHandler {
         }
     }
 
-    // TODO: should check based on name and id
     pub async fn get_profile_settings(
         &mut self,
         profile: &UserProfile,

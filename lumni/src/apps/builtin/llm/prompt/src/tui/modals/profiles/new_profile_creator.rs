@@ -102,7 +102,7 @@ impl NewProfileCreator {
         creator
     }
 
-    pub async fn handle_input(
+    pub async fn handle_key_event(
         &mut self,
         key_code: KeyCode,
     ) -> Result<NewProfileCreatorAction, ApplicationError> {
@@ -784,14 +784,9 @@ impl NewProfileCreator {
 
         tokio::spawn(async move {
             let result = db_handler
-                .create(
-                    &new_profile_name_clone,
-                    &json!(settings_clone),
-                )
+                .create(&new_profile_name_clone, &json!(settings_clone))
                 .await;
-            let _ = tx
-                .send(BackgroundTaskResult::ProfileCreated(result))
-                .await;
+            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
         });
 
         self.background_task = Some(rx);

@@ -21,7 +21,7 @@ use ratatui::widgets::{
 };
 use ratatui::Frame;
 use serde_json::{json, Map, Value as JsonValue};
-use settings_editor::SettingsEditor;
+use settings_editor::{SettingsAction, SettingsEditor};
 use tokio::sync::mpsc;
 use ui_state::{EditMode, Focus, UIState};
 
@@ -165,8 +165,7 @@ impl ModalWindowTrait for ProfileEditModal {
                                     new_profile.name,
                                     new_profile.id
                                 );
-                                self.profile_list
-                                    .add_profile(new_profile);
+                                self.profile_list.add_profile(new_profile);
 
                                 self.load_profile().await?;
                                 self.ui_state.cancel_new_profile_creation();
@@ -263,156 +262,77 @@ impl ModalWindowTrait for ProfileEditModal {
                 }
                 _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
             },
-            Focus::SettingsList => match key_code {
-                KeyCode::Left
-                | KeyCode::Char('q')
-                | KeyCode::Esc
-                | KeyCode::Tab => {
-                    if self.ui_state.edit_mode == EditMode::NotEditing {
-                        self.ui_state.set_focus(Focus::ProfileList);
-                    } else {
-                        self.cancel_edit();
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-                }
-                KeyCode::Up => {
-                    self.settings_editor.move_selection_up();
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-                }
-                KeyCode::Down => {
-                    self.settings_editor.move_selection_down();
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
-                }
-                KeyCode::Enter => {
-                    match self.ui_state.edit_mode {
-                        EditMode::NotEditing => {
-                            if self.settings_editor.start_editing().is_some() {
-                                self.ui_state
-                                    .set_edit_mode(EditMode::EditingValue);
+            Focus::SettingsList => {
+                let (new_mode, handled, action) = self
+                    .settings_editor
+                    .handle_key_event(key_code, self.ui_state.edit_mode);
+
+                if handled {
+                    if let Some(action) = action {
+                        if let Some(profile) =
+                            self.profile_list.get_selected_profile()
+                        {
+                            match action {
+                                SettingsAction::ToggleSecureVisibility => {
+                                    self.settings_editor
+                                        .toggle_secure_visibility(
+                                            profile,
+                                            &mut self.db_handler,
+                                        )
+                                        .await?;
+                                }
+                                SettingsAction::DeleteCurrentKey => {
+                                    self.settings_editor
+                                        .delete_current_key(
+                                            profile,
+                                            &mut self.db_handler,
+                                        )
+                                        .await?;
+                                }
+                                SettingsAction::ClearCurrentKey => {
+                                    self.settings_editor
+                                        .clear_current_key(
+                                            profile,
+                                            &mut self.db_handler,
+                                        )
+                                        .await?;
+                                }
+                                SettingsAction::SaveEdit => {
+                                    self.settings_editor
+                                        .save_edit(
+                                            profile,
+                                            &mut self.db_handler,
+                                        )
+                                        .await?;
+                                }
+                                SettingsAction::SaveNewValue => {
+                                    self.settings_editor
+                                        .save_new_value(
+                                            profile,
+                                            &mut self.db_handler,
+                                        )
+                                        .await?;
+                                }
                             }
                         }
-                        EditMode::EditingValue => {
-                            if let Some(profile) =
-                                self.profile_list.get_selected_profile()
-                            {
-                                self.settings_editor
-                                    .save_edit(profile, &mut self.db_handler)
-                                    .await?;
-                            }
-                            self.ui_state.set_edit_mode(EditMode::NotEditing);
-                        }
-                        EditMode::AddingNewKey => {
-                            if self.settings_editor.confirm_new_key() {
-                                self.ui_state
-                                    .set_edit_mode(EditMode::AddingNewValue);
-                            }
-                        }
-                        EditMode::AddingNewValue => {
-                            if let Some(profile) =
-                                self.profile_list.get_selected_profile()
-                            {
-                                self.settings_editor
-                                    .save_new_value(
-                                        profile,
-                                        &mut self.db_handler,
-                                    )
-                                    .await?;
-                            }
-                            self.ui_state.set_edit_mode(EditMode::NotEditing);
-                        }
-                        _ => {}
                     }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    self.ui_state.set_edit_mode(new_mode);
+                    return Ok(WindowEvent::Modal(ModalAction::Refresh));
                 }
-                KeyCode::Char('s') | KeyCode::Char('S') => {
-                    self.settings_editor.toggle_secure_visibility();
-                    if let Some(profile) =
-                        self.profile_list.get_selected_profile()
-                    {
-                        self.settings_editor
-                            .load_settings(profile, &mut self.db_handler)
-                            .await?;
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+
+                // Handle focus change if not handled by SettingsEditor
+                if self.ui_state.edit_mode == EditMode::NotEditing
+                    && (key_code == KeyCode::Left
+                        || key_code == KeyCode::Char('q')
+                        || key_code == KeyCode::Esc
+                        || key_code == KeyCode::Tab)
+                {
+                    self.ui_state.set_focus(Focus::ProfileList);
+                    return Ok(WindowEvent::Modal(ModalAction::Refresh));
                 }
-                KeyCode::Char('n') => {
-                    self.settings_editor.start_adding_new_value(false);
-                    self.ui_state.set_edit_mode(EditMode::AddingNewKey);
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                KeyCode::Char('N') => {
-                    self.settings_editor.start_adding_new_value(true);
-                    self.ui_state.set_edit_mode(EditMode::AddingNewKey);
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                KeyCode::Char('D') => {
-                    if let Some(profile) =
-                        self.profile_list.get_selected_profile()
-                    {
-                        self.settings_editor
-                            .delete_current_key(profile, &mut self.db_handler)
-                            .await?;
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                KeyCode::Char('C') => {
-                    if let Some(profile) =
-                        self.profile_list.get_selected_profile()
-                    {
-                        self.settings_editor
-                            .clear_current_key(profile, &mut self.db_handler)
-                            .await?;
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                KeyCode::Char(c) => {
-                    match self.ui_state.edit_mode {
-                        EditMode::EditingValue | EditMode::AddingNewValue => {
-                            let mut current_value = self
-                                .settings_editor
-                                .get_edit_buffer()
-                                .to_string();
-                            current_value.push(c);
-                            self.settings_editor.set_edit_buffer(current_value);
-                        }
-                        EditMode::AddingNewKey => {
-                            let mut current_value = self
-                                .settings_editor
-                                .get_new_key_buffer()
-                                .to_string();
-                            current_value.push(c);
-                            self.settings_editor
-                                .set_new_key_buffer(current_value);
-                        }
-                        _ => {}
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                KeyCode::Backspace => {
-                    match self.ui_state.edit_mode {
-                        EditMode::EditingValue | EditMode::AddingNewValue => {
-                            let mut current_value = self
-                                .settings_editor
-                                .get_edit_buffer()
-                                .to_string();
-                            current_value.pop();
-                            self.settings_editor.set_edit_buffer(current_value);
-                        }
-                        EditMode::AddingNewKey => {
-                            let mut current_value = self
-                                .settings_editor
-                                .get_new_key_buffer()
-                                .to_string();
-                            current_value.pop();
-                            self.settings_editor
-                                .set_new_key_buffer(current_value);
-                        }
-                        _ => {}
-                    }
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
-            },
+
+                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+            }
             Focus::NewProfileCreation => {
                 if let Some(creator) = &mut self.ui_state.new_profile_creator {
                     let profile_count = self.profile_list.total_items();
@@ -420,7 +340,7 @@ impl ModalWindowTrait for ProfileEditModal {
                         creator.create_new_profile(profile_count).await?;
                         return Ok(WindowEvent::Modal(ModalAction::Refresh));
                     }
-                    match creator.handle_input(key_code).await? {
+                    match creator.handle_key_event(key_code).await? {
                         NewProfileCreatorAction::Refresh => {
                             Ok(WindowEvent::Modal(ModalAction::Refresh))
                         }

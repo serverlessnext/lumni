@@ -20,9 +20,7 @@ impl UserProfileDbHandler {
     ) -> Result<UserProfile, ApplicationError> {
         let timestamp = Timestamp::from_system_time().unwrap().as_millis();
 
-        let encryption_key_id =
-            self.get_or_create_encryption_key(profile_name).await?;
-
+        let encryption_key_id = self.get_or_create_encryption_key().await?;
         let processed_settings = self.process_settings(
             settings,
             EncryptionMode::Encrypt,

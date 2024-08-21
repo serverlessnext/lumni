@@ -177,7 +177,6 @@ impl UserProfileDbHandler {
 
     pub async fn get_or_create_encryption_key(
         &mut self,
-        profile_name: &str,
     ) -> Result<i64, ApplicationError> {
         let has_encryption_handler = self.encryption_handler.is_some();
         let mut created_encryption_handler: Option<EncryptionHandler> = None;
@@ -195,11 +194,28 @@ impl UserProfileDbHandler {
                         EncryptionHandler::get_private_key_hash(&key_path)?;
                     self.get_or_insert_encryption_key(tx, &key_path, &key_hash)
                 } else {
-                    let (new_encryption_handler, key_path, key_hash) =
-                        Self::generate_encryption_key(profile_name)?;
-                    let key_id = self.get_or_insert_encryption_key(
-                        tx, &key_path, &key_hash,
-                    )?;
+                    let key_dir = home_dir()
+                        .unwrap_or_default()
+                        .join(".lumni")
+                        .join("keys");
+                    fs::create_dir_all(&key_dir)
+                        .map_err(|e| ApplicationError::IOError(e))?;
+
+                    let new_encryption_handler =
+                        EncryptionHandler::generate_private_key(
+                            &key_dir, 2048, None,
+                        )
+                        .map_err(|e| {
+                            ApplicationError::EncryptionError(
+                                EncryptionError::KeyGenerationFailed(
+                                    e.to_string(),
+                                ),
+                            )
+                        })?;
+                    let key_path = new_encryption_handler.get_key_path();
+                    let key_hash = new_encryption_handler.get_sha256_hash();
+                    let key_id = self
+                        .get_or_insert_encryption_key(tx, key_path, key_hash)?;
                     created_encryption_handler = Some(new_encryption_handler);
                     Ok(key_id)
                 }
@@ -214,32 +230,6 @@ impl UserProfileDbHandler {
         if let Some(new_handler) = created_encryption_handler {
             self.encryption_handler = Some(Arc::new(new_handler));
         }
-
         Ok(key_id)
-    }
-
-    pub fn generate_encryption_key(
-        profile_name: &str,
-    ) -> Result<(EncryptionHandler, PathBuf, String), ApplicationError> {
-        let key_dir =
-            home_dir().unwrap_or_default().join(".lumni").join("keys");
-        fs::create_dir_all(&key_dir)
-            .map_err(|e| ApplicationError::IOError(e))?;
-        let key_path = key_dir.join(format!("{}_key.pem", profile_name));
-
-        let encryption_handler =
-            EncryptionHandler::generate_private_key(&key_path, 2048, None)
-                .map_err(|e| {
-                    ApplicationError::EncryptionError(
-                        EncryptionError::KeyGenerationFailed(e.to_string()),
-                    )
-                })?;
-        let key_hash = EncryptionHandler::get_private_key_hash(&key_path)
-            .map_err(|e| {
-                ApplicationError::EncryptionError(EncryptionError::InvalidKey(
-                    e.to_string(),
-                ))
-            })?;
-        Ok((encryption_handler, key_path, key_hash))
     }
 }

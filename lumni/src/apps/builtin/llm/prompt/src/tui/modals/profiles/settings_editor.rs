@@ -123,9 +123,8 @@ impl SettingsEditor {
         let new_value = if is_encrypted {
             json!({
                 "content": self.edit_buffer,
-                "encryption_key": "",
+                "encryption_key": "",   // signal that the value must be encrypted
                 "type_info": "string",
-                "was_encrypted": true
             })
         } else {
             serde_json::Value::String(self.edit_buffer.clone())
@@ -173,9 +172,8 @@ impl SettingsEditor {
         let new_value = if self.is_new_value_secure {
             json!({
                 "content": self.edit_buffer.clone(),
-                "encryption_key": "",
+                "encryption_key": "",   // signal that value must be encrypted, encryption key will be set by the handler
                 "type_info": "string",
-                "was_encrypted": true
             })
         } else {
             serde_json::Value::String(self.edit_buffer.clone())
@@ -185,7 +183,7 @@ impl SettingsEditor {
         update_settings[&new_key] = new_value.clone();
         db_handler.update(profile, &update_settings).await?;
 
-        // Immediately update the local settings
+        // Update the local settings for feedback to the user
         if let Some(obj) = self.settings.as_object_mut() {
             if self.is_new_value_secure {
                 obj.insert(
@@ -441,15 +439,5 @@ impl SettingsEditor {
 
     pub fn is_new_value_secure(&self) -> bool {
         self.is_new_value_secure
-    }
-}
-
-fn parse_value(input: &str) -> JsonValue {
-    if let Ok(num) = input.parse::<i64>() {
-        JsonValue::Number(num.into())
-    } else if let Ok(num) = input.parse::<f64>() {
-        JsonValue::Number(serde_json::Number::from_f64(num).unwrap_or(0.into()))
-    } else {
-        JsonValue::String(input.to_string())
     }
 }

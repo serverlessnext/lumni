@@ -23,6 +23,7 @@ pub struct EncryptionHandler {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,
     key_path: PathBuf,
+    sha256_hash: String,
 }
 
 impl EncryptionHandler {
@@ -35,10 +36,14 @@ impl EncryptionHandler {
             .map_err(EncryptionError::from)?;
         let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_pem)
             .map_err(EncryptionError::from)?;
+
+        let sha256_hash = Self::sha256_hash(private_key_pem);
+
         Ok(Self {
             public_key,
             private_key,
             key_path,
+            sha256_hash,
         })
     }
 
@@ -94,6 +99,10 @@ impl EncryptionHandler {
 
     pub fn get_key_path(&self) -> &PathBuf {
         &self.key_path
+    }
+
+    pub fn get_sha256_hash(&self) -> &str {
+        &self.sha256_hash
     }
 
     fn is_encrypted_key(key_pem: &str) -> bool {
@@ -371,6 +380,12 @@ impl EncryptionHandler {
         Ok(decrypted_data.to_vec())
     }
 
+    pub fn sha256_hash(s: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(s.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
     pub fn get_private_key_hash(
         private_key_path: &PathBuf,
     ) -> Result<String, ApplicationError> {
@@ -387,15 +402,13 @@ impl EncryptionHandler {
                 e.to_string(),
             ))
         })?;
-        let mut hasher = Sha256::new();
-        hasher.update(key_data.as_bytes());
-        Ok(format!("{:x}", hasher.finalize()))
+        Ok(Self::sha256_hash(&key_data))
     }
 }
 
 impl EncryptionHandler {
     pub fn generate_private_key(
-        key_path: &PathBuf,
+        key_dir: &PathBuf,
         bits: usize,
         password: Option<&str>,
     ) -> Result<Self, ApplicationError> {
@@ -429,10 +442,14 @@ impl EncryptionHandler {
         };
 
         // Ensure the directory exists
-        if let Some(parent) = key_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| ApplicationError::IOError(e))?;
-        }
+        fs::create_dir_all(key_dir)
+            .map_err(|e| ApplicationError::IOError(e))?;
+
+        let sha256_hash = Self::sha256_hash(&private_key_pem);
+        let key_path = key_dir.join(format!(
+            "{}.pem",
+            sha256_hash.chars().take(8).collect::<String>()
+        ));
 
         // Save private key to file
         fs::write(&key_path, private_key_pem.as_bytes())
@@ -456,6 +473,7 @@ impl EncryptionHandler {
             public_key,
             private_key,
             key_path: key_path.clone(),
+            sha256_hash,
         })
     }
 }

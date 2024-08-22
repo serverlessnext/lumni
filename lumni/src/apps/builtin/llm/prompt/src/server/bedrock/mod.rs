@@ -126,11 +126,13 @@ impl ServerTrait for Bedrock {
             "__MODEL_SERVER": "bedrock",
             "AWS_PROFILE": {
                 "display_name": "AWS Profile",
+                "placeholder": "enter AWS profile name (optional)",
                 "content": "",
                 "type_info": "string"
             },
             "AWS_REGION": {
                 "display_name": "AWS Region",
+                "placeholder": "enter AWS region (optional)",
                 "content": "",
                 "type_info": "string"
             }

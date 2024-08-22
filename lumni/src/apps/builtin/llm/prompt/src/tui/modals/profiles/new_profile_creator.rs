@@ -554,12 +554,12 @@ impl NewProfileCreator {
                 self.render_additional_settings(f, chunks[0]);
             }
             NewProfileCreationStep::ConfirmCreate => {
-                self.render_confirmation(f, chunks[0]);
+                self.render_confirmation(f, area);
             }
             _ => {}
         }
 
-        // Render the Next/Create button
+        // Render the Next/Create button for all steps
         self.render_next_or_create_button(f, chunks[1]);
     }
 
@@ -647,12 +647,6 @@ impl NewProfileCreator {
                     Self::COLOR_BACKGROUND
                 });
 
-            let value_display = if setting.is_secure {
-                "*".repeat(setting.value.len())
-            } else {
-                setting.value.clone()
-            };
-
             let arrow = if is_selected { ">" } else { " " };
 
             let label = format!("{}: ", setting.display_name);
@@ -715,11 +709,19 @@ impl NewProfileCreator {
     }
 
     fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
-        let button_text = "Next";
-        let button_style = Style::default().fg(Self::COLOR_HIGHLIGHT);
+        let (button_text, button_style, is_selected) = match self.creation_step {
+            NewProfileCreationStep::ConfirmCreate => (
+                "Create",
+                Style::default().fg(Self::COLOR_SUCCESS),
+                true,
+            ),
+            _ => (
+                "Next",
+                Style::default().fg(Self::COLOR_HIGHLIGHT),
+                matches!(self.selection_state, SelectionState::NextButton),
+            ),
+        };
 
-        let is_selected =
-            matches!(self.selection_state, SelectionState::NextButton);
         let button = Paragraph::new(button_text)
             .style(if is_selected {
                 button_style.add_modifier(Modifier::REVERSED)
@@ -1031,7 +1033,7 @@ impl NewProfileCreator {
         &mut self,
         c: char,
     ) -> Result<NewProfileCreatorAction, ApplicationError> {
-        if let SelectionState::AdditionalSetting(index) = self.selection_state {
+        if let SelectionState::AdditionalSetting(_) = self.selection_state {
             if !self.is_input_focused {
                 // Start new input
                 self.temp_input = Some(String::new());
@@ -1132,21 +1134,6 @@ impl NewProfileCreator {
             _ => {}
         }
         Ok(NewProfileCreatorAction::Refresh)
-    }
-
-    fn confirm_additional_setting(
-        &mut self,
-    ) -> Result<NewProfileCreatorAction, ApplicationError> {
-        match self.selection_state {
-            SelectionState::AdditionalSetting(_) => {
-                self.move_additional_setting_down()
-            }
-            SelectionState::NextButton => {
-                self.ready_to_create = true;
-                self.move_to_next_step(NewProfileCreationStep::ConfirmCreate)
-            }
-            _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
-        }
     }
 
     async fn handle_confirm_create(
@@ -1341,35 +1328,29 @@ impl NewProfileCreator {
     }
 
     fn render_confirmation(&self, f: &mut Frame, area: Rect) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
+
         let mut items = Vec::new();
 
         // Profile Type
-        if let Some(profile_type) =
-            self.predefined_types.get(self.selected_type_index)
-        {
+        if let Some(profile_type) = self.predefined_types.get(self.selected_type_index) {
             items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "Profile Type: ",
-                    Style::default().fg(Self::COLOR_SECONDARY),
-                ),
-                Span::styled(
-                    profile_type,
-                    Style::default().fg(Self::COLOR_HIGHLIGHT),
-                ),
+                Span::styled("Profile Type: ", Style::default().fg(Self::COLOR_SECONDARY)),
+                Span::styled(profile_type, Style::default().fg(Self::COLOR_HIGHLIGHT)),
             ])));
         }
 
         // Selected Model
         if let Some((_, selected_model)) = self.get_selected_model() {
             items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "Selected Model: ",
-                    Style::default().fg(Self::COLOR_SECONDARY),
-                ),
-                Span::styled(
-                    selected_model,
-                    Style::default().fg(Self::COLOR_HIGHLIGHT),
-                ),
+                Span::styled("Selected Model: ", Style::default().fg(Self::COLOR_SECONDARY)),
+                Span::styled(selected_model, Style::default().fg(Self::COLOR_HIGHLIGHT)),
             ])));
         }
 
@@ -1388,36 +1369,44 @@ impl NewProfileCreator {
                     setting.value.clone()
                 };
 
-                let status = if value_display.is_empty() {
-                    " (Skipped)"
+                let (display_value, value_style) = if value_display.is_empty() {
+                    ("Not set".to_string(), Style::default().fg(Self::COLOR_SECONDARY))
                 } else {
-                    ""
+                    (value_display, Style::default().fg(Self::COLOR_HIGHLIGHT))
                 };
+
+                let status = if display_value == "Not set" { " (Optional)" } else { "" };
 
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled(
                         format!("{}: ", setting.display_name),
                         Style::default().fg(Self::COLOR_FOREGROUND),
                     ),
-                    Span::styled(
-                        value_display,
-                        Style::default().fg(Self::COLOR_HIGHLIGHT),
-                    ),
-                    Span::styled(
-                        status,
-                        Style::default().fg(Self::COLOR_SECONDARY),
-                    ),
+                    Span::styled(display_value, value_style),
+                    Span::styled(status, Style::default().fg(Self::COLOR_SECONDARY)),
                 ])));
             }
         }
 
+        items.push(ListItem::new(""));
+        let ready_message = SimpleString::from("Profile is ready to be created. Press Enter to create the profile.");
+        let wrapped_spans = ready_message.wrapped_spans(
+            area.width as usize - 4, 
+            Some(Style::default().fg(Self::COLOR_SUCCESS))
+        );
+        for spans in wrapped_spans {
+            items.push(ListItem::new(Line::from(spans)));
+        }
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Confirm Profile Creation"),
         );
 
-        f.render_widget(list, area);
+        f.render_widget(list, chunks[0]);
+
+        // Render the Create button
+        self.render_next_or_create_button(f, chunks[1]);
     }
 
     fn confirm_model_selection(

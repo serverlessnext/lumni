@@ -27,7 +27,7 @@ use ui_state::{EditMode, Focus, UIState};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
-    ModalWindowTrait, ModalWindowType, ModelServer, ServerTrait,
+    ModalWindowTrait, ModalWindowType, ModelServer, ServerTrait, SimpleString,
     ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowEvent,
     SUPPORTED_MODEL_ENDPOINTS,
 };

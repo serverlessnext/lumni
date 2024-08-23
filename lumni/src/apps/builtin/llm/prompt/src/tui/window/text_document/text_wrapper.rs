@@ -11,6 +11,7 @@ impl TextWrapper {
     pub fn new(display_width: usize) -> Self {
         Self { display_width }
     }
+    // TODO: wrap_text_styled_with_delim
 
     pub fn wrap_text_styled(
         &self,

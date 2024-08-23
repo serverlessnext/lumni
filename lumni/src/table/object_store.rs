@@ -93,6 +93,57 @@ impl Table for ObjectStoreTable {
         Ok(())
     }
 
+    fn get_row(&self, index: usize) -> Option<TableRow> {
+        if index >= self.len() {
+            return None;
+        }
+
+        let row_data: Vec<(String, TableColumnValue)> = self
+            .columns
+            .iter()
+            .filter_map(|(name, column)| {
+                match column.as_any().downcast_ref::<StringColumn>() {
+                    Some(c) => c.0.get(index).map(|s| {
+                        (
+                            name.clone(),
+                            TableColumnValue::StringColumn(s.clone()),
+                        )
+                    }),
+                    None => None, // ObjectStoreTable only has StringColumn, so we don't need to handle other types
+                }
+            })
+            .collect();
+
+        if row_data.is_empty() {
+            None
+        } else {
+            Some(TableRow::new(row_data, Some(&print_row)))
+        }
+    }
+
+    fn get_value(
+        &self,
+        index: usize,
+        column_name: &str,
+    ) -> Option<TableColumnValue> {
+        if index >= self.len() {
+            return None;
+        }
+
+        self.columns
+            .iter()
+            .find(|(name, _)| name == column_name)
+            .and_then(|(_, column)| {
+                match column.as_any().downcast_ref::<StringColumn>() {
+                    Some(c) => {
+                        c.0.get(index)
+                            .map(|s| TableColumnValue::StringColumn(s.clone()))
+                    }
+                    None => None, // ObjectStoreTable only has StringColumn, so we don't need to handle other types
+                }
+            })
+    }
+
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Table")
             .field("callback", &"Callback Omitted")

@@ -29,6 +29,13 @@ impl<'a> TableRow<'a> {
         &self.data
     }
 
+    pub fn get_value(&self, column_name: &str) -> Option<&TableColumnValue> {
+        self.data
+            .iter()
+            .find(|(name, _)| name == column_name)
+            .map(|(_, value)| value)
+    }
+
     pub fn print(&self) {
         if let Some(print_fn) = self.print_fn {
             print_fn(self); // custom print function
@@ -81,7 +88,7 @@ pub trait TableCallback: Send + Sync {
     fn on_row_add(&self, row: &mut TableRow);
 }
 
-pub trait Table: Debug {
+pub trait Table: Debug + Send + Sync + 'static {
     fn len(&self) -> usize;
     fn add_column(&mut self, name: &str, column_type: Box<dyn TableColumn>);
     fn set_callback(&mut self, callback: Arc<dyn TableCallback>);
@@ -89,5 +96,15 @@ pub trait Table: Debug {
         &mut self,
         row_data: Vec<(String, TableColumnValue)>,
     ) -> Result<(), InternalError>;
+    fn get_row(&self, index: usize) -> Option<TableRow>;
+    fn get_value(
+        &self,
+        index: usize,
+        column_name: &str,
+    ) -> Option<TableColumnValue>;
+    fn get_column_names(&self) -> Vec<String> {
+        // Implement this method in the Table trait
+        Vec::new()
+    }
     fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }

@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 use std::ops::Deref;
 
-use ratatui::text::Span;
 use ratatui::style::Style;
+use ratatui::text::Span;
+
 use super::text_line::{TextLine, TextSegment};
 use super::text_wrapper::TextWrapper;
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SimpleString {
@@ -89,7 +89,11 @@ impl std::fmt::Display for SimpleString {
 }
 
 impl SimpleString {
-    pub fn wrapped_spans(&self, width: usize, style: Option<Style>) -> Vec<Vec<Span<'static>>> {
+    pub fn wrapped_spans(
+        &self,
+        width: usize,
+        style: Option<Style>,
+    ) -> Vec<Vec<Span<'static>>> {
         let wrapper = TextWrapper::new(width);
         let text_line = TextLine {
             segments: vec![TextSegment {
@@ -103,14 +107,17 @@ impl SimpleString {
 
         wrapped_lines
             .into_iter()
-            .map(|line| 
+            .map(|line| {
                 line.segments
                     .into_iter()
-                    .map(|segment| 
-                        Span::styled(segment.text.into_owned(), segment.style.unwrap_or_default())
-                    )
+                    .map(|segment| {
+                        Span::styled(
+                            segment.text.into_owned(),
+                            segment.style.unwrap_or_default(),
+                        )
+                    })
                     .collect()
-            )
+            })
             .collect()
     }
 }

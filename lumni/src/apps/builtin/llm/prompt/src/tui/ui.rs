@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
 
-use super::modals::{ConversationListModal, ProfileEditModal};
+use super::modals::{
+    ConversationListModal, FileBrowserModal, ProfileEditModal,
+};
 use super::{
     CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
     ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
@@ -60,6 +62,9 @@ impl AppUi<'_> {
             ModalWindowType::ProfileEdit => {
                 let handler = db_conn.get_profile_handler(None);
                 Some(Box::new(ProfileEditModal::new(handler).await?))
+            }
+            ModalWindowType::FileBrowser => {
+                Some(Box::new(FileBrowserModal::new(".".to_string())))
             }
         };
         Ok(())

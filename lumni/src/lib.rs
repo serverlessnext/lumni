@@ -30,8 +30,11 @@ pub use utils::{ParsedUri, UriScheme};
 // meant for external use by third-party apps or libraries
 pub mod external {
     pub use crate::apps::api;
+    // generic
+    pub use crate::base::config::EnvironmentConfig;
     #[cfg(feature = "http_client")]
     pub use crate::handlers::HttpHandler;
+    pub use crate::handlers::ObjectStoreHandler;
     #[cfg(feature = "http_client")]
     pub use crate::http::client::{
         HttpClient, HttpClientError, HttpClientErrorHandler,
@@ -39,6 +42,10 @@ pub mod external {
     };
     #[cfg(feature = "http_client")]
     pub use crate::s3::{AWSCredentials, AWSRequestBuilder};
+    pub use crate::table::{
+        FileObjectTable, ObjectStoreTable, Table, TableCallback, TableColumn,
+        TableColumnValue, TableRow,
+    };
     pub use crate::utils::timestamp::Timestamp;
 }
 pub use default::*;

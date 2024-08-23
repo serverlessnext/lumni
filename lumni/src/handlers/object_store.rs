@@ -129,7 +129,7 @@ impl ObjectStore {
 }
 
 #[async_trait(?Send)]
-pub trait ObjectStoreTrait: Send {
+pub trait ObjectStoreTrait: Send + Sync {
     fn name(&self) -> &str;
     fn config(&self) -> &EnvironmentConfig;
     async fn list_files(
@@ -350,6 +350,7 @@ impl ObjectStoreHandler {
                 .any(|item| matches!(item, SelectItem::Wildcard(_)))
             {
                 // wildcard: e.g. SELECT * FROM "uri"
+                // localfiles: SELECT * FROM "."
                 None
             } else {
                 Some(
@@ -436,7 +437,6 @@ impl ObjectStoreHandler {
                         callback.clone(),
                     )
                     .await;
-
                 match result {
                     Err(InternalError::NoBucketInUri(_)) => {
                         // uri does not point to a bucket or (virtual) directory

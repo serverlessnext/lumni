@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use url::ParseError;
@@ -14,7 +15,7 @@ pub enum InternalError {
     InternalError(String),
     NotFound(String),
     Anyhow(anyhow::Error),
-    Wrapped(Box<dyn Error + 'static>),
+    Wrapped(Arc<dyn Error + Send + Sync + 'static>),
     #[cfg(target_arch = "wasm32")]
     Js(wasm_bindgen::JsValue),
     #[cfg(feature = "http_client")]
@@ -54,8 +55,14 @@ impl fmt::Display for InternalError {
 
 impl Error for InternalError {}
 
-impl From<Box<dyn Error>> for InternalError {
-    fn from(error: Box<dyn Error>) -> Self {
+impl From<Box<dyn Error + Send + Sync + 'static>> for InternalError {
+    fn from(error: Box<dyn Error + Send + Sync + 'static>) -> Self {
+        InternalError::Wrapped(Arc::from(error))
+    }
+}
+
+impl From<Arc<dyn Error + Send + Sync + 'static>> for InternalError {
+    fn from(error: Arc<dyn Error + Send + Sync + 'static>) -> Self {
         InternalError::Wrapped(error)
     }
 }

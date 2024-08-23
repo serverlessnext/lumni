@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TableColumnValue {
     Int32Column(i32),
     Uint64Column(u64),
@@ -15,7 +15,49 @@ pub enum TableColumnValue {
     OptionalStringColumn(Option<String>),
 }
 
-pub trait TableColumn: Debug {
+impl TableColumnValue {
+    pub fn as_string(&self) -> Option<String> {
+        match self {
+            TableColumnValue::StringColumn(s) => Some(s.clone()),
+            TableColumnValue::OptionalStringColumn(os) => os.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn as_int32(&self) -> Option<i32> {
+        match self {
+            TableColumnValue::Int32Column(i) => Some(*i),
+            TableColumnValue::OptionalInt32Column(oi) => *oi,
+            _ => None,
+        }
+    }
+
+    pub fn as_uint64(&self) -> Option<u64> {
+        match self {
+            TableColumnValue::Uint64Column(u) => Some(*u),
+            TableColumnValue::OptionalUint64Column(ou) => *ou,
+            _ => None,
+        }
+    }
+
+    pub fn as_int64(&self) -> Option<i64> {
+        match self {
+            TableColumnValue::Int64Column(i) => Some(*i),
+            TableColumnValue::OptionalInt64Column(oi) => *oi,
+            _ => None,
+        }
+    }
+
+    pub fn as_float(&self) -> Option<f64> {
+        match self {
+            TableColumnValue::FloatColumn(f) => Some(*f),
+            TableColumnValue::OptionalFloatColumn(of) => *of,
+            _ => None,
+        }
+    }
+}
+
+pub trait TableColumn: Debug + Send + Sync {
     fn len(&self) -> usize;
     fn append(&mut self, value: TableColumnValue) -> Result<(), String>;
     fn as_any(&self) -> &dyn Any;
@@ -56,7 +98,11 @@ macro_rules! create_column_types {
                     self.0.push(val);
                     Ok(())
                 } else {
-                    Err(format!("Type mismatch for {:?}", value))
+                    Err(format!(
+                        "Type mismatch for {}, value={:?}",
+                        stringify!($TypeName),
+                        value
+                    ))
                 }
             }
 
@@ -78,7 +124,11 @@ macro_rules! create_column_types {
                     self.0.push(val);
                     Ok(())
                 } else {
-                    Err(format!("Type mismatch for {:?}", value))
+                    Err(format!(
+                        "Type mismatch for {}, value={:?}",
+                        stringify!($OptionalTypeName),
+                        value
+                    ))
                 }
             }
 

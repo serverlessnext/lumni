@@ -29,6 +29,7 @@ pub enum ApplicationError {
     InvalidUserConfiguration(String),
     Unexpected(String),
     Runtime(String),
+    InternalError(String),
     ChannelError(String),
     InvalidCredentials(String),
     InvalidInput(String),
@@ -112,6 +113,9 @@ impl fmt::Display for ApplicationError {
             }
             ApplicationError::Unexpected(s) => write!(f, "Unexpected: {}", s),
             ApplicationError::Runtime(s) => write!(f, "Runtime: {}", s),
+            ApplicationError::InternalError(s) => {
+                write!(f, "InternalError: {}", s)
+            }
             ApplicationError::ChannelError(s) => {
                 write!(f, "ChannelError: {}", s)
             }

@@ -147,7 +147,8 @@ fn handle_directory(
         .file_name()
         .unwrap()
         .to_string_lossy()
-        .to_string();
+        .to_string()
+        + "/";
     let mut dir_row_data = HashMap::new();
     if selected_columns
         .as_ref()
@@ -171,7 +172,7 @@ fn handle_directory(
     {
         dir_row_data.insert(
             "modified".to_string(),
-            TableColumnValue::OptionalUint64Column(None),
+            TableColumnValue::OptionalInt64Column(None),
         );
     }
 

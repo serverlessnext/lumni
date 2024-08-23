@@ -190,7 +190,7 @@ impl NewProfileCreator {
                         Ok(NewProfileCreatorAction::Refresh)
                     }
                     _ => {
-                        // Go back to profile type selection
+                        // Go back to provider type selection
                         self.creation_step =
                             NewProfileCreationStep::SelectProfileType;
                         self.selection_state = SelectionState::ProfileType(
@@ -380,7 +380,8 @@ impl NewProfileCreator {
                 "↑↓: Select Type | Enter: Confirm | Esc: Back"
             }
             NewProfileCreationStep::SelectModel => {
-                "↑↓: Select Model | Enter: Confirm | Esc: Back to Profile Types"
+                "↑↓: Select Model | Enter: Confirm | Esc: Back to Provider \
+                 selection"
             }
             NewProfileCreationStep::InputAdditionalSettings => {
                 "Enter value for each setting | Enter: Next/Confirm | Esc: Back"
@@ -462,7 +463,7 @@ impl NewProfileCreator {
                 }
                 Ok(_) => Err(ApplicationError::NotReady(
                     "No models available for this server. Please try another \
-                     profile type."
+                     provider."
                         .to_string(),
                 )),
                 Err(ApplicationError::NotReady(msg)) => {
@@ -472,7 +473,7 @@ impl NewProfileCreator {
             }
         } else {
             Err(ApplicationError::NotReady(
-                "Invalid profile type selected.".to_string(),
+                "Invalid provider selected.".to_string(),
             ))
         }
     }
@@ -567,17 +568,31 @@ impl NewProfileCreator {
         let mut items = Vec::new();
 
         if self.skipped_type_selection {
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                "Profile type selection skipped",
-                Style::default()
-                    .fg(Self::COLOR_SECONDARY)
-                    .add_modifier(Modifier::ITALIC),
-            )])));
+            let skipped_message =
+                SimpleString::from("Provider selection skipped");
+            let wrapped_spans = skipped_message.wrapped_spans(
+                area.width as usize - 4,
+                Some(
+                    Style::default()
+                        .fg(Self::COLOR_SECONDARY)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            );
+            for spans in wrapped_spans {
+                items.push(ListItem::new(Line::from(spans)));
+            }
+
             items.push(ListItem::new(""));
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                "Press 'S' to undo skip and select a profile type",
-                Style::default().fg(Self::COLOR_HIGHLIGHT),
-            )])));
+            let ready_message = SimpleString::from(
+                "Press 'S' to undo skip and select a provider",
+            );
+            let wrapped_spans = ready_message.wrapped_spans(
+                area.width as usize - 4,
+                Some(Style::default().fg(Self::COLOR_HIGHLIGHT)),
+            );
+            for spans in wrapped_spans {
+                items.push(ListItem::new(Line::from(spans)));
+            }
         } else {
             for (i, profile_type) in self.predefined_types.iter().enumerate() {
                 let style = if matches!(self.selection_state, SelectionState::ProfileType(selected) if selected == i)
@@ -599,16 +614,22 @@ impl NewProfileCreator {
             }
 
             items.push(ListItem::new(""));
-            items.push(ListItem::new(Line::from(vec![Span::styled(
-                "Press 'S' to skip profile type selection",
-                Style::default().fg(Self::COLOR_SECONDARY),
-            )])));
+            let ready_message = SimpleString::from(
+                "Press 'S' to undo skip and select a provider",
+            );
+            let wrapped_spans = ready_message.wrapped_spans(
+                area.width as usize - 4,
+                Some(Style::default().fg(Self::COLOR_SECONDARY)),
+            );
+            for spans in wrapped_spans {
+                items.push(ListItem::new(Line::from(spans)));
+            }
         }
 
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Select Profile Type"),
+                .title("Select Provider"),
         );
 
         f.render_widget(list, area);
@@ -709,12 +730,11 @@ impl NewProfileCreator {
     }
 
     fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
-        let (button_text, button_style, is_selected) = match self.creation_step {
-            NewProfileCreationStep::ConfirmCreate => (
-                "Create",
-                Style::default().fg(Self::COLOR_SUCCESS),
-                true,
-            ),
+        let (button_text, button_style, is_selected) = match self.creation_step
+        {
+            NewProfileCreationStep::ConfirmCreate => {
+                ("Create", Style::default().fg(Self::COLOR_SUCCESS), true)
+            }
             _ => (
                 "Next",
                 Style::default().fg(Self::COLOR_HIGHLIGHT),
@@ -1172,7 +1192,7 @@ impl NewProfileCreator {
             .get(selected_type_index)
             .ok_or_else(|| {
                 ApplicationError::NotReady(
-                    "Invalid profile type selected.".to_string(),
+                    "Invalid provider selected.".to_string(),
                 )
             })?;
 
@@ -1330,27 +1350,38 @@ impl NewProfileCreator {
     fn render_confirmation(&self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ])
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
             .split(area);
 
         let mut items = Vec::new();
 
-        // Profile Type
-        if let Some(profile_type) = self.predefined_types.get(self.selected_type_index) {
+        // Provider
+        if let Some(provider) =
+            self.predefined_types.get(self.selected_type_index)
+        {
             items.push(ListItem::new(Line::from(vec![
-                Span::styled("Profile Type: ", Style::default().fg(Self::COLOR_SECONDARY)),
-                Span::styled(profile_type, Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                Span::styled(
+                    "Provider: ",
+                    Style::default().fg(Self::COLOR_SECONDARY),
+                ),
+                Span::styled(
+                    provider,
+                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                ),
             ])));
         }
 
         // Selected Model
         if let Some((_, selected_model)) = self.get_selected_model() {
             items.push(ListItem::new(Line::from(vec![
-                Span::styled("Selected Model: ", Style::default().fg(Self::COLOR_SECONDARY)),
-                Span::styled(selected_model, Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                Span::styled(
+                    "Selected Model: ",
+                    Style::default().fg(Self::COLOR_SECONDARY),
+                ),
+                Span::styled(
+                    selected_model,
+                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                ),
             ])));
         }
 
@@ -1370,12 +1401,19 @@ impl NewProfileCreator {
                 };
 
                 let (display_value, value_style) = if value_display.is_empty() {
-                    ("Not set".to_string(), Style::default().fg(Self::COLOR_SECONDARY))
+                    (
+                        "Not set".to_string(),
+                        Style::default().fg(Self::COLOR_SECONDARY),
+                    )
                 } else {
                     (value_display, Style::default().fg(Self::COLOR_HIGHLIGHT))
                 };
 
-                let status = if display_value == "Not set" { " (Optional)" } else { "" };
+                let status = if display_value == "Not set" {
+                    " (Optional)"
+                } else {
+                    ""
+                };
 
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled(
@@ -1383,16 +1421,22 @@ impl NewProfileCreator {
                         Style::default().fg(Self::COLOR_FOREGROUND),
                     ),
                     Span::styled(display_value, value_style),
-                    Span::styled(status, Style::default().fg(Self::COLOR_SECONDARY)),
+                    Span::styled(
+                        status,
+                        Style::default().fg(Self::COLOR_SECONDARY),
+                    ),
                 ])));
             }
         }
 
         items.push(ListItem::new(""));
-        let ready_message = SimpleString::from("Profile is ready to be created. Press Enter to create the profile.");
+        let ready_message = SimpleString::from(
+            "Profile is ready to be created. Press Enter to create the \
+             profile.",
+        );
         let wrapped_spans = ready_message.wrapped_spans(
-            area.width as usize - 4, 
-            Some(Style::default().fg(Self::COLOR_SUCCESS))
+            area.width as usize - 4,
+            Some(Style::default().fg(Self::COLOR_SUCCESS)),
         );
         for spans in wrapped_spans {
             items.push(ListItem::new(Line::from(spans)));

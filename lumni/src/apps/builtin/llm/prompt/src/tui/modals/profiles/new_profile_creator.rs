@@ -2,6 +2,12 @@ use std::collections::{HashMap, VecDeque};
 
 use super::*;
 
+// TODO notes:
+// - I wonder if we can wrap the lines in Additional Settings, including the keyname ( display_name) and value ( display_value )
+// - the instructions do not wrap. I wonder though if we can wrap on strings like " | ", would there be a need for a method wrapped_spans_with_delim() ?
+// - add ability to attach filepaths to a profile. This should be done as a NewProfileCreationStep. As a first step, just make it a simple input field.
+// - replace input field in previous step by an EditWindow that can contain multiple lines for input
+
 #[derive(Debug)]
 pub enum BackgroundTaskResult {
     ProfileCreated(Result<UserProfile, ApplicationError>),
@@ -564,35 +570,34 @@ impl NewProfileCreator {
         self.render_next_or_create_button(f, chunks[1]);
     }
 
+    fn create_wrapped_spans(
+        &self,
+        message: String,
+        width: usize,
+        style: Style
+    ) -> Vec<ListItem> {
+        let simple_string = SimpleString::from(message);
+        let wrapped_spans = simple_string.wrapped_spans(width, Some(style));
+        wrapped_spans.into_iter().map(Line::from).map(ListItem::new).collect()
+    }
+
     fn render_profile_type_selection(&self, f: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
         if self.skipped_type_selection {
-            let skipped_message =
-                SimpleString::from("Provider selection skipped");
-            let wrapped_spans = skipped_message.wrapped_spans(
+            items.extend(self.create_wrapped_spans(
+                "Provider selection skipped".to_string(),
                 area.width as usize - 4,
-                Some(
-                    Style::default()
-                        .fg(Self::COLOR_SECONDARY)
-                        .add_modifier(Modifier::ITALIC),
-                ),
-            );
-            for spans in wrapped_spans {
-                items.push(ListItem::new(Line::from(spans)));
-            }
+                Style::default().fg(Self::COLOR_SECONDARY).add_modifier(Modifier::ITALIC)
+            ));
 
             items.push(ListItem::new(""));
-            let ready_message = SimpleString::from(
-                "Press 'S' to undo skip and select a provider",
-            );
-            let wrapped_spans = ready_message.wrapped_spans(
+
+            items.extend(self.create_wrapped_spans(
+                "Profile is ready to be created. Press Enter to create the profile.".to_string(),
                 area.width as usize - 4,
-                Some(Style::default().fg(Self::COLOR_HIGHLIGHT)),
-            );
-            for spans in wrapped_spans {
-                items.push(ListItem::new(Line::from(spans)));
-            }
+                Style::default().fg(Self::COLOR_SUCCESS)
+            ));
         } else {
             for (i, profile_type) in self.predefined_types.iter().enumerate() {
                 let style = if matches!(self.selection_state, SelectionState::ProfileType(selected) if selected == i)
@@ -730,16 +735,23 @@ impl NewProfileCreator {
     }
 
     fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
-        let (button_text, button_style, is_selected) = match self.creation_step
-        {
-            NewProfileCreationStep::ConfirmCreate => {
-                ("Create", Style::default().fg(Self::COLOR_SUCCESS), true)
+        let (button_text, button_style, is_selected) = if self.skipped_type_selection {
+            (
+                "Create",
+                Style::default().fg(Self::COLOR_SUCCESS),
+                true
+            )
+        } else {
+            match self.creation_step {
+                NewProfileCreationStep::ConfirmCreate => {
+                    ("Create", Style::default().fg(Self::COLOR_SUCCESS), true)
+                }
+                _ => (
+                    "Next",
+                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                    matches!(self.selection_state, SelectionState::NextButton),
+                ),
             }
-            _ => (
-                "Next",
-                Style::default().fg(Self::COLOR_HIGHLIGHT),
-                matches!(self.selection_state, SelectionState::NextButton),
-            ),
         };
 
         let button = Paragraph::new(button_text)
@@ -752,6 +764,20 @@ impl NewProfileCreator {
             .block(Block::default().borders(Borders::ALL));
 
         f.render_widget(button, area);
+
+        // Render the ready message if provider selection is skipped
+        if self.skipped_type_selection {
+            let ready_message = "Profile is ready to be created. Press Enter to create the profile.";
+            let message_area = Rect {
+                y: area.y.saturating_sub(2),
+                height: 1,
+                ..area
+            };
+            let ready_paragraph = Paragraph::new(ready_message)
+                .style(Style::default().fg(Self::COLOR_SUCCESS))
+                .alignment(Alignment::Center);
+            f.render_widget(ready_paragraph, message_area);
+        }
     }
 
     fn get_selected_model(&self) -> Option<(usize, String)> {
@@ -1296,31 +1322,25 @@ impl NewProfileCreator {
     fn render_model_selection(&self, f: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
-        if let Some(profile_type) =
-            self.predefined_types.get(self.get_selected_type_index())
-        {
+        if let Some(profile_type) = self.predefined_types.get(self.get_selected_type_index()) {
             items.push(ListItem::new(Line::from(vec![
                 Span::raw("Selected Type: "),
-                Span::styled(
-                    profile_type,
-                    Style::default().fg(Self::COLOR_HIGHLIGHT),
-                ),
+                Span::styled(profile_type, Style::default().fg(Self::COLOR_HIGHLIGHT)),
             ])));
             items.push(ListItem::new(""));
 
-            if let Some(sub_selections) = self.sub_selections.get(profile_type)
-            {
+            if let Some(sub_selections) = self.sub_selections.get(profile_type) {
                 if let Some(model_selection) = sub_selections.first() {
                     items.push(ListItem::new(Span::styled(
                         "Available Models:",
                         Style::default().fg(Self::COLOR_SECONDARY),
                     )));
 
-                    for (index, option) in
-                        model_selection.options.iter().enumerate()
-                    {
-                        let style = if matches!(self.selection_state, SelectionState::ModelOption(selected) if selected == index)
-                        {
+                    for (index, option) in model_selection.options.iter().enumerate() {
+                        let is_selected = matches!(self.selection_state, SelectionState::ModelOption(selected) if selected == index)
+                            || (matches!(self.selection_state, SelectionState::NextButton) && model_selection.selected == Some(index));
+
+                        let style = if is_selected {
                             Style::default()
                                 .fg(Self::COLOR_HIGHLIGHT)
                                 .add_modifier(Modifier::BOLD)
@@ -1330,7 +1350,7 @@ impl NewProfileCreator {
 
                         items.push(ListItem::new(Line::from(vec![
                             Span::styled(
-                                if matches!(self.selection_state, SelectionState::ModelOption(selected) if selected == index) { "> " } else { "  " },
+                                if is_selected { "> " } else { "  " },
                                 Style::default().fg(Self::COLOR_SECONDARY),
                             ),
                             Span::styled(option, style),
@@ -1430,17 +1450,12 @@ impl NewProfileCreator {
         }
 
         items.push(ListItem::new(""));
-        let ready_message = SimpleString::from(
-            "Profile is ready to be created. Press Enter to create the \
-             profile.",
-        );
-        let wrapped_spans = ready_message.wrapped_spans(
+        items.extend(self.create_wrapped_spans(
+            "Profile is ready to be created. Press Enter to create the profile.".to_string(),
             area.width as usize - 4,
-            Some(Style::default().fg(Self::COLOR_SUCCESS)),
-        );
-        for spans in wrapped_spans {
-            items.push(ListItem::new(Line::from(spans)));
-        }
+            Style::default().fg(Self::COLOR_SUCCESS)
+        ));
+
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)

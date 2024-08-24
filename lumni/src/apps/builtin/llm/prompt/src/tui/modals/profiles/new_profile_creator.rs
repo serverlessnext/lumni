@@ -574,30 +574,42 @@ impl NewProfileCreator {
         &self,
         message: String,
         width: usize,
-        style: Style
+        style: Style,
     ) -> Vec<ListItem> {
         let simple_string = SimpleString::from(message);
         let wrapped_spans = simple_string.wrapped_spans(width, Some(style));
-        wrapped_spans.into_iter().map(Line::from).map(ListItem::new).collect()
+        wrapped_spans
+            .into_iter()
+            .map(Line::from)
+            .map(ListItem::new)
+            .collect()
     }
 
     fn render_profile_type_selection(&self, f: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
         if self.skipped_type_selection {
-            items.extend(self.create_wrapped_spans(
-                "Provider selection skipped".to_string(),
-                area.width as usize - 4,
-                Style::default().fg(Self::COLOR_SECONDARY).add_modifier(Modifier::ITALIC)
-            ));
+            items.extend(
+                self.create_wrapped_spans(
+                    "Provider selection skipped".to_string(),
+                    area.width as usize - 4,
+                    Style::default()
+                        .fg(Self::COLOR_SECONDARY)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            );
 
             items.push(ListItem::new(""));
 
-            items.extend(self.create_wrapped_spans(
-                "Profile is ready to be created. Press Enter to create the profile.".to_string(),
-                area.width as usize - 4,
-                Style::default().fg(Self::COLOR_SUCCESS)
-            ));
+            items.extend(
+                self.create_wrapped_spans(
+                    "Profile is ready to be created. Press Enter to create \
+                     the profile."
+                        .to_string(),
+                    area.width as usize - 4,
+                    Style::default().fg(Self::COLOR_SUCCESS),
+                ),
+            );
         } else {
             for (i, profile_type) in self.predefined_types.iter().enumerate() {
                 let style = if matches!(self.selection_state, SelectionState::ProfileType(selected) if selected == i)
@@ -675,20 +687,11 @@ impl NewProfileCreator {
 
             let arrow = if is_selected { ">" } else { " " };
 
-            let label = format!("{}: ", setting.display_name);
-            let label_width = label.chars().count();
+            // Prepare the key (display name) part
+            let key_part = format!("{}: ", setting.display_name);
+            let key_width = key_part.chars().count();
 
-            let input_width = (available_width - label_width)
-                .max(Self::MIN_INPUT_WIDTH)
-                .min(Self::MAX_INPUT_WIDTH);
-
-            let mut line = vec![
-                Span::styled(arrow, Style::default().fg(Self::COLOR_SECONDARY)),
-                Span::raw(" "),
-                Span::styled(label, label_style),
-            ];
-
-            // Create the input field
+            // Prepare the value part
             let input_content = if self.is_input_focused
                 && self.selection_state
                     == SelectionState::AdditionalSetting(index)
@@ -700,15 +703,32 @@ impl NewProfileCreator {
                 &setting.value
             };
 
-            let input_field =
-                format!("{:width$}", input_content, width = input_width)
-                    .chars()
-                    .take(input_width)
-                    .collect::<String>();
+            // Wrap the value part using SimpleString
+            let value_width = available_width.saturating_sub(key_width);
+            let simple_string = SimpleString::from(input_content);
+            let wrapped_value =
+                simple_string.wrapped_spans(value_width, Some(input_style));
 
-            line.push(Span::styled(input_field, input_style));
+            // Render the key-value pair
+            for (i, value_spans) in wrapped_value.into_iter().enumerate() {
+                let mut styled_spans = Vec::new();
 
-            items.push(ListItem::new(Line::from(line)));
+                if i == 0 {
+                    styled_spans.push(Span::styled(
+                        arrow,
+                        Style::default().fg(Self::COLOR_SECONDARY),
+                    ));
+                    styled_spans.push(Span::raw(" "));
+                    styled_spans
+                        .push(Span::styled(key_part.clone(), label_style));
+                } else {
+                    styled_spans.push(Span::raw(" ".repeat(key_width + 2))); // +2 for arrow and space
+                }
+
+                styled_spans.extend(value_spans);
+
+                items.push(ListItem::new(Line::from(styled_spans)));
+            }
         }
 
         let list = List::new(items).block(
@@ -720,27 +740,14 @@ impl NewProfileCreator {
         f.render_widget(list, chunks[0]);
 
         // Render the Next button
-        let next_button = Paragraph::new("Next")
-            .style(Style::default().fg(Self::COLOR_HIGHLIGHT).add_modifier(
-                if matches!(self.selection_state, SelectionState::NextButton) {
-                    Modifier::REVERSED
-                } else {
-                    Modifier::empty()
-                },
-            ))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
-
-        f.render_widget(next_button, chunks[1]);
+        self.render_next_or_create_button(f, chunks[1]);
     }
 
     fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
-        let (button_text, button_style, is_selected) = if self.skipped_type_selection {
-            (
-                "Create",
-                Style::default().fg(Self::COLOR_SUCCESS),
-                true
-            )
+        let (button_text, button_style, is_selected) = if self
+            .skipped_type_selection
+        {
+            ("Create", Style::default().fg(Self::COLOR_SUCCESS), true)
         } else {
             match self.creation_step {
                 NewProfileCreationStep::ConfirmCreate => {
@@ -767,7 +774,8 @@ impl NewProfileCreator {
 
         // Render the ready message if provider selection is skipped
         if self.skipped_type_selection {
-            let ready_message = "Profile is ready to be created. Press Enter to create the profile.";
+            let ready_message = "Profile is ready to be created. Press Enter \
+                                 to create the profile.";
             let message_area = Rect {
                 y: area.y.saturating_sub(2),
                 height: 1,
@@ -1322,23 +1330,34 @@ impl NewProfileCreator {
     fn render_model_selection(&self, f: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
-        if let Some(profile_type) = self.predefined_types.get(self.get_selected_type_index()) {
+        if let Some(profile_type) =
+            self.predefined_types.get(self.get_selected_type_index())
+        {
             items.push(ListItem::new(Line::from(vec![
                 Span::raw("Selected Type: "),
-                Span::styled(profile_type, Style::default().fg(Self::COLOR_HIGHLIGHT)),
+                Span::styled(
+                    profile_type,
+                    Style::default().fg(Self::COLOR_HIGHLIGHT),
+                ),
             ])));
             items.push(ListItem::new(""));
 
-            if let Some(sub_selections) = self.sub_selections.get(profile_type) {
+            if let Some(sub_selections) = self.sub_selections.get(profile_type)
+            {
                 if let Some(model_selection) = sub_selections.first() {
                     items.push(ListItem::new(Span::styled(
                         "Available Models:",
                         Style::default().fg(Self::COLOR_SECONDARY),
                     )));
 
-                    for (index, option) in model_selection.options.iter().enumerate() {
+                    for (index, option) in
+                        model_selection.options.iter().enumerate()
+                    {
                         let is_selected = matches!(self.selection_state, SelectionState::ModelOption(selected) if selected == index)
-                            || (matches!(self.selection_state, SelectionState::NextButton) && model_selection.selected == Some(index));
+                            || (matches!(
+                                self.selection_state,
+                                SelectionState::NextButton
+                            ) && model_selection.selected == Some(index));
 
                         let style = if is_selected {
                             Style::default()
@@ -1435,25 +1454,45 @@ impl NewProfileCreator {
                     ""
                 };
 
-                items.push(ListItem::new(Line::from(vec![
-                    Span::styled(
-                        format!("{}: ", setting.display_name),
-                        Style::default().fg(Self::COLOR_FOREGROUND),
-                    ),
-                    Span::styled(display_value, value_style),
-                    Span::styled(
-                        status,
-                        Style::default().fg(Self::COLOR_SECONDARY),
-                    ),
-                ])));
+                // Prepare the key (display name) part
+                let key_part = format!("{}: ", setting.display_name);
+                let key_width = key_part.chars().count();
+
+                // Wrap the value part using SimpleString
+                let value_width = area.width as usize - 4 - key_width;
+                let simple_string =
+                    SimpleString::from(format!("{}{}", display_value, status));
+                let wrapped_value =
+                    simple_string.wrapped_spans(value_width, Some(value_style));
+
+                // Render the key-value pair
+                for (i, value_spans) in wrapped_value.into_iter().enumerate() {
+                    let mut styled_spans = Vec::new();
+
+                    if i == 0 {
+                        styled_spans.push(Span::styled(
+                            key_part.clone(),
+                            Style::default().fg(Self::COLOR_FOREGROUND),
+                        ));
+                    } else {
+                        styled_spans.push(Span::raw(" ".repeat(key_width)));
+                    }
+
+                    styled_spans.extend(value_spans);
+
+                    items.push(ListItem::new(Line::from(styled_spans)));
+                }
             }
         }
 
         items.push(ListItem::new(""));
         items.extend(self.create_wrapped_spans(
-            "Profile is ready to be created. Press Enter to create the profile.".to_string(),
+            String::from(
+                "Profile is ready to be created. Press Enter to create the \
+                 profile.",
+            ),
             area.width as usize - 4,
-            Style::default().fg(Self::COLOR_SUCCESS)
+            Style::default().fg(Self::COLOR_SUCCESS),
         ));
 
         let list = List::new(items).block(

@@ -114,7 +114,7 @@ impl<'a> TextDisplay<'a> {
                 line.segments().map(|s| s.text.as_str()).collect::<String>();
             let trailing_spaces =
                 text_str.len() - text_str.trim_end_matches(' ').len();
-            let wrapped_lines = text_wrapper.wrap_text_styled(line, None);
+            let wrapped_lines = text_wrapper.wrap_text_styled(line, None, None);
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(trailing_spaces, line.get_background());
             } else {

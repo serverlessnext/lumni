@@ -93,6 +93,7 @@ impl SimpleString {
         &self,
         width: usize,
         style: Option<Style>,
+        delimiter: Option<&str>,
     ) -> Vec<Vec<Span<'static>>> {
         let wrapper = TextWrapper::new(width);
         let text_line = TextLine {
@@ -103,7 +104,7 @@ impl SimpleString {
             length: self.len(),
             background: None,
         };
-        let wrapped_lines = wrapper.wrap_text_styled(&text_line, None);
+        let wrapped_lines = wrapper.wrap_text_styled(&text_line, None, None);
 
         wrapped_lines
             .into_iter()

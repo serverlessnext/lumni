@@ -3,7 +3,6 @@ use std::collections::{HashMap, VecDeque};
 use super::*;
 
 // TODO notes:
-// - I wonder if we can wrap the lines in Additional Settings, including the keyname ( display_name) and value ( display_value )
 // - the instructions do not wrap. I wonder though if we can wrap on strings like " | ", would there be a need for a method wrapped_spans_with_delim() ?
 // - add ability to attach filepaths to a profile. This should be done as a NewProfileCreationStep. As a first step, just make it a simple input field.
 // - replace input field in previous step by an EditWindow that can contain multiple lines for input
@@ -577,7 +576,8 @@ impl NewProfileCreator {
         style: Style,
     ) -> Vec<ListItem> {
         let simple_string = SimpleString::from(message);
-        let wrapped_spans = simple_string.wrapped_spans(width, Some(style));
+        let wrapped_spans =
+            simple_string.wrapped_spans(width, Some(style), None);
         wrapped_spans
             .into_iter()
             .map(Line::from)
@@ -637,6 +637,7 @@ impl NewProfileCreator {
             let wrapped_spans = ready_message.wrapped_spans(
                 area.width as usize - 4,
                 Some(Style::default().fg(Self::COLOR_SECONDARY)),
+                None,
             );
             for spans in wrapped_spans {
                 items.push(ListItem::new(Line::from(spans)));
@@ -706,8 +707,11 @@ impl NewProfileCreator {
             // Wrap the value part using SimpleString
             let value_width = available_width.saturating_sub(key_width);
             let simple_string = SimpleString::from(input_content);
-            let wrapped_value =
-                simple_string.wrapped_spans(value_width, Some(input_style));
+            let wrapped_value = simple_string.wrapped_spans(
+                value_width,
+                Some(input_style),
+                None,
+            );
 
             // Render the key-value pair
             for (i, value_spans) in wrapped_value.into_iter().enumerate() {
@@ -1462,8 +1466,11 @@ impl NewProfileCreator {
                 let value_width = area.width as usize - 4 - key_width;
                 let simple_string =
                     SimpleString::from(format!("{}{}", display_value, status));
-                let wrapped_value =
-                    simple_string.wrapped_spans(value_width, Some(value_style));
+                let wrapped_value = simple_string.wrapped_spans(
+                    value_width,
+                    Some(value_style),
+                    None,
+                );
 
                 // Render the key-value pair
                 for (i, value_spans) in wrapped_value.into_iter().enumerate() {

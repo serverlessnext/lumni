@@ -11,12 +11,12 @@ impl TextWrapper {
     pub fn new(display_width: usize) -> Self {
         Self { display_width }
     }
-    // TODO: wrap_text_styled_with_delim
 
     pub fn wrap_text_styled(
         &self,
         line: &TextLine,
         first_line_max_width: Option<usize>,
+        delimiter: Option<&str>,
     ) -> Vec<TextLine> {
         let max_display_width = self.display_width.saturating_sub(2);
         let max_first_line_width =
@@ -57,6 +57,13 @@ impl TextWrapper {
 
                 if word.len() > remaining_width {
                     if !current_line.is_empty() {
+                        if let Some(delim) = delimiter {
+                            self.add_delimiter(
+                                &mut current_line,
+                                delim,
+                                segment.style.as_ref(),
+                            );
+                        }
                         wrapped_lines.push(std::mem::replace(
                             &mut current_line,
                             TextLine::new(),
@@ -70,6 +77,7 @@ impl TextWrapper {
                         &mut wrapped_lines,
                         &mut remaining_width,
                         max_display_width,
+                        delimiter,
                     );
                 } else {
                     current_line.add_segment(
@@ -82,10 +90,55 @@ impl TextWrapper {
         }
 
         if !current_line.is_empty() {
+            if let Some(delim) = delimiter {
+                self.add_delimiter(&mut current_line, delim, None);
+            }
             wrapped_lines.push(current_line);
         }
 
         wrapped_lines
+    }
+
+    fn add_delimiter(
+        &self,
+        line: &mut TextLine,
+        delimiter: &str,
+        style: Option<&Style>,
+    ) {
+        if line.get_length() + delimiter.len() <= self.display_width {
+            line.add_segment(SimpleString::from_str(delimiter), style.cloned());
+        }
+    }
+
+    fn handle_long_word(
+        &self,
+        word: &str,
+        style: Option<&Style>,
+        current_line: &mut TextLine,
+        wrapped_lines: &mut Vec<TextLine>,
+        remaining_width: &mut usize,
+        max_display_width: usize,
+        delimiter: Option<&str>,
+    ) {
+        let mut start = 0;
+        while start < word.len() {
+            let end = (start + *remaining_width).min(word.len());
+            let slice = &word[start..end];
+            current_line
+                .add_segment(SimpleString::from_str(slice), style.cloned());
+            *remaining_width -= slice.len();
+
+            if *remaining_width == 0 && end < word.len() {
+                if let Some(delim) = delimiter {
+                    self.add_delimiter(current_line, delim, style);
+                }
+                wrapped_lines
+                    .push(std::mem::replace(current_line, TextLine::new()));
+                *remaining_width = max_display_width;
+            }
+
+            start = end;
+        }
     }
 
     fn handle_code_block(
@@ -103,33 +156,6 @@ impl TextWrapper {
         current_line.add_segment(SimpleString::from("```"), style.cloned());
         wrapped_lines.push(std::mem::replace(current_line, TextLine::new()));
         *remaining_width = max_display_width;
-    }
-
-    fn handle_long_word(
-        &self,
-        word: &str,
-        style: Option<&Style>,
-        current_line: &mut TextLine,
-        wrapped_lines: &mut Vec<TextLine>,
-        remaining_width: &mut usize,
-        max_display_width: usize,
-    ) {
-        let mut start = 0;
-        while start < word.len() {
-            let end = (start + *remaining_width).min(word.len());
-            let slice = &word[start..end];
-            current_line
-                .add_segment(SimpleString::from_str(slice), style.cloned());
-            *remaining_width -= slice.len();
-
-            if *remaining_width == 0 && end < word.len() {
-                wrapped_lines
-                    .push(std::mem::replace(current_line, TextLine::new()));
-                *remaining_width = max_display_width;
-            }
-
-            start = end;
-        }
     }
 }
 

@@ -10,9 +10,9 @@ use ratatui::layout::Rect;
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, CommandLine, Conversation, ConversationDbHandler,
-    ConversationStatus, KeyTrack, MaskMode, ModelServer, PromptInstruction,
-    ServerTrait, SimpleString, TextWindowTrait, ThreadedChatSession, UserEvent,
+    ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
+    KeyTrack, MaskMode, ModelServer, PromptInstruction, ServerTrait,
+    SimpleString, TextArea, TextWindowTrait, ThreadedChatSession, UserEvent,
     UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 

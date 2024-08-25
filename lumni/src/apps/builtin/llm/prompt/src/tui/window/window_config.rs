@@ -20,7 +20,7 @@ pub enum WindowContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowKind {
     ResponseWindow,
-    PromptWindow,
+    EditorWindow,
     CommandLine,
 }
 
@@ -50,7 +50,7 @@ impl WindowConfig {
 
     pub fn hint(&self) -> Option<Title> {
         match self.kind {
-            WindowKind::PromptWindow => match self.status {
+            WindowKind::EditorWindow => match self.status {
                 WindowStatus::Normal(None) => Some(
                     Title::from("press i to enter insert mode".dark_gray())
                         .alignment(Alignment::Right)
@@ -77,7 +77,7 @@ impl WindowConfig {
     pub fn placeholder_text(&self) -> &str {
         match self.kind {
             WindowKind::ResponseWindow => "",
-            WindowKind::PromptWindow => match self.status {
+            WindowKind::EditorWindow => match self.status {
                 WindowStatus::Normal(_) | WindowStatus::Background => {
                     "Press i to enter insert mode"
                 }
@@ -86,14 +86,6 @@ impl WindowConfig {
                 WindowStatus::Insert => "Type text",
             },
             WindowKind::CommandLine => "Ready",
-        }
-    }
-
-    pub fn borders(&self) -> Borders {
-        match self.kind {
-            WindowKind::ResponseWindow => Borders::NONE,
-            WindowKind::PromptWindow => Borders::ALL,
-            WindowKind::CommandLine => Borders::NONE,
         }
     }
 
@@ -132,7 +124,7 @@ impl WindowConfig {
     pub fn is_editable(&self) -> bool {
         match self.kind {
             WindowKind::ResponseWindow => false,
-            WindowKind::PromptWindow => true,
+            WindowKind::EditorWindow => true,
             WindowKind::CommandLine => true,
         }
     }

@@ -4,6 +4,7 @@ use std::path::Path;
 use async_trait::async_trait;
 
 use super::get::get_object;
+use super::head::head_object;
 use super::list::list_files;
 use crate::base::config::EnvironmentConfig;
 use crate::handlers::object_store::ObjectStoreTrait;
@@ -86,8 +87,8 @@ impl ObjectStoreTrait for LocalFsBucket {
         &self,
         _key: &str,
     ) -> Result<(u16, HashMap<String, String>), InternalError> {
-        return Err(InternalError::InternalError(
-            "Not implemented".to_string(),
-        ));
+        let path = Path::new(&self.name);
+        head_object(path, _key).await?;
+        Ok((200, HashMap::new()))
     }
 }

@@ -16,9 +16,9 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, CommandLine, Conversation, ConversationDbHandler,
-    ConversationStatus, KeyTrack, ModalAction, ModalWindowTrait,
-    ModalWindowType, PromptInstruction, TextWindowTrait, ThreadedChatSession,
+    ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
+    KeyTrack, ModalAction, ModalWindowTrait, ModalWindowType,
+    PromptInstruction, TextArea, TextWindowTrait, ThreadedChatSession,
     UserEvent, WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
@@ -31,7 +31,7 @@ pub struct ConversationListModal<'a> {
     conversations: Vec<Conversation>,
     current_tab: ConversationStatus,
     tab_indices: HashMap<ConversationStatus, usize>,
-    edit_name_line: Option<CommandLine<'a>>,
+    edit_name_line: Option<TextArea<'a>>,
     editing_index: Option<usize>,
     last_selected_conversation_id: Option<ConversationId>,
 }
@@ -234,7 +234,7 @@ impl<'a> ConversationListModal<'a> {
 
     async fn edit_conversation_name(&mut self) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation() {
-            let mut command_line = CommandLine::new();
+            let mut command_line = TextArea::new();
             command_line.text_set(&conversation.name, None)?;
             command_line.set_status_insert();
             self.edit_name_line = Some(command_line);

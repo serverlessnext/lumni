@@ -16,13 +16,13 @@ use lumni::api::error::ApplicationError;
 pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
 pub use ui::AppUi;
 pub use window::{
-    CommandLine, PromptWindow, ResponseWindow, SimpleString, TextLine,
-    TextSegment, TextWindowTrait, WindowKind,
+    CommandLine, ResponseWindow, SimpleString, TextArea, TextLine, TextSegment,
+    TextWindowTrait, WindowKind,
 };
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, ModelSpec, UserProfile, UserProfileDbHandler,
+    ConversationStatus, MaskMode, UserProfile, UserProfileDbHandler,
 };
 use super::chat::{
     App, NewConversation, PromptInstruction, ThreadedChatSession,

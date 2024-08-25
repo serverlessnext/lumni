@@ -1,11 +1,12 @@
+use crossterm::event::KeyCode;
 use lumni::api::error::ApplicationError;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::{Paragraph, ScrollbarState};
 
 use super::{
-    CodeBlock, LineType, MoveCursor, TextBuffer, TextDocumentTrait, TextWindow,
-    WindowContent, WindowKind, WindowStatus,
+    CodeBlock, KeyTrack, LineType, MoveCursor, TextBuffer, TextDocumentTrait,
+    TextWindow, WindowContent, WindowKind, WindowStatus,
 };
 use crate::external as lumni;
 
@@ -205,5 +206,36 @@ pub trait TextWindowTrait<'a, T: TextDocumentTrait> {
 
     fn set_status_inactive(&mut self) {
         self.set_window_status(WindowStatus::InActive);
+    }
+
+    fn process_edit_input(
+        &mut self,
+        key_event: &KeyTrack,
+    ) -> Result<bool, ApplicationError> {
+        // process input for editing text, return true if input was processed
+        match key_event.current_key().code {
+            KeyCode::Right => {
+                self.move_cursor(MoveCursor::Right(1));
+            }
+            KeyCode::Left => {
+                self.move_cursor(MoveCursor::Left(1));
+            }
+            KeyCode::Home => {
+                self.move_cursor(MoveCursor::StartOfLine);
+            }
+            KeyCode::End => {
+                self.move_cursor(MoveCursor::EndOfLine);
+            }
+            KeyCode::Backspace => {
+                self.text_delete_backspace()?;
+            }
+            KeyCode::Char(c) => {
+                self.text_insert_add(&c.to_string(), None).unwrap();
+            }
+            _ => {
+                return Ok(false); // input not processed
+            }
+        }
+        Ok(true) // input processed
     }
 }

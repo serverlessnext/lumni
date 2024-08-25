@@ -54,7 +54,7 @@ pub fn handle_response_window_event(
                         app_ui.set_primary_window(WindowKind::ResponseWindow);
                     }
                     '-' => {
-                        app_ui.set_primary_window(WindowKind::PromptWindow);
+                        app_ui.set_primary_window(WindowKind::EditorWindow);
                     }
                     ' ' => {
                         if let Some(prev) = key_track.previous_key_str() {

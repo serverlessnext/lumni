@@ -12,7 +12,7 @@ use super::clipboard::ClipboardProvider;
 use super::modals::{ModalAction, ModalWindowType};
 use super::ui::AppUi;
 use super::window::{
-    LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
+    LineType, MoveCursor, TextArea, TextDocumentTrait, TextWindowTrait,
     WindowKind,
 };
 use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};

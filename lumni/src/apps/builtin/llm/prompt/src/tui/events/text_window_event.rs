@@ -100,7 +100,7 @@ where
 
     let kind = match window.get_kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
+        WindowKind::EditorWindow => WindowEvent::PromptWindow(None),
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
     Ok(kind)
@@ -207,7 +207,7 @@ where
     }
     let kind = match window.get_kind() {
         WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::PromptWindow => WindowEvent::PromptWindow(None),
+        WindowKind::EditorWindow => WindowEvent::PromptWindow(None),
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
     Ok(kind)

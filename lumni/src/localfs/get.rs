@@ -1,5 +1,3 @@
-// localfs/get.rs
-
 use std::fs;
 use std::io::Read;
 use std::path::Path;
@@ -30,6 +28,19 @@ pub async fn get_object(
             ))
         })?;
 
+        Ok(())
+    } else {
+        Err(InternalError::NotFound(format!(
+            "Object not found for key: {}",
+            key
+        )))
+    }
+}
+
+pub async fn head_object(path: &Path, key: &str) -> Result<(), InternalError> {
+    let object_path = path.join(key);
+
+    if object_path.is_file() {
         Ok(())
     } else {
         Err(InternalError::NotFound(format!(

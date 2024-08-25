@@ -5,12 +5,11 @@ mod text_document;
 mod text_window;
 mod window_config;
 
-use crossterm::event::KeyCode;
 pub use cursor::MoveCursor;
 use lumni::api::error::ApplicationError;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-pub use scroller::Scroller;
+use ratatui::widgets::Borders;
 pub use text_display::LineType;
 pub use text_document::{
     ReadDocument, ReadWriteDocument, SimpleString, TextDocumentTrait, TextLine,
@@ -73,23 +72,28 @@ impl RectArea {
     }
 }
 
-pub struct PromptWindow<'a> {
+pub struct TextArea<'a> {
     base: TextWindow<'a, ReadWriteDocument>,
 }
 
-impl<'a> TextWindowTrait<'a, ReadWriteDocument> for PromptWindow<'a> {
+impl<'a> TextWindowTrait<'a, ReadWriteDocument> for TextArea<'a> {
     fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
         &mut self.base
     }
 }
 
-impl PromptWindow<'_> {
+impl TextArea<'_> {
     pub fn new() -> Self {
-        let mut window_type = WindowConfig::new(WindowKind::PromptWindow);
+        let mut window_type = WindowConfig::new(WindowKind::EditorWindow);
         window_type.set_window_status(WindowStatus::InActive);
         Self {
             base: TextWindow::new_read_write(window_type, None),
         }
+    }
+
+    pub fn with_borders(mut self, borders: Borders) -> Self {
+        self.base.set_borders(borders);
+        self
     }
 
     pub fn next_window_status(&mut self) -> WindowEvent {
@@ -171,36 +175,5 @@ impl CommandLine<'_> {
             self.text_empty();
             self.mode = CommandLineMode::Normal;
         }
-    }
-
-    pub fn process_edit_input(
-        &mut self,
-        key_event: &KeyTrack,
-    ) -> Result<bool, ApplicationError> {
-        // process input for editing text, return true if input was processed
-        match key_event.current_key().code {
-            KeyCode::Right => {
-                self.move_cursor(MoveCursor::Right(1));
-            }
-            KeyCode::Left => {
-                self.move_cursor(MoveCursor::Left(1));
-            }
-            KeyCode::Home => {
-                self.move_cursor(MoveCursor::StartOfLine);
-            }
-            KeyCode::End => {
-                self.move_cursor(MoveCursor::EndOfLine);
-            }
-            KeyCode::Backspace => {
-                self.text_delete_backspace()?;
-            }
-            KeyCode::Char(c) => {
-                self.text_insert_add(&c.to_string(), None).unwrap();
-            }
-            _ => {
-                return Ok(false); // input not processed
-            }
-        }
-        Ok(true) // input processed
     }
 }

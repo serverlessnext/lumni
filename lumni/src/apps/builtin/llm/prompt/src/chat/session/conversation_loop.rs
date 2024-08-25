@@ -205,7 +205,9 @@ async fn handle_window_event(
                         app.get_conversation_id_for_active_session(),
                     )
                     .await?;
-                Ok(window_event)
+                // refresh at least once after opening modal
+                app.is_processing = true;
+                Ok(WindowEvent::Modal(ModalAction::Refresh))
             }
             ModalAction::Event(ref user_event) => {
                 handle_modal_user_event(app, user_event, db_conn).await?;

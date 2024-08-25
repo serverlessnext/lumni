@@ -14,9 +14,15 @@ pub enum LumniError {
     Runtime(RuntimeError),
     Application(ApplicationError, Option<String>),
     Invoke(ApplicationError, Option<String>),
+    Resource(ResourceError),
     NotImplemented(String),
     Message(String),
     Any(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum ResourceError {
+    NotFound(String),
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +70,9 @@ impl fmt::Display for LumniError {
             }
             LumniError::Invoke(app_err, Some(app_name)) => {
                 write!(f, "[{}]: {}", app_name, app_err)
+            }
+            LumniError::Resource(res_err) => {
+                write!(f, "ResourceError: {:?}", res_err)
             }
             LumniError::Invoke(app_err, None) => {
                 write!(f, "InvokeError: {}", app_err)

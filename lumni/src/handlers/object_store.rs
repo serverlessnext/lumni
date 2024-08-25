@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::debug;
+use pkcs8::der::asn1::Int;
 use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -15,7 +16,7 @@ use crate::table::object_store::table_from_list_bucket;
 use crate::table::{FileObjectTable, Table, TableCallback};
 use crate::{
     BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter, IgnoreContents,
-    InternalError, ObjectStoreTable, ParsedUri, UriScheme,
+    InternalError, LumniError, ObjectStoreTable, ParsedUri, UriScheme,
 };
 
 #[derive(Debug, Clone)]
@@ -123,6 +124,18 @@ impl ObjectStore {
             ObjectStore::S3Bucket(bucket) => bucket.get_object(key, data).await,
             ObjectStore::LocalFsBucket(local_fs) => {
                 local_fs.get_object(key, data).await
+            }
+        }
+    }
+
+    pub async fn head_object(
+        &self,
+        key: &str,
+    ) -> Result<(u16, HashMap<String, String>), InternalError> {
+        match self {
+            ObjectStore::S3Bucket(bucket) => bucket.head_object(key).await,
+            ObjectStore::LocalFsBucket(local_fs) => {
+                local_fs.head_object(key).await
             }
         }
     }
@@ -442,7 +455,13 @@ impl ObjectStoreHandler {
                         // uri does not point to a bucket or (virtual) directory
                         // assume it to be a pointer to a database file (e.g. .sql, .parquet)
                         return self
-                            .query_object(&uri, config, query, callback)
+                            //.query_object(&uri, config, query, callback)
+                            .query_object(
+                                &ParsedUri::from_uri(&uri, true),
+                                config,
+                                query,
+                                callback,
+                            )
                             .await;
                     }
                     _ => return result, // TODO: query should return Table
@@ -457,17 +476,21 @@ impl ObjectStoreHandler {
 
     async fn query_object(
         &self,
-        _uri: &str,
-        _config: &EnvironmentConfig,
+        parsed_uri: &ParsedUri,
+        config: &EnvironmentConfig,
         _query: &Query,
         _callback: Option<Arc<dyn TableCallback>>,
     ) -> Result<Box<dyn Table>, InternalError> {
         // Logic to treat the URI as a database file and query it
+        let object_store =
+            ObjectStore::new(&parsed_uri.to_string(), config.clone())?;
+        let _object_data = object_store
+            .head_object(parsed_uri.path.as_deref().unwrap_or(""))
+            .await?;
 
-        // This is a placeholder for the actual implementation.
-        Err(InternalError::InternalError(
-            "Querying object not implemented".to_string(),
-        ))
+        // TODO: return file object_data as Table
+        let table = FileObjectTable::new(&None, None);
+        Ok(Box::new(table))
     }
 }
 

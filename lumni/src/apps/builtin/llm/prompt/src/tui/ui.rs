@@ -1,19 +1,20 @@
 use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
+use ratatui::widgets::Borders;
 
 use super::modals::{
     ConversationListModal, FileBrowserModal, ProfileEditModal,
 };
 use super::{
     CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
-    ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
+    ModalWindowType, ResponseWindow, TextArea, TextLine, TextWindowTrait,
     WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
 pub struct AppUi<'a> {
-    pub prompt: PromptWindow<'a>,
+    pub prompt: TextArea<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
     pub primary_window: WindowKind,
@@ -23,7 +24,7 @@ pub struct AppUi<'a> {
 impl AppUi<'_> {
     pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
-            prompt: PromptWindow::new(),
+            prompt: TextArea::new().with_borders(Borders::ALL),
             response: ResponseWindow::new(conversation_text),
             command_line: CommandLine::new(),
             primary_window: WindowKind::ResponseWindow,
@@ -70,16 +71,9 @@ impl AppUi<'_> {
         Ok(())
     }
 
-    pub fn needs_modal_update(&self, new_type: &ModalWindowType) -> bool {
-        match self.modal.as_ref() {
-            Some(modal) => *new_type != modal.get_type(),
-            None => true,
-        }
-    }
-
     pub fn set_primary_window(&mut self, window_type: WindowKind) {
         self.primary_window = match window_type {
-            WindowKind::ResponseWindow | WindowKind::PromptWindow => {
+            WindowKind::ResponseWindow | WindowKind::EditorWindow => {
                 window_type
             }
             _ => {

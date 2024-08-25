@@ -2,4 +2,5 @@
 pub mod backend;
 mod bucket;
 mod get;
+mod head;
 mod list;

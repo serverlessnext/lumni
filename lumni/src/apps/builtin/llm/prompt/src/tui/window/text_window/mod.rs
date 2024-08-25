@@ -16,12 +16,12 @@ use super::text_display::{
     CodeBlock, CodeBlockLine, CodeBlockLineType, TextDisplay,
 };
 use super::text_document::{
-    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine, TextWrapper,
+    ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine,
 };
 use super::window_config::{
     WindowConfig, WindowContent, WindowKind, WindowStatus,
 };
-use super::{LineType, RectArea};
+use super::{KeyTrack, LineType, RectArea};
 use crate::external as lumni;
 
 #[derive(Debug, Clone)]
@@ -29,6 +29,7 @@ pub struct TextWindow<'a, T: TextDocumentTrait> {
     area: RectArea,
     window_type: WindowConfig,
     scroller: Scroller,
+    borders: Borders,
     text_buffer: TextBuffer<'a, T>,
 }
 
@@ -38,12 +39,17 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
             area: RectArea::default(),
             window_type,
             scroller: Scroller::new(),
+            borders: Borders::NONE,
             text_buffer: TextBuffer::new(document),
         }
     }
 
     pub fn window_status(&self) -> WindowStatus {
         self.window_type.window_status()
+    }
+
+    pub fn set_borders(&mut self, borders: Borders) {
+        self.borders = borders;
     }
 
     pub fn set_window_status(&mut self, status: WindowStatus) {
@@ -187,12 +193,12 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
     }
 
     pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
-        let borders = self.window_type.borders();
-        let (h_borders, v_borders) = match borders {
+        //let borders = self.window_type.borders();
+        let (h_borders, v_borders) = match self.borders {
             Borders::ALL => (true, true),
             Borders::NONE => (false, false),
             _ => {
-                unimplemented!("Unsupported border type: {:?}", borders);
+                unimplemented!("Unsupported border type: {:?}", self.borders);
             }
         };
 
@@ -203,7 +209,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
         }
 
         let mut block = Block::default()
-            .borders(self.window_type.borders())
+            .borders(self.borders)
             .border_style(self.window_type.border_style())
             .padding(Padding::new(0, 0, 0, 0));
 
@@ -295,6 +301,11 @@ impl<'a> TextWindow<'a, ReadWriteDocument> {
             ReadWriteDocument::new()
         };
         Self::new(window_type, document)
+    }
+
+    pub fn with_borders(&mut self, borders: Borders) -> &mut Self {
+        self.borders = borders;
+        self
     }
 }
 

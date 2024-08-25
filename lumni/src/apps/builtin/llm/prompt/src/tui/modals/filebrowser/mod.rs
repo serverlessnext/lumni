@@ -19,7 +19,8 @@ use tokio::sync::mpsc;
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, ModalAction,
-    ModalWindowTrait, ModalWindowType, ThreadedChatSession, WindowEvent,
+    ModalWindowTrait, ModalWindowType, TextArea, TextWindowTrait,
+    ThreadedChatSession, WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -51,11 +52,18 @@ impl FileListHandler {
     ) -> Result<Arc<Box<dyn Table + Send + Sync>>, ApplicationError> {
         let query = format!("SELECT * FROM \"localfs://{}\" LIMIT 100", path);
         let config = EnvironmentConfig::new(HashMap::new());
-        self.handler
+        match self
+            .handler
             .execute_query(&query, &config, true, false, None, None)
             .await
-            .map(|table| Arc::new(table as Box<dyn Table + Send + Sync>))
-            .map_err(|e| ApplicationError::InternalError(e.to_string()))
+        {
+            Ok(table) => Ok(Arc::new(table as Box<dyn Table + Send + Sync>)),
+            Err(e) => match e {
+                // TODO: update execute_query to return LumniError::ResourceError
+                //ResourceError::NotFound => Err(ApplicationError::NotFound(path)),
+                _ => Err(ApplicationError::InternalError(e.to_string())),
+            },
+        }
     }
 }
 
@@ -64,8 +72,9 @@ pub enum BackgroundTaskResult {
     DirectoryChange(Result<String, ApplicationError>),
 }
 
-pub struct FileBrowserModal {
+pub struct FileBrowserModal<'a> {
     current_path: String,
+    path_input: TextArea<'a>,
     file_table: Option<Arc<Box<dyn Table + Send + Sync>>>,
     selected_index: usize,
     scroll_offset: usize,
@@ -74,9 +83,17 @@ pub struct FileBrowserModal {
     operation_sender: mpsc::Sender<FileOperation>,
     task_start_time: Option<Instant>,
     list_displayable: bool,
+    selected_file_content: Option<String>,
+    focus: FileBrowserFocus,
 }
 
-impl FileBrowserModal {
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum FileBrowserFocus {
+    PathInput,
+    FileList,
+}
+
+impl<'a> FileBrowserModal<'a> {
     pub fn new(initial_path: String) -> Self {
         let (op_tx, op_rx) = mpsc::channel(100);
         let (result_tx, result_rx) = mpsc::channel(100);
@@ -90,8 +107,12 @@ impl FileBrowserModal {
             });
         });
 
+        let mut path_input = TextArea::new();
+        path_input.text_set(&initial_path, None).unwrap();
+
         let mut modal = Self {
             current_path: initial_path,
+            path_input,
             file_table: None,
             selected_index: 0,
             scroll_offset: 0,
@@ -100,6 +121,8 @@ impl FileBrowserModal {
             operation_sender: op_tx,
             task_start_time: None,
             list_displayable: true,
+            selected_file_content: None,
+            focus: FileBrowserFocus::FileList,
         };
 
         modal.start_list_files();
@@ -425,11 +448,30 @@ impl FileBrowserModal {
         }
     }
 
-    fn render_current_path(&self, frame: &mut Frame, area: Rect) {
-        let path = Paragraph::new(Span::raw(&self.current_path)).block(
-            Block::default().title("Current Path").borders(Borders::ALL),
+    fn render_current_path(&mut self, frame: &mut Frame, area: Rect) {
+        let (path_style, border_style) = match self.focus {
+            FileBrowserFocus::PathInput => (
+                Style::default().fg(Color::Yellow),
+                Style::default().fg(Color::Yellow),
+            ),
+            FileBrowserFocus::FileList => (Style::default(), Style::default()),
+        };
+
+        let path_widget = self.path_input.widget(&area).style(path_style);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(border_style)
+            .title("Current Path");
+
+        frame.render_widget(block, area);
+        frame.render_widget(
+            path_widget,
+            area.inner(Margin {
+                vertical: 1,
+                horizontal: 1,
+            }),
         );
-        frame.render_widget(path, area);
     }
 
     fn render_file_details(&self, frame: &mut Frame, area: Rect) {
@@ -499,10 +541,42 @@ impl FileBrowserModal {
             frame.render_widget(loading, area);
         }
     }
+
+    fn render_file_content(&self, frame: &mut Frame, area: Rect) {
+        let content = match &self.selected_file_content {
+            Some(content) => content,
+            None => "No file selected",
+        };
+
+        let paragraph = Paragraph::new(content).block(
+            Block::default().title("File Content").borders(Borders::ALL),
+        );
+
+        frame.render_widget(paragraph, area);
+    }
+
+    fn handle_enter(&mut self) {
+        if let Some(table) = &self.file_table {
+            if let Some(row) = table.get_row(self.selected_index) {
+                if let Some(TableColumnValue::StringColumn(name)) =
+                    row.get_value("name")
+                {
+                    let is_dir = name.ends_with('/');
+                    if is_dir {
+                        self.start_enter_directory();
+                    } else {
+                        // Set placeholder content for the selected file
+                        self.selected_file_content =
+                            Some("Contents of the file".to_string());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
-impl ModalWindowTrait for FileBrowserModal {
+impl ModalWindowTrait for FileBrowserModal<'_> {
     fn get_type(&self) -> ModalWindowType {
         ModalWindowType::FileBrowser
     }
@@ -513,14 +587,13 @@ impl ModalWindowTrait for FileBrowserModal {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Current path
-                Constraint::Min(1),    // File list or message
+                Constraint::Min(1),    // Main content area
                 Constraint::Length(1), // Instructions
             ])
             .split(area);
 
         self.render_current_path(frame, chunks[0]);
 
-        // Check if there's enough space to render the file list
         if chunks[1].height < 3 {
             self.list_displayable = false;
             let message =
@@ -531,21 +604,26 @@ impl ModalWindowTrait for FileBrowserModal {
         } else {
             self.list_displayable = true;
 
-            // Split the main area into file list and file details
-            let file_areas = Layout::default()
-                .direction(Direction::Vertical)
+            let main_areas = Layout::default()
+                .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Min(3),    // File list (minimum 3 rows)
-                    Constraint::Length(5), // File details (5 rows)
+                    Constraint::Percentage(50), // Files list
+                    Constraint::Percentage(50), // File details and content
                 ])
                 .split(chunks[1]);
 
-            self.render_file_list(frame, file_areas[0]);
+            self.render_file_list(frame, main_areas[0]);
 
-            // Only render file details if there's enough space
-            if chunks[1].height >= 8 {
-                self.render_file_details(frame, file_areas[1]);
-            }
+            let details_areas = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(5), // File meta details (5 rows)
+                    Constraint::Min(1),    // File content area
+                ])
+                .split(main_areas[1]);
+
+            self.render_file_details(frame, details_areas[0]);
+            self.render_file_content(frame, details_areas[1]);
         }
 
         self.render_instructions(frame, chunks[2]);
@@ -561,34 +639,41 @@ impl ModalWindowTrait for FileBrowserModal {
         _tab_chat: &'b mut ThreadedChatSession,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
-        if !self.list_displayable {
-            // If the list isn't displayable, only allow exiting
-            match key_event.current_key().code {
+        match self.focus {
+            FileBrowserFocus::PathInput => match key_event.current_key().code {
+                KeyCode::Enter => {
+                    self.current_path =
+                        self.path_input.text_buffer().to_string();
+                    self.start_list_files();
+                    self.focus = FileBrowserFocus::FileList;
+                }
+                KeyCode::Esc => {
+                    self.path_input.text_set(&self.current_path, None)?;
+                    self.focus = FileBrowserFocus::FileList;
+                }
+                KeyCode::Tab => {
+                    self.focus = FileBrowserFocus::FileList;
+                }
+                _ => {
+                    self.path_input.process_edit_input(key_event)?;
+                }
+            },
+            FileBrowserFocus::FileList => match key_event.current_key().code {
+                KeyCode::Up => self.move_selection_up(),
+                KeyCode::Down => self.move_selection_down(),
+                KeyCode::Enter => self.handle_enter(),
+                KeyCode::PageUp | KeyCode::Char('k') => self.page_up(),
+                KeyCode::PageDown | KeyCode::Char('j') => self.page_down(),
+                KeyCode::Backspace => self.start_go_up_directory(),
+                KeyCode::Tab => {
+                    self.focus = FileBrowserFocus::PathInput;
+                    self.path_input.set_status_insert();
+                }
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
                     return Ok(WindowEvent::PromptWindow(None))
                 }
-                _ => return Ok(WindowEvent::Modal(ModalAction::Refresh)),
-            }
-        }
-
-        match key_event.current_key().code {
-            KeyCode::Up => self.move_selection_up(),
-            KeyCode::Down => self.move_selection_down(),
-            KeyCode::Enter => {
-                self.start_enter_directory();
-            }
-            KeyCode::PageUp | KeyCode::Char('k') => self.page_up(),
-            KeyCode::PageDown | KeyCode::Char('j') => self.page_down(),
-            KeyCode::Backspace => {
-                self.start_go_up_directory();
-            }
-            KeyCode::Char('s') | KeyCode::Char('S') => {
-                // TODO: search files
-            }
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
-                return Ok(WindowEvent::PromptWindow(None))
-            }
-            _ => {}
+                _ => {}
+            },
         }
         Ok(WindowEvent::Modal(ModalAction::Refresh))
     }

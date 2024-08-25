@@ -73,6 +73,7 @@ pub struct FileBrowserModal {
     background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
     operation_sender: mpsc::Sender<FileOperation>,
     task_start_time: Option<Instant>,
+    list_displayable: bool,
 }
 
 impl FileBrowserModal {
@@ -98,6 +99,7 @@ impl FileBrowserModal {
             background_task: Some(result_rx),
             operation_sender: op_tx,
             task_start_time: None,
+            list_displayable: true,
         };
 
         modal.start_list_files();
@@ -188,6 +190,8 @@ impl FileBrowserModal {
         };
 
         let list_height = area.height as usize - 2; // Subtract 2 for the borders
+                                                    // add safe subtraction to prevent panic from overflow
+                                                    //let list_height = area.height.saturating_sub(2);
         let total_items = items.len();
 
         // Calculate the maximum scroll offset
@@ -204,6 +208,10 @@ impl FileBrowserModal {
         // Ensure scroll_offset doesn't exceed max_scroll
         self.scroll_offset = self.scroll_offset.min(max_scroll);
 
+        // Ensure selected_index doesn't exceed the number of items
+        self.selected_index =
+            self.selected_index.min(total_items.saturating_sub(1));
+
         let items = items
             .into_iter()
             .skip(self.scroll_offset)
@@ -216,7 +224,10 @@ impl FileBrowserModal {
             .highlight_symbol("> ");
 
         let mut list_state = ListState::default();
-        list_state.select(Some(self.selected_index - self.scroll_offset));
+        // Use saturating_sub to prevent panic from subtraction overflow
+        list_state.select(Some(
+            self.selected_index.saturating_sub(self.scroll_offset),
+        ));
 
         frame.render_stateful_widget(list, area, &mut list_state);
 
@@ -502,16 +513,42 @@ impl ModalWindowTrait for FileBrowserModal {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Current path
-                Constraint::Min(1),    // File list
-                Constraint::Length(5), // File details
+                Constraint::Min(1),    // File list or message
                 Constraint::Length(1), // Instructions
             ])
             .split(area);
 
         self.render_current_path(frame, chunks[0]);
-        self.render_file_list(frame, chunks[1]);
-        self.render_file_details(frame, chunks[2]);
-        self.render_instructions(frame, chunks[3]);
+
+        // Check if there's enough space to render the file list
+        if chunks[1].height < 3 {
+            self.list_displayable = false;
+            let message =
+                Paragraph::new("Not enough space to display file list")
+                    .style(Style::default().fg(Color::Red))
+                    .alignment(Alignment::Center);
+            frame.render_widget(message, chunks[1]);
+        } else {
+            self.list_displayable = true;
+
+            // Split the main area into file list and file details
+            let file_areas = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(3),    // File list (minimum 3 rows)
+                    Constraint::Length(5), // File details (5 rows)
+                ])
+                .split(chunks[1]);
+
+            self.render_file_list(frame, file_areas[0]);
+
+            // Only render file details if there's enough space
+            if chunks[1].height >= 8 {
+                self.render_file_details(frame, file_areas[1]);
+            }
+        }
+
+        self.render_instructions(frame, chunks[2]);
 
         if self.task_start_time.is_some() {
             self.render_loading(frame, chunks[1]);
@@ -524,6 +561,16 @@ impl ModalWindowTrait for FileBrowserModal {
         _tab_chat: &'b mut ThreadedChatSession,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
+        if !self.list_displayable {
+            // If the list isn't displayable, only allow exiting
+            match key_event.current_key().code {
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
+                    return Ok(WindowEvent::PromptWindow(None))
+                }
+                _ => return Ok(WindowEvent::Modal(ModalAction::Refresh)),
+            }
+        }
+
         match key_event.current_key().code {
             KeyCode::Up => self.move_selection_up(),
             KeyCode::Down => self.move_selection_down(),

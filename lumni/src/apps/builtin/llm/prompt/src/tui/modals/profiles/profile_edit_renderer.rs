@@ -195,36 +195,121 @@ impl ProfileEditRenderer {
             &profile_edit_modal.ui_state.edit_mode,
         ) {
             (Focus::ProfileList, EditMode::NotEditing) => {
-                "↑↓: Navigate | Enter: Select/Create | R: Rename | D: Delete | \
-                 Space: Set Default | →/Tab: Settings | Esc: Close"
+                vec![vec![Span::raw(
+                    "↑↓: Navigate | Enter: Select/Create | R: Rename | D: \
+                     Delete | Space: Set Default | →/Tab: Settings | Esc: \
+                     Close",
+                )]]
             }
             (Focus::RenamingProfile, EditMode::RenamingProfile) => {
-                "Enter: Confirm Rename | Esc: Cancel"
+                vec![vec![Span::raw("Enter: Confirm Rename | Esc: Cancel")]]
             }
             (Focus::SettingsList, EditMode::NotEditing) => {
-                "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | D: \
-                 Delete | C: Clear | S: Show/Hide Secure | ←/Tab/q/Esc: \
-                 Profiles"
+                vec![vec![Span::raw(
+                    "↑↓: Navigate | Enter: Edit | n: New | N: New Secure | D: \
+                     Delete | C: Clear | S: Show/Hide Secure | ←/Tab/q/Esc: \
+                     Profiles",
+                )]]
             }
             (Focus::SettingsList, EditMode::EditingValue) => {
-                "Enter: Save | Esc: Cancel"
+                vec![vec![Span::raw("Enter: Save | Esc: Cancel")]]
             }
             (Focus::SettingsList, EditMode::AddingNewKey) => {
-                "Enter: Confirm Key | Esc: Cancel"
+                vec![vec![Span::raw("Enter: Confirm Key | Esc: Cancel")]]
             }
             (Focus::SettingsList, EditMode::AddingNewValue) => {
-                "Enter: Save New Value | Esc: Cancel"
+                vec![vec![Span::raw("Enter: Save New Value | Esc: Cancel")]]
             }
             (Focus::NewProfileCreation, _) => profile_edit_modal
                 .ui_state
                 .new_profile_creator
                 .as_ref()
-                .map(|creator| creator.get_instructions())
-                .unwrap_or(""),
-            _ => "",
+                .map(|creator| creator.get_instructions(area.width))
+                .unwrap_or_else(|| vec![vec![Span::raw("")]]),
+            _ => vec![vec![Span::raw("")]],
         };
-        let paragraph = Paragraph::new(instructions)
-            .style(Style::default().fg(Color::Cyan));
+
+        let wrapped_instructions = instructions
+            .into_iter()
+            .flat_map(|line| {
+                let simple_string = SimpleString::from(
+                    line.iter()
+                        .map(|span| span.content.as_ref())
+                        .collect::<String>(),
+                );
+                simple_string.wrapped_spans(
+                    area.width as usize - 2,
+                    None,
+                    Some(" | "),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let instructions_text: Vec<Line> =
+            wrapped_instructions.into_iter().map(Line::from).collect();
+
+        let paragraph = Paragraph::new(instructions_text)
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::TOP));
         f.render_widget(paragraph, area);
+    }
+
+    pub fn render_layout(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        profile_edit_modal: &ProfileEditModal,
+    ) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Title
+                Constraint::Min(1),    // Main content
+                Constraint::Length(3), // Instructions (allow for multiple lines)
+            ])
+            .split(area);
+
+        self.render_title(f, chunks[0]);
+
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(30),
+                Constraint::Percentage(70),
+            ])
+            .split(chunks[1]);
+
+        // Render profile list in the full height of the left column
+        self.render_profile_list(f, main_chunks[0], profile_edit_modal);
+
+        // Render settings or new profile creation in the right column
+        let right_column = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Length(3), // Space for the Next/Create button
+            ])
+            .split(main_chunks[1]);
+
+        match profile_edit_modal.ui_state.focus {
+            Focus::NewProfileCreation => {
+                if let Some(creator) =
+                    &profile_edit_modal.ui_state.new_profile_creator
+                {
+                    creator.render_main_content(f, right_column[0]);
+                    // Render the Next/Create button in the bottom area
+                    creator.render_next_or_create_button(f, right_column[1]);
+                }
+            }
+            _ => self.render_settings_list(
+                f,
+                right_column[0],
+                profile_edit_modal,
+            ),
+        }
+
+        // Render instructions at the bottom
+        self.render_instructions(f, chunks[2], profile_edit_modal);
     }
 }

@@ -111,44 +111,7 @@ impl ModalWindowTrait for ProfileEditModal {
 
     fn render_on_frame(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
-
-        let main_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(1),
-            ])
-            .split(area);
-
-        self.renderer.render_title(frame, main_chunks[0]);
-
-        let content_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(30),
-                Constraint::Percentage(70),
-            ])
-            .split(main_chunks[1]);
-
-        self.renderer
-            .render_profile_list(frame, content_chunks[0], self);
-
-        match self.ui_state.focus {
-            Focus::NewProfileCreation => {
-                if let Some(creator) = &self.ui_state.new_profile_creator {
-                    creator.render(frame, content_chunks[1]);
-                }
-            }
-            _ => self.renderer.render_settings_list(
-                frame,
-                content_chunks[1],
-                self,
-            ),
-        }
-
-        self.renderer
-            .render_instructions(frame, main_chunks[2], self);
+        self.renderer.render_layout(frame, area, self);
     }
 
     async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {

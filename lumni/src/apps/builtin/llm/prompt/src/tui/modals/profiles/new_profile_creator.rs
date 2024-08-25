@@ -3,7 +3,6 @@ use std::collections::{HashMap, VecDeque};
 use super::*;
 
 // TODO notes:
-// - the instructions do not wrap. I wonder though if we can wrap on strings like " | ", would there be a need for a method wrapped_spans_with_delim() ?
 // - add ability to attach filepaths to a profile. This should be done as a NewProfileCreationStep. As a first step, just make it a simple input field.
 // - replace input field in previous step by an EditWindow that can contain multiple lines for input
 
@@ -83,6 +82,7 @@ impl NewProfileCreator {
     const COLOR_HIGHLIGHT: Color = Color::Rgb(52, 152, 219); // Bright blue
     const COLOR_SECONDARY: Color = Color::Rgb(241, 196, 15); // Yellow
     const COLOR_SUCCESS: Color = Color::Rgb(46, 204, 113); // Green
+    const COLOR_PLACEHOLDER: Color = Color::DarkGray;
 
     pub fn new(db_handler: UserProfileDbHandler) -> Self {
         let predefined_types: Vec<String> = SUPPORTED_MODEL_ENDPOINTS
@@ -376,8 +376,8 @@ impl NewProfileCreator {
         Ok(NewProfileCreatorAction::Refresh)
     }
 
-    pub fn get_instructions(&self) -> &'static str {
-        match self.creation_step {
+    pub fn get_instructions(&self, width: u16) -> Vec<Vec<Span<'static>>> {
+        let instructions = match self.creation_step {
             NewProfileCreationStep::EnterName => {
                 "Enter profile name | Enter: Confirm | Esc: Cancel"
             }
@@ -395,7 +395,14 @@ impl NewProfileCreator {
                 "Enter: Create Profile | Esc: Back to Additional Settings"
             }
             NewProfileCreationStep::CreatingProfile => "Creating profile...",
-        }
+        };
+
+        let simple_string = SimpleString::from(instructions);
+        simple_string.wrapped_spans(
+            width as usize,
+            Some(Style::default().fg(Self::COLOR_SECONDARY)),
+            Some(" | "),
+        )
     }
 
     fn prepare_additional_settings(&mut self, model_server: &ModelServer) {
@@ -483,31 +490,26 @@ impl NewProfileCreator {
         }
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Name input
-                Constraint::Min(1), // Type and sub-option selection or profile creation
-            ])
-            .split(area);
-
-        self.render_profile_name_input(f, chunks[0]);
-
+    pub fn render_main_content(&self, f: &mut Frame, area: Rect) {
+        // Render the main content (everything except the button)
         match self.creation_step {
             NewProfileCreationStep::EnterName => {
-                // No need to render anything else
+                self.render_profile_name_input(f, area);
+            }
+            NewProfileCreationStep::SelectProfileType => {
+                self.render_profile_type_selection(f, area);
+            }
+            NewProfileCreationStep::SelectModel => {
+                self.render_model_selection(f, area);
             }
             NewProfileCreationStep::InputAdditionalSettings => {
-                self.render_additional_settings(f, chunks[1]);
+                self.render_additional_settings(f, area);
             }
-            NewProfileCreationStep::SelectProfileType
-            | NewProfileCreationStep::SelectModel
-            | NewProfileCreationStep::ConfirmCreate => {
-                self.render_type_and_sub_options(f, chunks[1]);
+            NewProfileCreationStep::ConfirmCreate => {
+                self.render_confirmation(f, area);
             }
             NewProfileCreationStep::CreatingProfile => {
-                self.render_creating_profile(f, chunks[1]);
+                self.render_creating_profile(f, area);
             }
         }
     }
@@ -541,32 +543,6 @@ impl NewProfileCreator {
                 .title("Enter New Profile Name"),
         );
         f.render_widget(input, area);
-    }
-
-    fn render_type_and_sub_options(&self, f: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(3)])
-            .split(area);
-
-        match self.creation_step {
-            NewProfileCreationStep::SelectProfileType => {
-                self.render_profile_type_selection(f, chunks[0]);
-            }
-            NewProfileCreationStep::SelectModel => {
-                self.render_model_selection(f, chunks[0]);
-            }
-            NewProfileCreationStep::InputAdditionalSettings => {
-                self.render_additional_settings(f, chunks[0]);
-            }
-            NewProfileCreationStep::ConfirmCreate => {
-                self.render_confirmation(f, area);
-            }
-            _ => {}
-        }
-
-        // Render the Next/Create button for all steps
-        self.render_next_or_create_button(f, chunks[1]);
     }
 
     fn create_wrapped_spans(
@@ -654,12 +630,7 @@ impl NewProfileCreator {
     }
 
     fn render_additional_settings(&self, f: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(3)])
-            .split(area);
-
-        let available_width = chunks[0].width as usize - 3; // Subtract 3 for the left border and spacing
+        let available_width = area.width as usize - 3; // Subtract 3 for the left border and spacing
 
         let mut items = Vec::new();
         for (index, setting) in self.additional_settings.iter().enumerate() {
@@ -686,6 +657,9 @@ impl NewProfileCreator {
                     Self::COLOR_BACKGROUND
                 });
 
+            let placeholder_style =
+                Style::default().fg(Self::COLOR_PLACEHOLDER);
+
             let arrow = if is_selected { ">" } else { " " };
 
             // Prepare the key (display name) part
@@ -693,31 +667,28 @@ impl NewProfileCreator {
             let key_width = key_part.chars().count();
 
             // Prepare the value part
-            let input_content = if self.is_input_focused
+            let (input_content, content_style) = if self.is_input_focused
                 && self.selection_state
                     == SelectionState::AdditionalSetting(index)
             {
-                self.temp_input.as_ref().unwrap_or(&setting.value)
-            } else if setting.value.is_empty() && !is_focused {
-                &setting.placeholder
+                (
+                    self.temp_input.as_ref().unwrap_or(&setting.value),
+                    input_style,
+                )
+            } else if setting.value.is_empty() {
+                (&setting.placeholder, placeholder_style)
             } else {
-                &setting.value
+                (&setting.value, input_style)
             };
 
-            // Wrap the value part using SimpleString
-            let value_width = available_width.saturating_sub(key_width);
-            let simple_string = SimpleString::from(input_content);
-            let wrapped_value = simple_string.wrapped_spans(
-                value_width,
-                Some(input_style),
-                None,
-            );
-
             // Render the key-value pair
-            for (i, value_spans) in wrapped_value.into_iter().enumerate() {
+            let mut first_line = true;
+            let mut remaining_content = input_content.to_string();
+
+            while !remaining_content.is_empty() || first_line {
                 let mut styled_spans = Vec::new();
 
-                if i == 0 {
+                if first_line {
                     styled_spans.push(Span::styled(
                         arrow,
                         Style::default().fg(Self::COLOR_SECONDARY),
@@ -725,13 +696,25 @@ impl NewProfileCreator {
                     styled_spans.push(Span::raw(" "));
                     styled_spans
                         .push(Span::styled(key_part.clone(), label_style));
+
+                    let available_value_width =
+                        available_width.saturating_sub(key_width + 2);
+                    let (line, rest) = split_at_width(
+                        &remaining_content,
+                        available_value_width,
+                    );
+                    styled_spans.push(Span::styled(line, content_style));
+                    remaining_content = rest.to_string();
                 } else {
-                    styled_spans.push(Span::raw(" ".repeat(key_width + 2))); // +2 for arrow and space
+                    styled_spans.push(Span::raw("  ")); // Indent continuation lines
+                    let (line, rest) =
+                        split_at_width(&remaining_content, available_width - 2);
+                    styled_spans.push(Span::styled(line, content_style));
+                    remaining_content = rest.to_string();
                 }
 
-                styled_spans.extend(value_spans);
-
                 items.push(ListItem::new(Line::from(styled_spans)));
+                first_line = false;
             }
         }
 
@@ -741,13 +724,10 @@ impl NewProfileCreator {
                 .title("Additional Settings"),
         );
 
-        f.render_widget(list, chunks[0]);
-
-        // Render the Next button
-        self.render_next_or_create_button(f, chunks[1]);
+        f.render_widget(list, area);
     }
 
-    fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
+    pub fn render_next_or_create_button(&self, f: &mut Frame, area: Rect) {
         let (button_text, button_style, is_selected) = if self
             .skipped_type_selection
         {
@@ -775,21 +755,6 @@ impl NewProfileCreator {
             .block(Block::default().borders(Borders::ALL));
 
         f.render_widget(button, area);
-
-        // Render the ready message if provider selection is skipped
-        if self.skipped_type_selection {
-            let ready_message = "Profile is ready to be created. Press Enter \
-                                 to create the profile.";
-            let message_area = Rect {
-                y: area.y.saturating_sub(2),
-                height: 1,
-                ..area
-            };
-            let ready_paragraph = Paragraph::new(ready_message)
-                .style(Style::default().fg(Self::COLOR_SUCCESS))
-                .alignment(Alignment::Center);
-            f.render_widget(ready_paragraph, message_area);
-        }
     }
 
     fn get_selected_model(&self) -> Option<(usize, String)> {
@@ -1391,11 +1356,6 @@ impl NewProfileCreator {
     }
 
     fn render_confirmation(&self, f: &mut Frame, area: Rect) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(3)])
-            .split(area);
-
         let mut items = Vec::new();
 
         // Provider
@@ -1445,17 +1405,11 @@ impl NewProfileCreator {
 
                 let (display_value, value_style) = if value_display.is_empty() {
                     (
-                        "Not set".to_string(),
-                        Style::default().fg(Self::COLOR_SECONDARY),
+                        "skipped".to_string(),
+                        Style::default().fg(Self::COLOR_PLACEHOLDER),
                     )
                 } else {
                     (value_display, Style::default().fg(Self::COLOR_HIGHLIGHT))
-                };
-
-                let status = if display_value == "Not set" {
-                    " (Optional)"
-                } else {
-                    ""
                 };
 
                 // Prepare the key (display name) part
@@ -1464,8 +1418,7 @@ impl NewProfileCreator {
 
                 // Wrap the value part using SimpleString
                 let value_width = area.width as usize - 4 - key_width;
-                let simple_string =
-                    SimpleString::from(format!("{}{}", display_value, status));
+                let simple_string = SimpleString::from(display_value);
                 let wrapped_value = simple_string.wrapped_spans(
                     value_width,
                     Some(value_style),
@@ -1508,10 +1461,7 @@ impl NewProfileCreator {
                 .title("Confirm Profile Creation"),
         );
 
-        f.render_widget(list, chunks[0]);
-
-        // Render the Create button
-        self.render_next_or_create_button(f, chunks[1]);
+        f.render_widget(list, area);
     }
 
     fn confirm_model_selection(
@@ -1543,4 +1493,20 @@ impl NewProfileCreator {
             _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
         }
     }
+}
+fn split_at_width(s: &str, width: usize) -> (String, String) {
+    let mut chars = s.chars().peekable();
+    let mut line = String::new();
+    let mut line_width = 0;
+
+    while let Some(c) = chars.next() {
+        let char_width = if c == '\t' { 4 } else { 1 }; // Assume tab width of 4
+        if line_width + char_width > width {
+            return (line, chars.collect());
+        }
+        line.push(c);
+        line_width += char_width;
+    }
+
+    (line, String::new())
 }

@@ -113,7 +113,12 @@ pub async fn draw_ui<B: Backend>(
 }
 
 fn modal_area(area: Rect) -> Rect {
-    Rect::new(2, 1, area.width - 3, area.height - 4)
+    Rect::new(
+        area.x + 2,
+        area.y + 1,
+        area.width.saturating_sub(3),
+        area.height.saturating_sub(4),
+    )
 }
 
 pub fn main_widget(title: &str, hint: Option<String>) -> Block<'_> {

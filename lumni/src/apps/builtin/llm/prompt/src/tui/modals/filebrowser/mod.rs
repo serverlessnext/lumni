@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
+use futures::TryFutureExt;
 use lumni::{EnvironmentConfig, ObjectStoreHandler, Table, TableColumnValue};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -46,18 +47,31 @@ impl FileListHandler {
         Self { handler }
     }
 
+    async fn handle_query(
+        &self,
+        query: String,
+    ) -> Result<Arc<Box<dyn Table + Send + Sync>>, ApplicationError> {
+        let config = EnvironmentConfig::new(HashMap::new());
+        let result = self
+            .handler
+            .execute_query(&query, &config, true, false, None, None)
+            .await
+            .map_err(ApplicationError::from)?;
+        Ok(Arc::new(result as Box<dyn Table + Send + Sync>))
+    }
+
     async fn list_files(
         &self,
         path: String,
     ) -> Result<Arc<Box<dyn Table + Send + Sync>>, ApplicationError> {
         let query = format!("SELECT * FROM \"localfs://{}\" LIMIT 100", path);
-        let config = EnvironmentConfig::new(HashMap::new());
-        match self
-            .handler
-            .execute_query(&query, &config, true, false, None, None)
-            .await
-        {
-            Ok(table) => Ok(Arc::new(table as Box<dyn Table + Send + Sync>)),
+        match self.handle_query(query).await {
+            Ok(table) => Ok(table),
+            Err(ApplicationError::NotFound(_)) => {
+                let query =
+                    "SELECT * FROM \"localfs://.\" LIMIT 100".to_string();
+                self.handle_query(query).await
+            }
             Err(e) => match e {
                 // TODO: update execute_query to return LumniError::ResourceError
                 //ResourceError::NotFound => Err(ApplicationError::NotFound(path)),
@@ -324,9 +338,7 @@ impl<'a> FileBrowserModal<'a> {
                     let result = handler
                         .execute_query(&query, &config, true, false, None, None)
                         .await
-                        .map_err(|e| {
-                            ApplicationError::InternalError(e.to_string())
-                        });
+                        .map_err(ApplicationError::from);
 
                     let directory_change_result = match result {
                         Ok(_) => Ok(new_path),

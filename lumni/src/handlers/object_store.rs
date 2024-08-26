@@ -5,18 +5,18 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::debug;
-use pkcs8::der::asn1::Int;
 use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
+use crate::api::error::{LumniError, ResourceError};
 use crate::localfs::backend::LocalFsBucket;
 use crate::s3::backend::S3Bucket;
 use crate::table::object_store::table_from_list_bucket;
 use crate::table::{FileObjectTable, Table, TableCallback};
 use crate::{
     BinaryCallbackWrapper, EnvironmentConfig, FileObjectFilter, IgnoreContents,
-    InternalError, LumniError, ObjectStoreTable, ParsedUri, UriScheme,
+    InternalError, ObjectStoreTable, ParsedUri, UriScheme,
 };
 
 #[derive(Debug, Clone)]
@@ -317,7 +317,7 @@ impl ObjectStoreHandler {
         recursive: bool,
         ignore_contents: Option<IgnoreContents>,
         callback: Option<Arc<dyn TableCallback>>,
-    ) -> Result<Box<dyn Table>, InternalError> {
+    ) -> Result<Box<dyn Table>, LumniError> {
         let dialect = GenericDialect {};
         let parsed = Parser::parse_sql(&dialect, statement);
 
@@ -326,22 +326,31 @@ impl ObjectStoreHandler {
                 if let Some(Statement::Query(query)) =
                     statements.into_iter().next()
                 {
-                    self.handle_select_statement(
-                        &query,
-                        config,
-                        skip_hidden,
-                        recursive,
-                        ignore_contents,
-                        callback,
-                    )
-                    .await
+                    let result = self
+                        .handle_select_statement(
+                            &query,
+                            config,
+                            skip_hidden,
+                            recursive,
+                            ignore_contents,
+                            callback,
+                        )
+                        .await;
+
+                    match result {
+                        Ok(table) => Ok(table),
+                        Err(InternalError::NotFound(e)) => Err(
+                            LumniError::Resource(ResourceError::NotFound(e)),
+                        ),
+                        Err(e) => Err(LumniError::InternalError(e.to_string())),
+                    }
                 } else {
-                    Err(InternalError::InternalError(
+                    Err(LumniError::NotImplemented(
                         "Unsupported query statement".to_string(),
                     ))
                 }
             }
-            Err(_e) => Err(InternalError::InternalError(
+            Err(_e) => Err(LumniError::ParseError(
                 "Failed to parse query statement".to_string(),
             )),
         }

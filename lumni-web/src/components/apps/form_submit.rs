@@ -102,6 +102,15 @@ pub fn AppFormSubmit(app_uri: String) -> impl IntoView {
                     LumniError::Runtime(RuntimeError::Unexpected(e)) => {
                         log::error!("RuntimeError - Unexpected: {}", e);
                     }
+                    LumniError::ParseError(e) => {
+                        log::error!("ParseError: {}", e);
+                    }
+                    LumniError::InternalError(e) => {
+                        log::error!("InternalError: {}", e);
+                    }
+                    LumniError::Resource(e) => {
+                        log::error!("ResourceError: {}", e);
+                    }
                     LumniError::Invoke(e, _) => {
                         log::error!("InvokeError: {}", e);
                     }

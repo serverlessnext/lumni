@@ -1,4 +1,4 @@
-use crate::{EnvironmentConfig, InternalError, ObjectStoreHandler, Table};
+use crate::{EnvironmentConfig, LumniError, ObjectStoreHandler, Table};
 
 #[derive(Clone)]
 pub struct LumniHandler {
@@ -19,7 +19,7 @@ impl LumniHandler {
         query: String,
         skip_hidden: bool,
         recursive: bool,
-    ) -> Result<Box<dyn Table>, InternalError> {
+    ) -> Result<Box<dyn Table>, LumniError> {
         let callback = None;
         let result = self
             .handler

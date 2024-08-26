@@ -16,6 +16,8 @@ pub enum LumniError {
     Invoke(ApplicationError, Option<String>),
     Resource(ResourceError),
     NotImplemented(String),
+    InternalError(String),
+    ParseError(String),
     Message(String),
     Any(String),
 }
@@ -65,9 +67,11 @@ impl fmt::Display for LumniError {
             LumniError::Runtime(runtime_err) => {
                 write!(f, "RuntimeError: {}", runtime_err)
             }
+            LumniError::ParseError(s) => write!(f, "ParseError: {}", s),
             LumniError::Application(app_err, Some(app_name)) => {
                 write!(f, "[{}]: {}", app_name, app_err)
             }
+            LumniError::InternalError(s) => write!(f, "InternalError: {}", s),
             LumniError::Invoke(app_err, Some(app_name)) => {
                 write!(f, "[{}]: {}", app_name, app_err)
             }
@@ -98,10 +102,35 @@ impl fmt::Display for RequestError {
 impl From<LumniError> for ApplicationError {
     fn from(error: LumniError) -> Self {
         match error {
-            LumniError::Application(app_error, None) => app_error,
-            _ => {
-                ApplicationError::Unexpected("Unhandled LumniError".to_string())
+            LumniError::Application(app_error, _) => app_error,
+            LumniError::Resource(ResourceError::NotFound(s)) => {
+                ApplicationError::NotFound(s)
             }
+            LumniError::Request(RequestError::QueryInvalid(s)) => {
+                ApplicationError::InvalidInput(s)
+            }
+            LumniError::Runtime(RuntimeError::Unexpected(s)) => {
+                ApplicationError::Runtime(s)
+            }
+            LumniError::ParseError(s) => ApplicationError::InvalidInput(s),
+            LumniError::InternalError(s) => ApplicationError::InternalError(s),
+            LumniError::Invoke(s, _) => {
+                ApplicationError::Runtime(s.to_string())
+            }
+            LumniError::NotImplemented(s) => {
+                ApplicationError::NotImplemented(s)
+            }
+            LumniError::Message(s) | LumniError::Any(s) => {
+                ApplicationError::Unexpected(s)
+            }
+        }
+    }
+}
+
+impl fmt::Display for ResourceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ResourceError::NotFound(s) => write!(f, "NotFound: {}", s),
         }
     }
 }

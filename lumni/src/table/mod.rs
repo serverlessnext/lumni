@@ -50,6 +50,9 @@ impl<'a> TableRow<'a> {
             .iter()
             .map(|(_, value)| {
                 let value_str = match value {
+                    TableColumnValue::Uint8Column(val) => val.to_string(),
+                    TableColumnValue::Int8Column(val) => val.to_string(),
+                    TableColumnValue::Uint32Column(val) => val.to_string(),
                     TableColumnValue::Int32Column(val) => val.to_string(),
                     TableColumnValue::Uint64Column(val) => val.to_string(),
                     TableColumnValue::FloatColumn(val) => val.to_string(),

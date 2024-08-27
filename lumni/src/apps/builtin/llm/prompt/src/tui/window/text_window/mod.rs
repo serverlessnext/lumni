@@ -193,10 +193,9 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
     }
 
     pub fn widget<'b>(&'b mut self, area: &Rect) -> Paragraph<'b> {
-        //let borders = self.window_type.borders();
-        let (h_borders, v_borders) = match self.borders {
-            Borders::ALL => (true, true),
-            Borders::NONE => (false, false),
+        let (h_borders, v_borders, hint_bottom) = match self.borders {
+            Borders::ALL => (true, true, self.window_type.hint()),
+            Borders::NONE => (false, false, None),
             _ => {
                 unimplemented!("Unsupported border type: {:?}", self.borders);
             }
@@ -219,7 +218,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
                 .title_style(Style::default().fg(Color::LightGreen))
         }
 
-        if let Some(hint) = self.window_type.hint() {
+        if let Some(hint) = hint_bottom {
             block = block.title(hint)
         }
 

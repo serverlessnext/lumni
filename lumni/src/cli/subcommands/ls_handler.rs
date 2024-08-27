@@ -89,6 +89,7 @@ fn prepare_handle_ls_arguments(
                     filter_size.as_deref(),
                     filter_mtime.as_deref(),
                     ignore_contents,
+                    no_recursive, // include_directories if no_recursive is set, otherwise false because directories are included in filename
                 );
                 match filter_result {
                     Ok(filter) => Some(filter),

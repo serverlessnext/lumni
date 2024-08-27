@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::handlers::object_store::ObjectStore;
 use crate::utils::time::rfc3339_to_epoch;
-use crate::{EnvironmentConfig, FileObject};
+use crate::{EnvironmentConfig, FileObject, FileType};
 
 // allow non snake case for the XML response
 #[allow(non_snake_case)]
@@ -84,6 +84,7 @@ pub fn parse_file_objects(
             FileObject::new(
                 content.Key.clone(),
                 content.Size,
+                FileType::RegularFile,
                 Some(rfc3339_to_epoch(content.LastModified.as_str()).unwrap()),
                 Some(
                     [(
@@ -107,10 +108,11 @@ pub fn parse_file_objects(
         .iter()
         .map(|prefix| {
             FileObject::new(
-                prefix.clone(), // Set the key to the prefix
-                0,              // Set the size to 0
-                None,           // Set the modified timestamp to None
-                None,           // Set the tags to None
+                prefix.clone(),      // Set the key to the prefix
+                0,                   // Set the size to 0
+                FileType::Directory, // Set the file type to Directory
+                None,                // Set the modified timestamp to None
+                None,                // Set the tags to None
             )
         })
         .collect();

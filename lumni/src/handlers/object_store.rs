@@ -442,6 +442,7 @@ impl ObjectStoreHandler {
                     file_object_filter = Some(FileObjectFilter {
                         conditions: vec![],
                         glob_matcher: Some(glob_matcher.clone()),
+                        include_directories: true,
                     });
                 };
 
@@ -464,7 +465,6 @@ impl ObjectStoreHandler {
                         // uri does not point to a bucket or (virtual) directory
                         // assume it to be a pointer to a database file (e.g. .sql, .parquet)
                         return self
-                            //.query_object(&uri, config, query, callback)
                             .query_object(
                                 &ParsedUri::from_uri(&uri, true),
                                 config,

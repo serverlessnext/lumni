@@ -1,7 +1,6 @@
 use ratatui::layout::Alignment;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::block::{Position, Title};
-use ratatui::widgets::Borders;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowStatus {

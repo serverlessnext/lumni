@@ -18,3 +18,13 @@ pub struct Conditions {
     pub min_mtime: Option<i64>,
     pub max_mtime: Option<i64>,
 }
+
+impl Conditions {
+    pub fn is_empty(&self) -> bool {
+        self.name_regex.is_none()
+            && self.min_size.is_none()
+            && self.max_size.is_none()
+            && self.min_mtime.is_none()
+            && self.max_mtime.is_none()
+    }
+}

@@ -1,0 +1,227 @@
+warning: unused import: `ModelServerName`
+  --> lumni/src/apps/builtin/llm/prompt/src/app.rs:22:45
+   |
+22 | use super::chat::db::{ConversationDatabase, ModelServerName};
+   |                                             ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `ModelBackend`
+  --> lumni/src/apps/builtin/llm/prompt/src/chat/conversation/mod.rs:11:54
+   |
+11 |     ChatCompletionOptions, ChatMessage, ColorScheme, ModelBackend, PromptError,
+   |                                                      ^^^^^^^^^^^^
+
+warning: unused import: `lumni::api::error::ApplicationError`
+ --> lumni/src/apps/builtin/llm/prompt/src/chat/db/conversations/mod.rs:8:5
+  |
+8 | use lumni::api::error::ApplicationError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::PathBuf`
+ --> lumni/src/apps/builtin/llm/prompt/src/chat/db/user_profile/encryption_operations.rs:2:5
+  |
+2 | use std::path::PathBuf;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `json`
+ --> lumni/src/apps/builtin/llm/prompt/src/chat/db/user_profile/mod.rs:9:18
+  |
+9 | use serde_json::{json, Value as JsonValue};
+  |                  ^^^^
+
+warning: unused import: `ModalWindowType`
+  --> lumni/src/apps/builtin/llm/prompt/src/chat/session/mod.rs:20:5
+   |
+20 |     ModalWindowType, ModelServer, PromptAction, PromptError, PromptInstruction,
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused imports: `EncryptionHandler`, `ModelServer`, `ModelSpec`, `SUPPORTED_MODEL_ENDPOINTS`, `ServerTrait`
+ --> lumni/src/apps/builtin/llm/prompt/src/cli/subcommands/mod.rs:6:27
+  |
+6 |     ConversationDatabase, EncryptionHandler, MaskMode, ModelServer, ModelSpec,
+  |                           ^^^^^^^^^^^^^^^^^            ^^^^^^^^^^^  ^^^^^^^^^
+7 |     ServerTrait, UserProfile, UserProfileDbHandler, SUPPORTED_MODEL_ENDPOINTS,
+  |     ^^^^^^^^^^^                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Style`
+ --> lumni/src/apps/builtin/llm/prompt/src/tui/window/text_display/mod.rs:3:29
+  |
+3 | use ratatui::style::{Color, Style};
+  |                             ^^^^^
+
+warning: unused variable: `privkey_len`
+   --> lumni/src/apps/builtin/llm/prompt/src/chat/db/encryption/mod.rs:217:13
+    |
+217 |         let privkey_len = u32::from_be_bytes([
+    |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_privkey_len`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: variable does not need to be mutable
+   --> lumni/src/apps/builtin/llm/prompt/src/chat/db/encryption/mod.rs:351:13
+    |
+351 |         let mut sealing_key = aead::LessSafeKey::new(key);
+    |             ----^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused variable: `delimiter`
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/window/text_document/simple_string.rs:96:9
+   |
+96 |         delimiter: Option<&str>,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_delimiter`
+
+warning: associated function `new` is never used
+  --> lumni/src/apps/builtin/llm/prompt/src/chat/conversation/prepare.rs:18:18
+   |
+17 | impl NewConversation {
+   | -------------------- associated function in this implementation
+18 |     pub async fn new(
+   |                  ^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: function `create_new_conversation` is never used
+   --> lumni/src/apps/builtin/llm/prompt/src/chat/conversation/prepare.rs:105:4
+    |
+105 | fn create_new_conversation(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `encryption_handler` is never read
+  --> lumni/src/apps/builtin/llm/prompt/src/chat/db/conversations/mod.rs:26:5
+   |
+23 | pub struct ConversationDbHandler {
+   |            --------------------- field in this struct
+...
+26 |     encryption_handler: Option<Arc<EncryptionHandler>>,
+   |     ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `ConversationDbHandler` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `print_last_conversation` is never used
+ --> lumni/src/apps/builtin/llm/prompt/src/chat/db/display.rs:7:18
+  |
+6 | impl ConversationDatabase {
+  | ------------------------- method in this implementation
+7 |     pub async fn print_last_conversation(
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `get_default_model` is never used
+   --> lumni/src/apps/builtin/llm/prompt/src/server/mod.rs:201:14
+    |
+182 | pub trait ServerTrait: Send + Sync {
+    |           ----------- method in this trait
+...
+201 |     async fn get_default_model(&self) -> Result<ModelSpec, ApplicationError> {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: variants `NewConversation` and `ReloadConversation` are never constructed
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/events/mod.rs:44:5
+   |
+43 | pub enum ConversationEvent {
+   |          ----------------- variants in this enum
+44 |     NewConversation(NewConversation),
+   |     ^^^^^^^^^^^^^^^
+45 |     ReloadConversation, // only reload conversation
+   |     ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `ConversationEvent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `NewConversation`, `NewProfile`, and `ReloadProfile` are never constructed
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/events/mod.rs:50:5
+   |
+49 | pub enum UserEvent {
+   |          --------- variants in this enum
+50 |     NewConversation(NewConversation), // prepare for future conversation
+   |     ^^^^^^^^^^^^^^^
+51 |     ReloadConversation,               // reload conversation
+52 |     NewProfile,                       // prepare for future profile switch
+   |     ^^^^^^^^^^
+53 |     ReloadProfile,                    // prepare for future profile switch
+   |     ^^^^^^^^^^^^^
+   |
+   = note: `UserEvent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Close` is never constructed
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/modals/mod.rs:31:5
+   |
+27 | pub enum ModalAction {
+   |          ----------- variant in this enum
+...
+31 |     Close,                 // close the curren modal
+   |     ^^^^^
+   |
+   = note: `ModalAction` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `get_type` is never used
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/modals/mod.rs:37:8
+   |
+36 | pub trait ModalWindowTrait: Send + Sync {
+   |           ---------------- method in this trait
+37 |     fn get_type(&self) -> ModalWindowType;
+   |        ^^^^^^^^
+
+warning: method `cancel_edit` is never used
+   --> lumni/src/apps/builtin/llm/prompt/src/tui/modals/profiles/mod.rs:100:8
+    |
+44  | impl ProfileEditModal {
+    | --------------------- method in this implementation
+...
+100 |     fn cancel_edit(&mut self) {
+    |        ^^^^^^^^^^^
+
+warning: associated constants `MIN_INPUT_WIDTH` and `MAX_INPUT_WIDTH` are never used
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/modals/profiles/new_profile_creator.rs:78:11
+   |
+77 | impl NewProfileCreator {
+   | ---------------------- associated constants in this implementation
+78 |     const MIN_INPUT_WIDTH: usize = 20;
+   |           ^^^^^^^^^^^^^^^
+79 |     const MAX_INPUT_WIDTH: usize = 32;
+   |           ^^^^^^^^^^^^^^^
+
+warning: method `select_new_profile` is never used
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/modals/profiles/profile_list.rs:25:12
+   |
+9  | impl ProfileList {
+   | ---------------- method in this implementation
+...
+25 |     pub fn select_new_profile(&mut self) {
+   |            ^^^^^^^^^^^^^^^^^^
+
+warning: method `set_alert` is never used
+  --> lumni/src/apps/builtin/llm/prompt/src/tui/ui.rs:48:12
+   |
+24 | impl AppUi<'_> {
+   | -------------- method in this implementation
+...
+48 |     pub fn set_alert(&mut self, message: &str) -> Result<(), ApplicationError> {
+   |            ^^^^^^^^^
+
+warning: method `with_borders` is never used
+   --> lumni/src/apps/builtin/llm/prompt/src/tui/window/text_window/mod.rs:305:12
+    |
+292 | impl<'a> TextWindow<'a, ReadWriteDocument> {
+    | ------------------------------------------ method in this implementation
+...
+305 |     pub fn with_borders(&mut self, borders: Borders) -> &mut Self {
+    |            ^^^^^^^^^^^^
+
+warning: function `head_object` is never used
+  --> lumni/src/localfs/get.rs:40:14
+   |
+40 | pub async fn head_object(path: &Path, key: &str) -> Result<(), InternalError> {
+   |              ^^^^^^^^^^^
+
+warning: function `system_time_in_seconds` is never used
+  --> lumni/src/utils/time.rs:44:8
+   |
+44 | pub fn system_time_in_seconds() -> u64 {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `lumni` (lib) generated 27 warnings (run `cargo fix --lib -p lumni` to apply 9 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s
+     Running `target/debug/lumni prompt`

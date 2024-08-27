@@ -52,13 +52,17 @@ impl FileObjectFilter {
             None => (None, None),
         };
 
-        Ok(FileObjectFilter::new(Conditions {
+        let conditions = Conditions {
             name_regex,
             min_size,
             max_size,
             min_mtime,
             max_mtime,
-        }))
+        };
+
+        // include directories if no conditions are specified
+        let include_directories = conditions.is_empty();
+        Ok(FileObjectFilter::new(conditions, include_directories))
     }
 }
 
@@ -89,6 +93,7 @@ fn parse_and_condition(
             let mut combined_filter = FileObjectFilter {
                 conditions: Vec::new(),
                 glob_matcher: None,
+                include_directories: left.include_directories,
             };
 
             for left_condition in &left.conditions {

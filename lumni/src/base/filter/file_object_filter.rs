@@ -12,13 +12,20 @@ use crate::{FileObject, LumniError};
 pub struct FileObjectFilter {
     pub conditions: Vec<Conditions>,
     pub glob_matcher: Option<GlobMatcher>,
+    pub include_directories: bool,
 }
 
 impl FileObjectFilter {
-    pub fn new(conditions: Conditions) -> Self {
+    pub fn new(conditions: Conditions, include_directories: bool) -> Self {
+        // include directories if no conditions are specified
         FileObjectFilter {
-            conditions: vec![conditions],
+            conditions: if conditions.is_empty() {
+                Vec::new()
+            } else {
+                vec![conditions]
+            },
             glob_matcher: None,
+            include_directories,
         }
     }
 
@@ -31,6 +38,7 @@ impl FileObjectFilter {
         size: Option<&str>,
         mtime: Option<&str>,
         ignore_contents: Option<IgnoreContents>,
+        include_directories: bool,
     ) -> Result<Self, LumniError> {
         let name_regex = name.map(|pattern| Regex::new(pattern).unwrap());
 
@@ -51,19 +59,29 @@ impl FileObjectFilter {
             None
         };
 
+        let conditions = Conditions {
+            name_regex,
+            min_size,
+            max_size,
+            min_mtime,
+            max_mtime,
+        };
+
         Ok(FileObjectFilter {
-            conditions: vec![Conditions {
-                name_regex,
-                min_size,
-                max_size,
-                min_mtime,
-                max_mtime,
-            }],
+            conditions: if conditions.is_empty() {
+                Vec::new()
+            } else {
+                vec![conditions]
+            },
             glob_matcher,
+            include_directories,
         })
     }
 
     pub fn add_or_condition(&mut self, condition: Conditions) {
+        if self.include_directories && !condition.is_empty() {
+            self.include_directories = false;
+        }
         self.conditions.push(condition);
     }
 
@@ -84,6 +102,11 @@ impl FileObjectFilter {
     }
 
     pub fn condition_matches(&self, file_object: &FileObject) -> bool {
+        // if file_object is a directory and directories are not included, return false directly
+        if !self.include_directories && file_object.is_directory() {
+            return false;
+        }
+
         // If no conditions are specified, file can be included
         if self.conditions.is_empty() {
             return true;

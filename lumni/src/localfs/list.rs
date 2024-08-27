@@ -8,7 +8,7 @@ use crossbeam_channel::{bounded, Sender};
 use rayon::prelude::*;
 
 use crate::table::{FileObjectTable, TableColumnValue};
-use crate::{FileObject, FileObjectFilter, InternalError};
+use crate::{FileObject, FileObjectFilter, FileType, InternalError};
 
 pub async fn list_files(
     path: &Path,
@@ -44,7 +44,7 @@ pub async fn list_files(
         );
     });
 
-    let rows: Vec<_> = receiver
+    let mut rows: Vec<_> = receiver
         .into_iter()
         .filter_map(|entry| {
             let result = process_entry(&entry, filter, selected_columns);
@@ -56,6 +56,27 @@ pub async fn list_files(
         })
         .take(max_count)
         .collect();
+
+    // In non-recursive mode, sort the rows so that directories come first
+    // skipped in recursive mode because directories are not shown separately
+    if !recursive {
+        rows.sort_by(|a, b| {
+            let a_is_dir = a.get("type")
+                .map(|t| matches!(t, TableColumnValue::Uint8Column(v) if *v == FileType::Directory.to_u8()))
+                .unwrap_or(false);
+            let b_is_dir = b.get("type")
+                .map(|t| matches!(t, TableColumnValue::Uint8Column(v) if *v == FileType::Directory.to_u8()))
+                .unwrap_or(false);
+
+            if a_is_dir && !b_is_dir {
+                std::cmp::Ordering::Less
+            } else if !a_is_dir && b_is_dir {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+    }
 
     // Batch insert all rows at once
     if !rows.is_empty() {
@@ -129,11 +150,18 @@ fn process_entry(
     selected_columns: &Option<Vec<&str>>,
 ) -> Option<HashMap<String, TableColumnValue>> {
     let metadata = entry.metadata().ok()?;
+
     if metadata.is_file() {
         handle_file(entry, filter, selected_columns)
-    } else if metadata.is_dir() && filter.is_none() {
-        handle_directory(entry, selected_columns)
+    } else if metadata.is_dir() {
+        // Include directory if there's no filter, or if the filter includes directories
+        if filter.as_ref().map_or(true, |f| f.include_directories) {
+            handle_directory(entry, selected_columns)
+        } else {
+            None
+        }
     } else {
+        // ignore any other file types (symlinks, pipes, sockets, etc.)
         None
     }
 }
@@ -175,6 +203,15 @@ fn handle_directory(
             TableColumnValue::OptionalInt64Column(None),
         );
     }
+    if selected_columns
+        .as_ref()
+        .map_or(true, |cols| cols.contains(&"type"))
+    {
+        dir_row_data.insert(
+            "type".to_string(),
+            TableColumnValue::Uint8Column(FileType::Directory.to_u8()),
+        );
+    }
 
     if dir_row_data.is_empty() {
         None
@@ -198,10 +235,14 @@ fn handle_file(
             .map(|duration| duration.as_secs())
             .unwrap_or(0) as i64
     });
-
     // Check if the file_object satisfies the filter conditions
-    let file_object =
-        FileObject::new(file_name.clone(), file_size, modified, None);
+    let file_object = FileObject::new(
+        file_name.clone(),
+        file_size,
+        FileType::RegularFile,
+        modified,
+        None,
+    );
     if let Some(ref filter) = filter {
         if !filter.condition_matches(&file_object) {
             return None;
@@ -234,6 +275,15 @@ fn handle_file(
         row_data.insert(
             "modified".to_string(),
             TableColumnValue::OptionalInt64Column(modified),
+        );
+    }
+    if selected_columns
+        .as_ref()
+        .map_or(true, |cols| cols.contains(&"type"))
+    {
+        row_data.insert(
+            "type".to_string(),
+            TableColumnValue::Uint8Column(FileType::RegularFile.to_u8()),
         );
     }
 

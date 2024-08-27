@@ -16,7 +16,7 @@ pub use base::callback_wrapper::{
     BinaryCallbackWrapper, CallbackItem, CallbackWrapper,
 };
 pub use base::config::EnvironmentConfig;
-pub use base::file_object::FileObject;
+pub use base::file_object::{FileObject, FileType};
 pub use base::{FileObjectFilter, IgnoreContents};
 // InternalError should be phased out in favor of LumniError
 pub use error::InternalError;
@@ -32,6 +32,7 @@ pub mod external {
     pub use crate::apps::api;
     // generic
     pub use crate::base::config::EnvironmentConfig;
+    pub use crate::base::file_object::{FileObject, FileType};
     #[cfg(feature = "http_client")]
     pub use crate::handlers::HttpHandler;
     pub use crate::handlers::ObjectStoreHandler;

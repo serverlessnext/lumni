@@ -6,8 +6,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use crossterm::event::KeyCode;
-use futures::TryFutureExt;
-use lumni::{EnvironmentConfig, ObjectStoreHandler, Table, TableColumnValue};
+use dirs::home_dir;
+use lumni::{
+    EnvironmentConfig, FileType, ObjectStoreHandler, Table, TableColumnValue,
+};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -52,9 +54,11 @@ impl FileListHandler {
         query: String,
     ) -> Result<Arc<Box<dyn Table + Send + Sync>>, ApplicationError> {
         let config = EnvironmentConfig::new(HashMap::new());
+        let skip_hidden = true;
+        let recursive = false;
         let result = self
             .handler
-            .execute_query(&query, &config, true, false, None, None)
+            .execute_query(&query, &config, skip_hidden, recursive, None, None)
             .await
             .map_err(ApplicationError::from)?;
         Ok(Arc::new(result as Box<dyn Table + Send + Sync>))
@@ -73,8 +77,6 @@ impl FileListHandler {
                 self.handle_query(query).await
             }
             Err(e) => match e {
-                // TODO: update execute_query to return LumniError::ResourceError
-                //ResourceError::NotFound => Err(ApplicationError::NotFound(path)),
                 _ => Err(ApplicationError::InternalError(e.to_string())),
             },
         }
@@ -87,8 +89,10 @@ pub enum BackgroundTaskResult {
 }
 
 pub struct FileBrowserModal<'a> {
-    current_path: String,
+    base_path: PathBuf,
+    current_path: PathBuf,
     path_input: TextArea<'a>,
+    root_title: String,
     file_table: Option<Arc<Box<dyn Table + Send + Sync>>>,
     selected_index: usize,
     scroll_offset: usize,
@@ -108,7 +112,22 @@ enum FileBrowserFocus {
 }
 
 impl<'a> FileBrowserModal<'a> {
-    pub fn new(initial_path: String) -> Self {
+    pub fn new(base_path: Option<PathBuf>) -> Self {
+        let base_path = base_path
+            .or_else(home_dir)
+            .unwrap_or_else(|| PathBuf::from("/"));
+        let current_path = base_path.clone();
+        let root_title = if base_path == home_dir().unwrap_or_default() {
+            "~/".to_string()
+        } else {
+            base_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("Root Directory")
+                .to_string()
+                + "/"
+        };
+
         let (op_tx, op_rx) = mpsc::channel(100);
         let (result_tx, result_rx) = mpsc::channel(100);
 
@@ -122,11 +141,15 @@ impl<'a> FileBrowserModal<'a> {
         });
 
         let mut path_input = TextArea::new();
-        path_input.text_set(&initial_path, None).unwrap();
+        path_input
+            .text_set(&current_path.to_string_lossy(), None)
+            .unwrap();
 
         let mut modal = Self {
-            current_path: initial_path,
+            base_path,
+            current_path,
             path_input,
+            root_title,
             file_table: None,
             selected_index: 0,
             scroll_offset: 0,
@@ -144,14 +167,27 @@ impl<'a> FileBrowserModal<'a> {
         modal
     }
 
+    fn update_path_input(&mut self) {
+        if self.current_path == self.base_path {
+            self.path_input.text_set("", None).unwrap();
+        } else {
+            let relative_path = self
+                .current_path
+                .strip_prefix(&self.base_path)
+                .unwrap_or(&self.current_path);
+            let display_path = relative_path.to_str().unwrap_or("");
+            self.path_input.text_set(display_path, None).unwrap();
+        }
+    }
+
     fn reset_selection(&mut self) {
         self.selected_index = 0;
     }
 
     fn start_list_files(&mut self) {
-        let _ = self
-            .operation_sender
-            .try_send(FileOperation::ListFiles(self.current_path.clone()));
+        let _ = self.operation_sender.try_send(FileOperation::ListFiles(
+            self.current_path.to_string_lossy().into_owned(),
+        ));
         self.task_start_time = Some(Instant::now());
     }
 
@@ -163,18 +199,14 @@ impl<'a> FileBrowserModal<'a> {
                 {
                     let is_dir = name.ends_with('/');
                     if is_dir {
-                        let new_path = if self.current_path == "." {
-                            name.to_string()
-                        } else {
-                            let mut path_buf =
-                                PathBuf::from(&self.current_path);
-                            path_buf.push(name.trim_end_matches('/'));
-                            path_buf.to_string_lossy().into_owned()
-                        };
+                        self.current_path.push(name.trim_end_matches('/'));
+                        let new_path =
+                            self.current_path.to_string_lossy().into_owned();
                         let _ = self
                             .operation_sender
                             .try_send(FileOperation::EnterDirectory(new_path));
                         self.task_start_time = Some(Instant::now());
+                        self.update_path_input();
                     } else {
                         // Handle file selection (e.g., open file, show details, etc.)
                         log::debug!("TODO: Handle file selection");
@@ -185,10 +217,15 @@ impl<'a> FileBrowserModal<'a> {
     }
 
     fn start_go_up_directory(&mut self) {
-        let _ = self
-            .operation_sender
-            .try_send(FileOperation::GoUpDirectory(self.current_path.clone()));
-        self.task_start_time = Some(Instant::now());
+        if self.current_path != self.base_path {
+            self.current_path.pop();
+            let new_path = self.current_path.to_string_lossy().into_owned();
+            let _ = self
+                .operation_sender
+                .try_send(FileOperation::GoUpDirectory(new_path));
+            self.task_start_time = Some(Instant::now());
+            self.update_path_input();
+        }
     }
 
     fn render_file_list(&mut self, frame: &mut Frame, area: Rect) {
@@ -205,8 +242,13 @@ impl<'a> FileBrowserModal<'a> {
                                 _ => None,
                             })
                             .unwrap_or_default();
-
-                        let is_dir = full_name.ends_with('/');
+                        let file_type = match row.get_value("type") {
+                            Some(TableColumnValue::Uint8Column(value)) => {
+                                FileType::from_u8(*value)
+                            }
+                            _ => FileType::Unknown,
+                        };
+                        let is_dir = file_type == FileType::Directory;
                         let basename = Path::new(&full_name)
                             .file_name()
                             .and_then(|n| n.to_str())
@@ -225,7 +267,6 @@ impl<'a> FileBrowserModal<'a> {
         } else {
             vec![]
         };
-
         let list_height = area.height as usize - 2; // Subtract 2 for the borders
                                                     // add safe subtraction to prevent panic from overflow
                                                     //let list_height = area.height.saturating_sub(2);
@@ -394,7 +435,8 @@ impl<'a> FileBrowserModal<'a> {
                     Ok(table) => {
                         self.file_table = Some(table);
                         self.apply_filter();
-                        self.reset_selection(); // Reset selection when new file list is loaded
+                        self.reset_selection();
+                        self.update_path_input();
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -403,10 +445,10 @@ impl<'a> FileBrowserModal<'a> {
             BackgroundTaskResult::DirectoryChange(result) => {
                 self.task_start_time = None;
                 match result {
-                    Ok(new_path) => {
-                        self.current_path = new_path;
+                    Ok(_) => {
                         self.start_list_files();
-                        self.reset_selection(); // Reset selection when changing directory
+                        self.reset_selection();
+                        self.update_path_input();
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -474,7 +516,7 @@ impl<'a> FileBrowserModal<'a> {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title("Current Path");
+            .title(Span::raw(&self.root_title));
 
         frame.render_widget(block, area);
         frame.render_widget(
@@ -654,13 +696,21 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
         match self.focus {
             FileBrowserFocus::PathInput => match key_event.current_key().code {
                 KeyCode::Enter => {
-                    self.current_path =
-                        self.path_input.text_buffer().to_string();
+                    let input_path = self.path_input.text_buffer().to_string();
+                    if input_path.is_empty() {
+                        self.current_path = self.base_path.clone();
+                    } else {
+                        let new_path = PathBuf::from(&input_path);
+                        if new_path.is_absolute() {
+                            self.current_path = new_path;
+                        } else {
+                            self.current_path = self.base_path.join(new_path);
+                        }
+                    }
                     self.start_list_files();
-                    self.focus = FileBrowserFocus::FileList;
                 }
                 KeyCode::Esc => {
-                    self.path_input.text_set(&self.current_path, None)?;
+                    self.update_path_input();
                     self.focus = FileBrowserFocus::FileList;
                 }
                 KeyCode::Tab => {

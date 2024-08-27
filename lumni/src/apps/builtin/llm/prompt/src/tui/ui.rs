@@ -65,7 +65,8 @@ impl AppUi<'_> {
                 Some(Box::new(ProfileEditModal::new(handler).await?))
             }
             ModalWindowType::FileBrowser => {
-                Some(Box::new(FileBrowserModal::new(".".to_string())))
+                // TODO: get dir from profile
+                Some(Box::new(FileBrowserModal::new(None)))
             }
         };
         Ok(())

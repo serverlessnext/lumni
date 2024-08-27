@@ -2,7 +2,9 @@ use core::{fmt, panic};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::table::{OptionalInt64Column, StringColumn, TableRow, Uint64Column};
+use crate::table::{
+    OptionalInt64Column, StringColumn, TableRow, Uint64Column, Uint8Column,
+};
 use crate::utils::formatters::{bytes_human_readable, time_human_readable};
 use crate::{
     FileObject, InternalError, Table, TableCallback, TableColumn,
@@ -27,7 +29,7 @@ impl FileObjectTable {
         };
 
         // Define a list of valid column names
-        let valid_columns = vec!["name", "size", "modified"];
+        let valid_columns = vec!["name", "size", "modified", "type"];
 
         if let Some(columns) = selected_columns {
             for &column in columns {
@@ -40,6 +42,12 @@ impl FileObjectTable {
                         "modified",
                         Box::new(OptionalInt64Column(Vec::new())),
                     ),
+                    "type" => {
+                        table.add_column(
+                            "type",
+                            Box::new(Uint8Column(Vec::new())),
+                        );
+                    }
                     _ => panic!("Invalid column name: {}", column),
                 }
             }
@@ -55,6 +63,12 @@ impl FileObjectTable {
                         "modified",
                         Box::new(OptionalInt64Column(Vec::new())),
                     ),
+                    "type" => {
+                        table.add_column(
+                            "type",
+                            Box::new(Uint8Column(Vec::new())),
+                        );
+                    }
                     // should not be reachable because valid_columns is hardcoded
                     _ => panic!("Invalid column name: {}", column),
                 }
@@ -109,10 +123,11 @@ impl Table for FileObjectTable {
     }
 
     fn get_row(&self, index: usize) -> Option<TableRow> {
+        // TODO: should implement a more efficient way to get the correct type property
+        // should be fixed for FileObjectTable
         if index >= self.len() {
             return None;
         }
-
         let row_data: Vec<(String, TableColumnValue)> = self
             .columns
             .iter()
@@ -136,7 +151,17 @@ impl Table for FileObjectTable {
                                 Some(c) => c.0.get(index).map(|&oi| {
                                     TableColumnValue::OptionalInt64Column(oi)
                                 }),
-                                None => None,
+                                None => {
+                                    match column
+                                        .as_any()
+                                        .downcast_ref::<Uint8Column>()
+                                    {
+                                        Some(c) => c.0.get(index).map(|&u| {
+                                            TableColumnValue::Uint8Column(u)
+                                        }),
+                                        None => None,
+                                    }
+                                }
                             },
                         }
                     }

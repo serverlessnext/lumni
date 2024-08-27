@@ -25,9 +25,9 @@ use super::chat::{
     PromptInstruction, ThreadedChatSession,
 };
 use super::cli::{
-    handle_db_subcommand, handle_profile_subcommand, parse_cli_arguments,
+    handle_db_subcommand, handle_profile_selection, handle_profile_subcommand,
+    parse_cli_arguments,
 };
-use super::server::{ModelServer, ServerTrait};
 use crate::external as lumni;
 
 async fn create_prompt_instruction(
@@ -42,26 +42,11 @@ async fn create_prompt_instruction(
 
     let mut profile_handler = db_conn.get_profile_handler(None);
 
-    // Handle --profile option
-    //    if let Some(profile_name) =
-    //        matches.and_then(|m| m.get_one::<String>("profile"))
-    //    {
-    //        profile_handler.set_profile_name(profile_name.to_string());
-    //    } else {
-    //        // Use default profile if set
-    //        if let Some(default_profile) =
-    //            profile_handler.get_default_profile().await?
-    //        {
-    //            profile_handler.set_profile_name(default_profile);
-    //        }
-    //    }
-    //
-    //    // Check if a profile is set
-    //    if profile_handler.get_profile_name().is_none() {
-    //        return Err(ApplicationError::InvalidInput(
-    //            "No profile set".to_string(),
-    //        ));
-    //    }
+    handle_profile_selection(
+        &mut profile_handler,
+        matches.and_then(|m| m.get_one::<String>("profile")),
+    )
+    .await?;
 
     // Get model_backend
     let model_backend =

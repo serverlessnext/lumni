@@ -63,11 +63,6 @@ impl UserProfileDbHandler {
     pub async fn model_backend(
         &mut self,
     ) -> Result<Option<ModelBackend>, ApplicationError> {
-        // TODO:
-        return Ok(Some(ModelBackend {
-            server: ModelServer::from_str("ollama")?,
-            model: None,
-        }));
         let user_profile = self.profile.clone();
 
         if let Some(profile) = user_profile {
@@ -76,18 +71,18 @@ impl UserProfileDbHandler {
                 .await?;
 
             let model_server = settings
-                .get("__MODEL_SERVER")
+                .get("__TEMPLATE.__MODEL_SERVER")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| {
                     ApplicationError::InvalidInput(
-                        "__MODEL_SERVER not found in profile".to_string(),
+                        "MODEL_SERVER not found in profile".to_string(),
                     )
                 })?;
 
             let server = ModelServer::from_str(model_server)?;
 
             let model = settings
-                .get("__MODEL_IDENTIFIER")
+                .get("__TEMPLATE.MODEL_IDENTIFIER")
                 .and_then(|v| v.as_str())
                 .map(|identifier| ModelSpec::new_with_validation(identifier))
                 .transpose()?;

@@ -72,6 +72,7 @@ pub struct NewProfileCreator {
     current_additional_setting: usize,
     is_input_focused: bool,
     temp_input: Option<String>,
+    model_fetch_error: Option<String>,
 }
 
 impl NewProfileCreator {
@@ -120,6 +121,7 @@ impl NewProfileCreator {
             current_additional_setting: 0,
             is_input_focused: false,
             temp_input: None,
+            model_fetch_error: None,
         };
         creator
             .navigation_stack
@@ -438,15 +440,17 @@ impl NewProfileCreator {
                     self.ready_to_create = false;
                     self.skipped_type_selection = false;
 
+                    self.model_fetch_error = None;
                     self.move_to_next_step(NewProfileCreationStep::SelectModel)
                 }
-                Ok(_) => Err(ApplicationError::NotReady(
-                    "No models available for this server. Please try another \
-                     provider."
-                        .to_string(),
-                )),
-                Err(ApplicationError::NotReady(msg)) => {
-                    Err(ApplicationError::NotReady(msg))
+                Ok(_) | Err(ApplicationError::NotReady(_)) => {
+                    self.model_fetch_error = Some(
+                        "Can't fetch models for this provider. Ensure the \
+                         provider is running and correctly configured. Press \
+                         Tab to skip setting a model."
+                            .to_string(),
+                    );
+                    self.move_to_next_step(NewProfileCreationStep::SelectModel)
                 }
                 Err(e) => Err(e),
             }
@@ -732,7 +736,23 @@ impl NewProfileCreator {
         match key_code {
             KeyCode::Up => self.move_model_selection_up(),
             KeyCode::Down => self.move_model_selection_down(),
-            KeyCode::Enter | KeyCode::Tab => self.confirm_model_selection(),
+            KeyCode::Enter => {
+                if self.model_fetch_error.is_none() {
+                    self.confirm_model_selection()
+                } else {
+                    Ok(NewProfileCreatorAction::WaitForKeyEvent)
+                }
+            }
+            KeyCode::Tab => {
+                if self.model_fetch_error.is_some() {
+                    self.ready_to_create = true;
+                    self.move_to_next_step(
+                        NewProfileCreationStep::ConfirmCreate,
+                    )
+                } else {
+                    self.confirm_model_selection()
+                }
+            }
             KeyCode::Esc => self.handle_back_navigation(),
             _ => Ok(NewProfileCreatorAction::WaitForKeyEvent),
         }
@@ -1073,7 +1093,20 @@ impl NewProfileCreator {
             ])));
             items.push(ListItem::new(""));
 
-            if let Some(sub_selections) = self.sub_selections.get(profile_type)
+            if let Some(error_message) = &self.model_fetch_error {
+                let available_width = area.width as usize - 4; // Subtract 4 for borders and padding
+                let simple_string = SimpleString::from(error_message.clone());
+                let wrapped_spans = simple_string.wrapped_spans(
+                    available_width,
+                    Some(Style::default().fg(Color::Red)),
+                    None,
+                );
+
+                for spans in wrapped_spans {
+                    items.push(ListItem::new(Line::from(spans)));
+                }
+            } else if let Some(sub_selections) =
+                self.sub_selections.get(profile_type)
             {
                 if let Some(model_selection) = sub_selections.first() {
                     items.push(ListItem::new(Span::styled(
@@ -1103,6 +1136,14 @@ impl NewProfileCreator {
                         ])));
                     }
                 }
+            }
+
+            if self.model_fetch_error.is_some() {
+                items.push(ListItem::new(""));
+                items.push(ListItem::new(Span::styled(
+                    "Press Tab to skip setting a model",
+                    Style::default().fg(Self::COLOR_SECONDARY),
+                )));
             }
         }
 
@@ -1241,6 +1282,7 @@ impl NewProfileCreator {
         }
     }
 }
+
 fn split_at_width(s: &str, width: usize) -> (String, String) {
     let mut chars = s.chars().peekable();
     let mut line = String::new();

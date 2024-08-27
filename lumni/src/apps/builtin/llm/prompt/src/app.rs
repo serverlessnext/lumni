@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 
-use clap::{ArgMatches, Command};
+use clap::Command;
 use crossterm::cursor::Show;
 use crossterm::event::{poll, DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
@@ -19,97 +19,15 @@ use tokio::signal;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
-use super::chat::db::{ConversationDatabase, ModelServerName};
+use super::chat::db::ConversationDatabase;
 use super::chat::{
-    prompt_app, App, AssistantManager, ChatEvent, NewConversation,
-    PromptInstruction, ThreadedChatSession,
+    prompt_app, App, ChatEvent, PromptInstruction, PromptInstructionBuilder,
+    ThreadedChatSession,
 };
 use super::cli::{
-    handle_db_subcommand, handle_profile_selection, handle_profile_subcommand,
-    parse_cli_arguments,
+    handle_db_subcommand, handle_profile_subcommand, parse_cli_arguments,
 };
 use crate::external as lumni;
-
-async fn create_prompt_instruction(
-    matches: Option<&ArgMatches>,
-    db_conn: &Arc<ConversationDatabase>,
-) -> Result<PromptInstruction, ApplicationError> {
-    let instruction =
-        matches.and_then(|m| m.get_one::<String>("system").cloned());
-    let assistant =
-        matches.and_then(|m| m.get_one::<String>("assistant").cloned());
-    let user_options = matches.and_then(|m| m.get_one::<String>("options"));
-
-    let mut profile_handler = db_conn.get_profile_handler(None);
-
-    handle_profile_selection(
-        &mut profile_handler,
-        matches.and_then(|m| m.get_one::<String>("profile")),
-    )
-    .await?;
-
-    // Get model_backend
-    let model_backend =
-        profile_handler.model_backend().await?.ok_or_else(|| {
-            ApplicationError::InvalidInput(
-                "Failed to get model backend".to_string(),
-            )
-        })?;
-
-    let assistant_manager =
-        AssistantManager::new(assistant, instruction.clone())?;
-    let initial_messages = assistant_manager.get_initial_messages().to_vec();
-    // get default options via assistant
-    let mut completion_options =
-        assistant_manager.get_completion_options().clone();
-
-    let model_server_name = model_backend.server_name();
-    completion_options.model_server = Some(model_server_name.clone());
-
-    // overwrite default options with options set by the user
-    if let Some(s) = user_options {
-        let user_options_value = serde_json::from_str::<serde_json::Value>(s)?;
-        completion_options.update(user_options_value)?;
-    }
-
-    let new_conversation = NewConversation {
-        server: model_server_name,
-        model: model_backend.model.clone(),
-        options: Some(serde_json::to_value(completion_options)?),
-        system_prompt: instruction,
-        initial_messages: Some(initial_messages),
-        parent: None,
-    };
-
-    // check if the last conversation is the same as the new conversation, if so,
-    // continue the conversation, otherwise start a new conversation
-    let mut db_handler = db_conn.get_conversation_handler(None);
-    let conversation_id = db_conn.fetch_last_conversation_id().await?;
-
-    let prompt_instruction = if let Some(conversation_id) = conversation_id {
-        db_handler.set_conversation_id(conversation_id);
-        match new_conversation.is_equal(&db_handler).await {
-            Ok(true) => {
-                log::debug!("Continuing last conversation");
-                Some(PromptInstruction::from_reader(&db_handler).await?)
-            }
-            Ok(_) => None,
-            Err(e) => return Err(e.into()),
-        }
-    } else {
-        None
-    };
-
-    let prompt_instruction = match prompt_instruction {
-        Some(instruction) => instruction,
-        None => {
-            log::debug!("Starting new conversation");
-            PromptInstruction::new(new_conversation, &mut db_handler).await?
-        }
-    };
-
-    Ok(prompt_instruction)
-}
 
 fn get_possible_inputs(app: &Command) -> Vec<String> {
     let mut possible_inputs = Vec::new();
@@ -181,8 +99,11 @@ pub async fn run_cli(
         }
     }
 
-    let prompt_instruction =
-        create_prompt_instruction(matches.as_ref(), &db_conn).await?;
+    let prompt_instruction = PromptInstructionBuilder::new(db_conn.clone())
+        .with_matches(matches.as_ref().expect("Clap matches not found"))
+        .await?
+        .build()
+        .await?;
 
     match input {
         Some(question) => {

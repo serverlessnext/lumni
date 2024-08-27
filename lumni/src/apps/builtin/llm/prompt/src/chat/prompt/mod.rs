@@ -1,12 +1,18 @@
 mod assistant;
+mod builder;
 mod role;
 
 pub use assistant::AssistantManager;
+pub use builder::PromptInstructionBuilder;
 pub use role::PromptRole;
 use serde::{Deserialize, Serialize};
 
 pub use super::completion_options::{AssistantOptions, ChatCompletionOptions};
-pub use super::db::{ConversationId, Message, MessageId};
+pub use super::conversation::{NewConversation, PromptInstruction};
+pub use super::db::{
+    ConversationDatabase, ConversationId, Message, MessageId, UserProfile,
+    UserProfileDbHandler,
+};
 pub use super::PERSONAS;
 
 #[derive(Debug, Serialize, Deserialize)]

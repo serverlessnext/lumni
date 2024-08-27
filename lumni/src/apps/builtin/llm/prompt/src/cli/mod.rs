@@ -1,9 +1,7 @@
-mod select_profile;
 mod subcommands;
 
 use clap::{Arg, Command};
 use lumni::api::spec::ApplicationSpec;
-pub use select_profile::handle_profile_selection;
 use subcommands::db::create_db_subcommand;
 pub use subcommands::db::handle_db_subcommand;
 use subcommands::profile::create_profile_subcommand;

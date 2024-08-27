@@ -8,7 +8,7 @@ mod session;
 pub use completion_options::ChatCompletionOptions;
 pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
-pub use prompt::{AssistantManager, PromptRole};
+pub use prompt::{AssistantManager, PromptInstructionBuilder, PromptRole};
 pub use session::{prompt_app, App, ChatEvent, ThreadedChatSession};
 
 pub use super::defaults::*;

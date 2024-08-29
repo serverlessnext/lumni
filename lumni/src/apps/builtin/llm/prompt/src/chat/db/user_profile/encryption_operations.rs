@@ -10,6 +10,8 @@ use sha2::{Digest, Sha256};
 use super::{DatabaseOperationError, EncryptionHandler, UserProfileDbHandler};
 use crate::external as lumni;
 
+const DEFAULT_KEY_NAME: &str = "lumni_default_privkey";
+
 impl UserProfileDbHandler {
     pub fn encrypt_value(
         &self,
@@ -194,6 +196,7 @@ impl UserProfileDbHandler {
                         EncryptionHandler::get_private_key_hash(&key_path)?;
                     self.get_or_insert_encryption_key(tx, &key_path, &key_hash)
                 } else {
+                    // no key in database -- create a new (default) key, or load one from disk
                     let key_dir = home_dir()
                         .unwrap_or_default()
                         .join(".lumni")
@@ -202,8 +205,11 @@ impl UserProfileDbHandler {
                         .map_err(|e| ApplicationError::IOError(e))?;
 
                     let new_encryption_handler =
-                        EncryptionHandler::generate_private_key(
-                            &key_dir, 2048, None,
+                        EncryptionHandler::load_or_generate_private_key(
+                            &key_dir,
+                            2048,
+                            DEFAULT_KEY_NAME,
+                            None,
                         )
                         .map_err(|e| {
                             ApplicationError::EncryptionError(

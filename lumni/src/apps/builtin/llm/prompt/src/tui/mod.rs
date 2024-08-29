@@ -3,8 +3,8 @@ mod colorscheme;
 mod draw;
 mod events;
 mod modals;
-pub mod widgets;
 mod ui;
+pub mod widgets;
 mod window;
 
 pub use colorscheme::{ColorScheme, ColorSchemeType};
@@ -20,6 +20,7 @@ pub use window::{
     CommandLine, ResponseWindow, SimpleString, TextArea, TextLine, TextSegment,
     TextWindowTrait, WindowKind,
 };
+
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
     ConversationStatus, MaskMode, UserProfile, UserProfileDbHandler,

@@ -10,7 +10,19 @@ CREATE TABLE user_profiles (
     options TEXT NOT NULL, -- JSON string
     is_default INTEGER DEFAULT 0,
     encryption_key_id INTEGER NOT NULL,
+    provider_config_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
+    FOREIGN KEY (provider_config_id) REFERENCES provider_configs(id)
+);
+
+CREATE TABLE provider_configs (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    model_identifier TEXT,
+    additional_settings TEXT, -- JSON string
+    encryption_key_id INTEGER NOT NULL,
     FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
 );
 

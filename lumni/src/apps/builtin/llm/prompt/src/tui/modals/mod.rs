@@ -6,15 +6,16 @@ use async_trait::async_trait;
 pub use conversations::ConversationListModal;
 pub use filebrowser::FileBrowserModal;
 pub use profiles::ProfileEditModal;
-pub use super::widgets;
 use ratatui::layout::Rect;
 use ratatui::Frame;
-
 use widgets::FileBrowserWidget;
+
+pub use super::widgets;
 use super::{
     ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
     KeyTrack, MaskMode, ModelServer, PromptInstruction, ServerTrait,
-    SimpleString, TextArea, TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    SimpleString, TextArea, TextWindowTrait, ThreadedChatSession, UserEvent,
+    UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,4 +1,3 @@
-
 use std::path::PathBuf;
 
 use async_trait::async_trait;
@@ -11,8 +10,9 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, ConversationDbHandler, KeyTrack, ModalAction,
-    ModalWindowTrait, ModalWindowType, ThreadedChatSession, WindowEvent, FileBrowserWidget,
+    ApplicationError, ConversationDbHandler, FileBrowserWidget, KeyTrack,
+    ModalAction, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
+    WindowEvent,
 };
 pub use crate::external as lumni;
 

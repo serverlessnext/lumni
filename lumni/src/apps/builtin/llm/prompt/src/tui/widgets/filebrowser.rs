@@ -21,9 +21,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use tokio::sync::mpsc;
 
-use super::{
-    KeyTrack, ModalAction, TextArea, TextWindowTrait,
-};
+use super::{KeyTrack, ModalAction, TextArea, TextWindowTrait};
 pub use crate::external as lumni;
 
 // TODO notes:

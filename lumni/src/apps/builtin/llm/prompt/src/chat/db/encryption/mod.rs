@@ -407,9 +407,61 @@ impl EncryptionHandler {
 }
 
 impl EncryptionHandler {
+    pub fn load_or_generate_private_key(
+        key_dir: &PathBuf,
+        bits: usize,
+        key_name: &str,
+        password: Option<&str>,
+    ) -> Result<Self, ApplicationError> {
+        let key_path = key_dir.join(format!("{}.pem", key_name));
+
+        // Try to load the existing key
+        if key_path.exists() {
+            let private_key_pem = fs::read_to_string(&key_path)
+                .map_err(|e| ApplicationError::IOError(e))?;
+
+            let private_key = match password {
+                Some(pass) => RsaPrivateKey::from_pkcs8_encrypted_pem(
+                    &private_key_pem,
+                    pass,
+                )
+                .map_err(|e| {
+                    ApplicationError::EncryptionError(
+                        EncryptionError::RsaError(rsa::Error::Pkcs8(e)),
+                    )
+                })?,
+                None => RsaPrivateKey::from_pkcs8_pem(&private_key_pem)
+                    .map_err(|e| {
+                        ApplicationError::EncryptionError(
+                            EncryptionError::RsaError(rsa::Error::Pkcs8(e)),
+                        )
+                    })?,
+            };
+
+            let public_key = RsaPublicKey::from(&private_key);
+            let sha256_hash = Self::sha256_hash(&private_key_pem);
+
+            log::info!(
+                "Existing RSA private key loaded successfully from {:?}",
+                key_path
+            );
+
+            return Ok(Self {
+                public_key,
+                private_key,
+                key_path,
+                sha256_hash,
+            });
+        }
+
+        // If loading fails, generate a new key
+        Self::generate_private_key(key_dir, bits, Some(key_name), password)
+    }
+
     pub fn generate_private_key(
         key_dir: &PathBuf,
         bits: usize,
+        key_name: Option<&str>,
         password: Option<&str>,
     ) -> Result<Self, ApplicationError> {
         // Generate a new RSA private key
@@ -446,10 +498,14 @@ impl EncryptionHandler {
             .map_err(|e| ApplicationError::IOError(e))?;
 
         let sha256_hash = Self::sha256_hash(&private_key_pem);
-        let key_path = key_dir.join(format!(
-            "{}.pem",
-            sha256_hash.chars().take(8).collect::<String>()
-        ));
+        let key_path = if let Some(name) = key_name {
+            key_dir.join(format!("{}.pem", name))
+        } else {
+            key_dir.join(format!(
+                "{}.pem",
+                sha256_hash.chars().take(8).collect::<String>()
+            ))
+        };
 
         // Save private key to file
         fs::write(&key_path, private_key_pem.as_bytes())

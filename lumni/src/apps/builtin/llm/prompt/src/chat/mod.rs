@@ -17,10 +17,10 @@ use super::server::{
     CompletionResponse, ModelBackend, ModelServer, ServerManager,
 };
 use super::tui::{
-    draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    ConversationEvent, KeyEventHandler, ModalAction, ModalWindowType,
-    PromptAction, SimpleString, TextLine, TextSegment, TextWindowTrait,
-    UserEvent, WindowEvent, WindowKind,
+    draw_ui, AdditionalSetting, AppUi, ColorScheme, ColorSchemeType,
+    CommandLineAction, ConversationEvent, KeyEventHandler, ModalAction,
+    ModalWindowType, PromptAction, ProviderConfig, SimpleString, TextLine,
+    TextSegment, TextWindowTrait, UserEvent, WindowEvent, WindowKind,
 };
 
 // gets PERSONAS from the generated code

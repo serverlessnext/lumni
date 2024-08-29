@@ -14,7 +14,10 @@ pub use events::{
     PromptAction, UserEvent, WindowEvent,
 };
 use lumni::api::error::ApplicationError;
-pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
+pub use modals::{
+    AdditionalSetting, ModalAction, ModalWindowTrait, ModalWindowType,
+    ProviderConfig,
+};
 pub use ui::AppUi;
 pub use window::{
     CommandLine, ResponseWindow, SimpleString, TextArea, TextLine, TextSegment,
@@ -23,7 +26,8 @@ pub use window::{
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, UserProfile, UserProfileDbHandler,
+    ConversationStatus, MaskMode, ModelIdentifier, ModelSpec, UserProfile,
+    UserProfileDbHandler,
 };
 use super::chat::{
     App, NewConversation, PromptInstruction, ThreadedChatSession,

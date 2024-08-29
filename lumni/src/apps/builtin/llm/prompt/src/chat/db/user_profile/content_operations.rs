@@ -288,7 +288,7 @@ impl UserProfileDbHandler {
         }
     }
 
-    fn process_value(
+    pub fn process_value(
         &self,
         value: &JsonValue,
         encryption_mode: EncryptionMode,

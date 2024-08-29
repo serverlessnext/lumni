@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use lazy_static::lazy_static;
 use lumni::api::error::ApplicationError;
 use regex::Regex;
@@ -13,6 +15,12 @@ lazy_static! {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ModelIdentifier(pub String);
+
+impl Display for ModelIdentifier {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl ModelIdentifier {
     pub fn new(identifier_str: &str) -> Result<Self, ApplicationError> {

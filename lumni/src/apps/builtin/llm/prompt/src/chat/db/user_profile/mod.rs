@@ -2,16 +2,19 @@ mod content_operations;
 mod database_operations;
 mod encryption_operations;
 mod profile_operations;
+mod provider_config;
 use std::sync::Arc;
 
-use lumni::api::error::ApplicationError;
+use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value as JsonValue};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
-use super::{ModelBackend, ModelServer, ModelSpec};
+use super::{
+    AdditionalSetting, ModelBackend, ModelServer, ModelSpec, ProviderConfig,
+};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq)]

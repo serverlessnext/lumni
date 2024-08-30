@@ -8,7 +8,7 @@ mod session;
 pub use completion_options::ChatCompletionOptions;
 pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
-pub use prompt::{AssistantManager, PromptInstructionBuilder, PromptRole};
+pub use prompt::{PromptInstructionBuilder, PromptRole};
 pub use session::{prompt_app, App, ChatEvent, ThreadedChatSession};
 
 pub use super::defaults::*;
@@ -17,10 +17,10 @@ use super::server::{
     CompletionResponse, ModelBackend, ModelServer, ServerManager,
 };
 use super::tui::{
-    draw_ui, AdditionalSetting, AppUi, ColorScheme, ColorSchemeType,
-    CommandLineAction, ConversationEvent, KeyEventHandler, ModalAction,
-    ModalWindowType, PromptAction, ProviderConfig, SimpleString, TextLine,
-    TextSegment, TextWindowTrait, UserEvent, WindowEvent, WindowKind,
+    draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
+    ConversationEvent, KeyEventHandler, ModalAction, ModalWindowType,
+    PromptAction, SimpleString, TextLine, TextSegment, TextWindowTrait,
+    UserEvent, WindowEvent, WindowKind,
 };
 
 // gets PERSONAS from the generated code

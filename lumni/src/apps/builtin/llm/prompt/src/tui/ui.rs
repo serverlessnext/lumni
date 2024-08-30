@@ -3,9 +3,7 @@ use std::sync::Arc;
 use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
-use super::modals::{
-    ConversationListModal, FileBrowserModal, ProfileEditModal,
-};
+use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::{
     CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
     ModalWindowType, ResponseWindow, TextArea, TextLine, TextWindowTrait,
@@ -62,7 +60,7 @@ impl AppUi<'_> {
             }
             ModalWindowType::ProfileEdit => {
                 let handler = db_conn.get_profile_handler(None);
-                Some(Box::new(ProfileEditModal::new(handler).await?))
+                Some(Box::new(SettingsModal::new(handler).await?))
             }
             ModalWindowType::FileBrowser => {
                 // TODO: get dir from profile

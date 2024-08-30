@@ -15,12 +15,13 @@ pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
 pub use store::ConversationDatabase;
-pub use user_profile::{MaskMode, UserProfile, UserProfileDbHandler};
+pub use user_profile::{
+    MaskMode, ProviderConfig, ProviderConfigOptions, UserProfile,
+    UserProfileDbHandler,
+};
 
 pub use super::ConversationCache;
-use super::{
-    AdditionalSetting, ModelBackend, ModelServer, PromptRole, ProviderConfig,
-};
+use super::{ModelBackend, ModelServer, PromptRole};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -1,216 +1,21 @@
 use std::collections::HashMap;
 
-use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
-use ratatui::Frame;
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderConfig {
-    pub id: Option<usize>,
-    pub name: String,
-    pub provider_type: String,
-    pub model_identifier: Option<String>,
-    pub additional_settings: HashMap<String, AdditionalSetting>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdditionalSetting {
-    pub name: String,
-    pub display_name: String,
-    pub value: String,
-    pub is_secure: bool,
-    pub placeholder: String,
-}
-
-pub struct ProviderManager {
-    configs: Vec<ProviderConfig>,
-    selected_index: Option<usize>,
-    db_handler: UserProfileDbHandler,
-    provider_creator: Option<ProviderCreator>,
-}
-
-impl ProviderManager {
-    pub fn new(db_handler: UserProfileDbHandler) -> Self {
-        Self {
-            configs: Vec::new(),
-            selected_index: None,
-            db_handler,
-            provider_creator: None,
-        }
-    }
-
-    pub fn render(&self, f: &mut Frame, area: Rect) {
-        if let Some(creator) = &self.provider_creator {
-            creator.render(f, area);
-        } else {
-            self.render_provider_list(f, area);
-        }
-    }
-
-    fn render_provider_list(&self, f: &mut Frame, area: Rect) {
-        let mut items = Vec::new();
-
-        if self.configs.is_empty() {
-            items.push(ListItem::new("No providers configured"));
-        } else {
-            for (index, config) in self.configs.iter().enumerate() {
-                let content =
-                    format!("{}: {}", config.name, config.provider_type);
-                let style = if Some(index) == self.selected_index {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-                items.push(ListItem::new(content).style(style));
-            }
-        }
-
-        items.push(
-            ListItem::new("Create New Provider")
-                .style(Style::default().fg(Color::Green)),
-        );
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Select or Create Provider"),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-            .highlight_symbol("> ");
-
-        let mut state = ListState::default();
-        state.select(self.selected_index);
-
-        f.render_stateful_widget(list, area, &mut state);
-    }
-
-    pub async fn handle_input(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<ProviderManagerAction, ApplicationError> {
-        if let Some(creator) = &mut self.provider_creator {
-            match creator.handle_input(input).await {
-                ProviderCreatorAction::Finish(new_config) => {
-                    self.configs.push(new_config);
-                    self.provider_creator = None;
-                    Ok(ProviderManagerAction::Refresh)
-                }
-                ProviderCreatorAction::Cancel => {
-                    self.provider_creator = None;
-                    Ok(ProviderManagerAction::Refresh)
-                }
-                ProviderCreatorAction::LoadModels => {
-                    creator.load_models().await?;
-                    Ok(ProviderManagerAction::Refresh)
-                }
-                ProviderCreatorAction::LoadAdditionalSettings => {
-                    let model_server =
-                        ModelServer::from_str(&creator.provider_type)?;
-                    creator.prepare_additional_settings(&model_server);
-                    Ok(ProviderManagerAction::Refresh)
-                }
-                ProviderCreatorAction::Refresh => {
-                    Ok(ProviderManagerAction::Refresh)
-                }
-                ProviderCreatorAction::NoAction => {
-                    Ok(ProviderManagerAction::NoAction)
-                }
-            }
-        } else {
-            match input.code {
-                KeyCode::Up => Ok(self.move_selection_up()),
-                KeyCode::Down => Ok(self.move_selection_down()),
-                KeyCode::Enter => Ok(self.select_or_create_provider()),
-                _ => Ok(ProviderManagerAction::NoAction),
-            }
-        }
-    }
-
-    fn move_selection_up(&mut self) -> ProviderManagerAction {
-        if self.configs.is_empty() {
-            return ProviderManagerAction::NoAction;
-        }
-        if let Some(index) = self.selected_index.as_mut() {
-            if *index > 0 {
-                *index -= 1;
-            } else {
-                *index = self.configs.len(); // Wrap to "Create New Provider"
-            }
-        } else {
-            self.selected_index = Some(self.configs.len()); // Select "Create New Provider"
-        }
-        ProviderManagerAction::Refresh
-    }
-
-    fn move_selection_down(&mut self) -> ProviderManagerAction {
-        if self.configs.is_empty() {
-            return ProviderManagerAction::NoAction;
-        }
-        if let Some(index) = self.selected_index.as_mut() {
-            if *index < self.configs.len() {
-                *index += 1;
-            } else {
-                *index = 0; // Wrap to first provider
-            }
-        } else {
-            self.selected_index = Some(0);
-        }
-        ProviderManagerAction::Refresh
-    }
-
-    fn select_or_create_provider(&mut self) -> ProviderManagerAction {
-        if self.configs.is_empty()
-            || self.selected_index == Some(self.configs.len())
-        {
-            self.provider_creator =
-                Some(ProviderCreator::new(self.db_handler.clone()));
-            ProviderManagerAction::Refresh
-        } else if self.selected_index.is_some() {
-            ProviderManagerAction::ProviderSelected
-        } else {
-            ProviderManagerAction::NoAction
-        }
-    }
-
-    pub fn get_selected_provider(&self) -> Option<&ProviderConfig> {
-        self.selected_index
-            .and_then(|index| self.configs.get(index))
-    }
-
-    pub async fn load_configs(&mut self) -> Result<(), ApplicationError> {
-        self.configs = self.db_handler.load_provider_configs().await?;
-        if !self.configs.is_empty() {
-            self.selected_index = Some(0);
-        } else {
-            self.selected_index = None;
-        }
-        Ok(())
-    }
-}
-
-pub struct ProviderCreator {
-    name: String,
-    provider_type: String,
-    model_identifier: Option<String>,
-    additional_settings: HashMap<String, AdditionalSetting>,
-    db_handler: UserProfileDbHandler,
-    current_step: ProviderCreationStep,
-    available_models: Vec<ModelSpec>,
-    selected_model_index: Option<usize>,
-    current_setting_key: Option<String>,
-    edit_buffer: String,
-    is_editing: bool,
-    model_fetch_error: Option<String>,
+#[derive(Debug, Clone)]
+pub enum ProviderCreatorAction {
+    Refresh,
+    WaitForKeyEvent,
+    LoadModels,
+    LoadAdditionalSettings,
+    Finish(ProviderConfig),
+    Cancel,
+    NoAction,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -222,9 +27,26 @@ enum ProviderCreationStep {
     Confirm,
 }
 
+pub struct ProviderCreator {
+    name: String,
+    pub provider_type: String,
+    model_identifier: Option<String>,
+    additional_settings: HashMap<String, ProviderConfigOptions>,
+    db_handler: UserProfileDbHandler,
+    current_step: ProviderCreationStep,
+    available_models: Vec<ModelSpec>,
+    selected_model_index: Option<usize>,
+    current_setting_key: Option<String>,
+    edit_buffer: String,
+    is_editing: bool,
+    model_fetch_error: Option<String>,
+}
+
 impl ProviderCreator {
-    pub fn new(db_handler: UserProfileDbHandler) -> Self {
-        Self {
+    pub async fn new(
+        db_handler: UserProfileDbHandler,
+    ) -> Result<Self, ApplicationError> {
+        Ok(Self {
             name: String::new(),
             provider_type: String::new(),
             model_identifier: None,
@@ -237,7 +59,7 @@ impl ProviderCreator {
             edit_buffer: String::new(),
             is_editing: false,
             model_fetch_error: None,
-        }
+        })
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect) {
@@ -783,7 +605,7 @@ impl ProviderCreator {
                             .to_string();
                         self.additional_settings.insert(
                             key.clone(),
-                            AdditionalSetting {
+                            ProviderConfigOptions {
                                 name: format!("__TEMPLATE.{}", key),
                                 display_name,
                                 value: String::new(),
@@ -804,7 +626,7 @@ impl ProviderCreator {
         }
     }
 
-    async fn create_provider(
+    pub async fn create_provider(
         &mut self,
     ) -> Result<ProviderConfig, ApplicationError> {
         let new_config = ProviderConfig {
@@ -814,25 +636,14 @@ impl ProviderCreator {
             model_identifier: self.model_identifier.clone(),
             additional_settings: self.additional_settings.clone(),
         };
-
-        _ = self.db_handler.save_provider_config(&new_config).await?;
-        Ok(new_config)
+        let stored_config =
+            self.db_handler.save_provider_config(&new_config).await?;
+        Ok(stored_config)
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ProviderCreatorAction {
-    Refresh,
-    LoadModels,
-    LoadAdditionalSettings,
-    Finish(ProviderConfig),
-    Cancel,
-    NoAction,
-}
-
-#[derive(Debug)]
-pub enum ProviderManagerAction {
-    Refresh,
-    ProviderSelected,
-    NoAction,
+impl Creator for ProviderCreator {
+    fn render(&self, f: &mut Frame, area: Rect) {
+        self.render(f, area);
+    }
 }

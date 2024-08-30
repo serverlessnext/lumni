@@ -1,22 +1,22 @@
 mod conversations;
 mod filebrowser;
-mod profiles;
+mod settings;
 
 use async_trait::async_trait;
 pub use conversations::ConversationListModal;
 pub use filebrowser::FileBrowserModal;
-pub use profiles::{AdditionalSetting, ProfileEditModal, ProviderConfig};
 use ratatui::layout::Rect;
 use ratatui::Frame;
+pub use settings::SettingsModal;
 use widgets::FileBrowserWidget;
 
 pub use super::widgets;
 use super::{
     ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
-    KeyTrack, MaskMode, ModelIdentifier, ModelServer, ModelSpec,
-    PromptInstruction, ServerTrait, SimpleString, TextArea, TextWindowTrait,
-    ThreadedChatSession, UserEvent, UserProfile, UserProfileDbHandler,
-    WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    KeyTrack, MaskMode, ModelServer, ModelSpec, PromptInstruction,
+    ProviderConfig, ProviderConfigOptions, ServerTrait, SimpleString, TextArea,
+    TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
+    UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

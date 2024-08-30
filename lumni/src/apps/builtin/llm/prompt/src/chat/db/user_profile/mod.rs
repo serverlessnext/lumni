@@ -3,18 +3,19 @@ mod database_operations;
 mod encryption_operations;
 mod profile_operations;
 mod provider_config;
+
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use lumni::api::error::{ApplicationError, EncryptionError};
 use rusqlite::{params, OptionalExtension};
-use serde_json::{json, Value as JsonValue};
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use tokio::sync::Mutex as TokioMutex;
 
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::encryption::EncryptionHandler;
-use super::{
-    AdditionalSetting, ModelBackend, ModelServer, ModelSpec, ProviderConfig,
-};
+use super::{ModelBackend, ModelServer, ModelSpec};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,6 +29,24 @@ pub struct UserProfileDbHandler {
     pub profile: Option<UserProfile>,
     db: Arc<TokioMutex<DatabaseConnector>>,
     encryption_handler: Option<Arc<EncryptionHandler>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub id: Option<usize>,
+    pub name: String,
+    pub provider_type: String,
+    pub model_identifier: Option<String>,
+    pub additional_settings: HashMap<String, ProviderConfigOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfigOptions {
+    pub name: String,
+    pub display_name: String,
+    pub value: String,
+    pub is_secure: bool,
+    pub placeholder: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

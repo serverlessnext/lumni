@@ -7,19 +7,8 @@ use serde_json::Value as JsonValue;
 
 use super::*;
 
-#[derive(Debug, Clone)]
-pub enum ProviderCreatorAction {
-    Refresh,
-    WaitForKeyEvent,
-    LoadModels,
-    LoadAdditionalSettings,
-    Finish(ProviderConfig),
-    Cancel,
-    NoAction,
-}
-
 #[derive(Debug, Clone, PartialEq)]
-enum ProviderCreationStep {
+pub enum ProviderCreationStep {
     EnterName,
     SelectProviderType,
     SelectModel,
@@ -33,7 +22,7 @@ pub struct ProviderCreator {
     model_identifier: Option<String>,
     additional_settings: HashMap<String, ProviderConfigOptions>,
     db_handler: UserProfileDbHandler,
-    current_step: ProviderCreationStep,
+    pub current_step: ProviderCreationStep,
     available_models: Vec<ModelSpec>,
     selected_model_index: Option<usize>,
     current_setting_key: Option<String>,
@@ -81,7 +70,7 @@ impl ProviderCreator {
     pub async fn handle_input(
         &mut self,
         input: KeyEvent,
-    ) -> ProviderCreatorAction {
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match self.current_step {
             ProviderCreationStep::EnterName => self.handle_enter_name(input),
             ProviderCreationStep::SelectProviderType => {
@@ -97,7 +86,7 @@ impl ProviderCreator {
         }
     }
 
-    fn render_enter_name(&self, f: &mut Frame, area: Rect) {
+    pub fn render_enter_name(&self, f: &mut Frame, area: Rect) {
         let input = Paragraph::new(self.name.as_str())
             .style(Style::default().fg(Color::Yellow))
             .block(
@@ -108,7 +97,7 @@ impl ProviderCreator {
         f.render_widget(input, area);
     }
 
-    fn render_select_provider_type(&self, f: &mut Frame, area: Rect) {
+    pub fn render_select_provider_type(&self, f: &mut Frame, area: Rect) {
         let provider_types: Vec<String> = SUPPORTED_MODEL_ENDPOINTS
             .iter()
             .map(|s| s.to_string())
@@ -150,7 +139,7 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_select_model(&self, f: &mut Frame, area: Rect) {
+    pub fn render_select_model(&self, f: &mut Frame, area: Rect) {
         let mut items = Vec::new();
 
         if let Some(error_message) = &self.model_fetch_error {
@@ -198,7 +187,7 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
+    pub fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self
             .additional_settings
             .iter()
@@ -277,7 +266,7 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_confirm(&self, f: &mut Frame, area: Rect) {
+    pub fn render_confirm(&self, f: &mut Frame, area: Rect) {
         let mut items = vec![
             ListItem::new(format!("Name: {}", self.name)),
             ListItem::new(format!("Provider Type: {}", self.provider_type)),
@@ -300,34 +289,37 @@ impl ProviderCreator {
         f.render_widget(list, area);
     }
 
-    fn handle_enter_name(&mut self, input: KeyEvent) -> ProviderCreatorAction {
+    pub fn handle_enter_name(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
             KeyCode::Char(c) => {
                 self.name.push(c);
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 self.name.pop();
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if !self.name.is_empty() {
                     self.current_step =
                         ProviderCreationStep::SelectProviderType;
-                    ProviderCreatorAction::Refresh
+                    Ok(CreatorAction::Refresh)
                 } else {
-                    ProviderCreatorAction::NoAction
+                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
-            KeyCode::Esc => ProviderCreatorAction::Cancel,
-            _ => ProviderCreatorAction::NoAction,
+            KeyCode::Esc => Ok(CreatorAction::Cancel),
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
-    async fn handle_select_provider_type(
+    pub async fn handle_select_provider_type(
         &mut self,
         input: KeyEvent,
-    ) -> ProviderCreatorAction {
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         let provider_types: Vec<String> = SUPPORTED_MODEL_ENDPOINTS
             .iter()
             .map(|s| s.to_string())
@@ -351,7 +343,7 @@ impl ProviderCreator {
                     self.provider_type =
                         provider_types[provider_types.len() - 1].clone();
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 let current_index = provider_types
@@ -364,24 +356,25 @@ impl ProviderCreator {
                 } else {
                     self.provider_type = provider_types[0].clone();
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter | KeyCode::Tab => {
                 self.current_step = ProviderCreationStep::SelectModel;
-                ProviderCreatorAction::LoadModels
+                self.load_models().await?; // Load models here
+                Ok(CreatorAction::Refresh) // Changed from LoadModels to Refresh
             }
             KeyCode::Esc => {
                 self.current_step = ProviderCreationStep::EnterName;
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
-            _ => ProviderCreatorAction::NoAction,
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
-    async fn handle_select_model(
+    pub async fn handle_select_model(
         &mut self,
         input: KeyEvent,
-    ) -> ProviderCreatorAction {
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
                 if let Some(index) = self.selected_model_index.as_mut() {
@@ -394,7 +387,7 @@ impl ProviderCreator {
                     self.selected_model_index =
                         Some(self.available_models.len() - 1);
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if let Some(index) = self.selected_model_index.as_mut() {
@@ -406,41 +399,44 @@ impl ProviderCreator {
                 } else if !self.available_models.is_empty() {
                     self.selected_model_index = Some(0);
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter | KeyCode::Tab => {
                 if let Some(index) = self.selected_model_index {
                     self.model_identifier =
                         Some(self.available_models[index].identifier.0.clone());
-                    ProviderCreatorAction::LoadAdditionalSettings
+                    let model_server =
+                        ModelServer::from_str(&self.provider_type)?;
+                    self.prepare_additional_settings(&model_server);
+                    Ok(CreatorAction::LoadAdditionalSettings)
                 } else {
-                    ProviderCreatorAction::NoAction
+                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
             KeyCode::Esc => {
                 self.current_step = ProviderCreationStep::SelectProviderType;
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
-            _ => ProviderCreatorAction::NoAction,
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
-    fn handle_configure_settings(
+    pub fn handle_configure_settings(
         &mut self,
         input: KeyEvent,
-    ) -> ProviderCreatorAction {
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
                 if !self.is_editing {
                     self.move_setting_selection(-1);
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if !self.is_editing {
                     self.move_setting_selection(1);
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if self.is_editing {
@@ -454,7 +450,7 @@ impl ProviderCreator {
                 } else {
                     self.start_editing_current_setting();
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Esc => {
                 if self.is_editing {
@@ -462,14 +458,14 @@ impl ProviderCreator {
                 } else {
                     self.current_step = ProviderCreationStep::SelectModel;
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Tab => {
                 if self.is_editing {
                     self.save_current_setting();
                 }
                 self.current_step = ProviderCreationStep::Confirm;
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Char(c) => {
                 if !self.is_editing {
@@ -477,7 +473,7 @@ impl ProviderCreator {
                     self.edit_buffer.clear();
                 }
                 self.edit_buffer.push(c);
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 if !self.is_editing {
@@ -486,9 +482,9 @@ impl ProviderCreator {
                 } else {
                     self.edit_buffer.pop();
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
-            _ => ProviderCreatorAction::NoAction,
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
@@ -535,30 +531,21 @@ impl ProviderCreator {
         }
     }
 
-    async fn handle_confirm(
+    pub async fn handle_confirm(
         &mut self,
         input: KeyEvent,
-    ) -> ProviderCreatorAction {
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
-            KeyCode::Enter => {
-                match self.create_provider().await {
-                    Ok(new_config) => ProviderCreatorAction::Finish(new_config),
-                    Err(e) => {
-                        // Handle the error appropriately, maybe set an error message to display
-                        log::error!("Failed to create provider: {}", e);
-                        ProviderCreatorAction::Refresh
-                    }
-                }
-            }
+            KeyCode::Enter => Ok(CreatorAction::CreateItem),
             KeyCode::Esc => {
                 if !self.additional_settings.is_empty() {
                     self.current_step = ProviderCreationStep::ConfigureSettings;
                 } else {
                     self.current_step = ProviderCreationStep::SelectModel;
                 }
-                ProviderCreatorAction::Refresh
+                Ok(CreatorAction::Refresh)
             }
-            _ => ProviderCreatorAction::NoAction,
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
@@ -639,11 +626,5 @@ impl ProviderCreator {
         let stored_config =
             self.db_handler.save_provider_config(&new_config).await?;
         Ok(stored_config)
-    }
-}
-
-impl Creator for ProviderCreator {
-    fn render(&self, f: &mut Frame, area: Rect) {
-        self.render(f, area);
     }
 }

@@ -33,7 +33,7 @@ pub struct UserProfileDbHandler {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    pub id: Option<usize>,
+    pub id: Option<i64>,
     pub name: String,
     pub provider_type: String,
     pub model_identifier: Option<String>,

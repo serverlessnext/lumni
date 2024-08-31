@@ -127,10 +127,6 @@ impl UserProfileDbHandler {
         profile: &UserProfile,
     ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
-        eprintln!(
-            "Setting default profile to {} (ID: {})",
-            profile.name, profile.id
-        );
         db.process_queue_with_result(|tx| {
             tx.execute(
                 "UPDATE user_profiles SET is_default = 0 WHERE is_default = 1",

@@ -6,7 +6,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use super::provider::{ProviderCreator, ProviderCreatorAction};
+use super::provider::ProviderCreator;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,16 +18,6 @@ pub enum ProfileCreationStep {
     CreatingProfile,
 }
 
-#[derive(Debug, Clone)]
-pub enum ProfileCreatorAction {
-    Refresh,
-    WaitForKeyEvent,
-    Cancel,
-    CreateProfile,
-    SwitchToProviderCreation,
-    FinishProviderCreation(ProviderConfig),
-}
-
 pub struct ProfileCreator {
     pub new_profile_name: String,
     pub creation_step: ProfileCreationStep,
@@ -37,7 +27,7 @@ pub struct ProfileCreator {
     selected_provider: Option<ProviderConfig>,
     provider_configs: Vec<ProviderConfig>,
     selected_provider_index: Option<usize>,
-    provider_creator: Option<ProviderCreator>,
+    pub provider_creator: Option<ProviderCreator>,
 }
 
 impl ProfileCreator {
@@ -59,57 +49,36 @@ impl ProfileCreator {
         })
     }
 
-    pub async fn handle_input(
+    pub fn handle_enter_name(
         &mut self,
         input: KeyEvent,
-    ) -> Result<ProfileCreatorAction, ApplicationError> {
-        match self.creation_step {
-            ProfileCreationStep::EnterName => self.handle_enter_name(input),
-            ProfileCreationStep::SelectProvider => {
-                self.handle_select_provider(input).await
-            }
-            ProfileCreationStep::CreateProvider => {
-                self.handle_create_provider(input).await
-            }
-            ProfileCreationStep::ConfirmCreate => {
-                self.handle_confirm_create(input)
-            }
-            ProfileCreationStep::CreatingProfile => {
-                Ok(ProfileCreatorAction::WaitForKeyEvent)
-            }
-        }
-    }
-
-    fn handle_enter_name(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<ProfileCreatorAction, ApplicationError> {
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Char(c) => {
                 self.new_profile_name.push(c);
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 self.new_profile_name.pop();
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if !self.new_profile_name.is_empty() {
                     self.creation_step = ProfileCreationStep::SelectProvider;
-                    Ok(ProfileCreatorAction::Refresh)
+                    Ok(CreatorAction::Refresh)
                 } else {
-                    Ok(ProfileCreatorAction::WaitForKeyEvent)
+                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
-            KeyCode::Esc => Ok(ProfileCreatorAction::Cancel),
-            _ => Ok(ProfileCreatorAction::WaitForKeyEvent),
+            KeyCode::Esc => Ok(CreatorAction::Cancel),
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
-    async fn handle_select_provider(
+    pub async fn handle_select_provider(
         &mut self,
         input: KeyEvent,
-    ) -> Result<ProfileCreatorAction, ApplicationError> {
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
                 if let Some(index) = self.selected_provider_index.as_mut() {
@@ -122,7 +91,7 @@ impl ProfileCreator {
                     self.selected_provider_index =
                         Some(self.provider_configs.len()); // Select "Create new Provider"
                 }
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if let Some(index) = self.selected_provider_index.as_mut() {
@@ -134,7 +103,7 @@ impl ProfileCreator {
                 } else {
                     self.selected_provider_index = Some(0);
                 }
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if let Some(index) = self.selected_provider_index {
@@ -146,91 +115,105 @@ impl ProfileCreator {
                             ProviderCreator::new(self.db_handler.clone())
                                 .await?,
                         );
-                        Ok(ProfileCreatorAction::SwitchToProviderCreation)
+                        Ok(CreatorAction::SwitchToProviderCreation)
                     } else {
                         // Existing provider selected
                         self.selected_provider =
                             Some(self.provider_configs[index].clone());
                         self.creation_step = ProfileCreationStep::ConfirmCreate;
-                        Ok(ProfileCreatorAction::Refresh)
+                        Ok(CreatorAction::Refresh)
                     }
                 } else {
-                    Ok(ProfileCreatorAction::WaitForKeyEvent)
+                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
             KeyCode::Esc => {
                 self.creation_step = ProfileCreationStep::EnterName;
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(ProfileCreatorAction::WaitForKeyEvent),
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
-    async fn handle_create_provider(
+    pub async fn handle_create_provider(
         &mut self,
         input: KeyEvent,
-    ) -> Result<ProfileCreatorAction, ApplicationError> {
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         if let Some(creator) = &mut self.provider_creator {
-            match creator.handle_input(input).await {
-                ProviderCreatorAction::Finish(new_config) => {
+            match creator.handle_input(input).await? {
+                CreatorAction::Finish(new_config) => {
                     self.provider_configs.push(new_config.clone());
-                    self.selected_provider = Some(new_config.clone());
+                    self.selected_provider = Some(new_config);
                     self.selected_provider_index =
                         Some(self.provider_configs.len() - 1);
+                    self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    self.provider_creator = None;
+                    Ok(CreatorAction::Refresh)
+                }
+                CreatorAction::Cancel => {
                     self.creation_step = ProfileCreationStep::SelectProvider;
                     self.provider_creator = None;
-                    Ok(ProfileCreatorAction::FinishProviderCreation(new_config))
+                    Ok(CreatorAction::Refresh)
                 }
-                ProviderCreatorAction::Cancel => {
-                    self.creation_step = ProfileCreationStep::SelectProvider;
-                    self.provider_creator = None;
-                    Ok(ProfileCreatorAction::Refresh)
+                CreatorAction::Refresh => Ok(CreatorAction::Refresh),
+                CreatorAction::WaitForKeyEvent => {
+                    Ok(CreatorAction::WaitForKeyEvent)
                 }
-                ProviderCreatorAction::Refresh => {
-                    Ok(ProfileCreatorAction::Refresh)
-                }
-                ProviderCreatorAction::WaitForKeyEvent => {
-                    Ok(ProfileCreatorAction::WaitForKeyEvent)
-                }
-                ProviderCreatorAction::LoadModels => {
-                    creator.load_models().await?;
-                    Ok(ProfileCreatorAction::Refresh)
-                }
-                ProviderCreatorAction::LoadAdditionalSettings => {
+                CreatorAction::LoadAdditionalSettings => {
                     let model_server =
                         ModelServer::from_str(&creator.provider_type)?;
                     creator.prepare_additional_settings(&model_server);
-                    Ok(ProfileCreatorAction::Refresh)
+                    Ok(CreatorAction::Refresh)
                 }
-                ProviderCreatorAction::NoAction => {
-                    Ok(ProfileCreatorAction::WaitForKeyEvent)
+                CreatorAction::CreateItem => {
+                    // This is the case we need to handle for the confirmation step
+                    match creator.create_item().await? {
+                        CreatorAction::Finish(new_config) => {
+                            self.provider_configs.push(new_config.clone());
+                            self.selected_provider = Some(new_config);
+                            self.selected_provider_index =
+                                Some(self.provider_configs.len() - 1);
+                            self.creation_step =
+                                ProfileCreationStep::ConfirmCreate;
+                            self.provider_creator = None;
+                            Ok(CreatorAction::Refresh)
+                        }
+                        _ => Ok(CreatorAction::WaitForKeyEvent),
+                    }
                 }
+                _ => Ok(CreatorAction::WaitForKeyEvent),
             }
         } else {
-            Ok(ProfileCreatorAction::WaitForKeyEvent)
+            Ok(CreatorAction::WaitForKeyEvent)
         }
     }
 
-    fn handle_confirm_create(
+    pub fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
-    ) -> Result<ProfileCreatorAction, ApplicationError> {
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Enter => {
                 self.creation_step = ProfileCreationStep::CreatingProfile;
-                Ok(ProfileCreatorAction::CreateProfile)
+                Ok(CreatorAction::CreateItem)
             }
             KeyCode::Esc => {
                 self.creation_step = ProfileCreationStep::SelectProvider;
-                Ok(ProfileCreatorAction::Refresh)
+                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(ProfileCreatorAction::WaitForKeyEvent),
+            _ => Ok(CreatorAction::WaitForKeyEvent),
         }
     }
 
     pub async fn create_profile(
         &mut self,
-        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        let new_profile = self.create_profile_internal().await?;
+        Ok(CreatorAction::Finish(new_profile))
+    }
+
+    async fn create_profile_internal(
+        &mut self,
     ) -> Result<UserProfile, ApplicationError> {
         let mut settings = serde_json::Map::new();
         if let Some(selected_config) = &self.selected_provider {
@@ -258,33 +241,14 @@ impl ProfileCreator {
             }
         }
 
-        let new_profile = db_handler
+        let new_profile = self
+            .db_handler
             .create(&self.new_profile_name, &json!(settings))
             .await?;
         Ok(new_profile)
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
-        match self.creation_step {
-            ProfileCreationStep::EnterName => self.render_enter_name(f, area),
-            ProfileCreationStep::SelectProvider => {
-                self.render_select_provider(f, area)
-            }
-            ProfileCreationStep::CreateProvider => {
-                if let Some(creator) = &self.provider_creator {
-                    creator.render(f, area);
-                }
-            }
-            ProfileCreationStep::ConfirmCreate => {
-                self.render_confirm_create(f, area)
-            }
-            ProfileCreationStep::CreatingProfile => {
-                self.render_creating_profile(f, area)
-            }
-        }
-    }
-
-    fn render_enter_name(&self, f: &mut Frame, area: Rect) {
+    pub fn render_enter_name(&self, f: &mut Frame, area: Rect) {
         let input = Paragraph::new(self.new_profile_name.as_str())
             .style(Style::default().fg(Color::Yellow))
             .block(
@@ -295,7 +259,7 @@ impl ProfileCreator {
         f.render_widget(input, area);
     }
 
-    fn render_select_provider(&self, f: &mut Frame, area: Rect) {
+    pub fn render_select_provider(&self, f: &mut Frame, area: Rect) {
         let mut items: Vec<ListItem> = self
             .provider_configs
             .iter()
@@ -328,7 +292,7 @@ impl ProfileCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
+    pub fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
         let mut items =
             vec![ListItem::new(format!("Name: {}", self.new_profile_name))];
 
@@ -356,7 +320,7 @@ impl ProfileCreator {
         f.render_widget(confirm_list, area);
     }
 
-    fn render_creating_profile(&self, f: &mut Frame, area: Rect) {
+    pub fn render_creating_profile(&self, f: &mut Frame, area: Rect) {
         let content =
             format!("Creating profile '{}'...", self.new_profile_name);
         let paragraph = Paragraph::new(content)
@@ -368,11 +332,5 @@ impl ProfileCreator {
                     .title("Creating Profile"),
             );
         f.render_widget(paragraph, area);
-    }
-}
-
-impl Creator for ProfileCreator {
-    fn render(&self, f: &mut Frame, area: Rect) {
-        self.render(f, area)
     }
 }

@@ -1,15 +1,19 @@
+mod list;
+mod manager;
 mod profile;
 mod provider;
+mod renderer;
 mod settings_editor;
 
 use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
-use profile::{ProfileEditRenderer, ProfileManager};
-use provider::ProviderManager;
+use list::SettingsListTrait;
+use manager::{Creator, CreatorAction, SettingsManager};
 use ratatui::layout::Rect;
 use ratatui::widgets::Clear;
 use ratatui::Frame;
-pub use settings_editor::{SettingsAction, SettingsEditor};
+use renderer::SettingsRenderer;
+use settings_editor::{SettingsAction, SettingsEditor};
 
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
@@ -21,14 +25,6 @@ use super::{
 #[derive(Debug)]
 pub enum BackgroundTaskResult {
     ProfileCreated(Result<UserProfile, ApplicationError>),
-}
-pub trait GenericList {
-    fn get_items(&self) -> Vec<String>;
-    fn get_selected_index(&self) -> usize;
-}
-
-pub trait Creator {
-    fn render(&self, f: &mut Frame, area: Rect);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,23 +50,21 @@ pub enum EditTab {
 pub struct SettingsModal {
     pub current_tab: EditTab,
     pub tab_focus: TabFocus,
-    pub profile_manager: ProfileManager,
-    pub provider_manager: ProviderManager,
-    renderer: ProfileEditRenderer,
+    pub profile_manager: SettingsManager<UserProfile>,
+    pub provider_manager: SettingsManager<ProviderConfig>,
+    renderer: SettingsRenderer,
 }
 
 impl SettingsModal {
     pub async fn new(
         db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
-        let profile_manager = ProfileManager::new(db_handler.clone()).await?;
-
         Ok(Self {
             current_tab: EditTab::Profiles,
             tab_focus: TabFocus::List,
-            profile_manager,
-            provider_manager: ProviderManager::new(db_handler.clone()).await?,
-            renderer: ProfileEditRenderer::new(),
+            profile_manager: SettingsManager::new(db_handler.clone()).await?,
+            provider_manager: SettingsManager::new(db_handler.clone()).await?,
+            renderer: SettingsRenderer::new(),
         })
     }
 
@@ -116,7 +110,7 @@ impl SettingsModal {
         Ok(())
     }
 
-    pub fn get_current_list(&self) -> &dyn GenericList {
+    pub fn get_current_list(&self) -> &dyn SettingsListTrait {
         match self.current_tab {
             EditTab::Profiles => &self.profile_manager.list,
             EditTab::Providers => &self.provider_manager.list,
@@ -130,38 +124,62 @@ impl SettingsModal {
         }
     }
 
-    pub fn get_current_creator(&self) -> Option<&dyn Creator> {
-        match self.current_tab {
-            EditTab::Profiles => self
-                .profile_manager
-                .creator
-                .as_ref()
-                .map(|c| c as &dyn Creator),
-            EditTab::Providers => self
-                .provider_manager
-                .creator
-                .as_ref()
-                .map(|c| c as &dyn Creator),
-        }
-    }
-
     pub async fn refresh_list(
         &mut self,
     ) -> Result<WindowEvent, ApplicationError> {
         match self.current_tab {
-            EditTab::Profiles => {
-                self.profile_manager.refresh_profile_list().await
-            }
-            EditTab::Providers => {
-                self.provider_manager.refresh_provider_list().await
-            }
+            EditTab::Profiles => self.profile_manager.refresh_list().await,
+            EditTab::Providers => self.provider_manager.refresh_list().await,
         }
     }
 
     pub fn get_rename_buffer(&self) -> Option<&String> {
         match self.current_tab {
             EditTab::Profiles => self.profile_manager.get_rename_buffer(),
-            EditTab::Providers => None, // TODO: Implement
+            EditTab::Providers => self.provider_manager.get_rename_buffer(),
+        }
+    }
+
+    fn render_settings(&self, f: &mut Frame, area: Rect) {
+        match self.current_tab {
+            EditTab::Profiles => self.renderer.render_settings(
+                f,
+                area,
+                self.profile_manager.list.get_selected_item(),
+                &self.profile_manager.settings_editor,
+            ),
+            EditTab::Providers => self.renderer.render_settings(
+                f,
+                area,
+                self.provider_manager.list.get_selected_item(),
+                &self.provider_manager.settings_editor,
+            ),
+        }
+    }
+
+    fn render_content(f: &mut Frame, area: Rect, modal: &SettingsModal) {
+        match modal.tab_focus {
+            TabFocus::Settings | TabFocus::List => {
+                modal.render_settings(f, area);
+            }
+            TabFocus::Creation => {
+                modal.render_creator(f, area);
+            }
+        }
+    }
+
+    fn render_creator(&self, f: &mut Frame, area: Rect) {
+        match self.current_tab {
+            EditTab::Profiles => {
+                if let Some(creator) = &self.profile_manager.creator {
+                    creator.as_ref().render(f, area);
+                }
+            }
+            EditTab::Providers => {
+                if let Some(creator) = &self.provider_manager.creator {
+                    creator.as_ref().render(f, area);
+                }
+            }
         }
     }
 }
@@ -174,19 +192,12 @@ impl ModalWindowTrait for SettingsModal {
 
     fn render_on_frame(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
-        match self.current_tab {
-            EditTab::Profiles => self.renderer.render_layout(frame, area, self),
-            EditTab::Providers => {
-                self.renderer.render_layout(frame, area, self)
-            }
-            // TODO: move render to specific renderer
-            //EditTab::Providers => self.provider_manager.render(frame, area),
-        }
+        self.renderer
+            .render_layout(frame, area, self, &Self::render_content);
     }
 
     async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
-        // Runs when a list item is being created or updated in the background
-        self.refresh_list().await
+        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
     async fn handle_key_event<'b>(

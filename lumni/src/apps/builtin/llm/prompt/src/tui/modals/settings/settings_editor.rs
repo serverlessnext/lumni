@@ -152,6 +152,29 @@ impl SettingsEditor {
         }
     }
 
+    pub fn get_display_value(&self, value: &JsonValue) -> String {
+        match value {
+            JsonValue::Object(obj)
+                if obj.get("was_encrypted") == Some(&JsonValue::Bool(true)) =>
+            {
+                let display = if self.show_secure {
+                    match obj.get("content") {
+                        Some(JsonValue::String(s)) => s.clone(),
+                        _ => "Invalid Value".to_string(),
+                    }
+                } else {
+                    "*****".to_string()
+                };
+                format!("{} (Encrypted)", display)
+            }
+            JsonValue::String(s) => s.clone(),
+            JsonValue::Number(n) => n.to_string(),
+            JsonValue::Bool(b) => b.to_string(),
+            JsonValue::Null => "null".to_string(),
+            _ => value.to_string(),
+        }
+    }
+
     pub fn start_adding_new_value(&mut self, is_secure: bool) {
         self.new_key_buffer.clear();
         self.edit_buffer.clear();
@@ -161,10 +184,6 @@ impl SettingsEditor {
 
     pub fn get_settings(&self) -> &JsonValue {
         &self.settings
-    }
-
-    pub fn get_settings_mut(&mut self) -> &mut JsonValue {
-        &mut self.settings
     }
 
     pub fn get_current_field(&self) -> usize {

@@ -68,7 +68,7 @@ impl UserProfileDbHandler {
                         encryption_key_id
                     ],
                 )?;
-                tx.last_insert_rowid() as usize
+                tx.last_insert_rowid()
             };
 
             Ok(ProviderConfig {
@@ -164,7 +164,7 @@ impl UserProfileDbHandler {
                         )))?;
 
                 result.push(ProviderConfig {
-                    id: Some(id as usize),
+                    id: Some(id),
                     name,
                     provider_type,
                     model_identifier,
@@ -178,7 +178,7 @@ impl UserProfileDbHandler {
 
     pub async fn delete_provider_config(
         &self,
-        config_id: usize,
+        config_id: i64,
     ) -> Result<(), ApplicationError> {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {

@@ -38,19 +38,31 @@ impl<'a> ConversationListModal<'a> {
     pub async fn handle_normal_mode_key_event(
         &mut self,
         key_event: &mut KeyTrack,
-        tab_chat: &mut ThreadedChatSession,
+        tab_chat: Option<&mut ThreadedChatSession>,
         db_handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => {
                 self.move_selection_up();
                 self.last_selected_conversation_id = None;
-                return self.reload_conversation(tab_chat, db_handler).await;
+                if let Some(tab_chat) = tab_chat {
+                    return self
+                        .reload_conversation(tab_chat, db_handler)
+                        .await;
+                }
+                log::warn!("ThreadedChatSession is not available");
+                return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
             }
             KeyCode::Down => {
                 self.move_selection_down();
                 self.last_selected_conversation_id = None;
-                return self.reload_conversation(tab_chat, db_handler).await;
+                if let Some(tab_chat) = tab_chat {
+                    return self
+                        .reload_conversation(tab_chat, db_handler)
+                        .await;
+                }
+                log::warn!("ThreadedChatSession is not available");
+                return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
             }
             KeyCode::Enter => {
                 return Ok(WindowEvent::PromptWindow(None));

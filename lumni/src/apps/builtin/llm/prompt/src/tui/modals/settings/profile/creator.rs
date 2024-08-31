@@ -1,8 +1,12 @@
 use std::time::Instant;
 
-use ratatui::layout::Alignment;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar,
+    ScrollbarOrientation, ScrollbarState,
+};
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -28,6 +32,9 @@ pub struct ProfileCreator {
     provider_configs: Vec<ProviderConfig>,
     selected_provider_index: Option<usize>,
     pub provider_creator: Option<ProviderCreator>,
+    scroll_state: ScrollbarState,
+    list_state: ListState,
+    scroll_position: usize,
 }
 
 impl ProfileCreator {
@@ -46,6 +53,9 @@ impl ProfileCreator {
             provider_configs,
             selected_provider_index: None,
             provider_creator: None,
+            scroll_state: ScrollbarState::default(),
+            list_state: ListState::default(),
+            scroll_position: 0,
         })
     }
 
@@ -199,7 +209,7 @@ impl ProfileCreator {
             }
             KeyCode::Esc => {
                 self.creation_step = ProfileCreationStep::SelectProvider;
-                Ok(CreatorAction::Refresh)
+                Ok(CreatorAction::WaitForKeyEvent)
             }
             _ => Ok(CreatorAction::WaitForKeyEvent),
         }
@@ -208,44 +218,80 @@ impl ProfileCreator {
     pub async fn create_profile(
         &mut self,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        let new_profile = self.create_profile_internal().await?;
-        Ok(CreatorAction::Finish(new_profile))
+        let (tx, rx) = mpsc::channel(1);
+        let mut db_handler = self.db_handler.clone();
+        let new_profile_name = self.new_profile_name.clone();
+        let selected_provider = self.selected_provider.clone();
+
+        tokio::spawn(async move {
+            let mut settings = serde_json::Map::new();
+            if let Some(selected_config) = &selected_provider {
+                settings.insert(
+                    "__TEMPLATE.__MODEL_SERVER".to_string(),
+                    json!(selected_config.provider_type),
+                );
+                if let Some(model) = &selected_config.model_identifier {
+                    settings.insert(
+                        "__TEMPLATE.MODEL_IDENTIFIER".to_string(),
+                        json!(model),
+                    );
+                }
+                for (key, setting) in &selected_config.additional_settings {
+                    let value = if setting.is_secure {
+                        json!({
+                            "content": setting.value,
+                            "encryption_key": "",
+                            "type_info": "string",
+                        })
+                    } else {
+                        json!(setting.value)
+                    };
+                    settings.insert(format!("__TEMPLATE.{}", key), value);
+                }
+            }
+
+            let result =
+                db_handler.create(&new_profile_name, &json!(settings)).await;
+            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
+        });
+
+        self.background_task = Some(rx);
+        self.task_start_time = Some(Instant::now());
+        self.creation_step = ProfileCreationStep::CreatingProfile;
+
+        Ok(CreatorAction::Refresh)
     }
 
-    async fn create_profile_internal(
+    pub fn check_profile_creation_status(
         &mut self,
-    ) -> Result<UserProfile, ApplicationError> {
-        let mut settings = serde_json::Map::new();
-        if let Some(selected_config) = &self.selected_provider {
-            settings.insert(
-                "__TEMPLATE.__MODEL_SERVER".to_string(),
-                json!(selected_config.provider_type),
-            );
-            if let Some(model) = &selected_config.model_identifier {
-                settings.insert(
-                    "__TEMPLATE.MODEL_IDENTIFIER".to_string(),
-                    json!(model),
-                );
-            }
-            for (key, setting) in &selected_config.additional_settings {
-                let value = if setting.is_secure {
-                    json!({
-                        "content": setting.value,
-                        "encryption_key": "",
-                        "type_info": "string",
-                    })
-                } else {
-                    json!(setting.value)
-                };
-                settings.insert(format!("__TEMPLATE.{}", key), value);
+    ) -> Option<CreatorAction<UserProfile>> {
+        let mut result = None;
+
+        if let Some(rx) = &mut self.background_task {
+            match rx.try_recv() {
+                Ok(BackgroundTaskResult::ProfileCreated(profile_result)) => {
+                    self.background_task = None;
+                    self.task_start_time = None;
+                    result = Some(match profile_result {
+                        Ok(new_profile) => CreatorAction::Finish(new_profile),
+                        Err(e) => {
+                            log::error!("Failed to create profile: {}", e);
+                            CreatorAction::Refresh
+                        }
+                    });
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    result = Some(CreatorAction::Refresh);
+                }
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.background_task = None;
+                    self.task_start_time = None;
+                    result = Some(CreatorAction::Refresh);
+                }
             }
         }
 
-        let new_profile = self
-            .db_handler
-            .create(&self.new_profile_name, &json!(settings))
-            .await?;
-        Ok(new_profile)
+        result
     }
 
     pub fn render_enter_name(&self, f: &mut Frame, area: Rect) {
@@ -293,36 +339,168 @@ impl ProfileCreator {
     }
 
     pub fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
-        let mut items =
-            vec![ListItem::new(format!("Name: {}", self.new_profile_name))];
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .split(area);
 
+        let mut items = Vec::new();
+
+        // Name Section
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("Name", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(":"),
+        ])));
+        items.push(ListItem::new(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                &self.new_profile_name,
+                Style::default().fg(Color::Cyan),
+            ),
+        ])));
+        items.push(ListItem::new(Line::from("")));
+
+        // Provider Section
         if let Some(config) = &self.selected_provider {
-            items.push(ListItem::new(format!(
-                "Provider: {}",
-                config.provider_type
-            )));
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    "Provider",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(":"),
+            ])));
+            items.push(ListItem::new(Line::from(vec![
+                Span::raw("  Type: "),
+                Span::styled(
+                    &config.provider_type,
+                    Style::default().fg(Color::Cyan),
+                ),
+            ])));
+
             if let Some(model) = &config.model_identifier {
-                items.push(ListItem::new(format!("Model: {}", model)));
+                items.push(ListItem::new(Line::from(vec![
+                    Span::raw("  Model: "),
+                    Span::styled(model, Style::default().fg(Color::Cyan)),
+                ])));
             }
-            for (key, setting) in &config.additional_settings {
-                items
-                    .push(ListItem::new(format!("{}: {}", key, setting.value)));
+
+            if !config.additional_settings.is_empty() {
+                items.push(ListItem::new(Line::from("  Additional Settings:")));
+                for (key, setting) in &config.additional_settings {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::raw("    • "),
+                        Span::styled(key, Style::default().fg(Color::Yellow)),
+                        Span::raw(": "),
+                        Span::styled(
+                            &setting.value,
+                            Style::default().fg(Color::Cyan),
+                        ),
+                    ])));
+                }
             }
         } else {
-            items.push(ListItem::new("No provider selected"));
+            items.push(ListItem::new(Line::from(vec![
+                Span::styled(
+                    "Provider",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(": "),
+                Span::styled(
+                    "No provider selected",
+                    Style::default().fg(Color::Red),
+                ),
+            ])));
         }
 
-        let confirm_list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Confirm Profile Creation"),
-        );
-        f.render_widget(confirm_list, area);
+        let list_height = chunks[0].height as usize - 2; // Subtract 2 for borders
+        let list = List::new(items.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Profile Details"),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol("> ");
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(self.scroll_position));
+
+        f.render_stateful_widget(list, chunks[0], &mut list_state);
+
+        // Render scrollbar
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(None)
+            .end_symbol(None);
+
+        let mut scrollbar_state = ScrollbarState::default()
+            .position(self.scroll_position)
+            .content_length(items.len())
+            .viewport_content_length(list_height);
+
+        f.render_stateful_widget(scrollbar, chunks[0], &mut scrollbar_state);
+
+        // Render buttons
+        let button_constraints =
+            [Constraint::Percentage(50), Constraint::Percentage(50)];
+        let button_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(button_constraints)
+            .split(chunks[1]);
+
+        let back_button = Paragraph::new("[ Back ]")
+            .style(Style::default().fg(Color::Yellow))
+            .alignment(Alignment::Center);
+        f.render_widget(back_button, button_chunks[0]);
+
+        let create_button = Paragraph::new("[ Create Profile ]")
+            .style(
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(Alignment::Center);
+        f.render_widget(create_button, button_chunks[1]);
+    }
+
+    pub fn scroll_up(&mut self) {
+        if self.scroll_position > 0 {
+            self.scroll_position -= 1;
+        }
+    }
+
+    pub fn scroll_down(&mut self, max_items: usize) {
+        if self.scroll_position < max_items.saturating_sub(1) {
+            self.scroll_position += 1;
+        }
+    }
+
+    fn go_back(&mut self) -> CreatorAction<UserProfile> {
+        match self.creation_step {
+            ProfileCreationStep::ConfirmCreate => {
+                self.creation_step = ProfileCreationStep::SelectProvider;
+                CreatorAction::WaitForKeyEvent
+            }
+            ProfileCreationStep::SelectProvider => {
+                self.creation_step = ProfileCreationStep::EnterName;
+                CreatorAction::WaitForKeyEvent
+            }
+            ProfileCreationStep::EnterName => CreatorAction::Cancel,
+            _ => CreatorAction::WaitForKeyEvent,
+        }
     }
 
     pub fn render_creating_profile(&self, f: &mut Frame, area: Rect) {
-        let content =
-            format!("Creating profile '{}'...", self.new_profile_name);
+        let elapsed = self
+            .task_start_time
+            .map(|start| start.elapsed().as_secs())
+            .unwrap_or(0);
+
+        let content = format!(
+            "Creating profile '{}' ... ({} seconds)",
+            self.new_profile_name, elapsed
+        );
+
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(Color::Green))
             .alignment(Alignment::Center)
@@ -331,6 +509,7 @@ impl ProfileCreator {
                     .borders(Borders::ALL)
                     .title("Creating Profile"),
             );
+
         f.render_widget(paragraph, area);
     }
 }

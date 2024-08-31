@@ -126,6 +126,7 @@ pub trait Creator<T: ManagedItem>: Send + Sync + 'static {
     async fn create_item(
         &mut self,
     ) -> Result<CreatorAction<T>, ApplicationError>;
+    fn poll_background_task(&mut self) -> Option<CreatorAction<T>>;
 }
 
 pub enum CreatorAction<T: ManagedItem> {
@@ -678,6 +679,10 @@ impl Creator<UserProfile> for ProfileCreator {
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         self.create_profile().await
     }
+
+    fn poll_background_task(&mut self) -> Option<CreatorAction<UserProfile>> {
+        self.check_profile_creation_status()
+    }
 }
 
 #[async_trait]
@@ -727,5 +732,12 @@ impl Creator<ProviderConfig> for ProviderCreator {
                 Ok(CreatorAction::WaitForKeyEvent)
             }
         }
+    }
+
+    fn poll_background_task(
+        &mut self,
+    ) -> Option<CreatorAction<ProviderConfig>> {
+        // No background task to poll
+        None
     }
 }

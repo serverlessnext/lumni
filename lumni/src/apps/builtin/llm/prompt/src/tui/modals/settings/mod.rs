@@ -162,24 +162,18 @@ impl SettingsModal {
             TabFocus::Settings | TabFocus::List => {
                 modal.render_settings(f, area);
             }
-            TabFocus::Creation => {
-                modal.render_creator(f, area);
-            }
-        }
-    }
-
-    fn render_creator(&self, f: &mut Frame, area: Rect) {
-        match self.current_tab {
-            EditTab::Profiles => {
-                if let Some(creator) = &self.profile_manager.creator {
-                    creator.as_ref().render(f, area);
+            TabFocus::Creation => match modal.current_tab {
+                EditTab::Profiles => {
+                    if let Some(creator) = &modal.profile_manager.creator {
+                        creator.render(f, area);
+                    }
                 }
-            }
-            EditTab::Providers => {
-                if let Some(creator) = &self.provider_manager.creator {
-                    creator.as_ref().render(f, area);
+                EditTab::Providers => {
+                    if let Some(creator) = &modal.provider_manager.creator {
+                        creator.render(f, area);
+                    }
                 }
-            }
+            },
         }
     }
 }
@@ -197,13 +191,44 @@ impl ModalWindowTrait for SettingsModal {
     }
 
     async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
+        match self.current_tab {
+            EditTab::Profiles => {
+                if let TabFocus::Creation = self.tab_focus {
+                    if let Some(creator) = &mut self.profile_manager.creator {
+                        if let Some(action) = creator.poll_background_task() {
+                            match action {
+                                CreatorAction::Finish(new_profile) => {
+                                    self.profile_manager
+                                        .list
+                                        .add_item(new_profile);
+                                    self.profile_manager.creator = None;
+                                    self.tab_focus = TabFocus::List;
+                                    return Ok(WindowEvent::Modal(
+                                        ModalAction::Refresh,
+                                    ));
+                                }
+                                CreatorAction::Refresh => {
+                                    return Ok(WindowEvent::Modal(
+                                        ModalAction::Refresh,
+                                    ));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+            EditTab::Providers => {
+                // Provider creation is instant and does not have background tasks
+            }
+        }
         Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
     }
 
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        _tab_chat: &'b mut ThreadedChatSession,
+        _tab_chat: Option<&'b mut ThreadedChatSession>,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         self.handle_key_event(key_event.current_key().clone()).await

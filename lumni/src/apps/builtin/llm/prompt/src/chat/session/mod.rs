@@ -17,7 +17,7 @@ use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
     CompletionResponse, ConversationEvent, KeyEventHandler, ModalAction,
-    ModalWindowType, ModelServer, PromptAction, PromptError, PromptInstruction,
+    ModelServer, PromptAction, PromptError, PromptInstruction,
     PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
     WindowEvent, WindowKind,
 };
@@ -32,16 +32,18 @@ pub struct App<'a> {
 
 impl App<'_> {
     pub async fn new(
-        initial_prompt_instruction: PromptInstruction,
+        initial_prompt_instruction: Option<PromptInstruction>,
         db_conn: Arc<ConversationDatabase>,
     ) -> Result<Self, ApplicationError> {
         let color_scheme = ColorScheme::new(ColorSchemeType::Default);
 
-        let conversation_text = {
-            let export =
-                initial_prompt_instruction.export_conversation(&color_scheme);
-            (!export.is_empty()).then(|| export)
-        };
+        let conversation_text = initial_prompt_instruction
+            .as_ref()
+            .map(|instruction| {
+                let export = instruction.export_conversation(&color_scheme);
+                (!export.is_empty()).then(|| export)
+            })
+            .flatten();
 
         let chat_manager = ChatSessionManager::new(
             initial_prompt_instruction,
@@ -65,18 +67,19 @@ impl App<'_> {
     pub async fn reload_conversation(
         &mut self,
     ) -> Result<(), ApplicationError> {
-        let prompt_instruction = self
-            .chat_manager
-            .get_active_session()?
-            .get_instruction()
-            .await?;
+        let active_session =
+            self.chat_manager.get_active_session()?.ok_or_else(|| {
+                ApplicationError::NotReady(
+                    "Reload failed. No active session available".to_string(),
+                )
+            })?;
 
+        let prompt_instruction = active_session.get_instruction().await?;
         let conversation_text = {
             let export =
                 prompt_instruction.export_conversation(&self.color_scheme);
             (!export.is_empty()).then(|| export)
         };
-
         if let Some(conversation_text) = conversation_text {
             self.ui.reload_conversation_text(conversation_text);
         };
@@ -112,9 +115,14 @@ impl App<'_> {
         &mut self,
         prompt_instruction: PromptInstruction,
     ) -> Result<(), ApplicationError> {
-        self.chat_manager
-            .get_active_session()?
-            .load_instruction(prompt_instruction)
-            .await
+        let active_session =
+            self.chat_manager.get_active_session()?.ok_or_else(|| {
+                ApplicationError::NotReady(
+                    "Cant load instruction. No active session available"
+                        .to_string(),
+                )
+            })?;
+
+        active_session.load_instruction(prompt_instruction).await
     }
 }

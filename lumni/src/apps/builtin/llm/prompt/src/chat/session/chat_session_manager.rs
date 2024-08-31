@@ -25,61 +25,70 @@ pub struct SessionInfo {
 
 pub struct ChatSessionManager {
     sessions: HashMap<Uuid, ThreadedChatSession>,
-    pub active_session_info: SessionInfo,
+    pub active_session_info: Option<SessionInfo>,
 }
 
 #[allow(dead_code)]
 impl ChatSessionManager {
     pub async fn new(
-        initial_prompt_instruction: PromptInstruction,
+        initial_prompt_instruction: Option<PromptInstruction>,
         db_conn: Arc<ConversationDatabase>,
     ) -> Self {
-        let session_id = Uuid::new_v4();
-        let conversation_id = initial_prompt_instruction.get_conversation_id();
-        let server_name = initial_prompt_instruction
-            .get_completion_options()
-            .model_server
-            .as_ref()
-            .map(|s| s.to_string());
-
-        let initial_session = ThreadedChatSession::new(
-            initial_prompt_instruction,
-            db_conn.clone(),
-        );
-
         let mut sessions = HashMap::new();
-        sessions.insert(session_id, initial_session);
-
-        Self {
-            sessions,
-            active_session_info: SessionInfo {
+        let active_session_info = if let Some(prompt_instruction) =
+            initial_prompt_instruction
+        {
+            let session_id = Uuid::new_v4();
+            let conversation_id = prompt_instruction.get_conversation_id();
+            let server_name = prompt_instruction
+                .get_completion_options()
+                .model_server
+                .as_ref()
+                .map(|s| s.to_string());
+            let initial_session =
+                ThreadedChatSession::new(prompt_instruction, db_conn.clone());
+            sessions.insert(session_id, initial_session);
+            Some(SessionInfo {
                 id: session_id,
                 conversation_id,
                 server_name,
-            },
+            })
+        } else {
+            None
+        };
+
+        Self {
+            sessions,
+            active_session_info,
         }
     }
 
     pub fn get_active_session(
         &mut self,
-    ) -> Result<&mut ThreadedChatSession, ApplicationError> {
-        self.sessions
-            .get_mut(&self.active_session_info.id)
-            .ok_or_else(|| {
-                ApplicationError::Runtime(
+    ) -> Result<Option<&mut ThreadedChatSession>, ApplicationError> {
+        if let Some(ref session_info) = self.active_session_info {
+            if let Some(session) = self.sessions.get_mut(&session_info.id) {
+                Ok(Some(session))
+            } else {
+                Err(ApplicationError::Runtime(
                     "Active session not found".to_string(),
-                )
-            })
+                ))
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_conversation_id_for_active_session(
         &self,
     ) -> Option<ConversationId> {
-        self.active_session_info.conversation_id
+        self.active_session_info
+            .as_ref()
+            .and_then(|info| info.conversation_id)
     }
 
-    pub fn get_active_session_id(&self) -> Uuid {
-        self.active_session_info.id
+    pub fn get_active_session_id(&self) -> Option<Uuid> {
+        self.active_session_info.as_ref().map(|info| info.id)
     }
 
     pub async fn stop_session(
@@ -126,11 +135,11 @@ impl ChatSessionManager {
                 .as_ref()
                 .map(|s| s.to_string());
 
-            self.active_session_info = SessionInfo {
+            self.active_session_info = Some(SessionInfo {
                 id,
                 conversation_id,
                 server_name,
-            };
+            });
             Ok(())
         } else {
             Err(ApplicationError::InvalidInput(
@@ -140,14 +149,18 @@ impl ChatSessionManager {
     }
 
     pub fn stop_active_chat_session(&mut self) -> Result<(), ApplicationError> {
-        if let Some(session) =
-            self.sessions.get_mut(&self.active_session_info.id)
-        {
-            session.stop();
-            Ok(())
+        if let Some(ref session_info) = self.active_session_info {
+            if let Some(session) = self.sessions.get_mut(&session_info.id) {
+                session.stop();
+                Ok(())
+            } else {
+                Err(ApplicationError::Runtime(
+                    "Active session not found".to_string(),
+                ))
+            }
         } else {
             Err(ApplicationError::Runtime(
-                "Active session not found".to_string(),
+                "No active session to stop".to_string(),
             ))
         }
     }

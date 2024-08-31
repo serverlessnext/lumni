@@ -99,11 +99,23 @@ pub async fn run_cli(
         }
     }
 
-    let prompt_instruction = PromptInstructionBuilder::new(db_conn.clone())
-        .with_matches(matches.as_ref().expect("Clap matches not found"))
-        .await?
-        .build()
-        .await?;
+    let prompt_instruction =
+        match PromptInstructionBuilder::new(db_conn.clone())
+            .with_matches(matches.as_ref().expect("Clap matches not found"))
+            .await
+        {
+            Ok(builder) => match builder.build().await {
+                Ok(instruction) => Some(instruction),
+                Err(e) => {
+                    log::warn!("{}", e);
+                    None
+                }
+            },
+            Err(e) => {
+                log::warn!("{}", e);
+                None
+            }
+        };
 
     match input {
         Some(question) => {
@@ -134,7 +146,7 @@ pub async fn run_cli(
 }
 
 async fn interactive_mode(
-    prompt_instruction: PromptInstruction,
+    prompt_instruction: Option<PromptInstruction>,
     db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     let app = App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
@@ -180,12 +192,21 @@ async fn interactive_mode(
 }
 
 async fn process_non_interactive_input(
-    prompt_instruction: PromptInstruction,
+    prompt_instruction: Option<PromptInstruction>,
     db_conn: Arc<ConversationDatabase>,
     question: Option<String>,
 ) -> Result<(), ApplicationError> {
+    let instruction = match prompt_instruction {
+        Some(instruction) => instruction,
+        None => {
+            return Err(ApplicationError::InvalidInput(
+                "No prompt instruction provided".to_string(),
+            ));
+        }
+    };
+
     let chat = Arc::new(Mutex::new(ThreadedChatSession::new(
-        prompt_instruction,
+        instruction,
         db_conn.clone(),
     )));
 

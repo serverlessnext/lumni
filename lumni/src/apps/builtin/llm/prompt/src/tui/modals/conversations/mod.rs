@@ -318,7 +318,7 @@ impl<'a> ModalWindowTrait for ConversationListModal<'a> {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        tab_chat: &'b mut ThreadedChatSession,
+        tab_chat: Option<&'b mut ThreadedChatSession>,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         log::debug!(

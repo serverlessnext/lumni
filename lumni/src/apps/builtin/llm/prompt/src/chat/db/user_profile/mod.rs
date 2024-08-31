@@ -92,14 +92,13 @@ impl UserProfileDbHandler {
                 .get_profile_settings(&profile, MaskMode::Unmask)
                 .await?;
 
-            let model_server = settings
+            let model_server = match settings
                 .get("__TEMPLATE.__MODEL_SERVER")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    ApplicationError::InvalidInput(
-                        "MODEL_SERVER not found in profile".to_string(),
-                    )
-                })?;
+            {
+                Some(server) => server,
+                None => return Ok(None),
+            };
 
             let server = ModelServer::from_str(model_server)?;
 
@@ -212,6 +211,7 @@ impl UserProfileDbHandler {
             tx.execute_batch(
                 "
                 DELETE FROM user_profiles;
+                DELETE FROM provider_configs;
                 DELETE FROM encryption_keys;
             ",
             )?;

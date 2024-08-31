@@ -16,8 +16,8 @@ pub async fn draw_ui<B: Backend>(
     let server_name = app
         .chat_manager
         .active_session_info
-        .server_name
-        .as_deref()
+        .as_ref()
+        .and_then(|info| info.server_name.as_deref())
         .unwrap_or_default();
 
     terminal.draw(|frame| {

@@ -66,7 +66,6 @@ impl PromptInstructionBuilder {
             // If no profile selector is provided, use the default profile
             self = self.from_default().await?;
         }
-
         Ok(self)
     }
 

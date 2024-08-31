@@ -48,7 +48,7 @@ pub trait ModalWindowTrait: Send + Sync {
     async fn handle_key_event<'a>(
         &'a mut self,
         key_event: &'a mut KeyTrack,
-        tab_chat: &'a mut ThreadedChatSession,
+        tab_chat: Option<&'a mut ThreadedChatSession>,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError>;
 }

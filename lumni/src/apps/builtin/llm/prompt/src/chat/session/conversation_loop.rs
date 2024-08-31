@@ -47,20 +47,21 @@ pub async fn prompt_app<B: Backend>(
             }
             _ = async {
                 // Process chat events
-                let events = app.chat_manager.get_active_session()?.subscribe().recv().await;
-                if let Ok(event) = events {
-                    match event {
-                        ChatEvent::ResponseUpdate(content) => {
-                            app.ui.response.text_append(&content, Some(color_scheme.get_secondary_style()))?;
-                            redraw_ui = true;
-                        },
-                        ChatEvent::FinalResponse => {
-                            app.ui.response.text_append("\n\n", Some(color_scheme.get_secondary_style()))?;
-                            redraw_ui = true;
-                        },
-                        ChatEvent::Error(error) => {
-                            log::error!("Chat session error: {}", error);
-                            redraw_ui = true;
+                if let Ok(Some(active_session)) = app.chat_manager.get_active_session() {
+                    if let Ok(event) = active_session.subscribe().recv().await {
+                        match event {
+                            ChatEvent::ResponseUpdate(content) => {
+                                app.ui.response.text_append(&content, Some(color_scheme.get_secondary_style()))?;
+                                redraw_ui = true;
+                            },
+                            ChatEvent::FinalResponse => {
+                                app.ui.response.text_append("\n\n", Some(color_scheme.get_secondary_style()))?;
+                                redraw_ui = true;
+                            },
+                            ChatEvent::Error(error) => {
+                                log::error!("Chat session error: {}", error);
+                                redraw_ui = true;
+                            }
                         }
                     }
                 }
@@ -136,11 +137,13 @@ async fn handle_key_event(
         let mut conversation_handler = db_conn.get_conversation_handler(
             app.get_conversation_id_for_active_session(),
         );
+
+        let active_session = app.chat_manager.get_active_session()?;
         let new_window_event = key_event_handler
             .process_key(
                 key_event,
                 &mut app.ui,
-                app.chat_manager.get_active_session()?,
+                active_session,
                 mode,
                 keep_running.clone(),
                 &mut conversation_handler,
@@ -338,11 +341,15 @@ async fn send_prompt<'a>(
     // prompt should end with single newline
     let color_scheme = app.color_scheme.clone();
     let formatted_prompt = format!("{}\n", prompt.trim_end());
-    let result = app
-        .chat_manager
-        .get_active_session()?
-        .message(&formatted_prompt)
-        .await;
+
+    let active_session =
+        app.chat_manager.get_active_session()?.ok_or_else(|| {
+            ApplicationError::NotReady(
+                "No active session available".to_string(),
+            )
+        })?;
+    let result = active_session.message(&formatted_prompt).await;
+
     match result {
         Ok(_) => {
             // clear prompt

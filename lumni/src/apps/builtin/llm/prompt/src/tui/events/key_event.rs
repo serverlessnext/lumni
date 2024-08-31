@@ -158,7 +158,7 @@ impl KeyEventHandler {
         &mut self,
         key_event: KeyEvent,
         app_ui: &mut AppUi<'_>,
-        tab_chat: &mut ThreadedChatSession,
+        tab_chat: Option<&mut ThreadedChatSession>,
         current_mode: WindowEvent,
         is_running: Arc<AtomicBool>,
         handler: &mut ConversationDbHandler,

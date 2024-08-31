@@ -180,7 +180,7 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        _tab_chat: &'b mut ThreadedChatSession,
+        _tab_chat: Option<&'b mut ThreadedChatSession>,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
         let modal_action = self.file_browser.handle_key_event(key_event)?;

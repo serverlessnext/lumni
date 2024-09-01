@@ -14,9 +14,10 @@ pub use super::widgets;
 use super::{
     ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
     KeyTrack, MaskMode, ModelServer, ModelSpec, PromptInstruction,
-    ProviderConfig, ProviderConfigOptions, ServerTrait, SimpleString, TextArea,
-    TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
-    UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ProviderConfig, ProviderConfigOptions, ResponseWindow, ServerTrait,
+    SimpleString, TextArea, TextLine, TextWindowTrait, ThreadedChatSession,
+    UserEvent, UserProfile, UserProfileDbHandler, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

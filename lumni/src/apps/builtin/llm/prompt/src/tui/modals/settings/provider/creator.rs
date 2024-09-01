@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
@@ -13,12 +14,14 @@ pub enum ProviderCreationStep {
     SelectProviderType,
     SelectModel,
     ConfigureSettings,
-    Confirm,
+    ConfirmCreate,
+    CreatingProvider,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProviderCreator {
     name: String,
-    pub provider_type: String,
+    provider_type: String,
     model_identifier: Option<String>,
     additional_settings: HashMap<String, ProviderConfigOptions>,
     db_handler: UserProfileDbHandler,
@@ -63,14 +66,160 @@ impl ProviderCreator {
             ProviderCreationStep::ConfigureSettings => {
                 self.render_configure_settings(f, area)
             }
-            ProviderCreationStep::Confirm => self.render_confirm(f, area),
+            ProviderCreationStep::ConfirmCreate => {
+                self.render_confirm_create(f, area)
+            }
+            ProviderCreationStep::CreatingProvider => {
+                self.render_creating_provider(f, area)
+            }
         }
     }
 
-    pub async fn handle_input(
+    pub fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .split(area);
+
+        let content_area = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(1), Constraint::Length(1)])
+            .split(chunks[0]);
+
+        let text_lines = self.create_confirm_details();
+        let mut text_area = ResponseWindow::new(Some(text_lines));
+
+        let text_area_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Provider Details");
+        let text_area_widget =
+            text_area.widget(&content_area[0]).block(text_area_block);
+        f.render_widget(text_area_widget, content_area[0]);
+
+        // Render buttons
+        let button_constraints =
+            [Constraint::Percentage(50), Constraint::Percentage(50)];
+        let button_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(button_constraints)
+            .split(chunks[1]);
+
+        let back_button = Paragraph::new("[ Back ]")
+            .style(Style::default().fg(Color::Yellow))
+            .alignment(Alignment::Center);
+        f.render_widget(back_button, button_chunks[0]);
+
+        let create_button = Paragraph::new("[ Create Provider ]")
+            .style(
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(Alignment::Center);
+        f.render_widget(create_button, button_chunks[1]);
+    }
+
+    fn create_confirm_details(&self) -> Vec<TextLine> {
+        let mut lines = Vec::new();
+
+        // Name
+        let mut name_line = TextLine::new();
+        name_line.add_segment(
+            "Name:",
+            Some(Style::default().add_modifier(Modifier::BOLD)),
+        );
+        lines.push(name_line);
+
+        let mut name_value_line = TextLine::new();
+        name_value_line.add_segment(
+            format!("  {}", self.name),
+            Some(Style::default().fg(Color::Cyan)),
+        );
+        lines.push(name_value_line);
+
+        lines.push(TextLine::new()); // Empty line for spacing
+
+        // Provider Type
+        let mut type_line = TextLine::new();
+        type_line.add_segment(
+            "Provider Type:",
+            Some(Style::default().add_modifier(Modifier::BOLD)),
+        );
+        lines.push(type_line);
+
+        let mut type_value_line = TextLine::new();
+        type_value_line.add_segment(
+            format!("  {}", self.provider_type),
+            Some(Style::default().fg(Color::Cyan)),
+        );
+        lines.push(type_value_line);
+
+        lines.push(TextLine::new()); // Empty line for spacing
+
+        // Model
+        if let Some(model) = &self.model_identifier {
+            let mut model_line = TextLine::new();
+            model_line.add_segment(
+                "Model:",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            lines.push(model_line);
+
+            let mut model_value_line = TextLine::new();
+            model_value_line.add_segment(
+                format!("  {}", model),
+                Some(Style::default().fg(Color::Cyan)),
+            );
+            lines.push(model_value_line);
+
+            lines.push(TextLine::new()); // Empty line for spacing
+        }
+
+        // Additional Settings
+        if !self.additional_settings.is_empty() {
+            let mut settings_line = TextLine::new();
+            settings_line.add_segment(
+                "Additional Settings:",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            lines.push(settings_line);
+
+            for (key, setting) in &self.additional_settings {
+                let mut setting_line = TextLine::new();
+                setting_line.add_segment(
+                    format!("  {}: ", key),
+                    Some(Style::default().fg(Color::Yellow)),
+                );
+                setting_line.add_segment(
+                    &setting.value,
+                    Some(Style::default().fg(Color::Cyan)),
+                );
+                lines.push(setting_line);
+            }
+        }
+
+        lines
+    }
+
+    pub async fn handle_key_event(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+        match input.code {
+            KeyCode::Esc => return self.go_to_previous_step(),
+            KeyCode::Backspace => {
+                if self.current_step == ProviderCreationStep::EnterName
+                    && !self.name.is_empty()
+                {
+                    self.name.pop();
+                    return Ok(CreatorAction::Continue);
+                } else {
+                    return self.go_to_previous_step();
+                }
+            }
+            _ => {}
+        }
+
         match self.current_step {
             ProviderCreationStep::EnterName => self.handle_enter_name(input),
             ProviderCreationStep::SelectProviderType => {
@@ -82,7 +231,12 @@ impl ProviderCreator {
             ProviderCreationStep::ConfigureSettings => {
                 self.handle_configure_settings(input)
             }
-            ProviderCreationStep::Confirm => self.handle_confirm(input).await,
+            ProviderCreationStep::ConfirmCreate => {
+                self.handle_confirm_create(input).await
+            }
+            ProviderCreationStep::CreatingProvider => {
+                Ok(CreatorAction::Continue)
+            }
         }
     }
 
@@ -108,9 +262,7 @@ impl ProviderCreator {
             .enumerate()
             .map(|(index, provider)| {
                 let style = if provider == &self.provider_type {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
+                    Style::default().fg(Color::White)
                 } else {
                     Style::default()
                 };
@@ -289,6 +441,34 @@ impl ProviderCreator {
         f.render_widget(list, area);
     }
 
+    fn go_to_previous_step(
+        &mut self,
+    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+        match self.current_step {
+            ProviderCreationStep::EnterName => Ok(CreatorAction::Cancel),
+            ProviderCreationStep::SelectProviderType => {
+                self.current_step = ProviderCreationStep::EnterName;
+                Ok(CreatorAction::Continue)
+            }
+            ProviderCreationStep::SelectModel => {
+                self.current_step = ProviderCreationStep::SelectProviderType;
+                Ok(CreatorAction::Continue)
+            }
+            ProviderCreationStep::ConfigureSettings => {
+                self.current_step = ProviderCreationStep::SelectModel;
+                Ok(CreatorAction::Continue)
+            }
+            ProviderCreationStep::ConfirmCreate => {
+                self.current_step = ProviderCreationStep::ConfigureSettings;
+                Ok(CreatorAction::Continue)
+            }
+            ProviderCreationStep::CreatingProvider => {
+                self.current_step = ProviderCreationStep::ConfirmCreate;
+                Ok(CreatorAction::Continue)
+            }
+        }
+    }
+
     pub fn handle_enter_name(
         &mut self,
         input: KeyEvent,
@@ -296,25 +476,20 @@ impl ProviderCreator {
         match input.code {
             KeyCode::Char(c) => {
                 self.name.push(c);
-            }
-            KeyCode::Backspace => {
-                self.name.pop();
+                Ok(CreatorAction::Continue)
             }
             KeyCode::Enter => {
                 if !self.name.is_empty() {
                     self.current_step =
                         ProviderCreationStep::SelectProviderType;
                 }
+                Ok(CreatorAction::Continue)
             }
-            KeyCode::Esc => {
-                return Ok(CreatorAction::Cancel);
-            }
-            _ => {}
-        };
-        Ok(CreatorAction::Continue)
+            _ => Ok(CreatorAction::Continue),
+        }
     }
 
-    pub async fn handle_select_provider_type(
+    async fn handle_select_provider_type(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
@@ -322,11 +497,6 @@ impl ProviderCreator {
             .iter()
             .map(|s| s.to_string())
             .collect();
-
-        // Ensure the first item is selected by default if no selection has been made
-        if self.provider_type.is_empty() && !provider_types.is_empty() {
-            self.provider_type = provider_types[0].clone();
-        }
 
         match input.code {
             KeyCode::Up => {
@@ -354,19 +524,18 @@ impl ProviderCreator {
                     self.provider_type = provider_types[0].clone();
                 }
             }
-            KeyCode::Enter | KeyCode::Tab => {
-                self.current_step = ProviderCreationStep::SelectModel;
-                self.load_models().await?; // Load models here
-            }
-            KeyCode::Esc => {
-                self.current_step = ProviderCreationStep::EnterName;
+            KeyCode::Enter => {
+                if !self.provider_type.is_empty() {
+                    self.current_step = ProviderCreationStep::SelectModel;
+                    self.load_models().await?;
+                }
             }
             _ => {}
-        };
+        }
         Ok(CreatorAction::Continue)
     }
 
-    pub async fn handle_select_model(
+    async fn handle_select_model(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
@@ -394,7 +563,7 @@ impl ProviderCreator {
                     self.selected_model_index = Some(0);
                 }
             }
-            KeyCode::Enter | KeyCode::Tab => {
+            KeyCode::Enter => {
                 if let Some(index) = self.selected_model_index {
                     self.model_identifier =
                         Some(self.available_models[index].identifier.0.clone());
@@ -404,15 +573,23 @@ impl ProviderCreator {
                     return Ok(CreatorAction::LoadAdditionalSettings);
                 }
             }
-            KeyCode::Esc => {
-                self.current_step = ProviderCreationStep::SelectProviderType;
+            KeyCode::Tab => {
+                // Skip model selection if there's an error or no models available
+                if self.model_fetch_error.is_some()
+                    || self.available_models.is_empty()
+                {
+                    let model_server =
+                        ModelServer::from_str(&self.provider_type)?;
+                    self.prepare_additional_settings(&model_server);
+                    return Ok(CreatorAction::LoadAdditionalSettings);
+                }
             }
             _ => {}
         }
         Ok(CreatorAction::Continue)
     }
 
-    pub fn handle_configure_settings(
+    fn handle_configure_settings(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
@@ -432,7 +609,8 @@ impl ProviderCreator {
                     self.save_current_setting();
                     self.is_editing = false;
                     if self.is_last_setting() {
-                        self.current_step = ProviderCreationStep::Confirm;
+                        self.current_step = ProviderCreationStep::ConfirmCreate;
+                        return Ok(CreatorAction::Continue);
                     } else {
                         self.move_setting_selection(1);
                     }
@@ -440,18 +618,12 @@ impl ProviderCreator {
                     self.start_editing_current_setting();
                 }
             }
-            KeyCode::Esc => {
-                if self.is_editing {
-                    self.cancel_editing();
-                } else {
-                    self.current_step = ProviderCreationStep::SelectModel;
-                }
-            }
             KeyCode::Tab => {
                 if self.is_editing {
                     self.save_current_setting();
                 }
-                self.current_step = ProviderCreationStep::Confirm;
+                self.current_step = ProviderCreationStep::ConfirmCreate;
+                return Ok(CreatorAction::Continue);
             }
             KeyCode::Char(c) => {
                 if !self.is_editing {
@@ -461,15 +633,14 @@ impl ProviderCreator {
                 self.edit_buffer.push(c);
             }
             KeyCode::Backspace => {
-                if !self.is_editing {
-                    self.start_editing_current_setting();
-                    self.edit_buffer.clear();
-                } else {
+                if self.is_editing {
                     self.edit_buffer.pop();
+                } else {
+                    return self.go_to_previous_step();
                 }
             }
             _ => {}
-        };
+        }
         Ok(CreatorAction::Continue)
     }
 
@@ -516,24 +687,18 @@ impl ProviderCreator {
         }
     }
 
-    pub async fn handle_confirm(
+    async fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
             KeyCode::Enter => {
-                return Ok(CreatorAction::CreateItem);
+                self.current_step = ProviderCreationStep::CreatingProvider;
+                let new_config = self.create_provider().await?;
+                Ok(CreatorAction::Finish(new_config))
             }
-            KeyCode::Esc => {
-                if !self.additional_settings.is_empty() {
-                    self.current_step = ProviderCreationStep::ConfigureSettings;
-                } else {
-                    self.current_step = ProviderCreationStep::SelectModel;
-                }
-            }
-            _ => {}
-        };
-        Ok(CreatorAction::Continue)
+            _ => Ok(CreatorAction::Continue),
+        }
     }
 
     pub async fn load_models(&mut self) -> Result<(), ApplicationError> {
@@ -591,8 +756,9 @@ impl ProviderCreator {
                 }
             }
         }
+
         if self.additional_settings.is_empty() {
-            self.current_step = ProviderCreationStep::Confirm;
+            self.current_step = ProviderCreationStep::ConfirmCreate;
         } else {
             self.current_step = ProviderCreationStep::ConfigureSettings;
             self.current_setting_key =
@@ -613,5 +779,20 @@ impl ProviderCreator {
         let stored_config =
             self.db_handler.save_provider_config(&new_config).await?;
         Ok(stored_config)
+    }
+
+    pub fn render_creating_provider(&self, f: &mut Frame, area: Rect) {
+        let content = format!("Creating provider '{}'...", self.name);
+
+        let paragraph = Paragraph::new(content)
+            .style(Style::default().fg(Color::Green))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Creating Provider"),
+            );
+
+        f.render_widget(paragraph, area);
     }
 }

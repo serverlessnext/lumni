@@ -5,7 +5,9 @@ use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
 use super::list::{ListItem, SettingsList};
-use super::profile::{ProfileCreationStep, ProfileCreator};
+use super::profile::{
+    ProfileCreationStep, ProfileCreator, SubPartCreationState,
+};
 use super::provider::{ProviderCreationStep, ProviderCreator};
 use super::*;
 
@@ -134,7 +136,6 @@ pub enum CreatorAction<T: ManagedItem> {
     Cancel,
     Finish(T),
     LoadAdditionalSettings,
-    SwitchToProviderCreation,
     CreateItem, // spawn a background task to create the item
 }
 
@@ -379,10 +380,6 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 }
                 CreatorAction::LoadAdditionalSettings => {
                     // Handle loading additional settings if needed
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
-                }
-                CreatorAction::SwitchToProviderCreation => {
-                    // Handle switching to provider creation if needed
                     Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
             }
@@ -637,37 +634,27 @@ impl Creator<UserProfile> for ProfileCreator {
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        match self.creation_step {
-            ProfileCreationStep::EnterName => self.handle_enter_name(input),
-            ProfileCreationStep::SelectProvider => {
-                self.handle_select_provider(input).await
-            }
-            ProfileCreationStep::CreateProvider => {
-                self.handle_create_provider(input).await
-            }
-            ProfileCreationStep::ConfirmCreate => {
-                self.handle_confirm_create(input)
-            }
-            ProfileCreationStep::CreatingProfile => Ok(CreatorAction::Continue),
-        }
+        self.handle_key_event(input).await
     }
 
     fn render(&self, f: &mut Frame, area: Rect) {
-        match self.creation_step {
-            ProfileCreationStep::EnterName => self.render_enter_name(f, area),
-            ProfileCreationStep::SelectProvider => {
-                self.render_select_provider(f, area)
-            }
-            ProfileCreationStep::CreateProvider => {
-                if let Some(creator) = &self.provider_creator {
-                    creator.render(f, area);
+        match self.sub_part_creation_state {
+            SubPartCreationState::NotCreating => match self.creation_step {
+                ProfileCreationStep::EnterName => {
+                    self.render_enter_name(f, area)
                 }
-            }
-            ProfileCreationStep::ConfirmCreate => {
-                self.render_confirm_create(f, area)
-            }
-            ProfileCreationStep::CreatingProfile => {
-                self.render_creating_profile(f, area)
+                ProfileCreationStep::SelectProvider => {
+                    self.render_select_provider(f, area)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.render_confirm_create(f, area)
+                }
+                ProfileCreationStep::CreatingProfile => {
+                    self.render_creating_profile(f, area)
+                }
+            },
+            SubPartCreationState::CreatingProvider(ref creator) => {
+                creator.render(f, area);
             }
         }
     }
@@ -689,19 +676,7 @@ impl Creator<ProviderConfig> for ProviderCreator {
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
-        match self.current_step {
-            ProviderCreationStep::EnterName => self.handle_enter_name(input),
-            ProviderCreationStep::SelectProviderType => {
-                self.handle_select_provider_type(input).await
-            }
-            ProviderCreationStep::SelectModel => {
-                self.handle_select_model(input).await
-            }
-            ProviderCreationStep::ConfigureSettings => {
-                self.handle_configure_settings(input)
-            }
-            ProviderCreationStep::Confirm => self.handle_confirm(input).await,
-        }
+        self.handle_key_event(input).await
     }
 
     fn render(&self, f: &mut Frame, area: Rect) {
@@ -716,17 +691,24 @@ impl Creator<ProviderConfig> for ProviderCreator {
             ProviderCreationStep::ConfigureSettings => {
                 self.render_configure_settings(f, area)
             }
-            ProviderCreationStep::Confirm => self.render_confirm(f, area),
+            ProviderCreationStep::ConfirmCreate => {
+                self.render_confirm_create(f, area)
+            }
+            ProviderCreationStep::CreatingProvider => {
+                self.render_creating_provider(f, area)
+            }
         }
     }
 
     async fn create_item(
         &mut self,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+        self.current_step = ProviderCreationStep::CreatingProvider;
         match self.create_provider().await {
             Ok(new_config) => Ok(CreatorAction::Finish(new_config)),
             Err(e) => {
                 log::error!("Failed to create provider: {}", e);
+                self.current_step = ProviderCreationStep::ConfirmCreate;
                 Ok(CreatorAction::Continue)
             }
         }

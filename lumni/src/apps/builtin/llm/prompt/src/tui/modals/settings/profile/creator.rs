@@ -2,11 +2,7 @@ use std::time::Instant;
 
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, Borders, List, ListItem, ListState, Paragraph, Scrollbar,
-    ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -17,71 +13,142 @@ use super::*;
 pub enum ProfileCreationStep {
     EnterName,
     SelectProvider,
-    CreateProvider,
     ConfirmCreate,
     CreatingProfile,
 }
 
+#[derive(Debug, Clone)]
+pub enum SubPartCreationState {
+    NotCreating,
+    CreatingProvider(ProviderCreator),
+}
+
 pub struct ProfileCreator {
-    pub new_profile_name: String,
+    new_profile_name: String,
     pub creation_step: ProfileCreationStep,
     db_handler: UserProfileDbHandler,
     pub background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
-    pub task_start_time: Option<Instant>,
+    task_start_time: Option<Instant>,
     selected_provider: Option<ProviderConfig>,
     provider_configs: Vec<ProviderConfig>,
-    selected_provider_index: Option<usize>,
-    pub provider_creator: Option<ProviderCreator>,
-    scroll_state: ScrollbarState,
-    list_state: ListState,
-    scroll_position: usize,
+    selected_provider_index: usize,
+    pub sub_part_creation_state: SubPartCreationState,
 }
 
 impl ProfileCreator {
     pub async fn new(
         db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
+        // Load existing provider configs
         let provider_configs = db_handler.load_provider_configs().await?;
 
         Ok(Self {
             new_profile_name: String::new(),
             creation_step: ProfileCreationStep::EnterName,
-            db_handler,
+            db_handler: db_handler.clone(),
             background_task: None,
             task_start_time: None,
             selected_provider: None,
             provider_configs,
-            selected_provider_index: None,
-            provider_creator: None,
-            scroll_state: ScrollbarState::default(),
-            list_state: ListState::default(),
-            scroll_position: 0,
+            selected_provider_index: 0,
+            sub_part_creation_state: SubPartCreationState::NotCreating,
         })
     }
 
-    pub fn handle_enter_name(
+    pub async fn handle_key_event(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        match &mut self.sub_part_creation_state {
+            SubPartCreationState::NotCreating => {
+                match input.code {
+                    KeyCode::Esc => return self.go_to_previous_step(),
+                    KeyCode::Backspace => {
+                        if self.creation_step == ProfileCreationStep::EnterName
+                        {
+                            if self.new_profile_name.is_empty() {
+                                return self.go_to_previous_step();
+                            } else {
+                                self.new_profile_name.pop();
+                                return Ok(CreatorAction::Continue);
+                            }
+                        } else {
+                            return self.go_to_previous_step();
+                        }
+                    }
+                    _ => {}
+                }
+
+                match self.creation_step {
+                    ProfileCreationStep::EnterName => {
+                        self.handle_enter_name(input)
+                    }
+                    ProfileCreationStep::SelectProvider => {
+                        self.handle_select_provider(input).await
+                    }
+                    ProfileCreationStep::ConfirmCreate => {
+                        self.handle_confirm_create(input)
+                    }
+                    ProfileCreationStep::CreatingProfile => {
+                        Ok(CreatorAction::Continue)
+                    }
+                }
+            }
+            SubPartCreationState::CreatingProvider(creator) => {
+                match input.code {
+                    KeyCode::Esc => {
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step =
+                            ProfileCreationStep::SelectProvider;
+                        return Ok(CreatorAction::Continue);
+                    }
+                    _ => {}
+                }
+
+                let result = creator.handle_input(input).await?;
+                match result {
+                    CreatorAction::Finish(new_config) => {
+                        self.provider_configs.push(new_config.clone());
+                        self.selected_provider = Some(new_config);
+                        self.selected_provider_index =
+                            self.provider_configs.len() - 1;
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step =
+                            ProfileCreationStep::SelectProvider;
+                        Ok(CreatorAction::Continue)
+                    }
+                    CreatorAction::Cancel => {
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step =
+                            ProfileCreationStep::SelectProvider;
+                        Ok(CreatorAction::Continue)
+                    }
+                    _ => Ok(CreatorAction::Continue),
+                }
+            }
+        }
+    }
+
+    fn handle_enter_name(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Char(c) => {
                 self.new_profile_name.push(c);
-            }
-            KeyCode::Backspace => {
-                self.new_profile_name.pop();
+                Ok(CreatorAction::Continue)
             }
             KeyCode::Enter => {
                 if !self.new_profile_name.is_empty() {
                     self.creation_step = ProfileCreationStep::SelectProvider;
-                } else {
                 }
+                Ok(CreatorAction::Continue)
             }
-            KeyCode::Esc => {
-                return Ok(CreatorAction::Cancel);
-            }
-            _ => {}
+            _ => Ok(CreatorAction::Continue),
         }
-        Ok(CreatorAction::Continue)
     }
 
     pub async fn handle_select_provider(
@@ -90,95 +157,39 @@ impl ProfileCreator {
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
-                if let Some(index) = self.selected_provider_index.as_mut() {
-                    if *index > 0 {
-                        *index -= 1;
-                    } else {
-                        *index = self.provider_configs.len(); // Wrap to "Create new Provider" option
-                    }
+                if self.selected_provider_index > 0 {
+                    self.selected_provider_index -= 1;
                 } else {
-                    self.selected_provider_index =
-                        Some(self.provider_configs.len()); // Select "Create new Provider"
+                    self.selected_provider_index = self.provider_configs.len(); // Wrap to "Create new Provider" option
                 }
             }
             KeyCode::Down => {
-                if let Some(index) = self.selected_provider_index.as_mut() {
-                    if *index < self.provider_configs.len() {
-                        *index += 1;
-                    } else {
-                        *index = 0; // Wrap to first provider
-                    }
+                if self.selected_provider_index < self.provider_configs.len() {
+                    self.selected_provider_index += 1;
                 } else {
-                    self.selected_provider_index = Some(0);
+                    self.selected_provider_index = 0; // Wrap to first provider
                 }
             }
             KeyCode::Enter => {
-                if let Some(index) = self.selected_provider_index {
-                    if index == self.provider_configs.len() {
-                        // "Create new Provider" option selected
-                        self.creation_step =
-                            ProfileCreationStep::CreateProvider;
-                        self.provider_creator = Some(
-                            ProviderCreator::new(self.db_handler.clone())
-                                .await?,
-                        );
-                        return Ok(CreatorAction::SwitchToProviderCreation);
-                    } else {
-                        // Existing provider selected
-                        self.selected_provider =
-                            Some(self.provider_configs[index].clone());
-                        self.creation_step = ProfileCreationStep::ConfirmCreate;
-                    }
-                };
+                if self.selected_provider_index == self.provider_configs.len() {
+                    // "Create new Provider" option selected
+                    let creator =
+                        ProviderCreator::new(self.db_handler.clone()).await?;
+                    self.sub_part_creation_state =
+                        SubPartCreationState::CreatingProvider(creator);
+                } else {
+                    // Existing provider selected
+                    self.selected_provider = Some(
+                        self.provider_configs[self.selected_provider_index]
+                            .clone(),
+                    );
+                    self.creation_step = ProfileCreationStep::ConfirmCreate;
+                }
             }
-            KeyCode::Esc => {
-                self.creation_step = ProfileCreationStep::EnterName;
+            KeyCode::Esc | KeyCode::Backspace => {
+                return self.go_to_previous_step();
             }
             _ => {}
-        };
-        Ok(CreatorAction::Continue)
-    }
-
-    pub async fn handle_create_provider(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        if let Some(creator) = &mut self.provider_creator {
-            match creator.handle_input(input).await? {
-                CreatorAction::Finish(new_config) => {
-                    self.provider_configs.push(new_config.clone());
-                    self.selected_provider = Some(new_config);
-                    self.selected_provider_index =
-                        Some(self.provider_configs.len() - 1);
-                    self.creation_step = ProfileCreationStep::ConfirmCreate;
-                    self.provider_creator = None;
-                }
-                CreatorAction::Cancel => {
-                    self.creation_step = ProfileCreationStep::SelectProvider;
-                    self.provider_creator = None;
-                }
-                CreatorAction::LoadAdditionalSettings => {
-                    let model_server =
-                        ModelServer::from_str(&creator.provider_type)?;
-                    creator.prepare_additional_settings(&model_server);
-                }
-                CreatorAction::CreateItem => {
-                    // This is the case we need to handle for the confirmation step
-                    match creator.create_item().await? {
-                        CreatorAction::Finish(new_config) => {
-                            self.provider_configs.push(new_config.clone());
-                            self.selected_provider = Some(new_config);
-                            self.selected_provider_index =
-                                Some(self.provider_configs.len() - 1);
-                            self.creation_step =
-                                ProfileCreationStep::ConfirmCreate;
-                            self.provider_creator = None;
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
         };
         Ok(CreatorAction::Continue)
     }
@@ -190,14 +201,10 @@ impl ProfileCreator {
         match input.code {
             KeyCode::Enter => {
                 self.creation_step = ProfileCreationStep::CreatingProfile;
-                return Ok(CreatorAction::CreateItem);
+                Ok(CreatorAction::CreateItem)
             }
-            KeyCode::Esc => {
-                self.creation_step = ProfileCreationStep::SelectProvider;
-            }
-            _ => {}
+            _ => Ok(CreatorAction::Continue),
         }
-        Ok(CreatorAction::Continue)
     }
 
     pub async fn create_profile(
@@ -317,7 +324,7 @@ impl ProfileCreator {
             .highlight_symbol("> ");
 
         let mut state = ListState::default();
-        state.select(self.selected_provider_index);
+        state.select(Some(self.selected_provider_index));
 
         f.render_stateful_widget(list, area, &mut state);
     }
@@ -328,101 +335,22 @@ impl ProfileCreator {
             .constraints([Constraint::Min(1), Constraint::Length(3)])
             .split(area);
 
-        let mut items = Vec::new();
-
-        // Name Section
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled("Name", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(":"),
-        ])));
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("  "),
-            Span::styled(
-                &self.new_profile_name,
-                Style::default().fg(Color::Cyan),
-            ),
-        ])));
-        items.push(ListItem::new(Line::from("")));
-
-        // Provider Section
-        if let Some(config) = &self.selected_provider {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "Provider",
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(":"),
-            ])));
-            items.push(ListItem::new(Line::from(vec![
-                Span::raw("  Type: "),
-                Span::styled(
-                    &config.provider_type,
-                    Style::default().fg(Color::Cyan),
-                ),
-            ])));
-
-            if let Some(model) = &config.model_identifier {
-                items.push(ListItem::new(Line::from(vec![
-                    Span::raw("  Model: "),
-                    Span::styled(model, Style::default().fg(Color::Cyan)),
-                ])));
-            }
-
-            if !config.additional_settings.is_empty() {
-                items.push(ListItem::new(Line::from("  Additional Settings:")));
-                for (key, setting) in &config.additional_settings {
-                    items.push(ListItem::new(Line::from(vec![
-                        Span::raw("    • "),
-                        Span::styled(key, Style::default().fg(Color::Yellow)),
-                        Span::raw(": "),
-                        Span::styled(
-                            &setting.value,
-                            Style::default().fg(Color::Cyan),
-                        ),
-                    ])));
-                }
-            }
-        } else {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    "Provider",
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(": "),
-                Span::styled(
-                    "No provider selected",
-                    Style::default().fg(Color::Red),
-                ),
-            ])));
-        }
-
-        let list_height = chunks[0].height as usize - 2; // Subtract 2 for borders
-        let list = List::new(items.clone())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Profile Details"),
+        let content_area = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(
+                [Constraint::Min(1), Constraint::Length(1)], // reserve space for scrollbar ( to be implemented )
             )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
-            .highlight_symbol("> ");
+            .split(chunks[0]);
 
-        let mut list_state = ListState::default();
-        list_state.select(Some(self.scroll_position));
+        let text_lines = self.create_confirm_details();
+        let mut text_area = ResponseWindow::new(Some(text_lines));
 
-        f.render_stateful_widget(list, chunks[0], &mut list_state);
-
-        // Render scrollbar
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(None)
-            .end_symbol(None);
-
-        let mut scrollbar_state = ScrollbarState::default()
-            .position(self.scroll_position)
-            .content_length(items.len())
-            .viewport_content_length(list_height);
-
-        f.render_stateful_widget(scrollbar, chunks[0], &mut scrollbar_state);
+        let text_area_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Profile Details");
+        let text_area_widget =
+            text_area.widget(&content_area[0]).block(text_area_block);
+        f.render_widget(text_area_widget, content_area[0]);
 
         // Render buttons
         let button_constraints =
@@ -447,32 +375,103 @@ impl ProfileCreator {
         f.render_widget(create_button, button_chunks[1]);
     }
 
-    pub fn scroll_up(&mut self) {
-        if self.scroll_position > 0 {
-            self.scroll_position -= 1;
-        }
-    }
+    fn create_confirm_details(&self) -> Vec<TextLine> {
+        let mut lines = Vec::new();
 
-    pub fn scroll_down(&mut self, max_items: usize) {
-        if self.scroll_position < max_items.saturating_sub(1) {
-            self.scroll_position += 1;
-        }
-    }
+        // Name Section
+        let mut name_line = TextLine::new();
+        name_line.add_segment(
+            "Name:",
+            Some(Style::default().add_modifier(Modifier::BOLD)),
+        );
+        lines.push(name_line);
 
-    fn go_back(&mut self) -> CreatorAction<UserProfile> {
-        match self.creation_step {
-            ProfileCreationStep::ConfirmCreate => {
-                self.creation_step = ProfileCreationStep::SelectProvider;
+        let mut name_value_line = TextLine::new();
+        name_value_line.add_segment(
+            format!("  {}", self.new_profile_name),
+            Some(Style::default().fg(Color::Cyan)),
+        );
+        lines.push(name_value_line);
+
+        lines.push(TextLine::new()); // Empty line for spacing
+
+        // Provider Section
+        if let Some(config) = &self.selected_provider {
+            let mut provider_line = TextLine::new();
+            provider_line.add_segment(
+                "Provider:",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            lines.push(provider_line);
+
+            let mut type_line = TextLine::new();
+            type_line.add_segment(
+                format!("  Type: {}", config.provider_type),
+                Some(Style::default().fg(Color::Cyan)),
+            );
+            lines.push(type_line);
+
+            if let Some(model) = &config.model_identifier {
+                let mut model_line = TextLine::new();
+                model_line.add_segment(
+                    format!("  Model: {}", model),
+                    Some(Style::default().fg(Color::Cyan)),
+                );
+                lines.push(model_line);
             }
+
+            if !config.additional_settings.is_empty() {
+                let mut settings_line = TextLine::new();
+                settings_line.add_segment("  Additional Settings:", None);
+                lines.push(settings_line);
+
+                for (key, setting) in &config.additional_settings {
+                    let mut setting_line = TextLine::new();
+                    setting_line.add_segment(
+                        format!("    • {}: ", key),
+                        Some(Style::default().fg(Color::Yellow)),
+                    );
+                    setting_line.add_segment(
+                        &setting.value,
+                        Some(Style::default().fg(Color::Cyan)),
+                    );
+                    lines.push(setting_line);
+                }
+            }
+        } else {
+            let mut no_provider_line = TextLine::new();
+            no_provider_line.add_segment(
+                "Provider: ",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            no_provider_line.add_segment(
+                "No provider selected",
+                Some(Style::default().fg(Color::Red)),
+            );
+            lines.push(no_provider_line);
+        }
+
+        lines
+    }
+
+    pub fn go_to_previous_step(
+        &mut self,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        match self.creation_step {
+            ProfileCreationStep::EnterName => Ok(CreatorAction::Cancel),
             ProfileCreationStep::SelectProvider => {
                 self.creation_step = ProfileCreationStep::EnterName;
+                Ok(CreatorAction::Continue)
             }
-            ProfileCreationStep::EnterName => {
-                return CreatorAction::Cancel;
+            ProfileCreationStep::ConfirmCreate => {
+                self.creation_step = ProfileCreationStep::SelectProvider;
+                Ok(CreatorAction::Continue)
             }
-            _ => {}
+            ProfileCreationStep::CreatingProfile => {
+                self.creation_step = ProfileCreationStep::ConfirmCreate;
+                Ok(CreatorAction::Continue)
+            }
         }
-        CreatorAction::Continue
     }
 
     pub fn render_creating_profile(&self, f: &mut Frame, area: Rect) {

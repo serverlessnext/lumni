@@ -18,8 +18,9 @@ use settings_editor::{SettingsAction, SettingsEditor};
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
     ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, ServerTrait, SimpleString, ThreadedChatSession,
-    UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ProviderConfigOptions, ResponseWindow, ServerTrait, SimpleString, TextLine,
+    TextWindowTrait, ThreadedChatSession, UserProfile, UserProfileDbHandler,
+    WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -72,31 +73,37 @@ impl SettingsModal {
         &mut self,
         key_event: KeyEvent,
     ) -> Result<WindowEvent, ApplicationError> {
-        match key_event.code {
-            KeyCode::Tab => {
-                self.switch_tab().await?;
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        // Handle common cases for List and Settings tab focus
+        if matches!(self.tab_focus, TabFocus::List | TabFocus::Settings) {
+            match key_event.code {
+                KeyCode::Tab => {
+                    self.switch_tab().await?;
+                    return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                }
+                KeyCode::Esc | KeyCode::Backspace => {
+                    if self.tab_focus == TabFocus::Settings {
+                        self.tab_focus = TabFocus::List;
+                        return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                    } else {
+                        return Ok(WindowEvent::PromptWindow(None));
+                    }
+                }
+                _ => {}
             }
-            KeyCode::Esc => {
-                if self.tab_focus == TabFocus::Settings {
-                    self.tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
-                } else {
-                    Ok(WindowEvent::PromptWindow(None))
-                }
+        }
+
+        // Pass all other key events to the respective manager
+        match self.current_tab {
+            EditTab::Profiles => {
+                self.profile_manager
+                    .handle_key_event(key_event, &mut self.tab_focus)
+                    .await
             }
-            _ => match self.current_tab {
-                EditTab::Profiles => {
-                    self.profile_manager
-                        .handle_key_event(key_event, &mut self.tab_focus)
-                        .await
-                }
-                EditTab::Providers => {
-                    self.provider_manager
-                        .handle_key_event(key_event, &mut self.tab_focus)
-                        .await
-                }
-            },
+            EditTab::Providers => {
+                self.provider_manager
+                    .handle_key_event(key_event, &mut self.tab_focus)
+                    .await
+            }
         }
     }
 

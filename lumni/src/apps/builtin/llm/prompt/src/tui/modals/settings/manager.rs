@@ -130,13 +130,12 @@ pub trait Creator<T: ManagedItem>: Send + Sync + 'static {
 }
 
 pub enum CreatorAction<T: ManagedItem> {
-    Refresh,
-    WaitForKeyEvent,
+    Continue, // continue to next step
     Cancel,
     Finish(T),
     LoadAdditionalSettings,
     SwitchToProviderCreation,
-    CreateItem,
+    CreateItem, // spawn a background task to create the item
 }
 
 pub struct SettingsManager<T: ManagedItem + LoadableItem + CreatableItem> {
@@ -187,7 +186,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
         self.list = SettingsList::new(items, default_item);
         self.load_selected_item_settings().await?;
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
     }
 
     pub async fn handle_key_event(
@@ -221,7 +220,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 if self.list.move_selection_up() {
                     self.load_selected_item_settings().await?;
                 }
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Down => {
                 if self.rename_buffer.is_some() {
@@ -230,7 +229,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 if self.list.move_selection_down() {
                     self.load_selected_item_settings().await?;
                 }
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Enter => {
                 if self.list.is_new_item_selected() {
@@ -241,7 +240,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 } else {
                     *tab_focus = TabFocus::Settings;
                 }
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Char(' ') => {
                 let selected_item = self.list.get_selected_item().cloned();
@@ -251,39 +250,39 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                     {
                         self.list.mark_as_default(&item);
                         self.db_handler.set_default_profile(profile).await?;
-                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                     } else {
-                        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                     }
                 } else {
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 self.start_item_renaming();
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Char(c) if self.rename_buffer.is_some() => {
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.push(c);
                 }
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Backspace if self.rename_buffer.is_some() => {
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.pop();
                 }
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Esc if self.rename_buffer.is_some() => {
                 self.cancel_rename_item();
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Char('D') => {
                 self.delete_selected_item().await?;
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
-            _ => Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent)),
+            _ => Ok(WindowEvent::Modal(ModalAction::UpdateUI)),
         }
     }
 
@@ -324,7 +323,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 }
             }
 
-            return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
+            return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
         }
 
         if self.settings_editor.edit_mode == EditMode::NotEditing
@@ -334,10 +333,10 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 || key_event.code == KeyCode::Tab)
         {
             *tab_focus = TabFocus::List;
-            return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
+            return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
         }
 
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
     }
 
     async fn handle_creation_input(
@@ -348,22 +347,19 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         if let Some(creator) = &mut self.creator {
             let action = creator.handle_input(key_event).await?;
             match action {
-                CreatorAction::Refresh => {
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
-                }
-                CreatorAction::WaitForKeyEvent => {
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                CreatorAction::Continue => {
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
                 CreatorAction::Cancel => {
                     self.creator = None;
                     *tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
                 CreatorAction::Finish(new_item) => {
                     self.list.add_item(new_item);
                     self.creator = None;
                     *tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
                 CreatorAction::CreateItem => {
                     let result = creator.create_item().await?;
@@ -372,22 +368,26 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                             self.list.add_item(new_item);
                             self.creator = None;
                             *tab_focus = TabFocus::List;
-                            Ok(WindowEvent::Modal(ModalAction::Refresh))
+                            Ok(WindowEvent::Modal(
+                                ModalAction::PollBackGroundTask,
+                            ))
                         }
-                        _ => Ok(WindowEvent::Modal(ModalAction::Refresh)),
+                        _ => Ok(WindowEvent::Modal(
+                            ModalAction::PollBackGroundTask,
+                        )),
                     }
                 }
                 CreatorAction::LoadAdditionalSettings => {
                     // Handle loading additional settings if needed
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
                 CreatorAction::SwitchToProviderCreation => {
                     // Handle switching to provider creation if needed
-                    Ok(WindowEvent::Modal(ModalAction::Refresh))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
             }
         } else {
-            Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+            Ok(WindowEvent::Modal(ModalAction::UpdateUI))
         }
     }
 
@@ -648,9 +648,7 @@ impl Creator<UserProfile> for ProfileCreator {
             ProfileCreationStep::ConfirmCreate => {
                 self.handle_confirm_create(input)
             }
-            ProfileCreationStep::CreatingProfile => {
-                Ok(CreatorAction::WaitForKeyEvent)
-            }
+            ProfileCreationStep::CreatingProfile => Ok(CreatorAction::Continue),
         }
     }
 
@@ -729,7 +727,7 @@ impl Creator<ProviderConfig> for ProviderCreator {
             Ok(new_config) => Ok(CreatorAction::Finish(new_config)),
             Err(e) => {
                 log::error!("Failed to create provider: {}", e);
-                Ok(CreatorAction::WaitForKeyEvent)
+                Ok(CreatorAction::Continue)
             }
         }
     }

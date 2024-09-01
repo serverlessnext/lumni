@@ -166,12 +166,12 @@ async fn handle_modal_refresh(
         .modal
         .as_mut()
         .expect("Modal should exist when in Modal mode");
-    let refresh_result = modal.refresh().await?;
+    let refresh_result = modal.poll_background_task().await?;
     match refresh_result {
-        WindowEvent::Modal(ModalAction::Refresh) => {
-            // If the modal still needs refreshing, keep the processing state
+        WindowEvent::Modal(ModalAction::PollBackGroundTask) => {
+            // If the modal still needs polling, keep the processing state
             app.is_processing = true;
-            Ok(WindowEvent::Modal(ModalAction::Refresh))
+            Ok(WindowEvent::Modal(ModalAction::PollBackGroundTask))
         }
         other_event => {
             // Handle the event returned by refresh
@@ -196,7 +196,7 @@ async fn handle_window_event(
             Ok(window_event)
         }
         WindowEvent::Modal(ref action) => match action {
-            ModalAction::Refresh => {
+            ModalAction::PollBackGroundTask => {
                 app.is_processing = true;
                 Ok(window_event)
             }
@@ -210,7 +210,7 @@ async fn handle_window_event(
                     .await?;
                 // refresh at least once after opening modal
                 app.is_processing = true;
-                Ok(WindowEvent::Modal(ModalAction::Refresh))
+                Ok(WindowEvent::Modal(ModalAction::PollBackGroundTask))
             }
             ModalAction::Event(ref user_event) => {
                 handle_modal_user_event(app, user_event, db_conn).await?;

@@ -226,7 +226,7 @@ impl KeyEventHandler {
                                         message
                                     ))?;
                                     return Ok(WindowEvent::Modal(
-                                        ModalAction::WaitForKeyEvent,
+                                        ModalAction::UpdateUI,
                                     ));
                                 }
                                 _ => {
@@ -241,7 +241,7 @@ impl KeyEventHandler {
                     };
                     return Ok(new_window_event);
                 } else {
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
             }
             _ => Ok(current_mode),

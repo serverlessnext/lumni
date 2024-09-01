@@ -66,23 +66,22 @@ impl ProfileCreator {
         match input.code {
             KeyCode::Char(c) => {
                 self.new_profile_name.push(c);
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 self.new_profile_name.pop();
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if !self.new_profile_name.is_empty() {
                     self.creation_step = ProfileCreationStep::SelectProvider;
-                    Ok(CreatorAction::Refresh)
                 } else {
-                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
-            KeyCode::Esc => Ok(CreatorAction::Cancel),
-            _ => Ok(CreatorAction::WaitForKeyEvent),
+            KeyCode::Esc => {
+                return Ok(CreatorAction::Cancel);
+            }
+            _ => {}
         }
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn handle_select_provider(
@@ -101,7 +100,6 @@ impl ProfileCreator {
                     self.selected_provider_index =
                         Some(self.provider_configs.len()); // Select "Create new Provider"
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if let Some(index) = self.selected_provider_index.as_mut() {
@@ -113,7 +111,6 @@ impl ProfileCreator {
                 } else {
                     self.selected_provider_index = Some(0);
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if let Some(index) = self.selected_provider_index {
@@ -125,24 +122,21 @@ impl ProfileCreator {
                             ProviderCreator::new(self.db_handler.clone())
                                 .await?,
                         );
-                        Ok(CreatorAction::SwitchToProviderCreation)
+                        return Ok(CreatorAction::SwitchToProviderCreation);
                     } else {
                         // Existing provider selected
                         self.selected_provider =
                             Some(self.provider_configs[index].clone());
                         self.creation_step = ProfileCreationStep::ConfirmCreate;
-                        Ok(CreatorAction::Refresh)
                     }
-                } else {
-                    Ok(CreatorAction::WaitForKeyEvent)
-                }
+                };
             }
             KeyCode::Esc => {
                 self.creation_step = ProfileCreationStep::EnterName;
-                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
-        }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn handle_create_provider(
@@ -158,22 +152,15 @@ impl ProfileCreator {
                         Some(self.provider_configs.len() - 1);
                     self.creation_step = ProfileCreationStep::ConfirmCreate;
                     self.provider_creator = None;
-                    Ok(CreatorAction::Refresh)
                 }
                 CreatorAction::Cancel => {
                     self.creation_step = ProfileCreationStep::SelectProvider;
                     self.provider_creator = None;
-                    Ok(CreatorAction::Refresh)
-                }
-                CreatorAction::Refresh => Ok(CreatorAction::Refresh),
-                CreatorAction::WaitForKeyEvent => {
-                    Ok(CreatorAction::WaitForKeyEvent)
                 }
                 CreatorAction::LoadAdditionalSettings => {
                     let model_server =
                         ModelServer::from_str(&creator.provider_type)?;
                     creator.prepare_additional_settings(&model_server);
-                    Ok(CreatorAction::Refresh)
                 }
                 CreatorAction::CreateItem => {
                     // This is the case we need to handle for the confirmation step
@@ -186,16 +173,14 @@ impl ProfileCreator {
                             self.creation_step =
                                 ProfileCreationStep::ConfirmCreate;
                             self.provider_creator = None;
-                            Ok(CreatorAction::Refresh)
                         }
-                        _ => Ok(CreatorAction::WaitForKeyEvent),
+                        _ => {}
                     }
                 }
-                _ => Ok(CreatorAction::WaitForKeyEvent),
+                _ => {}
             }
-        } else {
-            Ok(CreatorAction::WaitForKeyEvent)
-        }
+        };
+        Ok(CreatorAction::Continue)
     }
 
     pub fn handle_confirm_create(
@@ -205,14 +190,14 @@ impl ProfileCreator {
         match input.code {
             KeyCode::Enter => {
                 self.creation_step = ProfileCreationStep::CreatingProfile;
-                Ok(CreatorAction::CreateItem)
+                return Ok(CreatorAction::CreateItem);
             }
             KeyCode::Esc => {
                 self.creation_step = ProfileCreationStep::SelectProvider;
-                Ok(CreatorAction::WaitForKeyEvent)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
+            _ => {}
         }
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn create_profile(
@@ -259,7 +244,7 @@ impl ProfileCreator {
         self.task_start_time = Some(Instant::now());
         self.creation_step = ProfileCreationStep::CreatingProfile;
 
-        Ok(CreatorAction::Refresh)
+        Ok(CreatorAction::CreateItem)
     }
 
     pub fn check_profile_creation_status(
@@ -276,21 +261,20 @@ impl ProfileCreator {
                         Ok(new_profile) => CreatorAction::Finish(new_profile),
                         Err(e) => {
                             log::error!("Failed to create profile: {}", e);
-                            CreatorAction::Refresh
+                            CreatorAction::CreateItem
                         }
                     });
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    result = Some(CreatorAction::Refresh);
+                    result = Some(CreatorAction::CreateItem);
                 }
                 Err(mpsc::error::TryRecvError::Disconnected) => {
                     self.background_task = None;
                     self.task_start_time = None;
-                    result = Some(CreatorAction::Refresh);
+                    result = Some(CreatorAction::CreateItem);
                 }
             }
         }
-
         result
     }
 
@@ -479,15 +463,16 @@ impl ProfileCreator {
         match self.creation_step {
             ProfileCreationStep::ConfirmCreate => {
                 self.creation_step = ProfileCreationStep::SelectProvider;
-                CreatorAction::WaitForKeyEvent
             }
             ProfileCreationStep::SelectProvider => {
                 self.creation_step = ProfileCreationStep::EnterName;
-                CreatorAction::WaitForKeyEvent
             }
-            ProfileCreationStep::EnterName => CreatorAction::Cancel,
-            _ => CreatorAction::WaitForKeyEvent,
+            ProfileCreationStep::EnterName => {
+                return CreatorAction::Cancel;
+            }
+            _ => {}
         }
+        CreatorAction::Continue
     }
 
     pub fn render_creating_profile(&self, f: &mut Frame, area: Rect) {

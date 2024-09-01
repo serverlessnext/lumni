@@ -75,12 +75,12 @@ impl SettingsModal {
         match key_event.code {
             KeyCode::Tab => {
                 self.switch_tab().await?;
-                Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Esc => {
                 if self.tab_focus == TabFocus::Settings {
                     self.tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 } else {
                     Ok(WindowEvent::PromptWindow(None))
                 }
@@ -190,7 +190,9 @@ impl ModalWindowTrait for SettingsModal {
             .render_layout(frame, area, self, &Self::render_content);
     }
 
-    async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
+    async fn poll_background_task(
+        &mut self,
+    ) -> Result<WindowEvent, ApplicationError> {
         match self.current_tab {
             EditTab::Profiles => {
                 if let TabFocus::Creation = self.tab_focus {
@@ -204,12 +206,12 @@ impl ModalWindowTrait for SettingsModal {
                                     self.profile_manager.creator = None;
                                     self.tab_focus = TabFocus::List;
                                     return Ok(WindowEvent::Modal(
-                                        ModalAction::Refresh,
+                                        ModalAction::PollBackGroundTask,
                                     ));
                                 }
-                                CreatorAction::Refresh => {
+                                CreatorAction::CreateItem => {
                                     return Ok(WindowEvent::Modal(
-                                        ModalAction::Refresh,
+                                        ModalAction::PollBackGroundTask,
                                     ));
                                 }
                                 _ => {}
@@ -222,7 +224,7 @@ impl ModalWindowTrait for SettingsModal {
                 // Provider creation is instant and does not have background tasks
             }
         }
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
     }
 
     async fn handle_key_event<'b>(

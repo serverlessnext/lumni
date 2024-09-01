@@ -20,7 +20,7 @@ impl UserProfileDbHandler {
         settings: &JsonValue,
     ) -> Result<UserProfile, ApplicationError> {
         // Simulate a 3-second delay
-        // sleep(Duration::from_secs(3)).await;
+        //sleep(Duration::from_secs(3)).await;
         let timestamp = Timestamp::from_system_time().unwrap().as_millis();
 
         let encryption_key_id = self.get_or_create_encryption_key().await?;

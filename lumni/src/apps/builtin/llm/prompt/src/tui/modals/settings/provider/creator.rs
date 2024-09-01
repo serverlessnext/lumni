@@ -296,24 +296,22 @@ impl ProviderCreator {
         match input.code {
             KeyCode::Char(c) => {
                 self.name.push(c);
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 self.name.pop();
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if !self.name.is_empty() {
                     self.current_step =
                         ProviderCreationStep::SelectProviderType;
-                    Ok(CreatorAction::Refresh)
-                } else {
-                    Ok(CreatorAction::WaitForKeyEvent)
                 }
             }
-            KeyCode::Esc => Ok(CreatorAction::Cancel),
-            _ => Ok(CreatorAction::WaitForKeyEvent),
-        }
+            KeyCode::Esc => {
+                return Ok(CreatorAction::Cancel);
+            }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn handle_select_provider_type(
@@ -343,7 +341,6 @@ impl ProviderCreator {
                     self.provider_type =
                         provider_types[provider_types.len() - 1].clone();
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 let current_index = provider_types
@@ -356,19 +353,17 @@ impl ProviderCreator {
                 } else {
                     self.provider_type = provider_types[0].clone();
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter | KeyCode::Tab => {
                 self.current_step = ProviderCreationStep::SelectModel;
                 self.load_models().await?; // Load models here
-                Ok(CreatorAction::Refresh) // Changed from LoadModels to Refresh
             }
             KeyCode::Esc => {
                 self.current_step = ProviderCreationStep::EnterName;
-                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
-        }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn handle_select_model(
@@ -387,7 +382,6 @@ impl ProviderCreator {
                     self.selected_model_index =
                         Some(self.available_models.len() - 1);
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if let Some(index) = self.selected_model_index.as_mut() {
@@ -399,7 +393,6 @@ impl ProviderCreator {
                 } else if !self.available_models.is_empty() {
                     self.selected_model_index = Some(0);
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter | KeyCode::Tab => {
                 if let Some(index) = self.selected_model_index {
@@ -408,17 +401,15 @@ impl ProviderCreator {
                     let model_server =
                         ModelServer::from_str(&self.provider_type)?;
                     self.prepare_additional_settings(&model_server);
-                    Ok(CreatorAction::LoadAdditionalSettings)
-                } else {
-                    Ok(CreatorAction::WaitForKeyEvent)
+                    return Ok(CreatorAction::LoadAdditionalSettings);
                 }
             }
             KeyCode::Esc => {
                 self.current_step = ProviderCreationStep::SelectProviderType;
-                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
+            _ => {}
         }
+        Ok(CreatorAction::Continue)
     }
 
     pub fn handle_configure_settings(
@@ -430,13 +421,11 @@ impl ProviderCreator {
                 if !self.is_editing {
                     self.move_setting_selection(-1);
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Down => {
                 if !self.is_editing {
                     self.move_setting_selection(1);
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Enter => {
                 if self.is_editing {
@@ -450,7 +439,6 @@ impl ProviderCreator {
                 } else {
                     self.start_editing_current_setting();
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Esc => {
                 if self.is_editing {
@@ -458,14 +446,12 @@ impl ProviderCreator {
                 } else {
                     self.current_step = ProviderCreationStep::SelectModel;
                 }
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Tab => {
                 if self.is_editing {
                     self.save_current_setting();
                 }
                 self.current_step = ProviderCreationStep::Confirm;
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Char(c) => {
                 if !self.is_editing {
@@ -473,7 +459,6 @@ impl ProviderCreator {
                     self.edit_buffer.clear();
                 }
                 self.edit_buffer.push(c);
-                Ok(CreatorAction::Refresh)
             }
             KeyCode::Backspace => {
                 if !self.is_editing {
@@ -482,10 +467,10 @@ impl ProviderCreator {
                 } else {
                     self.edit_buffer.pop();
                 }
-                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
-        }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
     }
 
     fn move_setting_selection(&mut self, delta: i32) {
@@ -536,17 +521,19 @@ impl ProviderCreator {
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
-            KeyCode::Enter => Ok(CreatorAction::CreateItem),
+            KeyCode::Enter => {
+                return Ok(CreatorAction::CreateItem);
+            }
             KeyCode::Esc => {
                 if !self.additional_settings.is_empty() {
                     self.current_step = ProviderCreationStep::ConfigureSettings;
                 } else {
                     self.current_step = ProviderCreationStep::SelectModel;
                 }
-                Ok(CreatorAction::Refresh)
             }
-            _ => Ok(CreatorAction::WaitForKeyEvent),
-        }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
     }
 
     pub async fn load_models(&mut self) -> Result<(), ApplicationError> {

@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use super::*;
 
 pub trait ListItem: Clone {
@@ -106,25 +104,6 @@ impl<T: ListItem> SettingsList<T> {
         items.push(format!("Create new {}", T::item_type()));
         items
     }
-
-    pub async fn delete_selected_item<F, Fut>(
-        &mut self,
-        delete_fn: F,
-    ) -> Result<(), ApplicationError>
-    where
-        F: FnOnce(T) -> Fut,
-        Fut: Future<Output = Result<(), ApplicationError>>,
-    {
-        if let Some(index) = self.selected_index.checked_sub(1) {
-            let item = self.items.remove(index);
-            delete_fn(item).await?;
-            if self.selected_index >= self.items.len() && !self.items.is_empty()
-            {
-                self.selected_index = self.items.len() - 1;
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<T: ListItem> SettingsListTrait for SettingsList<T> {
@@ -180,35 +159,5 @@ impl ListItem for ProviderConfig {
 
     fn item_type() -> &'static str {
         "Provider"
-    }
-}
-
-pub type ProfileList = SettingsList<UserProfile>;
-pub type ProviderList = SettingsList<ProviderConfig>;
-
-impl ProfileList {
-    pub async fn delete_profile(
-        &mut self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError> {
-        self.delete_selected_item(|profile| async move {
-            db_handler.delete_profile(&profile).await
-        })
-        .await
-    }
-}
-
-impl ProviderList {
-    pub async fn delete_provider(
-        &mut self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError> {
-        self.delete_selected_item(|provider| async move {
-            if let Some(id) = provider.id {
-                db_handler.delete_provider_config(id).await?;
-            }
-            Ok(())
-        })
-        .await
     }
 }

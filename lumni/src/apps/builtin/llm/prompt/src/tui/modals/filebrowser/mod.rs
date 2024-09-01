@@ -197,9 +197,11 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
         Ok(WindowEvent::Modal(modal_action))
     }
 
-    async fn refresh(&mut self) -> Result<WindowEvent, ApplicationError> {
-        self.file_browser.refresh().await?;
+    async fn poll_background_task(
+        &mut self,
+    ) -> Result<WindowEvent, ApplicationError> {
+        self.file_browser.poll_background_task().await?;
         self.update_selected_file_info().await?;
-        Ok(WindowEvent::Modal(ModalAction::Refresh))
+        Ok(WindowEvent::Modal(ModalAction::PollBackGroundTask))
     }
 }

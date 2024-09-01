@@ -521,7 +521,7 @@ impl<'a> FileBrowserWidget<'a> {
             }
             _ => {}
         }
-        Ok(ModalAction::WaitForKeyEvent)
+        Ok(ModalAction::UpdateUI)
     }
 
     fn page_up(&mut self) {
@@ -714,7 +714,9 @@ impl<'a> FileBrowserWidget<'a> {
         }
     }
 
-    pub async fn refresh(&mut self) -> Result<(), ApplicationError> {
+    pub async fn poll_background_task(
+        &mut self,
+    ) -> Result<(), ApplicationError> {
         if let Some(ref mut rx) = self.background_task {
             match rx.try_recv() {
                 Ok(result) => {

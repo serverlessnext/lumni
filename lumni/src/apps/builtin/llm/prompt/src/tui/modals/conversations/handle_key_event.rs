@@ -32,7 +32,7 @@ impl<'a> ConversationListModal<'a> {
                 }
             }
         }
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
     }
 
     pub async fn handle_normal_mode_key_event(
@@ -51,7 +51,7 @@ impl<'a> ConversationListModal<'a> {
                         .await;
                 }
                 log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
+                return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
             }
             KeyCode::Down => {
                 self.move_selection_down();
@@ -62,7 +62,7 @@ impl<'a> ConversationListModal<'a> {
                         .await;
                 }
                 log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent));
+                return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
             }
             KeyCode::Enter => {
                 return Ok(WindowEvent::PromptWindow(None));
@@ -93,7 +93,7 @@ impl<'a> ConversationListModal<'a> {
             _ => {}
         }
         // stay in the Modal window, waiting for next key event
-        Ok(WindowEvent::Modal(ModalAction::WaitForKeyEvent))
+        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
     }
 
     async fn save_edited_name(

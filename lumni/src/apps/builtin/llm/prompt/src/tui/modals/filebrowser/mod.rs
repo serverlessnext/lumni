@@ -169,7 +169,6 @@ impl ModalWindowTrait for FileBrowserModal {
             ])
             .split(chunks[0]);
 
-        //self.file_browser.render(frame, main_chunks[0]);
         frame.render_stateful_widget(
             &self.file_browser,
             main_chunks[0],

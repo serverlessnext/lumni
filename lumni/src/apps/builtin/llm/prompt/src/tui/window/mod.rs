@@ -15,7 +15,7 @@ pub use text_document::{
     ReadDocument, ReadWriteDocument, SimpleString, TextDocumentTrait, TextLine,
     TextSegment,
 };
-pub use text_window::{TextWindow, TextWindowTrait};
+pub use text_window::{TextBuffer, TextWindow, TextWindowTrait};
 pub use window_config::{
     WindowConfig, WindowContent, WindowKind, WindowStatus,
 };

@@ -17,13 +17,14 @@ use lumni::api::error::ApplicationError;
 pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
 pub use ui::AppUi;
 pub use window::{
-    CommandLine, ResponseWindow, SimpleString, TextArea, TextLine, TextSegment,
+    CommandLine, ReadDocument, ReadWriteDocument, ResponseWindow, SimpleString,
+    TextArea, TextBuffer, TextDocumentTrait, TextLine, TextSegment,
     TextWindowTrait, WindowKind,
 };
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, ModelIdentifier, ModelSpec, ProviderConfig,
+    ConversationStatus, MaskMode, ModelSpec, ProviderConfig,
     ProviderConfigOptions, UserProfile, UserProfileDbHandler,
 };
 use super::chat::{

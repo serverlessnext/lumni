@@ -15,12 +15,13 @@ use ratatui::Frame;
 use renderer::SettingsRenderer;
 use settings_editor::{SettingsAction, SettingsEditor};
 
+use super::widgets::{TextAreaState, TextAreaWidget};
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
     ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, ResponseWindow, ServerTrait, SimpleString, TextLine,
-    TextWindowTrait, ThreadedChatSession, UserProfile, UserProfileDbHandler,
-    WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ProviderConfigOptions, ServerTrait, SimpleString, TextLine,
+    ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]

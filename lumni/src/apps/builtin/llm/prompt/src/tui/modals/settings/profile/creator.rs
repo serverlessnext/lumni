@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use serde_json::json;
@@ -338,19 +338,26 @@ impl ProfileCreator {
         let content_area = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(
-                [Constraint::Min(1), Constraint::Length(1)], // reserve space for scrollbar ( to be implemented )
+                [Constraint::Min(1), Constraint::Length(1)], // reserve space for scrollbar (to be implemented)
             )
             .split(chunks[0]);
 
         let text_lines = self.create_confirm_details();
-        let mut text_area = ResponseWindow::new(Some(text_lines));
+        let text_area_widget = TextAreaWidget::new();
+        let mut text_area_state =
+            TextAreaState::with_read_document(Some(text_lines));
 
         let text_area_block = Block::default()
             .borders(Borders::ALL)
             .title("Profile Details");
-        let text_area_widget =
-            text_area.widget(&content_area[0]).block(text_area_block);
-        f.render_widget(text_area_widget, content_area[0]);
+
+        f.render_stateful_widget(
+            &text_area_widget,
+            content_area[0].inner(Margin::new(1, 1)),
+            &mut text_area_state,
+        );
+
+        f.render_widget(text_area_block, content_area[0]);
 
         // Render buttons
         let button_constraints =

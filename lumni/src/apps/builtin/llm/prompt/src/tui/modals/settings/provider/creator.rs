@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
@@ -87,14 +87,21 @@ impl ProviderCreator {
             .split(chunks[0]);
 
         let text_lines = self.create_confirm_details();
-        let mut text_area = ResponseWindow::new(Some(text_lines));
+        let text_area_widget = TextAreaWidget::new();
+        let mut text_area_state =
+            TextAreaState::with_read_document(Some(text_lines));
 
         let text_area_block = Block::default()
             .borders(Borders::ALL)
             .title("Provider Details");
-        let text_area_widget =
-            text_area.widget(&content_area[0]).block(text_area_block);
-        f.render_widget(text_area_widget, content_area[0]);
+
+        f.render_stateful_widget(
+            &text_area_widget,
+            content_area[0].inner(Margin::new(1, 1)),
+            &mut text_area_state,
+        );
+
+        f.render_widget(text_area_block, content_area[0]);
 
         // Render buttons
         let button_constraints =
@@ -418,29 +425,6 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    pub fn render_confirm(&self, f: &mut Frame, area: Rect) {
-        let mut items = vec![
-            ListItem::new(format!("Name: {}", self.name)),
-            ListItem::new(format!("Provider Type: {}", self.provider_type)),
-        ];
-
-        if let Some(model) = &self.model_identifier {
-            items.push(ListItem::new(format!("Model: {}", model)));
-        }
-
-        for (key, setting) in &self.additional_settings {
-            items.push(ListItem::new(format!("{}: {}", key, setting.value)));
-        }
-
-        let list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Confirm Provider Configuration"),
-        );
-
-        f.render_widget(list, area);
-    }
-
     fn go_to_previous_step(
         &mut self,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
@@ -671,11 +655,6 @@ impl ProviderCreator {
                 setting.value = self.edit_buffer.clone();
             }
         }
-    }
-
-    fn cancel_editing(&mut self) {
-        self.is_editing = false;
-        self.edit_buffer.clear();
     }
 
     fn is_last_setting(&self) -> bool {

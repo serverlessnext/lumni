@@ -11,14 +11,15 @@ use lumni::{
     EnvironmentConfig, FileType, ObjectStoreHandler, Table, TableColumnValue,
     TableRow,
 };
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph,
-    Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
+    StatefulWidgetRef, Widget,
 };
-use ratatui::Frame;
 use tokio::sync::mpsc;
 
 use super::{KeyTrack, ModalAction, TextArea, TextWindowTrait};
@@ -78,6 +79,7 @@ impl FileListHandler {
     }
 }
 
+#[derive(Debug)]
 pub enum BackgroundTaskResult {
     FileList(
         Result<Arc<Box<dyn Table + Send + Sync>>, ApplicationError>,
@@ -85,19 +87,38 @@ pub enum BackgroundTaskResult {
     ),
 }
 
-pub struct FileBrowserWidget<'a> {
-    base_path: PathBuf,
-    current_path: PathBuf,
+pub struct FileBrowserState<'a> {
     path_input: TextArea<'a>,
-    file_table: Option<Arc<Box<dyn Table + Send + Sync>>>,
     selected_index: usize,
     displayed_index: usize,
     scroll_offset: usize,
-    background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
-    operation_sender: mpsc::Sender<FileOperation>,
-    task_start_time: Option<Instant>,
     focus: FileBrowserFocus,
     filter_text: String,
+    task_start_time: Option<Instant>,
+}
+
+impl<'a> Default for FileBrowserState<'a> {
+    fn default() -> Self {
+        let mut path_input = TextArea::new();
+        path_input.text_set("", None).unwrap();
+        Self {
+            path_input,
+            selected_index: 0,
+            displayed_index: 0,
+            scroll_offset: 0,
+            focus: FileBrowserFocus::FileList,
+            filter_text: String::new(),
+            task_start_time: None,
+        }
+    }
+}
+#[derive(Debug)]
+pub struct FileBrowserWidget {
+    base_path: PathBuf,
+    current_path: PathBuf,
+    file_table: Option<Arc<Box<dyn Table + Send + Sync>>>,
+    background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
+    operation_sender: mpsc::Sender<FileOperation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -106,8 +127,10 @@ pub enum FileBrowserFocus {
     FileList,
 }
 
-impl<'a> FileBrowserWidget<'a> {
-    pub fn new(base_path: Option<PathBuf>) -> Self {
+impl FileBrowserWidget {
+    pub fn new(
+        base_path: Option<PathBuf>,
+    ) -> (Self, FileBrowserState<'static>) {
         let base_path = base_path
             .or_else(home_dir)
             .unwrap_or_else(|| PathBuf::from("/"));
@@ -126,66 +149,36 @@ impl<'a> FileBrowserWidget<'a> {
         });
 
         let mut path_input = TextArea::new();
-        path_input.text_set("", None).unwrap(); // Initialize with empty string
+        path_input.text_set("", None).unwrap();
 
-        let mut widget = Self {
+        let widget = Self {
             base_path,
             current_path,
-            path_input,
             file_table: None,
-            selected_index: 0,
-            displayed_index: 0,
-            scroll_offset: 0,
             background_task: Some(result_rx),
             operation_sender: op_tx,
-            task_start_time: None,
-            focus: FileBrowserFocus::FileList,
-            filter_text: String::new(),
         };
 
-        widget.start_list_files();
+        let mut state = FileBrowserState::default();
 
-        widget
+        widget.start_list_files(&mut state);
+
+        (widget, state)
     }
 
-    pub fn get_selected_table_row(&self) -> Option<TableRow> {
+    pub fn get_selected_table_row(
+        &self,
+        state: &FileBrowserState,
+    ) -> Option<TableRow> {
         if let Some(table) = &self.file_table {
-            if let Some(row) = table.get_row(self.selected_index) {
+            if let Some(row) = table.get_row(state.selected_index) {
                 return Some(row);
             }
         }
         None
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        if area.height < 8 {
-            let message =
-                Paragraph::new("Not enough space to display file list")
-                    .style(Style::default().fg(Color::Red))
-                    .alignment(Alignment::Center);
-            frame.render_widget(message, area);
-            return;
-        }
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3), // Visual path display
-                Constraint::Length(3), // Editable path input
-                Constraint::Min(1),    // File list
-            ])
-            .split(area);
-
-        self.render_visual_path(frame, chunks[0]);
-        self.render_path_input(frame, chunks[1]);
-        self.render_file_list(frame, chunks[2]);
-
-        if self.task_start_time.is_some() {
-            self.render_loading(frame, area);
-        }
-    }
-
-    fn render_visual_path(&self, frame: &mut Frame, area: Rect) {
+    fn render_visual_path(&self, buf: &mut Buffer, area: Rect) {
         let relative_path = self
             .current_path
             .strip_prefix(&self.base_path)
@@ -221,11 +214,16 @@ impl<'a> FileBrowserWidget<'a> {
             .block(Block::default().borders(Borders::ALL).title("Path"))
             .alignment(Alignment::Left);
 
-        frame.render_widget(path_widget, area);
+        path_widget.render(area, buf);
     }
 
-    fn render_path_input(&mut self, frame: &mut Frame, area: Rect) {
-        let (input_style, border_style) = match self.focus {
+    fn render_path_input(
+        &self,
+        buf: &mut Buffer,
+        area: Rect,
+        state: &mut FileBrowserState,
+    ) {
+        let (input_style, border_style) = match state.focus {
             FileBrowserFocus::PathInput => (
                 Style::default().fg(Color::Yellow),
                 Style::default().fg(Color::Yellow),
@@ -233,38 +231,45 @@ impl<'a> FileBrowserWidget<'a> {
             FileBrowserFocus::FileList => (Style::default(), Style::default()),
         };
 
-        let input_widget = self.path_input.widget(&area).style(input_style);
-
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
             .title("Enter file/dir name");
 
-        frame.render_widget(block, area);
-        frame.render_widget(
-            input_widget,
-            area.inner(Margin {
-                vertical: 1,
-                horizontal: 1,
-            }),
-        );
+        let inner_area = area.inner(Margin {
+            vertical: 1,
+            horizontal: 1,
+        });
+
+        block.render(area, buf);
+        state
+            .path_input
+            .widget(&inner_area)
+            .style(input_style)
+            .render(inner_area, buf);
     }
 
-    fn update_selection(&mut self) {
-        if self.filter_text.is_empty() {
-            self.displayed_index = usize::MAX; // No selection
-            self.selected_index = usize::MAX; // No selection
+    fn update_selection(&self, state: &mut FileBrowserState) {
+        if state.filter_text.is_empty() {
+            state.displayed_index = usize::MAX; // No selection
+            state.selected_index = usize::MAX; // No selection
         } else {
-            self.displayed_index = 0;
-            self.scroll_offset = 0;
+            state.displayed_index = 0;
+            state.scroll_offset = 0;
         }
+        self.update_selected_index(state);
     }
 
-    fn has_selection(&self) -> bool {
-        self.displayed_index != usize::MAX
+    fn has_selection(&self, state: &FileBrowserState) -> bool {
+        state.displayed_index != usize::MAX
     }
 
-    fn render_file_list(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_file_list(
+        &self,
+        buf: &mut Buffer,
+        area: Rect,
+        state: &mut FileBrowserState,
+    ) {
         let mut filtered_indices = Vec::new();
         let items: Vec<ListItem> = if let Some(table) = &self.file_table {
             (0..table.len())
@@ -287,10 +292,10 @@ impl<'a> FileBrowserWidget<'a> {
                             .to_string();
 
                         // Apply filter to both directories and files using basename
-                        if !self.filter_text.is_empty() {
+                        if !state.filter_text.is_empty() {
                             let lowercase_basename = basename.to_lowercase();
                             let lowercase_filter =
-                                self.filter_text.to_lowercase();
+                                state.filter_text.to_lowercase();
                             if !lowercase_basename
                                 .starts_with(&lowercase_filter)
                             {
@@ -334,36 +339,36 @@ impl<'a> FileBrowserWidget<'a> {
         };
 
         // Update the actual selected index based on the displayed index
-        if !filtered_indices.is_empty() && self.has_selection() {
-            self.selected_index = filtered_indices
-                [self.displayed_index.min(filtered_indices.len() - 1)];
+        if !filtered_indices.is_empty() && state.displayed_index != usize::MAX {
+            state.selected_index = filtered_indices
+                [state.displayed_index.min(filtered_indices.len() - 1)];
         } else {
-            self.selected_index = usize::MAX;
+            state.selected_index = usize::MAX;
         }
 
         let list_height = area.height.saturating_sub(2) as usize;
         let total_items = items.len();
 
         // Adjust scroll_offset if necessary
-        if self.has_selection() {
-            if self.displayed_index >= self.scroll_offset + list_height {
-                self.scroll_offset =
-                    self.displayed_index.saturating_sub(list_height) + 1;
-            } else if self.displayed_index < self.scroll_offset {
-                self.scroll_offset = self.displayed_index;
+        if state.displayed_index != usize::MAX {
+            if state.displayed_index >= state.scroll_offset + list_height {
+                state.scroll_offset =
+                    state.displayed_index.saturating_sub(list_height) + 1;
+            } else if state.displayed_index < state.scroll_offset {
+                state.scroll_offset = state.displayed_index;
             }
         } else {
             // Reset scroll offset when there's no selection
-            self.scroll_offset = 0;
+            state.scroll_offset = 0;
         }
 
         // Ensure scroll_offset doesn't exceed max_scroll
         let max_scroll = total_items.saturating_sub(list_height);
-        self.scroll_offset = self.scroll_offset.min(max_scroll);
+        state.scroll_offset = state.scroll_offset.min(max_scroll);
 
         let items = items
             .into_iter()
-            .skip(self.scroll_offset)
+            .skip(state.scroll_offset)
             .take(list_height)
             .collect::<Vec<_>>();
 
@@ -374,27 +379,30 @@ impl<'a> FileBrowserWidget<'a> {
             .highlight_spacing(HighlightSpacing::Always);
 
         let mut list_state = ListState::default();
-        if self.focus == FileBrowserFocus::FileList && self.has_selection() {
+        if state.focus == FileBrowserFocus::FileList
+            && state.displayed_index != usize::MAX
+        {
             list_state.select(Some(
-                self.displayed_index.saturating_sub(self.scroll_offset),
+                state.displayed_index.saturating_sub(state.scroll_offset),
             ));
         } else {
             list_state.select(None);
         }
 
-        frame.render_stateful_widget(list, area, &mut list_state);
+        StatefulWidget::render(list, area, buf, &mut list_state);
 
         if total_items > list_height {
-            self.render_scrollbar(frame, area, total_items, list_height);
+            self.render_scrollbar(buf, area, total_items, list_height, state);
         }
     }
 
     fn render_scrollbar(
         &self,
-        frame: &mut Frame,
+        buf: &mut Buffer,
         area: Rect,
         total_items: usize,
         list_height: usize,
+        state: &FileBrowserState,
     ) {
         let scrollbar = Scrollbar::default()
             .orientation(ScrollbarOrientation::VerticalRight)
@@ -407,36 +415,47 @@ impl<'a> FileBrowserWidget<'a> {
         });
 
         let max_scroll = total_items.saturating_sub(list_height);
-        let scroll_position = (self.scroll_offset as f64 / max_scroll as f64
+        let scroll_position = (state.scroll_offset as f64 / max_scroll as f64
             * (list_height.saturating_sub(1)) as f64)
             .round() as usize;
 
-        frame.render_stateful_widget(
+        let mut scrollbar_state = ScrollbarState::new(list_height)
+            .position(scroll_position.min(list_height.saturating_sub(1)));
+
+        StatefulWidget::render(
             scrollbar,
             scrollbar_area,
-            &mut ScrollbarState::new(list_height)
-                .position(scroll_position.min(list_height.saturating_sub(1))),
+            buf,
+            &mut scrollbar_state,
         );
     }
 
-    fn render_loading(&self, frame: &mut Frame, area: Rect) {
-        if let Some(start_time) = self.task_start_time {
+    fn render_loading(
+        &self,
+        buf: &mut Buffer,
+        area: Rect,
+        state: &FileBrowserState,
+    ) {
+        if let Some(start_time) = state.task_start_time {
             let elapsed = start_time.elapsed().as_secs();
             let message = format!("Loading... ({} seconds)", elapsed);
             let loading = Paragraph::new(Span::raw(message))
                 .style(Style::default().fg(Color::Yellow))
                 .alignment(Alignment::Center);
-            frame.render_widget(loading, area);
+            loading.render(area, buf);
         }
     }
 
-    fn submit_path_input(&mut self) -> Result<(), ApplicationError> {
-        let input = self.path_input.text_buffer().to_string();
+    fn submit_path_input(
+        &mut self,
+        state: &mut FileBrowserState,
+    ) -> Result<(), ApplicationError> {
+        let input = state.path_input.text_buffer().to_string();
         if !input.is_empty() {
             let new_path = self.current_path.join(input);
             if new_path.exists() {
                 self.current_path = new_path;
-                self.start_list_files();
+                self.start_list_files(state);
             } else {
                 // TODO: Handle non-existent path (e.g., show an error message)
             }
@@ -447,118 +466,119 @@ impl<'a> FileBrowserWidget<'a> {
     pub fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,
+        state: &mut FileBrowserState,
     ) -> Result<ModalAction, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Char(c) => {
-                self.focus = FileBrowserFocus::PathInput;
-                self.path_input.set_status_insert();
-                self.path_input.process_edit_input(key_event)?;
-                self.filter_text.push(c);
-                self.update_selection();
+                state.focus = FileBrowserFocus::PathInput;
+                state.path_input.set_status_insert();
+                state.path_input.process_edit_input(key_event)?;
+                state.filter_text.push(c);
+                self.update_selection(state);
             }
             KeyCode::Backspace => {
-                if !self.filter_text.is_empty() {
-                    self.filter_text.pop();
-                    self.path_input.process_edit_input(key_event)?;
-                    self.update_selection();
+                if !state.filter_text.is_empty() {
+                    state.filter_text.pop();
+                    state.path_input.process_edit_input(key_event)?;
+                    self.update_selection(state);
                 } else {
-                    self.go_up_directory();
+                    self.go_up_directory(state);
                 }
             }
             KeyCode::Down => {
-                if self.focus == FileBrowserFocus::PathInput {
-                    self.focus = FileBrowserFocus::FileList;
-                    if !self.has_selection() {
-                        self.displayed_index = 0;
+                if state.focus == FileBrowserFocus::PathInput {
+                    state.focus = FileBrowserFocus::FileList;
+                    if state.displayed_index == usize::MAX {
+                        state.displayed_index = 0;
                     }
                 } else {
-                    self.move_selection_down();
+                    self.move_selection_down(state);
                 }
             }
             KeyCode::Up => {
-                if self.focus == FileBrowserFocus::FileList {
-                    if self.displayed_index == 0 {
-                        self.focus = FileBrowserFocus::PathInput;
-                        self.displayed_index = usize::MAX;
+                if state.focus == FileBrowserFocus::FileList {
+                    if state.displayed_index == 0 {
+                        state.focus = FileBrowserFocus::PathInput;
+                        state.displayed_index = usize::MAX;
                     } else {
-                        self.move_selection_up();
+                        self.move_selection_up(state);
                     }
                 }
             }
             KeyCode::Tab => {
-                self.enter_directory();
-                self.focus = FileBrowserFocus::FileList;
+                self.enter_directory(state);
+                state.focus = FileBrowserFocus::FileList;
             }
             KeyCode::Enter => {
-                if self.focus == FileBrowserFocus::PathInput {
-                    self.submit_path_input()?;
-                    self.focus = FileBrowserFocus::FileList;
-                    self.clear_path_input()?;
+                if state.focus == FileBrowserFocus::PathInput {
+                    self.submit_path_input(state)?;
+                    state.focus = FileBrowserFocus::FileList;
+                    self.clear_path_input(state)?;
                 } else {
-                    self.enter_directory();
+                    self.enter_directory(state);
                 }
             }
             KeyCode::PageUp => {
-                if self.focus == FileBrowserFocus::FileList {
-                    self.page_up();
+                if state.focus == FileBrowserFocus::FileList {
+                    self.page_up(state);
                 }
             }
             KeyCode::PageDown => {
-                if self.focus == FileBrowserFocus::FileList {
-                    self.page_down();
-                } else if self.focus == FileBrowserFocus::PathInput {
-                    // If in path input, behave like Down key
-                    self.focus = FileBrowserFocus::FileList;
-                    if !self.has_selection() {
-                        self.displayed_index = 0;
-                        self.update_selected_index();
+                if state.focus == FileBrowserFocus::FileList {
+                    self.page_down(state);
+                } else if state.focus == FileBrowserFocus::PathInput {
+                    state.focus = FileBrowserFocus::FileList;
+                    if state.displayed_index == usize::MAX {
+                        state.displayed_index = 0;
+                        self.update_selected_index(state);
                     }
                 }
             }
             KeyCode::Esc => {
-                self.focus = FileBrowserFocus::FileList;
-                self.clear_path_input()?;
+                state.focus = FileBrowserFocus::FileList;
+                self.clear_path_input(state)?;
             }
             _ => {}
         }
         Ok(ModalAction::UpdateUI)
     }
 
-    fn page_up(&mut self) {
-        let list_height = 10;
-        if self.displayed_index == 0 {
+    fn page_up(&self, state: &mut FileBrowserState) {
+        let list_height = 10; // You might want to make this dynamic based on the actual view size
+        if state.displayed_index == 0 {
             // If at the top, move focus to path input
-            self.focus = FileBrowserFocus::PathInput;
-            self.displayed_index = usize::MAX; // Indicate no selection
-        } else if self.displayed_index > list_height {
-            self.displayed_index -= list_height;
+            state.focus = FileBrowserFocus::PathInput;
+            state.displayed_index = usize::MAX; // Indicate no selection
+        } else if state.displayed_index > list_height {
+            state.displayed_index -= list_height;
         } else {
-            self.displayed_index = 0;
+            state.displayed_index = 0;
         }
-        self.scroll_offset = self.scroll_offset.saturating_sub(list_height);
-        self.update_selected_index();
+        state.scroll_offset = state.scroll_offset.saturating_sub(list_height);
+        self.update_selected_index(state);
     }
 
-    fn page_down(&mut self) {
-        let list_height = 10;
+    fn page_down(&self, state: &mut FileBrowserState) {
+        let list_height = 10; // You might want to make this dynamic based on the actual view size
         if let Some(table) = &self.file_table {
-            let filtered_count = self.get_filtered_count(table);
+            let filtered_count = self.get_filtered_count(table, state);
             let max_index = filtered_count.saturating_sub(1);
-            if self.displayed_index + list_height < max_index {
-                self.displayed_index += list_height;
+            if state.displayed_index + list_height < max_index {
+                state.displayed_index += list_height;
             } else {
-                self.displayed_index = max_index;
+                state.displayed_index = max_index;
             }
             let max_scroll = filtered_count.saturating_sub(list_height);
-            self.scroll_offset =
-                (self.scroll_offset + list_height).min(max_scroll);
-            self.update_selected_index();
+            state.scroll_offset =
+                (state.scroll_offset + list_height).min(max_scroll);
+            self.update_selected_index(state);
         }
     }
 
     fn get_filtered_count(
         &self,
         table: &Arc<Box<dyn Table + Send + Sync>>,
+        state: &FileBrowserState,
     ) -> usize {
         (0..table.len())
             .filter(|&i| {
@@ -572,7 +592,7 @@ impl<'a> FileBrowserWidget<'a> {
                             .unwrap_or(name);
                         basename
                             .to_lowercase()
-                            .starts_with(&self.filter_text.to_lowercase())
+                            .starts_with(&state.filter_text.to_lowercase())
                     } else {
                         false
                     }
@@ -583,7 +603,7 @@ impl<'a> FileBrowserWidget<'a> {
             .count()
     }
 
-    fn update_selected_index(&mut self) {
+    fn update_selected_index(&self, state: &mut FileBrowserState) {
         if let Some(table) = &self.file_table {
             let filtered_indices: Vec<usize> = (0..table.len())
                 .filter(|&i| {
@@ -597,7 +617,7 @@ impl<'a> FileBrowserWidget<'a> {
                                 .unwrap_or(name);
                             basename
                                 .to_lowercase()
-                                .starts_with(&self.filter_text.to_lowercase())
+                                .starts_with(&state.filter_text.to_lowercase())
                         } else {
                             false
                         }
@@ -608,17 +628,17 @@ impl<'a> FileBrowserWidget<'a> {
                 .collect();
 
             if !filtered_indices.is_empty() {
-                self.selected_index = filtered_indices
-                    [self.displayed_index.min(filtered_indices.len() - 1)];
+                state.selected_index = filtered_indices
+                    [state.displayed_index.min(filtered_indices.len() - 1)];
             } else {
-                self.selected_index = usize::MAX;
+                state.selected_index = usize::MAX;
             }
         }
     }
 
-    fn get_selected_path(&self) -> Option<PathBuf> {
+    fn get_selected_path(&self, state: &FileBrowserState) -> Option<PathBuf> {
         if let Some(table) = &self.file_table {
-            if let Some(row) = table.get_row(self.selected_index) {
+            if let Some(row) = table.get_row(state.selected_index) {
                 if let Some(TableColumnValue::StringColumn(name)) =
                     row.get_value("name")
                 {
@@ -631,32 +651,38 @@ impl<'a> FileBrowserWidget<'a> {
         None
     }
 
-    fn start_list_files(&mut self) {
+    fn start_list_files(&self, state: &mut FileBrowserState) {
         let _ = self.operation_sender.try_send(FileOperation::ListFiles(
             self.current_path.to_string_lossy().into_owned(),
             None,
         ));
-        self.task_start_time = Some(Instant::now());
-        self.filter_text.clear();
+        state.task_start_time = Some(Instant::now());
+        state.filter_text.clear();
+        state.selected_index = 0;
+        state.displayed_index = 0;
+        state.scroll_offset = 0;
     }
 
-    fn enter_directory(&mut self) {
-        if let Some(path) = self.get_selected_path() {
+    fn enter_directory(&mut self, state: &mut FileBrowserState) {
+        if let Some(path) = self.get_selected_path(state) {
             if path.is_dir() {
                 self.current_path = path;
-                self.start_list_files();
-                self.clear_path_input().unwrap_or_default();
+                self.start_list_files(state);
+                self.clear_path_input(state).unwrap_or_default();
             }
         }
     }
 
-    fn clear_path_input(&mut self) -> Result<(), ApplicationError> {
-        self.path_input.text_set("", None)?;
-        self.filter_text.clear();
+    fn clear_path_input(
+        &mut self,
+        state: &mut FileBrowserState,
+    ) -> Result<(), ApplicationError> {
+        state.path_input.text_set("", None)?;
+        state.filter_text.clear();
         Ok(())
     }
 
-    fn go_up_directory(&mut self) {
+    fn go_up_directory(&mut self, state: &mut FileBrowserState) {
         if self.current_path != self.base_path {
             let dir_to_select = self
                 .current_path
@@ -668,59 +694,43 @@ impl<'a> FileBrowserWidget<'a> {
                 self.current_path.to_string_lossy().into_owned(),
                 dir_to_select,
             ));
-            self.task_start_time = Some(Instant::now());
-            self.clear_path_input().unwrap_or_default();
-            self.filter_text.clear();
-            self.displayed_index = 0;
-            self.scroll_offset = 0;
+            state.task_start_time = Some(Instant::now());
+            self.clear_path_input(state).unwrap_or_default();
+            state.filter_text.clear();
+            state.displayed_index = 0;
+            state.scroll_offset = 0;
         }
     }
 
-    fn move_selection_up(&mut self) {
-        if self.has_selection() && self.displayed_index > 0 {
-            self.displayed_index -= 1;
+    fn move_selection_up(&self, state: &mut FileBrowserState) {
+        if state.displayed_index != usize::MAX && state.displayed_index > 0 {
+            state.displayed_index -= 1;
         }
     }
 
-    fn move_selection_down(&mut self) {
+    fn move_selection_down(&self, state: &mut FileBrowserState) {
         if let Some(table) = &self.file_table {
-            let filtered_count = (0..table.len())
-                .filter(|&i| {
-                    if let Some(row) = table.get_row(i) {
-                        if let Some(TableColumnValue::StringColumn(name)) =
-                            row.get_value("name")
-                        {
-                            let basename = Path::new(name)
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(name);
-                            basename
-                                .to_lowercase()
-                                .starts_with(&self.filter_text.to_lowercase())
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                })
-                .count();
+            let filtered_count = self.get_filtered_count(table, state);
             let max_index = filtered_count.saturating_sub(1);
-            if self.has_selection() && self.displayed_index < max_index {
-                self.displayed_index += 1;
-            } else if !self.has_selection() && filtered_count > 0 {
-                self.displayed_index = 0;
+            if state.displayed_index != usize::MAX
+                && state.displayed_index < max_index
+            {
+                state.displayed_index += 1;
+            } else if state.displayed_index == usize::MAX && filtered_count > 0
+            {
+                state.displayed_index = 0;
             }
         }
     }
 
     pub async fn poll_background_task(
         &mut self,
+        state: &mut FileBrowserState<'static>,
     ) -> Result<(), ApplicationError> {
         if let Some(ref mut rx) = self.background_task {
             match rx.try_recv() {
                 Ok(result) => {
-                    self.handle_background_task_result(result).await?;
+                    self.handle_background_task_result(result, state).await?;
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -736,18 +746,19 @@ impl<'a> FileBrowserWidget<'a> {
     async fn handle_background_task_result(
         &mut self,
         result: BackgroundTaskResult,
+        state: &mut FileBrowserState<'static>,
     ) -> Result<(), ApplicationError> {
         match result {
             BackgroundTaskResult::FileList(result, file_to_select) => {
-                self.task_start_time = None;
+                state.task_start_time = None;
                 match result {
                     Ok(table) => {
                         self.file_table = Some(table);
                         if let Some(name) = file_to_select {
-                            self.select_file_by_name(&name);
+                            self.select_file_by_name(&name, state);
                         } else {
-                            self.selected_index = 0;
-                            self.displayed_index = 0;
+                            state.selected_index = 0;
+                            state.displayed_index = 0;
                         }
                         Ok(())
                     }
@@ -757,7 +768,7 @@ impl<'a> FileBrowserWidget<'a> {
         }
     }
 
-    fn select_file_by_name(&mut self, name: &str) {
+    fn select_file_by_name(&self, name: &str, state: &mut FileBrowserState) {
         if let Some(table) = &self.file_table {
             let normalized_name = name.trim_end_matches('/');
             for (index, row) in (0..table.len())
@@ -769,8 +780,8 @@ impl<'a> FileBrowserWidget<'a> {
                 {
                     let normalized_file_name = file_name.trim_end_matches('/');
                     if normalized_file_name == normalized_name {
-                        self.selected_index = index;
-                        self.displayed_index = index;
+                        state.selected_index = index;
+                        state.displayed_index = index;
                         break;
                     }
                 }
@@ -797,6 +808,51 @@ impl<'a> FileBrowserWidget<'a> {
                         .await;
                 }
             }
+        }
+    }
+}
+
+impl StatefulWidget for &FileBrowserWidget {
+    type State = FileBrowserState<'static>;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        StatefulWidgetRef::render_ref(&self, area, buf, state)
+    }
+}
+
+impl StatefulWidgetRef for &FileBrowserWidget {
+    type State = FileBrowserState<'static>;
+
+    fn render_ref(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &mut Self::State,
+    ) {
+        if area.height < 8 {
+            let message =
+                Paragraph::new("Not enough space to display file list")
+                    .style(Style::default().fg(Color::Red))
+                    .alignment(Alignment::Center);
+            message.render(area, buf);
+            return;
+        }
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Visual path display
+                Constraint::Length(3), // Editable path input
+                Constraint::Min(1),    // File list
+            ])
+            .split(area);
+
+        self.render_visual_path(buf, chunks[0]);
+        self.render_path_input(buf, chunks[1], state);
+        self.render_file_list(buf, chunks[2], state);
+
+        if state.task_start_time.is_some() {
+            self.render_loading(buf, area, state);
         }
     }
 }

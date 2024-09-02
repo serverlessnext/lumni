@@ -10,14 +10,15 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use super::{
-    ApplicationError, ConversationDbHandler, FileBrowserWidget, KeyTrack,
-    ModalAction, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
-    WindowEvent,
+    ApplicationError, ConversationDbHandler, FileBrowserState,
+    FileBrowserWidget, KeyTrack, ModalAction, ModalWindowTrait,
+    ModalWindowType, ThreadedChatSession, WindowEvent,
 };
 pub use crate::external as lumni;
 
-pub struct FileBrowserModal<'a> {
-    file_browser: FileBrowserWidget<'a>,
+pub struct FileBrowserModal {
+    file_browser: FileBrowserWidget,
+    file_browser_state: FileBrowserState<'static>,
     selected_file_content: Option<String>,
     selected_file_details: Option<FileDetails>,
 }
@@ -29,10 +30,13 @@ struct FileDetails {
     is_dir: bool,
 }
 
-impl<'a> FileBrowserModal<'a> {
+impl FileBrowserModal {
     pub fn new(base_path: Option<PathBuf>) -> Self {
+        let (file_browser, file_browser_state) =
+            FileBrowserWidget::new(base_path);
         Self {
-            file_browser: FileBrowserWidget::new(base_path),
+            file_browser,
+            file_browser_state,
             selected_file_content: None,
             selected_file_details: None,
         }
@@ -83,7 +87,10 @@ impl<'a> FileBrowserModal<'a> {
     async fn update_selected_file_info(
         &mut self,
     ) -> Result<(), ApplicationError> {
-        if let Some(row) = &self.file_browser.get_selected_table_row() {
+        if let Some(row) = self
+            .file_browser
+            .get_selected_table_row(&self.file_browser_state)
+        {
             let name = row
                 .get_value("name")
                 .and_then(|v| match v {
@@ -139,7 +146,7 @@ impl<'a> FileBrowserModal<'a> {
 }
 
 #[async_trait]
-impl ModalWindowTrait for FileBrowserModal<'_> {
+impl ModalWindowTrait for FileBrowserModal {
     fn get_type(&self) -> ModalWindowType {
         ModalWindowType::FileBrowser
     }
@@ -162,7 +169,12 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
             ])
             .split(chunks[0]);
 
-        self.file_browser.render(frame, main_chunks[0]);
+        //self.file_browser.render(frame, main_chunks[0]);
+        frame.render_stateful_widget(
+            &self.file_browser,
+            main_chunks[0],
+            &mut self.file_browser_state,
+        );
 
         let details_content_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -183,7 +195,9 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
         _tab_chat: Option<&'b mut ThreadedChatSession>,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
-        let modal_action = self.file_browser.handle_key_event(key_event)?;
+        let modal_action = self
+            .file_browser
+            .handle_key_event(key_event, &mut self.file_browser_state)?;
 
         match key_event.current_key().code {
             KeyCode::Enter | KeyCode::Up | KeyCode::Down => {
@@ -200,7 +214,9 @@ impl ModalWindowTrait for FileBrowserModal<'_> {
     async fn poll_background_task(
         &mut self,
     ) -> Result<WindowEvent, ApplicationError> {
-        self.file_browser.poll_background_task().await?;
+        self.file_browser
+            .poll_background_task(&mut self.file_browser_state)
+            .await?;
         self.update_selected_file_info().await?;
         Ok(WindowEvent::Modal(ModalAction::PollBackGroundTask))
     }

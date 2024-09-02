@@ -8,7 +8,7 @@ pub use filebrowser::FileBrowserModal;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 pub use settings::SettingsModal;
-use widgets::FileBrowserWidget;
+use widgets::{FileBrowserState, FileBrowserWidget};
 
 pub use super::widgets;
 use super::{

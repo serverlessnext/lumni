@@ -22,7 +22,7 @@ use ratatui::widgets::{
 };
 use tokio::sync::mpsc;
 
-use super::{KeyTrack, ModalAction, TextArea, TextWindowTrait};
+use super::{KeyTrack, ModalAction, PromptWindow, TextWindowTrait};
 pub use crate::external as lumni;
 
 // TODO notes:
@@ -88,7 +88,7 @@ pub enum BackgroundTaskResult {
 }
 
 pub struct FileBrowserState<'a> {
-    path_input: TextArea<'a>,
+    path_input: PromptWindow<'a>,
     selected_index: usize,
     displayed_index: usize,
     scroll_offset: usize,
@@ -99,7 +99,7 @@ pub struct FileBrowserState<'a> {
 
 impl<'a> Default for FileBrowserState<'a> {
     fn default() -> Self {
-        let mut path_input = TextArea::new();
+        let mut path_input = PromptWindow::new();
         path_input.text_set("", None).unwrap();
         Self {
             path_input,
@@ -148,7 +148,7 @@ impl FileBrowserWidget {
             });
         });
 
-        let mut path_input = TextArea::new();
+        let mut path_input = PromptWindow::new();
         path_input.text_set("", None).unwrap();
 
         let widget = Self {

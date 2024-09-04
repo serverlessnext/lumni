@@ -1,6 +1,6 @@
 use super::*;
 
-pub trait ListItem: Clone {
+pub trait ListItemTrait: Clone {
     fn name(&self) -> &str;
     fn id(&self) -> i64;
     fn with_new_name(&self, new_name: String) -> Self;
@@ -9,13 +9,13 @@ pub trait ListItem: Clone {
         Self: Sized;
 }
 
-pub struct SettingsList<T: ListItem> {
+pub struct SettingsList<T: ListItemTrait> {
     items: Vec<T>,
     selected_index: usize,
     pub default_item: Option<T>,
 }
 
-impl<T: ListItem> SettingsList<T> {
+impl<T: ListItemTrait> SettingsList<T> {
     pub fn new(items: Vec<T>, default_item: Option<T>) -> Self {
         let mut list = SettingsList {
             items,
@@ -106,21 +106,30 @@ impl<T: ListItem> SettingsList<T> {
     }
 }
 
-impl<T: ListItem> SettingsListTrait for SettingsList<T> {
+impl<T: ListItemTrait + SettingsItem> SettingsListTrait for SettingsList<T> {
+    type Item = T;
+
     fn get_items(&self) -> Vec<String> {
         self.get_items()
     }
+
     fn get_selected_index(&self) -> usize {
         self.selected_index
+    }
+
+    fn get_selected_item(&self) -> Option<&Self::Item> {
+        self.items.get(self.selected_index)
     }
 }
 
 pub trait SettingsListTrait {
+    type Item: ListItemTrait + SettingsItem;
     fn get_items(&self) -> Vec<String>;
     fn get_selected_index(&self) -> usize;
+    fn get_selected_item(&self) -> Option<&Self::Item>;
 }
 
-impl ListItem for UserProfile {
+impl ListItemTrait for UserProfile {
     fn name(&self) -> &str {
         &self.name
     }
@@ -141,7 +150,7 @@ impl ListItem for UserProfile {
     }
 }
 
-impl ListItem for ProviderConfig {
+impl ListItemTrait for ProviderConfig {
     fn name(&self) -> &str {
         &self.name
     }

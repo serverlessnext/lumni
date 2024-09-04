@@ -72,17 +72,17 @@ impl RectArea {
     }
 }
 
-pub struct TextArea<'a> {
+pub struct PromptWindow<'a> {
     base: TextWindow<'a, ReadWriteDocument>,
 }
 
-impl<'a> TextWindowTrait<'a, ReadWriteDocument> for TextArea<'a> {
+impl<'a> TextWindowTrait<'a, ReadWriteDocument> for PromptWindow<'a> {
     fn base(&mut self) -> &mut TextWindow<'a, ReadWriteDocument> {
         &mut self.base
     }
 }
 
-impl TextArea<'_> {
+impl PromptWindow<'_> {
     pub fn new() -> Self {
         let mut window_type = WindowConfig::new(WindowKind::EditorWindow);
         window_type.set_window_status(WindowStatus::InActive);

@@ -17,8 +17,8 @@ use lumni::api::error::ApplicationError;
 pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
 pub use ui::AppUi;
 pub use window::{
-    CommandLine, ReadDocument, ReadWriteDocument, ResponseWindow, SimpleString,
-    TextArea, TextBuffer, TextDocumentTrait, TextLine, TextSegment,
+    CommandLine, PromptWindow, ReadDocument, ReadWriteDocument, ResponseWindow,
+    SimpleString, TextBuffer, TextDocumentTrait, TextLine, TextSegment,
     TextWindowTrait, WindowKind,
 };
 

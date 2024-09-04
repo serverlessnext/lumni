@@ -7,7 +7,7 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, LineType, PromptAction, TextArea, TextWindowTrait, WindowEvent,
+    AppUi, LineType, PromptAction, PromptWindow, TextWindowTrait, WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
 pub use crate::external as lumni;
@@ -110,7 +110,7 @@ pub fn handle_prompt_window_event(
     handle_text_window_event(key_track, &mut app_ui.prompt, is_running)
 }
 
-fn is_closed_block(prompt_window: &mut TextArea) -> Option<bool> {
+fn is_closed_block(prompt_window: &mut PromptWindow) -> Option<bool> {
     // return None if not inside a block
     // return Some(true) if block is closed, else return Some(false)
     let code_block = prompt_window.current_code_block();
@@ -121,7 +121,7 @@ fn is_closed_block(prompt_window: &mut TextArea) -> Option<bool> {
 }
 
 fn ensure_closed_block(
-    prompt_window: &mut TextArea,
+    prompt_window: &mut PromptWindow,
 ) -> Result<(), ApplicationError> {
     if let Some(closed_block) = is_closed_block(prompt_window) {
         if !closed_block {
@@ -132,7 +132,7 @@ fn ensure_closed_block(
     Ok(())
 }
 
-fn in_editing_block(prompt_window: &mut TextArea) -> bool {
+fn in_editing_block(prompt_window: &mut PromptWindow) -> bool {
     let line_type = prompt_window.current_line_type().unwrap_or(LineType::Text);
     match line_type {
         LineType::Code(block_line) => !block_line.is_end(),

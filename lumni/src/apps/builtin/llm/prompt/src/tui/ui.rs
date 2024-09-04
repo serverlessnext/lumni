@@ -6,13 +6,13 @@ use ratatui::widgets::Borders;
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::{
     CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
-    ModalWindowType, ResponseWindow, TextArea, TextLine, TextWindowTrait,
+    ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
     WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
 pub struct AppUi<'a> {
-    pub prompt: TextArea<'a>,
+    pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
     pub primary_window: WindowKind,
@@ -22,7 +22,7 @@ pub struct AppUi<'a> {
 impl AppUi<'_> {
     pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
-            prompt: TextArea::new().with_borders(Borders::ALL),
+            prompt: PromptWindow::new().with_borders(Borders::ALL),
             response: ResponseWindow::new(conversation_text),
             command_line: CommandLine::new(),
             primary_window: WindowKind::ResponseWindow,

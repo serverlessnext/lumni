@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use super::*;
@@ -199,5 +198,14 @@ impl UserProfileDbHandler {
             }
         })
         .map_err(ApplicationError::from)
+    }
+
+    pub async fn rename_provider_config(
+        &self,
+        profile: &ProviderConfig,
+        new_name: &str,
+    ) -> Result<(), ApplicationError> {
+        eprintln!("TODO: Implement rename_provider_config");
+        Ok(())
     }
 }

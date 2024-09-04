@@ -1,8 +1,6 @@
 use std::time::Instant;
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use ratatui::layout::Margin;
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -33,6 +31,7 @@ pub struct ProfileCreator {
     provider_configs: Vec<ProviderConfig>,
     selected_provider_index: usize,
     pub sub_part_creation_state: SubPartCreationState,
+    text_area: Option<TextArea<ReadDocument>>,
 }
 
 impl ProfileCreator {
@@ -52,6 +51,7 @@ impl ProfileCreator {
             provider_configs,
             selected_provider_index: 0,
             sub_part_creation_state: SubPartCreationState::NotCreating,
+            text_area: None,
         })
     }
 
@@ -184,6 +184,7 @@ impl ProfileCreator {
                             .clone(),
                     );
                     self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    self.initialize_confirm_create_state();
                 }
             }
             KeyCode::Esc | KeyCode::Backspace => {
@@ -194,16 +195,32 @@ impl ProfileCreator {
         Ok(CreatorAction::Continue)
     }
 
+    fn initialize_confirm_create_state(&mut self) {
+        let text_lines = self.create_confirm_details();
+        self.text_area = Some(TextArea::with_read_document(Some(text_lines)));
+    }
+
     pub fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Enter => {
+                self.text_area = None;
                 self.creation_step = ProfileCreationStep::CreatingProfile;
                 Ok(CreatorAction::CreateItem)
             }
-            _ => Ok(CreatorAction::Continue),
+            KeyCode::Esc => {
+                self.text_area = None;
+                self.go_to_previous_step()
+            }
+            _ => {
+                // Forward all other key events to the TextAreaState
+                if let Some(text_area) = &mut self.text_area {
+                    text_area.handle_key_event(input);
+                }
+                Ok(CreatorAction::Continue)
+            }
         }
     }
 
@@ -329,7 +346,7 @@ impl ProfileCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    pub fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
+    pub fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(3)])
@@ -342,20 +359,20 @@ impl ProfileCreator {
             )
             .split(chunks[0]);
 
-        let text_lines = self.create_confirm_details();
-        let text_area_widget = TextAreaWidget::new();
-        let mut text_area_state =
-            TextAreaState::with_read_document(Some(text_lines));
-
         let text_area_block = Block::default()
             .borders(Borders::ALL)
             .title("Profile Details");
 
-        f.render_stateful_widget(
-            &text_area_widget,
-            content_area[0].inner(Margin::new(1, 1)),
-            &mut text_area_state,
-        );
+        if let Some(text_area) = &mut self.text_area {
+            text_area.render(f, content_area[0].inner(Margin::new(1, 1)));
+        } else {
+            let fallback_text = Paragraph::new("No profile details available.")
+                .style(Style::default().fg(Color::Red));
+            f.render_widget(
+                fallback_text,
+                content_area[0].inner(Margin::new(1, 1)),
+            );
+        }
 
         f.render_widget(text_area_block, content_area[0]);
 

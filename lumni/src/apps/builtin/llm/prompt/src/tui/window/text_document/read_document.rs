@@ -5,7 +5,7 @@ use super::text_line::TextLine;
 use super::TextDocumentTrait;
 use crate::external as lumni;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReadDocument {
     lines: Vec<TextLine>,
     modified: bool,

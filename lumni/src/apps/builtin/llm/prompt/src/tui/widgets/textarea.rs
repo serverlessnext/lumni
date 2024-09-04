@@ -1,20 +1,69 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::{
-    Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-    StatefulWidget, StatefulWidgetRef, Widget,
+    Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
+    StatefulWidgetRef, Widget,
 };
+use ratatui::Frame;
 
 use super::{
     KeyTrack, ReadDocument, ReadWriteDocument, TextBuffer, TextDocumentTrait,
     TextLine,
 };
 
+#[derive(Debug, Clone)]
+pub struct TextArea<T: TextDocumentTrait> {
+    widget: TextAreaWidget<T>,
+    state: TextAreaState<'static, T>,
+}
+
+impl<T: TextDocumentTrait> TextArea<T> {
+    pub fn new() -> Self
+    where
+        T: Default,
+    {
+        Self {
+            widget: TextAreaWidget::new(),
+            state: TextAreaState::new(T::default()),
+        }
+    }
+
+    pub fn with_state(state: TextAreaState<'static, T>) -> Self {
+        Self {
+            widget: TextAreaWidget::new(),
+            state,
+        }
+    }
+
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) {
+        self.state.handle_key_event(key_event);
+    }
+
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+        f.render_stateful_widget(&self.widget, area, &mut self.state);
+    }
+}
+
+impl TextArea<ReadDocument> {
+    pub fn with_read_document(text: Option<Vec<TextLine>>) -> Self {
+        Self::with_state(TextAreaState::with_read_document(text))
+    }
+}
+
+impl TextArea<ReadWriteDocument> {
+    pub fn with_read_write_document(text: Option<Vec<TextLine>>) -> Self {
+        Self::with_state(TextAreaState::with_read_write_document(text))
+    }
+}
+#[derive(Debug, Clone)]
 pub struct TextAreaWidget<T: TextDocumentTrait>(std::marker::PhantomData<T>);
 
+#[derive(Debug, Clone)]
 pub struct TextAreaState<'a, T: TextDocumentTrait> {
     text_buffer: TextBuffer<'a, T>,
+    key_track: KeyTrack,
     scroll_offset: usize,
 }
 
@@ -28,6 +77,7 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
     pub fn new(document: T) -> Self {
         Self {
             text_buffer: TextBuffer::new(document),
+            key_track: KeyTrack::new(),
             scroll_offset: 0,
         }
     }
@@ -40,9 +90,14 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
         &mut self.text_buffer
     }
 
-    pub fn handle_key_event(&mut self, key_event: &KeyTrack) {
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) {
+        self.key_track.process_key(key_event);
+
         // For now, just print the received key events
-        eprintln!("Received key event: {:?}", key_event.current_key());
+        eprintln!(
+            "Received key event for TextArea: {:?}",
+            self.key_track.current_key()
+        );
     }
 }
 

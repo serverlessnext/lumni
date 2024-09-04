@@ -8,15 +8,15 @@ pub use filebrowser::FileBrowserModal;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 pub use settings::SettingsModal;
-use widgets::{FileBrowserState, FileBrowserWidget};
 
 pub use super::widgets;
 use super::{
     ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
     KeyTrack, MaskMode, ModelServer, ModelSpec, PromptInstruction,
-    ProviderConfig, ProviderConfigOptions, ServerTrait, SimpleString, TextArea,
-    TextLine, TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
-    UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    PromptWindow, ProviderConfig, ProviderConfigOptions, ReadDocument,
+    ServerTrait, SimpleString, TextLine, TextWindowTrait, ThreadedChatSession,
+    UserEvent, UserProfile, UserProfileDbHandler, WindowEvent,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

@@ -9,10 +9,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
+use super::widgets::{FileBrowserState, FileBrowserWidget};
 use super::{
-    ApplicationError, ConversationDbHandler, FileBrowserState,
-    FileBrowserWidget, KeyTrack, ModalAction, ModalWindowTrait,
-    ModalWindowType, ThreadedChatSession, WindowEvent,
+    ApplicationError, ConversationDbHandler, KeyTrack, ModalAction,
+    ModalWindowTrait, ModalWindowType, ThreadedChatSession, WindowEvent,
 };
 pub use crate::external as lumni;
 

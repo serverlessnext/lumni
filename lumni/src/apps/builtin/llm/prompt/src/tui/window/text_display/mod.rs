@@ -1,6 +1,6 @@
 mod text_render;
 
-use ratatui::style::{Color, Style};
+use ratatui::style::Color;
 use ratatui::text::{Line, Span};
 use text_render::DisplayWindowRenderer;
 

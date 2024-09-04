@@ -15,7 +15,7 @@ use super::{
 pub struct KeyTrack {
     previous_key_str: Option<String>,
     numeric_input: NumericInput,
-    current_key: KeyEvent,
+    pub current_key: KeyEvent,
     leader_key_set: bool,
 }
 
@@ -29,6 +29,14 @@ impl KeyTrack {
         }
     }
 
+    pub fn process_key(&mut self, key_event: KeyEvent) {
+        if !self.leader_key_set {
+            self.update_previous_key(key_event);
+        } else {
+            self.update_previous_key_with_leader(key_event);
+        }
+    }
+
     pub fn previous_key_str(&self) -> Option<&str> {
         self.previous_key_str.as_deref()
     }
@@ -37,7 +45,7 @@ impl KeyTrack {
         self.current_key
     }
 
-    pub fn update_previous_key(&mut self, key_event: KeyEvent) {
+    fn update_previous_key(&mut self, key_event: KeyEvent) {
         if let KeyCode::Char(c) = self.current_key.code {
             // copy previous key_event to previous_char
             self.previous_key_str = Some(c.to_string());
@@ -56,7 +64,7 @@ impl KeyTrack {
         }
     }
 
-    pub fn update_previous_key_with_leader(
+    fn update_previous_key_with_leader(
         &mut self,
         key_event: KeyEvent,
     ) -> Option<&str> {
@@ -163,15 +171,7 @@ impl KeyEventHandler {
         is_running: Arc<AtomicBool>,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowEvent, ApplicationError> {
-        if !self.key_track.leader_key_set()
-            || self
-                .key_track
-                .update_previous_key_with_leader(key_event)
-                .is_none()
-        {
-            // leader key not set or updating leader is un-successful
-            self.key_track.update_previous_key(key_event);
-        }
+        self.key_track.process_key(key_event);
 
         // try to catch Shift+Enter key press in prompt window
         match current_mode {

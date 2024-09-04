@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
-use super::list::{ListItem, SettingsList};
 use super::profile::{
     ProfileCreationStep, ProfileCreator, SubPartCreationState,
 };
@@ -12,7 +11,7 @@ use super::provider::{ProviderCreationStep, ProviderCreator};
 use super::*;
 
 #[async_trait]
-pub trait ManagedItem: Clone + Send + Sync + ListItem {
+pub trait ManagedItem: Clone + Send + Sync + ListItemTrait {
     async fn save(
         &self,
         db_handler: &mut UserProfileDbHandler,
@@ -124,7 +123,7 @@ pub trait Creator<T: ManagedItem>: Send + Sync + 'static {
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<T>, ApplicationError>;
-    fn render(&self, f: &mut Frame, area: Rect);
+    fn render(&mut self, f: &mut Frame, area: Rect);
     async fn create_item(
         &mut self,
     ) -> Result<CreatorAction<T>, ApplicationError>;
@@ -143,8 +142,8 @@ pub struct SettingsManager<T: ManagedItem + LoadableItem + CreatableItem> {
     pub list: SettingsList<T>,
     pub settings_editor: SettingsEditor,
     pub creator: Option<Box<dyn Creator<T>>>,
-    rename_buffer: Option<String>,
-    db_handler: UserProfileDbHandler,
+    pub rename_buffer: Option<String>,
+    pub db_handler: UserProfileDbHandler,
     pub tab_focus: TabFocus,
 }
 
@@ -233,11 +232,12 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Enter => {
-                if self.list.is_new_item_selected() {
+                if self.rename_buffer.is_some() {
+                    // ensure this is matched before any other action
+                    self.confirm_rename_item().await?;
+                } else if self.list.is_new_item_selected() {
                     self.start_item_creation().await?;
                     *tab_focus = TabFocus::Creation;
-                } else if self.rename_buffer.is_some() {
-                    self.confirm_rename_item().await?;
                 } else {
                     *tab_focus = TabFocus::Settings;
                 }
@@ -259,14 +259,21 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                     Ok(WindowEvent::Modal(ModalAction::UpdateUI))
                 }
             }
-            KeyCode::Char('r') | KeyCode::Char('R') => {
-                self.start_item_renaming();
+            KeyCode::Backspace if self.get_rename_buffer().is_some() => {
+                if let Some(buffer) = &mut self.rename_buffer {
+                    buffer.pop();
+                }
                 Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Char(c) if self.rename_buffer.is_some() => {
+                // ensure this is matched before any other char
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.push(c);
                 }
+                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => {
+                self.start_item_renaming();
                 Ok(WindowEvent::Modal(ModalAction::UpdateUI))
             }
             KeyCode::Backspace if self.rename_buffer.is_some() => {
@@ -412,7 +419,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         Ok(())
     }
 
-    fn start_item_renaming(&mut self) {
+    pub fn start_item_renaming(&mut self) {
         if let Some(item) = self.list.get_selected_item() {
             self.rename_buffer = Some(item.name().to_string());
         }
@@ -423,8 +430,8 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             (&self.rename_buffer, self.list.get_selected_item())
         {
             if !new_name.is_empty() {
-                let updated_item = item.with_new_name(new_name.clone());
-                updated_item.save(&mut self.db_handler).await?;
+                // Use type-specific renaming method
+                self.rename_item(item, new_name).await?;
                 self.list.rename_selected_item(new_name.clone());
             }
         }
@@ -432,7 +439,25 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         Ok(())
     }
 
-    fn cancel_rename_item(&mut self) {
+    async fn rename_item(
+        &self,
+        item: &T,
+        new_name: &str,
+    ) -> Result<(), ApplicationError> {
+        if let Some(profile) = (item as &dyn Any).downcast_ref::<UserProfile>()
+        {
+            self.db_handler.rename_profile(profile, new_name).await?;
+        } else if let Some(provider) =
+            (item as &dyn Any).downcast_ref::<ProviderConfig>()
+        {
+            self.db_handler
+                .rename_provider_config(provider, new_name)
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub fn cancel_rename_item(&mut self) {
         self.rename_buffer = None;
     }
 
@@ -637,7 +662,7 @@ impl Creator<UserProfile> for ProfileCreator {
         self.handle_key_event(input).await
     }
 
-    fn render(&self, f: &mut Frame, area: Rect) {
+    fn render(&mut self, f: &mut Frame, area: Rect) {
         match self.sub_part_creation_state {
             SubPartCreationState::NotCreating => match self.creation_step {
                 ProfileCreationStep::EnterName => {
@@ -653,7 +678,7 @@ impl Creator<UserProfile> for ProfileCreator {
                     self.render_creating_profile(f, area)
                 }
             },
-            SubPartCreationState::CreatingProvider(ref creator) => {
+            SubPartCreationState::CreatingProvider(ref mut creator) => {
                 creator.render(f, area);
             }
         }
@@ -679,7 +704,7 @@ impl Creator<ProviderConfig> for ProviderCreator {
         self.handle_key_event(input).await
     }
 
-    fn render(&self, f: &mut Frame, area: Rect) {
+    fn render(&mut self, f: &mut Frame, area: Rect) {
         match self.current_step {
             ProviderCreationStep::EnterName => self.render_enter_name(f, area),
             ProviderCreationStep::SelectProviderType => {

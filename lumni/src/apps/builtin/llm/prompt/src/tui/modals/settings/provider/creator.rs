@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
+use hmac::crypto_mac::Key;
+use ratatui::layout::Margin;
+use ratatui::text::Text;
 use serde_json::Value as JsonValue;
 
 use super::*;
@@ -32,6 +31,7 @@ pub struct ProviderCreator {
     edit_buffer: String,
     is_editing: bool,
     model_fetch_error: Option<String>,
+    text_area: Option<TextArea<ReadDocument>>,
 }
 
 impl ProviderCreator {
@@ -51,10 +51,11 @@ impl ProviderCreator {
             edit_buffer: String::new(),
             is_editing: false,
             model_fetch_error: None,
+            text_area: None,
         })
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
+    pub fn render(&mut self, f: &mut Frame, area: Rect) {
         match self.current_step {
             ProviderCreationStep::EnterName => self.render_enter_name(f, area),
             ProviderCreationStep::SelectProviderType => {
@@ -75,7 +76,7 @@ impl ProviderCreator {
         }
     }
 
-    pub fn render_confirm_create(&self, f: &mut Frame, area: Rect) {
+    pub fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(3)])
@@ -86,20 +87,21 @@ impl ProviderCreator {
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(chunks[0]);
 
-        let text_lines = self.create_confirm_details();
-        let text_area_widget = TextAreaWidget::new();
-        let mut text_area_state =
-            TextAreaState::with_read_document(Some(text_lines));
-
         let text_area_block = Block::default()
             .borders(Borders::ALL)
             .title("Provider Details");
 
-        f.render_stateful_widget(
-            &text_area_widget,
-            content_area[0].inner(Margin::new(1, 1)),
-            &mut text_area_state,
-        );
+        if let Some(text_area) = &mut self.text_area {
+            text_area.render(f, content_area[0].inner(Margin::new(1, 1)));
+        } else {
+            let fallback_text =
+                Paragraph::new("No provider details available.")
+                    .style(Style::default().fg(Color::Red));
+            f.render_widget(
+                fallback_text,
+                content_area[0].inner(Margin::new(1, 1)),
+            );
+        }
 
         f.render_widget(text_area_block, content_area[0]);
 
@@ -126,10 +128,14 @@ impl ProviderCreator {
         f.render_widget(create_button, button_chunks[1]);
     }
 
+    fn initialize_confirm_create_state(&mut self) {
+        let text_lines = self.create_confirm_details();
+        self.text_area = Some(TextArea::with_read_document(Some(text_lines)));
+    }
+
     fn create_confirm_details(&self) -> Vec<TextLine> {
         let mut lines = Vec::new();
 
-        // Name
         let mut name_line = TextLine::new();
         name_line.add_segment(
             "Name:",
@@ -213,17 +219,23 @@ impl ProviderCreator {
         input: KeyEvent,
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
-            KeyCode::Esc => return self.go_to_previous_step(),
-            KeyCode::Backspace => {
-                if self.current_step == ProviderCreationStep::EnterName
-                    && !self.name.is_empty()
-                {
+            KeyCode::Esc => {
+                if self.current_step == ProviderCreationStep::ConfirmCreate {
+                    self.text_area = None;
+                }
+                return self.go_to_previous_step();
+            }
+            KeyCode::Backspace => match self.current_step {
+                ProviderCreationStep::EnterName if !self.name.is_empty() => {
                     self.name.pop();
                     return Ok(CreatorAction::Continue);
-                } else {
+                }
+                ProviderCreationStep::ConfirmCreate => {
+                    self.text_area = None;
                     return self.go_to_previous_step();
                 }
-            }
+                _ => return self.go_to_previous_step(),
+            },
             _ => {}
         }
 
@@ -594,6 +606,7 @@ impl ProviderCreator {
                     self.is_editing = false;
                     if self.is_last_setting() {
                         self.current_step = ProviderCreationStep::ConfirmCreate;
+                        self.initialize_confirm_create_state();
                         return Ok(CreatorAction::Continue);
                     } else {
                         self.move_setting_selection(1);
@@ -607,6 +620,7 @@ impl ProviderCreator {
                     self.save_current_setting();
                 }
                 self.current_step = ProviderCreationStep::ConfirmCreate;
+                self.initialize_confirm_create_state();
                 return Ok(CreatorAction::Continue);
             }
             KeyCode::Char(c) => {
@@ -676,7 +690,17 @@ impl ProviderCreator {
                 let new_config = self.create_provider().await?;
                 Ok(CreatorAction::Finish(new_config))
             }
-            _ => Ok(CreatorAction::Continue),
+            KeyCode::Esc => {
+                self.text_area = None;
+                self.go_to_previous_step()
+            }
+            _ => {
+                // Forward other key events to the TextArea
+                if let Some(text_area) = &mut self.text_area {
+                    text_area.handle_key_event(input);
+                }
+                Ok(CreatorAction::Continue)
+            }
         }
     }
 

@@ -8,6 +8,18 @@ pub struct TextSegment {
     pub style: Option<Style>,
 }
 
+impl TextSegment {
+    pub fn from_text<S: Into<SimpleString>>(
+        text: S,
+        style: Option<Style>,
+    ) -> Self {
+        TextSegment {
+            text: text.into(),
+            style,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextLine {
     pub segments: Vec<TextSegment>,
@@ -22,6 +34,15 @@ impl TextLine {
             length: 0,
             background: None,
         }
+    }
+
+    pub fn from_text<S: Into<SimpleString>>(
+        text: S,
+        style: Option<Style>,
+    ) -> Self {
+        let mut line = TextLine::new();
+        line.add_segment(text, style);
+        line
     }
 
     pub fn add_segment<S: Into<SimpleString>>(

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use hmac::crypto_mac::Key;
 use ratatui::layout::Margin;
 use ratatui::text::Text;
 use serde_json::Value as JsonValue;
@@ -26,12 +25,13 @@ pub struct ProviderCreator {
     db_handler: UserProfileDbHandler,
     pub current_step: ProviderCreationStep,
     available_models: Vec<ModelSpec>,
-    selected_model_index: Option<usize>,
     current_setting_key: Option<String>,
     edit_buffer: String,
     is_editing: bool,
     model_fetch_error: Option<String>,
     text_area: Option<TextArea<ReadDocument>>,
+    model_list: Option<ListWidget>,
+    model_list_state: ListWidgetState,
 }
 
 impl ProviderCreator {
@@ -46,12 +46,13 @@ impl ProviderCreator {
             db_handler,
             current_step: ProviderCreationStep::EnterName,
             available_models: Vec::new(),
-            selected_model_index: None,
             current_setting_key: None,
             edit_buffer: String::new(),
             is_editing: false,
             model_fetch_error: None,
             text_area: None,
+            model_list: None,
+            model_list_state: ListWidgetState::default(),
         })
     }
 
@@ -310,52 +311,25 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    pub fn render_select_model(&self, f: &mut Frame, area: Rect) {
-        let mut items = Vec::new();
-
+    pub fn render_select_model(&mut self, f: &mut Frame, area: Rect) {
         if let Some(error_message) = &self.model_fetch_error {
-            let available_width = area.width as usize - 4; // Subtract 4 for borders and padding
-            let simple_string = SimpleString::from(error_message.clone());
-            let wrapped_spans = simple_string.wrapped_spans(
-                available_width,
-                Some(Style::default().fg(Color::Red)),
-                None,
+            let mut error_text_area =
+                TextArea::with_read_document(Some(vec![TextLine::from_text(
+                    error_message,
+                    Some(Style::default().fg(Color::Red)),
+                )]));
+
+            let block = Block::default().borders(Borders::ALL).title("Error");
+            let inner_area = block.inner(area);
+            f.render_widget(block, area);
+            error_text_area.render(f, inner_area);
+        } else if let Some(list_widget) = &self.model_list {
+            f.render_stateful_widget(
+                list_widget,
+                area,
+                &mut self.model_list_state,
             );
-            for spans in wrapped_spans {
-                items.push(ListItem::new(Line::from(spans)));
-            }
-        } else {
-            items = self
-                .available_models
-                .iter()
-                .enumerate()
-                .map(|(index, model)| {
-                    let style = if Some(index) == self.selected_model_index {
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default()
-                    };
-                    ListItem::new(Text::raw(format!(
-                        "{}: {}",
-                        index + 1,
-                        model.identifier.0
-                    )))
-                    .style(style)
-                })
-                .collect();
         }
-
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Select Model"))
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-            .highlight_symbol("> ");
-
-        let mut state = ListState::default();
-        state.select(self.selected_model_index);
-
-        f.render_stateful_widget(list, area, &mut state);
     }
 
     pub fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
@@ -455,7 +429,11 @@ impl ProviderCreator {
                 Ok(CreatorAction::Continue)
             }
             ProviderCreationStep::ConfirmCreate => {
-                self.current_step = ProviderCreationStep::ConfigureSettings;
+                if self.additional_settings.is_empty() {
+                    self.current_step = ProviderCreationStep::SelectModel;
+                } else {
+                    self.current_step = ProviderCreationStep::ConfigureSettings;
+                }
                 Ok(CreatorAction::Continue)
             }
             ProviderCreationStep::CreatingProvider => {
@@ -537,42 +515,32 @@ impl ProviderCreator {
     ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
-                if let Some(index) = self.selected_model_index.as_mut() {
-                    if *index > 0 {
-                        *index -= 1;
-                    } else {
-                        *index = self.available_models.len() - 1;
-                    }
-                } else if !self.available_models.is_empty() {
-                    self.selected_model_index =
-                        Some(self.available_models.len() - 1);
+                if let Some(list_widget) = &self.model_list {
+                    list_widget.move_selection(&mut self.model_list_state, -1);
                 }
             }
             KeyCode::Down => {
-                if let Some(index) = self.selected_model_index.as_mut() {
-                    if *index < self.available_models.len() - 1 {
-                        *index += 1;
-                    } else {
-                        *index = 0;
-                    }
-                } else if !self.available_models.is_empty() {
-                    self.selected_model_index = Some(0);
+                if let Some(list_widget) = &self.model_list {
+                    list_widget.move_selection(&mut self.model_list_state, 1);
                 }
             }
             KeyCode::Enter => {
-                if let Some(index) = self.selected_model_index {
-                    self.model_identifier =
-                        Some(self.available_models[index].identifier.0.clone());
-                    let model_server =
-                        ModelServer::from_str(&self.provider_type)?;
-                    self.prepare_additional_settings(&model_server);
-                    return Ok(CreatorAction::LoadAdditionalSettings);
+                if let Some(list_widget) = &self.model_list {
+                    if let Some(selected_model) =
+                        list_widget.get_selected_item(&self.model_list_state)
+                    {
+                        self.model_identifier =
+                            Some(selected_model.text.to_string());
+                        let model_server =
+                            ModelServer::from_str(&self.provider_type)?;
+                        self.prepare_additional_settings(&model_server);
+                        return Ok(CreatorAction::LoadAdditionalSettings);
+                    }
                 }
             }
             KeyCode::Tab => {
                 // Skip model selection if there's an error or no models available
-                if self.model_fetch_error.is_some()
-                    || self.available_models.is_empty()
+                if self.model_fetch_error.is_some() || self.model_list.is_none()
                 {
                     let model_server =
                         ModelServer::from_str(&self.provider_type)?;
@@ -644,14 +612,22 @@ impl ProviderCreator {
 
     fn move_setting_selection(&mut self, delta: i32) {
         let keys: Vec<_> = self.additional_settings.keys().collect();
+        if keys.is_empty() {
+            // No settings to select, so we can't move the selection
+            return;
+        }
+
         let current_index = self
             .current_setting_key
             .as_ref()
             .and_then(|key| keys.iter().position(|&k| k == key))
             .unwrap_or(0);
-        let new_index = (current_index as i32 + delta)
-            .rem_euclid(keys.len() as i32) as usize;
-        self.current_setting_key = Some(keys[new_index].clone());
+
+        let keys_len = keys.len() as i32;
+        let new_index =
+            (((current_index as i32 + delta) % keys_len) + keys_len) % keys_len;
+
+        self.current_setting_key = Some(keys[new_index as usize].clone());
     }
 
     fn start_editing_current_setting(&mut self) {
@@ -709,7 +685,24 @@ impl ProviderCreator {
         match model_server.list_models().await {
             Ok(models) if !models.is_empty() => {
                 self.available_models = models;
-                self.selected_model_index = Some(0);
+                let model_items: Vec<TextSegment> = self
+                    .available_models
+                    .iter()
+                    .map(|model| {
+                        TextSegment::from_text(model.identifier.0.clone(), None)
+                    })
+                    .collect();
+                self.model_list = Some(
+                    ListWidget::new(model_items, "Select Model".to_string())
+                        .normal_style(Style::default().fg(Color::Cyan))
+                        .selected_style(
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        )
+                        .highlight_symbol(">> ".to_string()),
+                );
+                self.model_list_state = ListWidgetState::default();
                 self.model_fetch_error = None;
                 Ok(())
             }

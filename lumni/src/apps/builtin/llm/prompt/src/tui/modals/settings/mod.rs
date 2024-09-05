@@ -17,13 +17,13 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use settings_editor::{SettingsAction, SettingsEditor};
 
-use super::widgets::TextArea;
+use super::widgets::{ListWidget, ListWidgetState, TextArea, TextAreaWidget};
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
     ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
     ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowEvent,
-    SUPPORTED_MODEL_ENDPOINTS,
+    TextSegment, ThreadedChatSession, UserProfile, UserProfileDbHandler,
+    WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -85,17 +85,6 @@ impl SettingsManagerEnum {
             }
             SettingsManagerEnum::Provider(manager) => {
                 manager.rename_buffer.as_ref()
-            }
-        }
-    }
-
-    fn cancel_rename_item(&mut self) {
-        match self {
-            SettingsManagerEnum::Profile(manager) => {
-                manager.cancel_rename_item()
-            }
-            SettingsManagerEnum::Provider(manager) => {
-                manager.cancel_rename_item()
             }
         }
     }
@@ -503,6 +492,7 @@ impl ModalWindowTrait for SettingsModal {
                                     manager.list.add_item(new_profile);
                                     manager.creator = None;
                                     self.tab_focus = TabFocus::List;
+                                    self.refresh_list().await?;
                                     return Ok(WindowEvent::Modal(
                                         ModalAction::PollBackGroundTask,
                                     ));

@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::leader_key::{process_leader_key, LEADER_KEY};
 use super::{
-    ClipboardProvider, CommandLineAction, MoveCursor, TextDocumentTrait,
-    TextWindowTrait, WindowEvent, WindowKind,
+    ClipboardProvider, CommandLineAction, ConversationWindowEvent, MoveCursor,
+    TextDocumentTrait, TextWindowTrait, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -99,8 +99,12 @@ where
     }
 
     let kind = match window.get_kind() {
-        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::EditorWindow => WindowEvent::PromptWindow(None),
+        WindowKind::ResponseWindow => {
+            WindowEvent::Conversation(ConversationWindowEvent::Response)
+        }
+        WindowKind::EditorWindow => {
+            WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+        }
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
     Ok(kind)
@@ -206,8 +210,12 @@ where
         _ => {}
     }
     let kind = match window.get_kind() {
-        WindowKind::ResponseWindow => WindowEvent::ResponseWindow,
-        WindowKind::EditorWindow => WindowEvent::PromptWindow(None),
+        WindowKind::ResponseWindow => {
+            WindowEvent::Conversation(ConversationWindowEvent::Response)
+        }
+        WindowKind::EditorWindow => {
+            WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+        }
         WindowKind::CommandLine => WindowEvent::CommandLine(None),
     };
     Ok(kind)

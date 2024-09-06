@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ModalAction, ModalWindowType, PromptAction, TextWindowTrait,
-    WindowEvent,
+    AppUi, ConversationWindowEvent, ModalAction, ModalWindowType,
+    NavigationMode, PromptAction, TextWindowTrait, WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -36,11 +36,20 @@ pub fn handle_command_line_event(
                 match command.trim_start_matches(':') {
                     "q" => return Ok(WindowEvent::Quit),
                     "w" => {
-                        let question = app_ui.prompt.text_buffer().to_string();
-                        app_ui.prompt.text_empty();
-                        return Ok(WindowEvent::Prompt(PromptAction::Write(
-                            question,
-                        )));
+                        if let NavigationMode::Conversation(ref mut conv_ui) =
+                            &mut app_ui.selected_mode
+                        {
+                            let question =
+                                conv_ui.prompt.text_buffer().to_string();
+                            conv_ui.prompt.text_empty();
+                            return Ok(WindowEvent::Prompt(
+                                PromptAction::Write(question),
+                            ));
+                        } else {
+                            // Handle the case when not in Conversation mode
+                            //return Ok(WindowEvent::PromptWindow(None));
+                            unimplemented!("TODO: switch to PromptWindow");
+                        }
                     }
                     "stop" => {
                         return Ok(WindowEvent::Prompt(PromptAction::Stop));
@@ -48,7 +57,9 @@ pub fn handle_command_line_event(
                     _ => {} // command not recognized
                 }
             }
-            Ok(WindowEvent::PromptWindow(None))
+            Ok(WindowEvent::Conversation(ConversationWindowEvent::Prompt(
+                None,
+            )))
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window

@@ -6,36 +6,30 @@ use ratatui::widgets::Borders;
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
 use super::{
-    CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
-    ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
-    WindowEvent, WindowKind,
+    CommandLine, ConversationDatabase, ConversationId, ConversationWindowEvent,
+    ModalWindowTrait, ModalWindowType, PromptWindow, ResponseWindow, TextLine,
+    TextWindowTrait, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum NavigationMode {
-    Conversation,
+    Conversation(ConversationUi<'static>),
     File,
 }
-pub struct AppUi<'a> {
+
+#[derive(Debug)]
+pub struct ConversationUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
-    pub command_line: CommandLine<'a>,
     pub primary_window: WindowKind,
-    pub modal: Option<Box<dyn ModalWindowTrait>>,
-    pub selected_mode: NavigationMode,
-    pub file_browser: FileBrowser,
 }
 
-impl AppUi<'_> {
+impl<'a> ConversationUi<'a> {
     pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
             prompt: PromptWindow::new().with_borders(Borders::ALL),
             response: ResponseWindow::new(conversation_text),
-            command_line: CommandLine::new(),
             primary_window: WindowKind::ResponseWindow,
-            modal: None,
-            selected_mode: NavigationMode::Conversation,
-            file_browser: FileBrowser::new(None),
         }
     }
 
@@ -47,9 +41,61 @@ impl AppUi<'_> {
     }
 
     pub fn init(&mut self) {
-        self.response.init(); //set_status_normal(); // initialize in normal mode
-        self.prompt.set_status_normal(); // initialize with defaults
-        self.command_line.init(); // initialize with defaults
+        self.response.init();
+        self.prompt.set_status_normal();
+    }
+
+    pub fn set_response_window(&mut self) -> WindowEvent {
+        self.prompt.set_status_background();
+        self.response.set_status_normal();
+        self.response.scroll_to_end();
+        WindowEvent::Conversation(ConversationWindowEvent::Response)
+    }
+
+    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowEvent {
+        self.response.set_status_background();
+        if insert_mode {
+            self.prompt.set_status_insert();
+        } else {
+            self.prompt.set_status_normal();
+        }
+        WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+    }
+
+    pub fn set_primary_window(&mut self, window_type: WindowKind) {
+        self.primary_window = match window_type {
+            WindowKind::ResponseWindow | WindowKind::EditorWindow => {
+                window_type
+            }
+            _ => unreachable!("Invalid primary window type: {:?}", window_type),
+        };
+    }
+}
+pub struct AppUi<'a> {
+    pub command_line: CommandLine<'a>,
+    pub modal: Option<Box<dyn ModalWindowTrait>>,
+    pub selected_mode: NavigationMode,
+    pub file_browser: FileBrowser,
+}
+
+impl AppUi<'_> {
+    pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
+        Self {
+            command_line: CommandLine::new(),
+            modal: None,
+            //selected_mode: NavigationMode::Conversation(ConversationUi::new(
+            //    conversation_text,
+            //)),
+            selected_mode: NavigationMode::File,
+            file_browser: FileBrowser::new(None),
+        }
+    }
+
+    pub fn init(&mut self) {
+        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+            conv_ui.init();
+        }
+        self.command_line.init();
     }
 
     pub fn set_alert(&mut self, message: &str) -> Result<(), ApplicationError> {
@@ -79,36 +125,41 @@ impl AppUi<'_> {
         Ok(())
     }
 
-    pub fn set_primary_window(&mut self, window_type: WindowKind) {
-        self.primary_window = match window_type {
-            WindowKind::ResponseWindow | WindowKind::EditorWindow => {
-                window_type
-            }
-            _ => {
-                // only ResponseWindow and PromptWindow can be primary windows
-                unreachable!("Invalid primary window type: {:?}", window_type)
-            }
-        };
-    }
-
     pub fn set_response_window(&mut self) -> WindowEvent {
-        self.prompt.set_status_background();
-        self.response.set_status_normal();
-        self.response.scroll_to_end();
-        return WindowEvent::ResponseWindow;
+        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+            conv_ui.prompt.set_status_background();
+            conv_ui.response.set_status_normal();
+            conv_ui.response.scroll_to_end();
+        } else {
+            unimplemented!("TODO: switch to ResponseWindow");
+        }
+        WindowEvent::Conversation(ConversationWindowEvent::Response)
     }
 
     pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowEvent {
-        self.response.set_status_background();
-        if insert_mode {
-            self.prompt.set_status_insert();
+        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+            conv_ui.response.set_status_background();
+            if insert_mode {
+                conv_ui.prompt.set_status_insert();
+            } else {
+                conv_ui.prompt.set_status_normal();
+            }
         } else {
-            self.prompt.set_status_normal();
+            unimplemented!("TODO: switch to PromptWindow");
         }
-        return WindowEvent::PromptWindow(None);
+        WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
     }
 
     pub fn clear_modal(&mut self) {
         self.modal = None;
+    }
+
+    pub fn switch_to_conversation_mode(
+        &mut self,
+        conversation_text: Option<Vec<TextLine>>,
+    ) {
+        self.selected_mode = NavigationMode::Conversation(ConversationUi::new(
+            conversation_text,
+        ));
     }
 }

@@ -16,6 +16,7 @@ use super::{
     PromptInstruction, ThreadedChatSession, UserEvent, WindowEvent,
 };
 use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
+use crate::apps::builtin::llm::prompt::src::tui::ConversationWindowEvent;
 pub use crate::external as lumni;
 
 const MAX_WIDTH: u16 = 40;
@@ -108,10 +109,14 @@ impl ConversationListModal {
                 return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
             }
             KeyCode::Enter => {
-                return Ok(WindowEvent::PromptWindow(None));
+                return Ok(WindowEvent::Conversation(
+                    ConversationWindowEvent::Prompt(None),
+                ));
             }
             KeyCode::Char('q') => {
-                return Ok(WindowEvent::PromptWindow(None));
+                return Ok(WindowEvent::Conversation(
+                    ConversationWindowEvent::Prompt(None),
+                ));
             }
             KeyCode::Tab => {
                 self.switch_tab();
@@ -129,7 +134,11 @@ impl ConversationListModal {
             KeyCode::Char('u') | KeyCode::Char('U') => {
                 self.handle_unarchive_undo_action(db_handler).await?
             }
-            KeyCode::Esc => return Ok(WindowEvent::PromptWindow(None)),
+            KeyCode::Esc => {
+                return Ok(WindowEvent::Conversation(
+                    ConversationWindowEvent::Prompt(None),
+                ))
+            }
             _ => {}
         }
         // stay in the Modal window, waiting for next key event

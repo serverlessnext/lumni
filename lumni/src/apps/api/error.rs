@@ -48,6 +48,7 @@ pub enum ApplicationError {
     DatabaseError(String),
     NotImplemented(String),
     NotReady(String),
+    InvalidState(String),
     UserCancelled(String),
     EncryptionError(EncryptionError),
     CustomError(Box<dyn Error + Send + Sync>),
@@ -178,6 +179,9 @@ impl fmt::Display for ApplicationError {
                 write!(f, "NotImplemented: {}", s)
             }
             ApplicationError::NotReady(s) => write!(f, "NotReady: {}", s),
+            ApplicationError::InvalidState(s) => {
+                write!(f, "InvalidState: {}", s)
+            }
             ApplicationError::EncryptionError(e) => {
                 write!(f, "EncryptionError: {}", e)
             }

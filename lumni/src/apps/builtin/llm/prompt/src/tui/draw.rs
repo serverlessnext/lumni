@@ -10,7 +10,7 @@ use ratatui::widgets::{
 };
 use ratatui::{Frame, Terminal};
 
-use super::ui::{AppUi, NavigationMode};
+use super::ui::{ConversationUi, NavigationMode};
 use super::widgets::{FileBrowser, FileBrowserWidget};
 use super::{App, ChatSessionManager, TextWindowTrait, WindowKind};
 
@@ -52,7 +52,7 @@ pub async fn draw_ui<B: Backend>(
         let command_line_area = app_window[2];
 
         // Render navigation tabs
-        render_nav_tabs::<B>(frame, nav_tab_area, app.ui.selected_mode);
+        render_nav_tabs::<B>(frame, nav_tab_area, &app.ui.selected_mode);
 
         // Split main area into navigation pane and content pane
         let main_layout = Layout::default()
@@ -67,8 +67,8 @@ pub async fn draw_ui<B: Backend>(
         let content_pane = main_layout[1];
 
         // Render navigation pane based on selected mode
-        match app.ui.selected_mode {
-            NavigationMode::Conversation => {
+        match &app.ui.selected_mode {
+            NavigationMode::Conversation(_) => {
                 render_conversation_nav::<B>(
                     frame,
                     nav_pane,
@@ -81,12 +81,12 @@ pub async fn draw_ui<B: Backend>(
         }
 
         // Render content pane based on selected mode
-        match app.ui.selected_mode {
-            NavigationMode::Conversation => {
+        match &mut app.ui.selected_mode {
+            NavigationMode::Conversation(conv_ui) => {
                 render_conversation_mode::<B>(
                     frame,
                     content_pane,
-                    &mut app.ui,
+                    conv_ui,
                     &server_name,
                 );
             }
@@ -117,11 +117,11 @@ pub async fn draw_ui<B: Backend>(
 fn render_nav_tabs<B: Backend>(
     frame: &mut Frame,
     area: Rect,
-    selected_mode: NavigationMode,
+    selected_mode: &NavigationMode,
 ) {
     let tabs = vec!["Conversation", "File Browser"];
     let tab_index = match selected_mode {
-        NavigationMode::Conversation => 0,
+        NavigationMode::Conversation(_) => 0,
         NavigationMode::File => 1,
     };
     let tabs = Tabs::new(tabs)
@@ -169,13 +169,13 @@ fn render_file_nav<B: Backend>(
 fn render_conversation_mode<B: Backend>(
     frame: &mut Frame,
     area: Rect,
-    ui: &mut AppUi,
+    conv_ui: &mut ConversationUi,
     server_name: &str,
 ) {
     frame.render_widget(content_window_block(server_name, window_hint()), area);
 
     let conversation_panel_constraints =
-        if ui.primary_window == WindowKind::ResponseWindow {
+        if conv_ui.primary_window == WindowKind::ResponseWindow {
             [Constraint::Percentage(80), Constraint::Min(5)]
         } else {
             [Constraint::Percentage(20), Constraint::Min(5)]
@@ -202,9 +202,12 @@ fn render_conversation_mode<B: Backend>(
     let response_scrollbar = response_area[1];
     let prompt_text_area = prompt_area[0];
 
-    frame.render_widget(ui.prompt.widget(&prompt_text_area), prompt_text_area);
     frame.render_widget(
-        ui.response.widget(&response_text_area),
+        conv_ui.prompt.widget(&prompt_text_area),
+        prompt_text_area,
+    );
+    frame.render_widget(
+        conv_ui.response.widget(&response_text_area),
         response_text_area,
     );
     frame.render_stateful_widget(
@@ -213,7 +216,7 @@ fn render_conversation_mode<B: Backend>(
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓")),
         response_scrollbar,
-        &mut ui.response.vertical_scroll_bar_state(),
+        &mut conv_ui.response.vertical_scroll_bar_state(),
     );
 }
 

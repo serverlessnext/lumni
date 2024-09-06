@@ -19,11 +19,11 @@ use settings_editor::{SettingsAction, SettingsEditor};
 
 use super::widgets::{ListWidget, ListWidgetState, TextArea};
 use super::{
-    ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
-    ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    TextSegment, ThreadedChatSession, UserProfile, UserProfileDbHandler,
-    WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ApplicationError, ConversationDbHandler, ConversationWindowEvent, KeyTrack,
+    MaskMode, ModalAction, ModalWindowTrait, ModalWindowType, ModelServer,
+    ModelSpec, ProviderConfig, ProviderConfigOptions, ReadDocument,
+    ServerTrait, SimpleString, TextLine, TextSegment, ThreadedChatSession,
+    UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -124,7 +124,9 @@ impl SettingsModal {
                         self.tab_focus = TabFocus::List;
                         return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
                     } else if !self.manager.get_rename_buffer().is_some() {
-                        return Ok(WindowEvent::PromptWindow(None));
+                        return Ok(WindowEvent::Conversation(
+                            ConversationWindowEvent::Prompt(None),
+                        ));
                     }
                 }
                 _ => {}

@@ -16,10 +16,10 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, ConversationEvent, KeyEventHandler, ModalAction,
-    ModelServer, PromptAction, PromptError, PromptInstruction,
-    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
-    WindowEvent, WindowKind,
+    CompletionResponse, ConversationEvent, ConversationWindowEvent,
+    KeyEventHandler, ModalAction, ModelServer, NavigationMode, PromptAction,
+    PromptError, PromptInstruction, PromptNotReadyReason, ServerManager,
+    TextWindowTrait, UserEvent, WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
 
@@ -73,16 +73,32 @@ impl App<'_> {
                     "Reload failed. No active session available".to_string(),
                 )
             })?;
-
         let prompt_instruction = active_session.get_instruction().await?;
         let conversation_text = {
             let export =
                 prompt_instruction.export_conversation(&self.color_scheme);
             (!export.is_empty()).then(|| export)
         };
+
         if let Some(conversation_text) = conversation_text {
-            self.ui.reload_conversation_text(conversation_text);
-        };
+            // Update the conversation UI if we're in Conversation mode
+            match &mut self.ui.selected_mode {
+                NavigationMode::Conversation(conv_ui) => {
+                    conv_ui.reload_conversation_text(conversation_text);
+                }
+                NavigationMode::File => {
+                    // If we're in File mode, switch to Conversation mode with the new text
+                    self.ui
+                        .switch_to_conversation_mode(Some(conversation_text));
+                }
+            }
+        } else {
+            // If there's no conversation text, ensure we're in Conversation mode with an empty conversation
+            if let NavigationMode::File = self.ui.selected_mode {
+                self.ui.switch_to_conversation_mode(None);
+            }
+        }
+
         Ok(())
     }
 

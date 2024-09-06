@@ -20,7 +20,7 @@ pub use window_config::{
     WindowConfig, WindowContent, WindowKind, WindowStatus,
 };
 
-use super::events::{KeyTrack, WindowEvent};
+use super::events::{ConversationWindowEvent, KeyTrack, WindowEvent};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,10 +111,13 @@ impl PromptWindow<'_> {
         };
 
         self.set_window_status(next_status);
-        return WindowEvent::PromptWindow(None);
+        return WindowEvent::Conversation(ConversationWindowEvent::Prompt(
+            None,
+        ));
     }
 }
 
+#[derive(Debug)]
 pub struct ResponseWindow<'a> {
     base: TextWindow<'a, ReadDocument>,
 }

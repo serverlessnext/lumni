@@ -10,7 +10,7 @@ use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
 use super::modals::{ModalAction, ModalWindowType};
-use super::ui::AppUi;
+use super::ui::{AppUi, NavigationMode};
 use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
     WindowKind,
@@ -21,11 +21,16 @@ pub use crate::external as lumni;
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     Quit,
-    PromptWindow(Option<ConversationEvent>),
-    ResponseWindow,
+    Conversation(ConversationWindowEvent),
     CommandLine(Option<CommandLineAction>),
     Prompt(PromptAction),
     Modal(ModalAction),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConversationWindowEvent {
+    Prompt(Option<ConversationEvent>),
+    Response,
 }
 
 #[derive(Debug, Clone, PartialEq)]

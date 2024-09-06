@@ -11,8 +11,9 @@ use ratatui::Frame;
 
 use super::widgets::{FileBrowserState, FileBrowserWidget};
 use super::{
-    ApplicationError, ConversationDbHandler, KeyTrack, ModalAction,
-    ModalWindowTrait, ModalWindowType, ThreadedChatSession, WindowEvent,
+    ApplicationError, ConversationDbHandler, ConversationWindowEvent, KeyTrack,
+    ModalAction, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
+    WindowEvent,
 };
 pub use crate::external as lumni;
 
@@ -203,7 +204,9 @@ impl ModalWindowTrait for FileBrowserModal {
                 self.update_selected_file_info().await?;
             }
             KeyCode::Esc => {
-                return Ok(WindowEvent::PromptWindow(None));
+                return Ok(WindowEvent::Conversation(
+                    ConversationWindowEvent::Prompt(None),
+                ));
             }
             _ => {}
         }

@@ -7,8 +7,8 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ConversationDbHandler, ModalAction,
-    ThreadedChatSession, WindowEvent,
+    AppUi, ApplicationError, ConversationDbHandler, ConversationWindowEvent,
+    ModalAction, ThreadedChatSession, WindowEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -180,16 +180,20 @@ impl KeyEventHandler {
                 &mut self.key_track,
                 is_running,
             ),
-            WindowEvent::ResponseWindow => handle_response_window_event(
-                app_ui,
-                &mut self.key_track,
-                is_running,
-            ),
-            WindowEvent::PromptWindow(_) => handle_prompt_window_event(
-                app_ui,
-                &mut self.key_track,
-                is_running,
-            ),
+            WindowEvent::Conversation(ConversationWindowEvent::Response) => {
+                handle_response_window_event(
+                    app_ui,
+                    &mut self.key_track,
+                    is_running,
+                )
+            }
+            WindowEvent::Conversation(ConversationWindowEvent::Prompt(_)) => {
+                handle_prompt_window_event(
+                    app_ui,
+                    &mut self.key_track,
+                    is_running,
+                )
+            }
             WindowEvent::Modal(_) => {
                 // catch forced quit key events before passing control to modal
                 let current_key = self.key_track.current_key();

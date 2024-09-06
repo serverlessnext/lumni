@@ -526,11 +526,10 @@ impl ProviderCreator {
             }
             KeyCode::Enter => {
                 if let Some(list_widget) = &self.model_list {
-                    if let Some(selected_model) =
-                        list_widget.get_selected_item(&self.model_list_state)
+                    if let Some(model_name) = list_widget
+                        .get_selected_item_content(&self.model_list_state)
                     {
-                        self.model_identifier =
-                            Some(selected_model.text.to_string());
+                        self.model_identifier = Some(model_name);
                         let model_server =
                             ModelServer::from_str(&self.provider_type)?;
                         self.prepare_additional_settings(&model_server);
@@ -685,11 +684,13 @@ impl ProviderCreator {
         match model_server.list_models().await {
             Ok(models) if !models.is_empty() => {
                 self.available_models = models;
-                let model_items: Vec<TextSegment> = self
+                let model_items: Vec<Text<'static>> = self
                     .available_models
                     .iter()
                     .map(|model| {
-                        TextSegment::from_text(model.identifier.0.clone(), None)
+                        Text::from(Line::from(Span::raw(
+                            model.identifier.0.clone(),
+                        )))
                     })
                     .collect();
                 self.model_list = Some(

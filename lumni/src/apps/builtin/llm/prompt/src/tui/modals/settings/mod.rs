@@ -17,7 +17,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 use settings_editor::{SettingsAction, SettingsEditor};
 
-use super::widgets::{ListWidget, ListWidgetState, TextArea, TextAreaWidget};
+use super::widgets::{ListWidget, ListWidgetState, TextArea};
 use super::{
     ApplicationError, ConversationDbHandler, KeyTrack, MaskMode, ModalAction,
     ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec, ProviderConfig,

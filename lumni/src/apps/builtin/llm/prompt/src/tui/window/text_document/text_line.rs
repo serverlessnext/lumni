@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span, Text};
 
 use super::simple_string::SimpleString;
 
@@ -16,6 +19,25 @@ impl TextSegment {
         TextSegment {
             text: text.into(),
             style,
+        }
+    }
+
+    pub fn to_text(&self) -> Text<'static> {
+        let content = self.text.to_string();
+        let style = self.style.unwrap_or_default();
+        let lines: Vec<Line> = content
+            .split('\n')
+            .map(|line| {
+                Line::from(vec![Span {
+                    content: Cow::Owned(line.to_string()),
+                    style,
+                }])
+            })
+            .collect();
+        Text {
+            lines,
+            style,
+            alignment: None,
         }
     }
 }

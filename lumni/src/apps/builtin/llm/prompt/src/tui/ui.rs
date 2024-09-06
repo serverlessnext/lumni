@@ -4,19 +4,26 @@ use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
+use super::widgets::FileBrowser;
 use super::{
     CommandLine, ConversationDatabase, ConversationId, ModalWindowTrait,
     ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
     WindowEvent, WindowKind,
 };
 pub use crate::external as lumni;
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationMode {
+    Conversation,
+    File,
+}
 pub struct AppUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
     pub command_line: CommandLine<'a>,
     pub primary_window: WindowKind,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
+    pub selected_mode: NavigationMode,
+    pub file_browser: FileBrowser,
 }
 
 impl AppUi<'_> {
@@ -27,6 +34,8 @@ impl AppUi<'_> {
             command_line: CommandLine::new(),
             primary_window: WindowKind::ResponseWindow,
             modal: None,
+            selected_mode: NavigationMode::Conversation,
+            file_browser: FileBrowser::new(None),
         }
     }
 

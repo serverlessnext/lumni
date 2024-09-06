@@ -71,7 +71,7 @@ impl RectArea {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct PromptWindow<'a> {
     base: TextWindow<'a, ReadWriteDocument>,
 }

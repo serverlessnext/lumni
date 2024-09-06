@@ -166,7 +166,7 @@ pub trait ObjectStoreTrait: Send + Sync {
     ) -> Result<(u16, HashMap<String, String>), InternalError>;
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ObjectStoreHandler {}
 
 impl ObjectStoreHandler {

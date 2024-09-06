@@ -1,9 +1,9 @@
 mod filebrowser;
-mod itemlist;
+mod list;
 mod textarea;
 
-pub use filebrowser::{FileBrowserState, FileBrowserWidget};
-pub use itemlist::{ListWidget, ListWidgetState};
+pub use filebrowser::{FileBrowser, FileBrowserState, FileBrowserWidget};
+pub use list::{ListWidget, ListWidgetState};
 pub use textarea::{TextArea, TextAreaState, TextAreaWidget};
 
 use super::{

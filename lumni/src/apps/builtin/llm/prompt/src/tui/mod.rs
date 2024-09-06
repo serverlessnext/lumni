@@ -28,7 +28,8 @@ use super::chat::db::{
     ProviderConfigOptions, UserProfile, UserProfileDbHandler,
 };
 use super::chat::{
-    App, NewConversation, PromptInstruction, ThreadedChatSession,
+    App, ChatSessionManager, NewConversation, PromptInstruction,
+    ThreadedChatSession,
 };
 use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};
 use crate::external as lumni;

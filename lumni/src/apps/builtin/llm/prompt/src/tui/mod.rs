@@ -10,12 +10,12 @@ mod window;
 pub use colorscheme::{ColorScheme, ColorSchemeType};
 pub use draw::draw_ui;
 pub use events::{
-    CommandLineAction, ConversationEvent, ConversationWindowEvent,
-    KeyEventHandler, KeyTrack, PromptAction, UserEvent, WindowEvent,
+    CommandLineAction, ConversationEvent, FileBrowserEvent, KeyEventHandler,
+    KeyTrack, ModalEvent, PromptAction, UserEvent, WindowMode,
 };
 use lumni::api::error::ApplicationError;
-pub use modals::{ModalAction, ModalWindowTrait, ModalWindowType};
-pub use ui::{AppUi, NavigationMode};
+pub use modals::{ModalWindowTrait, ModalWindowType};
+pub use ui::{AppUi, ContentDisplayMode, ConversationUi};
 pub use window::{
     CommandLine, PromptWindow, ReadDocument, ReadWriteDocument, ResponseWindow,
     SimpleString, TextBuffer, TextDocumentTrait, TextLine, TextSegment,

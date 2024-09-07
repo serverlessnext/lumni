@@ -11,12 +11,11 @@ use ratatui::Frame;
 
 use super::widgets::{ListWidget, ListWidgetState};
 use super::{
-    ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
-    KeyTrack, ModalAction, ModalWindowTrait, ModalWindowType,
-    PromptInstruction, ThreadedChatSession, UserEvent, WindowEvent,
+    ApplicationError, Conversation, ConversationDbHandler, ConversationEvent,
+    ConversationId, ConversationStatus, KeyTrack, ModalEvent, ModalWindowTrait,
+    ModalWindowType, PromptInstruction, ThreadedChatSession, UserEvent,
+    WindowMode,
 };
-use crate::apps::builtin::llm::prompt::src::chat::db::ConversationId;
-use crate::apps::builtin::llm::prompt::src::tui::ConversationWindowEvent;
 pub use crate::external as lumni;
 
 const MAX_WIDTH: u16 = 40;
@@ -66,7 +65,7 @@ impl ConversationListModal {
         &mut self,
         tab_chat: &mut ThreadedChatSession,
         db_handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match self.current_tab {
             ConversationStatus::Deleted => {
                 self.undo_delete_and_load_conversation(tab_chat, db_handler)
@@ -74,7 +73,7 @@ impl ConversationListModal {
             }
             _ => self.load_and_set_conversation(tab_chat, db_handler).await?,
         }
-        Ok(WindowEvent::Modal(ModalAction::Event(
+        Ok(WindowMode::Modal(ModalEvent::Event(
             UserEvent::ReloadConversation,
         )))
     }
@@ -84,7 +83,7 @@ impl ConversationListModal {
         key_event: &mut KeyTrack,
         tab_chat: Option<&mut ThreadedChatSession>,
         db_handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Up => {
                 self.move_selection_up();
@@ -95,7 +94,7 @@ impl ConversationListModal {
                         .await;
                 }
                 log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
             }
             KeyCode::Down => {
                 self.move_selection_down();
@@ -106,17 +105,17 @@ impl ConversationListModal {
                         .await;
                 }
                 log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
             }
             KeyCode::Enter => {
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Prompt(None),
-                ));
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Prompt,
+                )));
             }
             KeyCode::Char('q') => {
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Prompt(None),
-                ));
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Prompt,
+                )));
             }
             KeyCode::Tab => {
                 self.switch_tab();
@@ -135,14 +134,14 @@ impl ConversationListModal {
                 self.handle_unarchive_undo_action(db_handler).await?
             }
             KeyCode::Esc => {
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Prompt(None),
-                ))
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Prompt,
+                )))
             }
             _ => {}
         }
         // stay in the Modal window, waiting for next key event
-        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
 
     fn move_selection_up(&mut self) {
@@ -644,7 +643,7 @@ impl ModalWindowTrait for ConversationListModal {
         key_event: &'b mut KeyTrack,
         tab_chat: Option<&'b mut ThreadedChatSession>,
         handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         self.handle_normal_mode_key_event(key_event, tab_chat, handler)
             .await
     }

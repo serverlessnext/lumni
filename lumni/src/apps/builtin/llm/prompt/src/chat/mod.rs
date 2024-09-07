@@ -20,9 +20,9 @@ use super::server::{
 };
 use super::tui::{
     draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    ConversationEvent, ConversationWindowEvent, KeyEventHandler, ModalAction,
-    ModalWindowType, NavigationMode, PromptAction, SimpleString, TextLine,
-    TextSegment, TextWindowTrait, UserEvent, WindowEvent, WindowKind,
+    ContentDisplayMode, ConversationEvent, KeyEventHandler, ModalEvent,
+    ModalWindowType, PromptAction, SimpleString, TextLine, TextSegment,
+    TextWindowTrait, UserEvent, WindowKind, WindowMode,
 };
 
 // gets PERSONAS from the generated code

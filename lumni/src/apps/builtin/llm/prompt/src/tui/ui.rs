@@ -1,20 +1,21 @@
 use std::sync::Arc;
 
+use crossterm::event::{KeyCode, KeyEvent};
 use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
 use super::{
-    CommandLine, ConversationDatabase, ConversationId, ConversationWindowEvent,
-    ModalWindowTrait, ModalWindowType, PromptWindow, ResponseWindow, TextLine,
-    TextWindowTrait, WindowEvent, WindowKind,
+    CommandLine, ConversationDatabase, ConversationEvent, ConversationId,
+    ModalEvent, ModalWindowTrait, ModalWindowType, PromptWindow,
+    ResponseWindow, TextLine, TextWindowTrait, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 #[derive(Debug)]
-pub enum NavigationMode {
+pub enum ContentDisplayMode {
     Conversation(ConversationUi<'static>),
-    File,
+    FileBrowser(FileBrowser),
 }
 
 #[derive(Debug)]
@@ -45,21 +46,21 @@ impl<'a> ConversationUi<'a> {
         self.prompt.set_status_normal();
     }
 
-    pub fn set_response_window(&mut self) -> WindowEvent {
+    pub fn set_response_window(&mut self) -> WindowMode {
         self.prompt.set_status_background();
         self.response.set_status_normal();
         self.response.scroll_to_end();
-        WindowEvent::Conversation(ConversationWindowEvent::Response)
+        WindowMode::Conversation(Some(ConversationEvent::Response))
     }
 
-    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowEvent {
+    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowMode {
         self.response.set_status_background();
         if insert_mode {
             self.prompt.set_status_insert();
         } else {
             self.prompt.set_status_normal();
         }
-        WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+        WindowMode::Conversation(Some(ConversationEvent::Prompt))
     }
 
     pub fn set_primary_window(&mut self, window_type: WindowKind) {
@@ -74,28 +75,45 @@ impl<'a> ConversationUi<'a> {
 pub struct AppUi<'a> {
     pub command_line: CommandLine<'a>,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
-    pub selected_mode: NavigationMode,
-    pub file_browser: FileBrowser,
+    pub selected_mode: ContentDisplayMode,
 }
 
 impl AppUi<'_> {
-    pub fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
+    pub async fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
             command_line: CommandLine::new(),
             modal: None,
-            //selected_mode: NavigationMode::Conversation(ConversationUi::new(
-            //    conversation_text,
-            //)),
-            selected_mode: NavigationMode::File,
-            file_browser: FileBrowser::new(None),
+            selected_mode: ContentDisplayMode::Conversation(
+                ConversationUi::new(conversation_text),
+            ),
         }
     }
 
     pub fn init(&mut self) {
-        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+        if let ContentDisplayMode::Conversation(conv_ui) =
+            &mut self.selected_mode
+        {
             conv_ui.init();
         }
         self.command_line.init();
+    }
+
+    pub fn handle_key_event(
+        &mut self,
+        key: KeyEvent,
+        window_mode: &mut WindowMode,
+    ) {
+        *window_mode = match key.code {
+            KeyCode::Left | KeyCode::BackTab => {
+                self.switch_tab(TabDirection::Left)
+            }
+            KeyCode::Right | KeyCode::Tab => {
+                self.switch_tab(TabDirection::Right)
+            }
+            _ => {
+                return;
+            }
+        };
     }
 
     pub fn set_alert(&mut self, message: &str) -> Result<(), ApplicationError> {
@@ -125,19 +143,23 @@ impl AppUi<'_> {
         Ok(())
     }
 
-    pub fn set_response_window(&mut self) -> WindowEvent {
-        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+    pub fn set_response_window(&mut self) -> WindowMode {
+        if let ContentDisplayMode::Conversation(conv_ui) =
+            &mut self.selected_mode
+        {
             conv_ui.prompt.set_status_background();
             conv_ui.response.set_status_normal();
             conv_ui.response.scroll_to_end();
         } else {
             unimplemented!("TODO: switch to ResponseWindow");
         }
-        WindowEvent::Conversation(ConversationWindowEvent::Response)
+        WindowMode::Conversation(Some(ConversationEvent::Response))
     }
 
-    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowEvent {
-        if let NavigationMode::Conversation(conv_ui) = &mut self.selected_mode {
+    pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowMode {
+        if let ContentDisplayMode::Conversation(conv_ui) =
+            &mut self.selected_mode
+        {
             conv_ui.response.set_status_background();
             if insert_mode {
                 conv_ui.prompt.set_status_insert();
@@ -147,7 +169,7 @@ impl AppUi<'_> {
         } else {
             unimplemented!("TODO: switch to PromptWindow");
         }
-        WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+        WindowMode::Conversation(Some(ConversationEvent::Prompt))
     }
 
     pub fn clear_modal(&mut self) {
@@ -158,8 +180,56 @@ impl AppUi<'_> {
         &mut self,
         conversation_text: Option<Vec<TextLine>>,
     ) {
-        self.selected_mode = NavigationMode::Conversation(ConversationUi::new(
-            conversation_text,
-        ));
+        self.selected_mode = ContentDisplayMode::Conversation(
+            ConversationUi::new(conversation_text),
+        );
     }
+
+    fn switch_tab(&mut self, direction: TabDirection) -> WindowMode {
+        self.selected_mode = match self.selected_mode {
+            ContentDisplayMode::Conversation(_) => {
+                // as there are only two tabs currently, both directions are currently the same
+                let display_mode =
+                    ContentDisplayMode::FileBrowser(FileBrowser::new(None));
+                match direction {
+                    TabDirection::Right => display_mode,
+                    TabDirection::Left => display_mode,
+                }
+            }
+            ContentDisplayMode::FileBrowser(_) => {
+                let display_mode =
+                    ContentDisplayMode::Conversation(ConversationUi::new(None));
+                match direction {
+                    TabDirection::Right => display_mode,
+                    TabDirection::Left => display_mode,
+                }
+            }
+        };
+        WindowMode::Select
+    }
+
+    pub async fn poll_widgets(&mut self) -> Result<bool, ApplicationError> {
+        let mut redraw_ui = false;
+
+        match &mut self.selected_mode {
+            ContentDisplayMode::FileBrowser(file_browser) => {
+                match file_browser.poll_background_task().await? {
+                    Some(ModalEvent::UpdateUI) => {
+                        redraw_ui = true;
+                    }
+                    _ => {
+                        // No update needed
+                    }
+                }
+            }
+            _ => {
+                // No background task to poll
+            }
+        }
+        Ok(redraw_ui)
+    }
+}
+enum TabDirection {
+    Left,
+    Right,
 }

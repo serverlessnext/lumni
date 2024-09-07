@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ConversationWindowEvent, LineType, NavigationMode, PromptAction,
-    PromptWindow, TextWindowTrait, WindowEvent,
+    AppUi, ContentDisplayMode, ConversationEvent, LineType, PromptAction,
+    PromptWindow, TextWindowTrait, WindowMode,
 };
 use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
 pub use crate::external as lumni;
@@ -17,9 +17,9 @@ pub fn handle_prompt_window_event(
     app_ui: &mut AppUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
-) -> Result<WindowEvent, ApplicationError> {
+) -> Result<WindowMode, ApplicationError> {
     let conv_ui = match &mut app_ui.selected_mode {
-        NavigationMode::Conversation(ui) => ui,
+        ContentDisplayMode::Conversation(ui) => ui,
         _ => {
             return Err(ApplicationError::InvalidState(
                 "Cant use prompt window. Not in Conversation mode".to_string(),
@@ -46,7 +46,7 @@ pub fn handle_prompt_window_event(
             // handle enter if not in editing mode
             if !conv_ui.prompt.is_status_insert() {
                 let question = conv_ui.prompt.text_buffer().to_string();
-                return Ok(WindowEvent::Prompt(PromptAction::Write(question)));
+                return Ok(WindowMode::Prompt(PromptAction::Write(question)));
             }
         }
         KeyCode::Backspace => {
@@ -71,13 +71,10 @@ pub fn handle_prompt_window_event(
                 match key {
                     'c' => {
                         if conv_ui.prompt.text_buffer().is_empty() {
-                            return Ok(WindowEvent::Quit);
+                            return Ok(WindowMode::Quit);
                         } else {
                             conv_ui.prompt.text_empty();
                         }
-                    }
-                    'q' => {
-                        return Ok(WindowEvent::Quit);
                     }
                     'a' => {
                         conv_ui.prompt.text_select_all();
@@ -87,9 +84,9 @@ pub fn handle_prompt_window_event(
                     }
                     _ => {}
                 }
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Prompt(None),
-                ));
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Prompt,
+                )));
             } else if !conv_ui.prompt.is_status_insert() {
                 // process regular key
                 match key {

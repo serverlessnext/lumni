@@ -7,9 +7,10 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ConversationDbHandler, ConversationWindowEvent,
-    ModalAction, ThreadedChatSession, WindowEvent,
+    AppUi, ApplicationError, ConversationDbHandler, ConversationEvent,
+    FileBrowserEvent, ModalEvent, ThreadedChatSession, WindowMode,
 };
+use crate::apps::builtin::llm::prompt::src::tui::ContentDisplayMode;
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -167,46 +168,110 @@ impl KeyEventHandler {
         key_event: KeyEvent,
         app_ui: &mut AppUi<'_>,
         tab_chat: Option<&mut ThreadedChatSession>,
-        current_mode: WindowEvent,
+        current_mode: &mut WindowMode,
         is_running: Arc<AtomicBool>,
         handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<(), ApplicationError> {
         self.key_track.process_key(key_event);
-
-        // try to catch Shift+Enter key press in prompt window
-        match current_mode {
-            WindowEvent::CommandLine(_) => handle_command_line_event(
-                app_ui,
-                &mut self.key_track,
-                is_running,
-            ),
-            WindowEvent::Conversation(ConversationWindowEvent::Response) => {
-                handle_response_window_event(
-                    app_ui,
-                    &mut self.key_track,
-                    is_running,
-                )
-            }
-            WindowEvent::Conversation(ConversationWindowEvent::Prompt(_)) => {
-                handle_prompt_window_event(
-                    app_ui,
-                    &mut self.key_track,
-                    is_running,
-                )
-            }
-            WindowEvent::Modal(_) => {
-                // catch forced quit key events before passing control to modal
-                let current_key = self.key_track.current_key();
-                if current_key.modifiers == KeyModifiers::CONTROL {
-                    match current_key.code {
-                        KeyCode::Char('c') | KeyCode::Char('q') => {
-                            return Ok(WindowEvent::Quit);
-                        }
-                        _ => {}
-                    }
+        // catch forced quit key event (Ctrl-C or Ctrl-Q) regardless of the current mode
+        let current_key = self.key_track.current_key();
+        if current_key.modifiers == KeyModifiers::CONTROL {
+            match current_key.code {
+                KeyCode::Char('c') | KeyCode::Char('q') => {
+                    *current_mode = WindowMode::Quit;
+                    return Ok(());
                 }
+                _ => {}
+            }
+        }
+
+        if current_key.modifiers == KeyModifiers::SHIFT {
+            // Catch Shift + (Back)Tab, Left or Right to switch main ui tabs
+            match current_key.code {
+                KeyCode::BackTab
+                | KeyCode::Tab
+                | KeyCode::Left
+                | KeyCode::Right => {
+                    app_ui.handle_key_event(current_key, current_mode);
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
+        match current_mode {
+            WindowMode::CommandLine(_) => {
+                *current_mode = handle_command_line_event(
+                    app_ui,
+                    &mut self.key_track,
+                    is_running,
+                )?;
+            }
+            WindowMode::Conversation(ref event) => {
+                match event {
+                    Some(ConversationEvent::Prompt) => {
+                        handle_prompt_window_event(
+                            app_ui,
+                            &mut self.key_track,
+                            is_running,
+                        )?
+                    }
+                    Some(ConversationEvent::Response) => {
+                        handle_response_window_event(
+                            app_ui,
+                            &mut self.key_track,
+                            is_running,
+                        )?
+                    }
+                    Some(ConversationEvent::Select) => {
+                        match &mut app_ui.selected_mode {
+                            ContentDisplayMode::Conversation(conversation) => {
+                                eprintln!("ConversationEvent::Select");
+                            }
+                            _ => {
+                                unreachable!(
+                                    "Invalid selected mode: {:?}",
+                                    app_ui.selected_mode
+                                );
+                            }
+                        }
+                        return Ok(());
+                    }
+                    _ => return Ok(()),
+                };
+            }
+            WindowMode::FileBrowser(ref event) => {
+                match event {
+                    Some(FileBrowserEvent::Select) => {
+                        match &mut app_ui.selected_mode {
+                            ContentDisplayMode::FileBrowser(filebrowser) => {
+                                match filebrowser
+                                    .handle_key_event(&mut self.key_track)
+                                {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        log::error!(
+                                            "Error handling key event: {:?}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {
+                                unreachable!(
+                                    "Invalid selected mode: {:?}",
+                                    app_ui.selected_mode
+                                );
+                            }
+                        }
+                        return Ok(());
+                    }
+                    _ => return Ok(()),
+                };
+            }
+            WindowMode::Modal(_) => {
                 // key event is handled by modal window
-                if let Some(modal) = app_ui.modal.as_mut() {
+                *current_mode = if let Some(modal) = app_ui.modal.as_mut() {
                     let new_window_event = match modal
                         .handle_key_event(
                             &mut self.key_track,
@@ -215,9 +280,9 @@ impl KeyEventHandler {
                         )
                         .await
                     {
-                        Ok(WindowEvent::Modal(action)) => {
+                        Ok(WindowMode::Modal(action)) => {
                             // pass as-is
-                            WindowEvent::Modal(action)
+                            WindowMode::Modal(action)
                         }
                         Ok(new_window_event) => new_window_event,
                         Err(modal_error) => {
@@ -229,9 +294,7 @@ impl KeyEventHandler {
                                         "Not Ready: {}",
                                         message
                                     ))?;
-                                    return Ok(WindowEvent::Modal(
-                                        ModalAction::UpdateUI,
-                                    ));
+                                    WindowMode::Modal(ModalEvent::UpdateUI)
                                 }
                                 _ => {
                                     log::error!(
@@ -243,12 +306,35 @@ impl KeyEventHandler {
                             }
                         }
                     };
-                    return Ok(new_window_event);
+                    new_window_event
                 } else {
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    WindowMode::Modal(ModalEvent::UpdateUI)
+                };
+            }
+            WindowMode::Select => {
+                // catch Down and Enter
+                match current_key.code {
+                    KeyCode::Down | KeyCode::Enter => {
+                        match app_ui.selected_mode {
+                            ContentDisplayMode::Conversation(_) => {
+                                *current_mode = WindowMode::Conversation(Some(
+                                    ConversationEvent::Select,
+                                ));
+                            }
+                            ContentDisplayMode::FileBrowser(_) => {
+                                *current_mode = WindowMode::FileBrowser(Some(
+                                    FileBrowserEvent::Select,
+                                ));
+                            }
+                        }
+                    }
+                    _ => {
+                        app_ui.handle_key_event(current_key, current_mode);
+                    }
                 }
             }
-            _ => Ok(current_mode),
-        }
+            _ => {}
+        };
+        Ok(())
     }
 }

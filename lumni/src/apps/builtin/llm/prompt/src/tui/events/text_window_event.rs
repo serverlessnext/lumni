@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::leader_key::{process_leader_key, LEADER_KEY};
 use super::{
-    ClipboardProvider, CommandLineAction, ConversationWindowEvent, MoveCursor,
-    TextDocumentTrait, TextWindowTrait, WindowEvent, WindowKind,
+    ClipboardProvider, CommandLineAction, ConversationEvent, MoveCursor,
+    TextDocumentTrait, TextWindowTrait, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -16,7 +16,7 @@ pub fn handle_text_window_event<'a, T, D>(
     key_track: &mut KeyTrack,
     window: &mut T,
     _is_running: Arc<AtomicBool>,
-) -> Result<WindowEvent, ApplicationError>
+) -> Result<WindowMode, ApplicationError>
 where
     T: TextWindowTrait<'a, D>,
     D: TextDocumentTrait,
@@ -100,12 +100,12 @@ where
 
     let kind = match window.get_kind() {
         WindowKind::ResponseWindow => {
-            WindowEvent::Conversation(ConversationWindowEvent::Response)
+            WindowMode::Conversation(Some(ConversationEvent::Response))
         }
         WindowKind::EditorWindow => {
-            WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+            WindowMode::Conversation(Some(ConversationEvent::Prompt))
         }
-        WindowKind::CommandLine => WindowEvent::CommandLine(None),
+        WindowKind::CommandLine => WindowMode::CommandLine(None),
     };
     Ok(kind)
 }
@@ -114,7 +114,7 @@ fn handle_char_key<'a, T, D>(
     character: char,
     key_track: &mut KeyTrack,
     window: &mut T,
-) -> Result<WindowEvent, ApplicationError>
+) -> Result<WindowMode, ApplicationError>
 where
     T: TextWindowTrait<'a, D>,
     D: TextDocumentTrait,
@@ -202,7 +202,7 @@ where
         }
         ':' => {
             // Switch to command line mode on ":" key press
-            return Ok(WindowEvent::CommandLine(Some(
+            return Ok(WindowMode::CommandLine(Some(
                 CommandLineAction::Write(":".to_string()),
             )));
         }
@@ -211,12 +211,12 @@ where
     }
     let kind = match window.get_kind() {
         WindowKind::ResponseWindow => {
-            WindowEvent::Conversation(ConversationWindowEvent::Response)
+            WindowMode::Conversation(Some(ConversationEvent::Response))
         }
         WindowKind::EditorWindow => {
-            WindowEvent::Conversation(ConversationWindowEvent::Prompt(None))
+            WindowMode::Conversation(Some(ConversationEvent::Prompt))
         }
-        WindowKind::CommandLine => WindowEvent::CommandLine(None),
+        WindowKind::CommandLine => WindowMode::CommandLine(None),
     };
     Ok(kind)
 }

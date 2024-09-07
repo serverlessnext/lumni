@@ -16,10 +16,10 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, ConversationEvent, ConversationWindowEvent,
-    KeyEventHandler, ModalAction, ModelServer, NavigationMode, PromptAction,
-    PromptError, PromptInstruction, PromptNotReadyReason, ServerManager,
-    TextWindowTrait, UserEvent, WindowEvent, WindowKind,
+    CompletionResponse, ContentDisplayMode, ConversationEvent, KeyEventHandler,
+    ModalEvent, ModelServer, PromptAction, PromptError, PromptInstruction,
+    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
+    WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -53,7 +53,7 @@ impl App<'_> {
 
         log::debug!("Chat session manager created");
 
-        let mut ui = AppUi::new(conversation_text);
+        let mut ui = AppUi::new(conversation_text).await;
         ui.init();
 
         Ok(App {
@@ -83,10 +83,10 @@ impl App<'_> {
         if let Some(conversation_text) = conversation_text {
             // Update the conversation UI if we're in Conversation mode
             match &mut self.ui.selected_mode {
-                NavigationMode::Conversation(conv_ui) => {
+                ContentDisplayMode::Conversation(conv_ui) => {
                     conv_ui.reload_conversation_text(conversation_text);
                 }
-                NavigationMode::File => {
+                ContentDisplayMode::FileBrowser(_) => {
                     // If we're in File mode, switch to Conversation mode with the new text
                     self.ui
                         .switch_to_conversation_mode(Some(conversation_text));
@@ -94,7 +94,7 @@ impl App<'_> {
             }
         } else {
             // If there's no conversation text, ensure we're in Conversation mode with an empty conversation
-            if let NavigationMode::File = self.ui.selected_mode {
+            if let ContentDisplayMode::FileBrowser(_) = self.ui.selected_mode {
                 self.ui.switch_to_conversation_mode(None);
             }
         }
@@ -105,9 +105,10 @@ impl App<'_> {
     pub async fn draw_ui<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,
+        window_mode: &WindowMode,
     ) -> Result<(), io::Error> {
         // draw the UI in the terminal
-        draw_ui(terminal, self).await?;
+        draw_ui(terminal, window_mode, self).await?;
 
         // ensure the command line is (back) in normal mode afer drawing the UI
         // this ensures that an alert is automatically cleared on a subsequent key press

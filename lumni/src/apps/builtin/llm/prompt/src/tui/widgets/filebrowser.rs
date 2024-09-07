@@ -18,11 +18,10 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
     Block, Borders, Paragraph, StatefulWidget, StatefulWidgetRef, Widget,
 };
-use ratatui::Frame;
 use tokio::sync::mpsc;
 
 use super::list::{ListWidget, ListWidgetState};
-use super::{KeyTrack, ModalAction, PromptWindow, TextWindowTrait};
+use super::{KeyTrack, ModalEvent, PromptWindow, TextWindowTrait};
 pub use crate::external as lumni;
 
 // TODO notes:
@@ -48,22 +47,14 @@ impl FileBrowser {
     pub fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,
-    ) -> Result<ModalAction, ApplicationError> {
+    ) -> Result<ModalEvent, ApplicationError> {
         self.widget.handle_key_event(key_event, &mut self.state)
     }
 
     pub async fn poll_background_task(
         &mut self,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<Option<ModalEvent>, ApplicationError> {
         self.widget.poll_background_task(&mut self.state).await
-    }
-
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
-        f.render_stateful_widget(&self.widget, area, &mut self.state);
-    }
-
-    pub fn get_selected_table_row(&self) -> Option<TableRow> {
-        self.widget.get_selected_table_row(&self.state)
     }
 
     pub fn current_path(&self) -> &Path {
@@ -443,7 +434,7 @@ impl FileBrowserWidget {
         &mut self,
         key_event: &mut KeyTrack,
         state: &mut FileBrowserState,
-    ) -> Result<ModalAction, ApplicationError> {
+    ) -> Result<ModalEvent, ApplicationError> {
         match key_event.current_key().code {
             KeyCode::Char(c) => {
                 state.focus = FileBrowserFocus::PathInput;
@@ -484,7 +475,7 @@ impl FileBrowserWidget {
             }
             _ => {}
         }
-        Ok(ModalAction::UpdateUI)
+        Ok(ModalEvent::UpdateUI)
     }
 
     fn page_up(&mut self, state: &mut FileBrowserState) {
@@ -576,11 +567,12 @@ impl FileBrowserWidget {
     pub async fn poll_background_task(
         &mut self,
         state: &mut FileBrowserState<'static>,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<Option<ModalEvent>, ApplicationError> {
         if let Some(ref mut rx) = self.background_task {
             match rx.try_recv() {
                 Ok(result) => {
                     self.handle_background_task_result(result, state).await?;
+                    return Ok(Some(ModalEvent::UpdateUI));
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -590,7 +582,7 @@ impl FileBrowserWidget {
                 }
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     async fn handle_background_task_result(
@@ -706,5 +698,12 @@ impl StatefulWidgetRef for &FileBrowserWidget {
         if state.task_start_time.is_some() {
             self.render_loading(buf, area, state);
         }
+    }
+}
+
+impl Drop for FileBrowserWidget {
+    fn drop(&mut self) {
+        // Close the channel to signal the background task to stop
+        self.background_task.take();
     }
 }

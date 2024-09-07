@@ -11,12 +11,12 @@ pub use settings::SettingsModal;
 
 pub use super::widgets;
 use super::{
-    ApplicationError, Conversation, ConversationDbHandler, ConversationStatus,
-    ConversationWindowEvent, KeyTrack, MaskMode, ModelServer, ModelSpec,
-    PromptInstruction, PromptWindow, ProviderConfig, ProviderConfigOptions,
-    ReadDocument, ServerTrait, SimpleString, TextLine, TextSegment,
-    TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
-    UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    ApplicationError, Conversation, ConversationDbHandler, ConversationEvent,
+    ConversationId, ConversationStatus, KeyTrack, MaskMode, ModalEvent,
+    ModelServer, ModelSpec, PromptInstruction, PromptWindow, ProviderConfig,
+    ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
+    TextSegment, TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
+    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,30 +26,21 @@ pub enum ModalWindowType {
     FileBrowser,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ModalAction {
-    Open(ModalWindowType), // open the modal
-    PollBackGroundTask,    // modal needs to be polled for background updates
-    UpdateUI, // update the UI of the modal once and wait for the next key event
-    Close,    // close the curren modal
-    Event(UserEvent),
-}
-
 #[async_trait]
 pub trait ModalWindowTrait: Send + Sync {
     fn get_type(&self) -> ModalWindowType;
     fn render_on_frame(&mut self, frame: &mut Frame, area: Rect);
     async fn poll_background_task(
         &mut self,
-    ) -> Result<WindowEvent, ApplicationError> {
-        // handle_key_event can return WindowEvent::Modal(ModalAction::PollBackGroundTask),
+    ) -> Result<WindowMode, ApplicationError> {
+        // handle_key_event can return WindowEvent::Modal(ModalEvent::PollBackGroundTask),
         // this means a background process started, and must be monitored by calling this method. The monitoring can stop when a regular UpdateUI is received
-        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
     async fn handle_key_event<'a>(
         &'a mut self,
         key_event: &'a mut KeyTrack,
         tab_chat: Option<&'a mut ThreadedChatSession>,
         handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError>;
+    ) -> Result<WindowMode, ApplicationError>;
 }

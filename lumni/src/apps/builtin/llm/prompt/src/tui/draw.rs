@@ -10,12 +10,13 @@ use ratatui::widgets::{
 };
 use ratatui::{Frame, Terminal};
 
-use super::ui::{ConversationUi, NavigationMode};
+use super::ui::{ContentDisplayMode, ConversationUi};
 use super::widgets::{FileBrowser, FileBrowserWidget};
-use super::{App, ChatSessionManager, TextWindowTrait, WindowKind};
+use super::{App, ChatSessionManager, TextWindowTrait, WindowKind, WindowMode};
 
 pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
+    window_mode: &WindowMode,
     app: &mut App<'_>,
 ) -> Result<(), io::Error> {
     let server_name = app
@@ -67,22 +68,22 @@ pub async fn draw_ui<B: Backend>(
         let content_pane = main_layout[1];
 
         // Render navigation pane based on selected mode
-        match &app.ui.selected_mode {
-            NavigationMode::Conversation(_) => {
+        match &mut app.ui.selected_mode {
+            ContentDisplayMode::Conversation(_) => {
                 render_conversation_nav::<B>(
                     frame,
                     nav_pane,
                     &app.chat_manager,
                 );
             }
-            NavigationMode::File => {
-                render_file_nav::<B>(frame, nav_pane, &mut app.ui.file_browser);
+            ContentDisplayMode::FileBrowser(filebrowser) => {
+                render_file_nav::<B>(frame, nav_pane, filebrowser);
             }
         }
 
         // Render content pane based on selected mode
         match &mut app.ui.selected_mode {
-            NavigationMode::Conversation(conv_ui) => {
+            ContentDisplayMode::Conversation(conv_ui) => {
                 render_conversation_mode::<B>(
                     frame,
                     content_pane,
@@ -90,12 +91,8 @@ pub async fn draw_ui<B: Backend>(
                     &server_name,
                 );
             }
-            NavigationMode::File => {
-                render_file_content::<B>(
-                    frame,
-                    content_pane,
-                    &app.ui.file_browser,
-                );
+            ContentDisplayMode::FileBrowser(filebrowser) => {
+                render_file_content::<B>(frame, content_pane, &filebrowser);
             }
         }
 
@@ -117,12 +114,12 @@ pub async fn draw_ui<B: Backend>(
 fn render_nav_tabs<B: Backend>(
     frame: &mut Frame,
     area: Rect,
-    selected_mode: &NavigationMode,
+    selected_mode: &ContentDisplayMode,
 ) {
     let tabs = vec!["Conversation", "File Browser"];
     let tab_index = match selected_mode {
-        NavigationMode::Conversation(_) => 0,
-        NavigationMode::File => 1,
+        ContentDisplayMode::Conversation(_) => 0,
+        ContentDisplayMode::FileBrowser(_) => 1,
     };
     let tabs = Tabs::new(tabs)
         .block(Block::default().borders(Borders::ALL))

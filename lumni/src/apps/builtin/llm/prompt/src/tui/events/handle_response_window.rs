@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ConversationWindowEvent, NavigationMode, TextWindowTrait,
-    WindowEvent, WindowKind,
+    AppUi, ContentDisplayMode, ConversationEvent, TextWindowTrait, WindowKind,
+    WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -16,9 +16,9 @@ pub fn handle_response_window_event(
     app_ui: &mut AppUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
-) -> Result<WindowEvent, ApplicationError> {
+) -> Result<WindowMode, ApplicationError> {
     let conv_ui = match &mut app_ui.selected_mode {
-        NavigationMode::Conversation(ui) => ui,
+        ContentDisplayMode::Conversation(ui) => ui,
         _ => {
             return Err(ApplicationError::InvalidState(
                 "Cant use response window. Not in Conversation mode"
@@ -42,20 +42,14 @@ pub fn handle_response_window_event(
             // catch Ctrl + shortcut key
             if key_track.current_key().modifiers == KeyModifiers::CONTROL {
                 match key {
-                    'c' => {
-                        return Ok(WindowEvent::Quit);
-                    }
-                    'q' => {
-                        return Ok(WindowEvent::Quit);
-                    }
                     'a' => {
                         conv_ui.response.text_select_all();
                     }
                     _ => {}
                 }
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Response,
-                ));
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Response,
+                )));
             } else {
                 // process regular key
                 match key {

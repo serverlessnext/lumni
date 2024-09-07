@@ -20,7 +20,7 @@ pub use window_config::{
     WindowConfig, WindowContent, WindowKind, WindowStatus,
 };
 
-use super::events::{ConversationWindowEvent, KeyTrack, WindowEvent};
+use super::events::{ConversationEvent, KeyTrack, WindowMode};
 use crate::external as lumni;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,7 +96,7 @@ impl PromptWindow<'_> {
         self
     }
 
-    pub fn next_window_status(&mut self) -> WindowEvent {
+    pub fn next_window_status(&mut self) -> WindowMode {
         let next_status = match self.window_status() {
             WindowStatus::Normal(_) => WindowStatus::Insert,
             _ => {
@@ -111,9 +111,7 @@ impl PromptWindow<'_> {
         };
 
         self.set_window_status(next_status);
-        return WindowEvent::Conversation(ConversationWindowEvent::Prompt(
-            None,
-        ));
+        return WindowMode::Conversation(Some(ConversationEvent::Prompt));
     }
 }
 

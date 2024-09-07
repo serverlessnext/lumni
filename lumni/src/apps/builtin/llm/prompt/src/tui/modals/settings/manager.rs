@@ -176,7 +176,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     pub async fn refresh_list(
         &mut self,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         let items = T::load_items(&mut self.db_handler).await?;
         let default_item = T::load_default_item(&mut self.db_handler).await?;
 
@@ -186,14 +186,14 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
         self.list = SettingsList::new(items, default_item);
         self.load_selected_item_settings().await?;
-        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
 
     pub async fn handle_key_event(
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match *tab_focus {
             TabFocus::List => {
                 self.handle_list_input(key_event, tab_focus).await
@@ -211,7 +211,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match key_event.code {
             KeyCode::Up => {
                 if self.rename_buffer.is_some() {
@@ -220,7 +220,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 if self.list.move_selection_up() {
                     self.load_selected_item_settings().await?;
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Down => {
                 if self.rename_buffer.is_some() {
@@ -229,7 +229,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 if self.list.move_selection_down() {
                     self.load_selected_item_settings().await?;
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Enter => {
                 if self.rename_buffer.is_some() {
@@ -241,7 +241,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 } else {
                     *tab_focus = TabFocus::Settings;
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Char(' ') => {
                 let selected_item = self.list.get_selected_item().cloned();
@@ -251,46 +251,46 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                     {
                         self.list.mark_as_default(&item);
                         self.db_handler.set_default_profile(profile).await?;
-                        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                     } else {
-                        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                     }
                 } else {
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
             }
             KeyCode::Backspace if self.get_rename_buffer().is_some() => {
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.pop();
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Char(c) if self.rename_buffer.is_some() => {
                 // ensure this is matched before any other char
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.push(c);
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
                 self.start_item_renaming();
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Backspace if self.rename_buffer.is_some() => {
                 if let Some(buffer) = &mut self.rename_buffer {
                     buffer.pop();
                 }
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Esc if self.rename_buffer.is_some() => {
                 self.cancel_rename_item();
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
             KeyCode::Char('D') => {
                 self.delete_selected_item().await?;
-                Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
-            _ => Ok(WindowEvent::Modal(ModalAction::UpdateUI)),
+            _ => Ok(WindowMode::Modal(ModalEvent::UpdateUI)),
         }
     }
 
@@ -298,7 +298,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         // Handle key event in settings editor
         let (new_mode, handled, action) =
             self.settings_editor.handle_key_event(key_event.code);
@@ -331,7 +331,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 }
             }
 
-            return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+            return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
         }
 
         if self.settings_editor.edit_mode == EditMode::NotEditing
@@ -341,33 +341,33 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 || key_event.code == KeyCode::Tab)
         {
             *tab_focus = TabFocus::List;
-            return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+            return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
         }
 
-        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
 
     async fn handle_creation_input(
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         if let Some(creator) = &mut self.creator {
             let action = creator.handle_input(key_event).await?;
             match action {
                 CreatorAction::Continue => {
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
                 CreatorAction::Cancel => {
                     self.creator = None;
                     *tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
                 CreatorAction::Finish(new_item) => {
                     self.list.add_item(new_item);
                     self.creator = None;
                     *tab_focus = TabFocus::List;
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
                 CreatorAction::CreateItem => {
                     let result = creator.create_item().await?;
@@ -376,22 +376,22 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                             self.list.add_item(new_item);
                             self.creator = None;
                             *tab_focus = TabFocus::List;
-                            Ok(WindowEvent::Modal(
-                                ModalAction::PollBackGroundTask,
+                            Ok(WindowMode::Modal(
+                                ModalEvent::PollBackGroundTask,
                             ))
                         }
-                        _ => Ok(WindowEvent::Modal(
-                            ModalAction::PollBackGroundTask,
+                        _ => Ok(WindowMode::Modal(
+                            ModalEvent::PollBackGroundTask,
                         )),
                     }
                 }
                 CreatorAction::LoadAdditionalSettings => {
                     // Handle loading additional settings if needed
-                    Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
             }
         } else {
-            Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+            Ok(WindowMode::Modal(ModalEvent::UpdateUI))
         }
     }
 

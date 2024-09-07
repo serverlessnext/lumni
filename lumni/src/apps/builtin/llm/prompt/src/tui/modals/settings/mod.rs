@@ -19,11 +19,11 @@ use settings_editor::{SettingsAction, SettingsEditor};
 
 use super::widgets::{ListWidget, ListWidgetState, TextArea};
 use super::{
-    ApplicationError, ConversationDbHandler, ConversationWindowEvent, KeyTrack,
-    MaskMode, ModalAction, ModalWindowTrait, ModalWindowType, ModelServer,
+    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
+    MaskMode, ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer,
     ModelSpec, ProviderConfig, ProviderConfigOptions, ReadDocument,
     ServerTrait, SimpleString, TextLine, TextSegment, ThreadedChatSession,
-    UserProfile, UserProfileDbHandler, WindowEvent, SUPPORTED_MODEL_ENDPOINTS,
+    UserProfile, UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -112,21 +112,21 @@ impl SettingsModal {
     pub async fn handle_key_event(
         &mut self,
         key_event: KeyEvent,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         if matches!(self.tab_focus, TabFocus::List | TabFocus::Settings) {
             match key_event.code {
                 KeyCode::Tab => {
                     self.switch_tab().await?;
-                    return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                    return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
                 }
                 KeyCode::Esc | KeyCode::Backspace => {
                     if self.tab_focus == TabFocus::Settings {
                         self.tab_focus = TabFocus::List;
-                        return Ok(WindowEvent::Modal(ModalAction::UpdateUI));
+                        return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
                     } else if !self.manager.get_rename_buffer().is_some() {
-                        return Ok(WindowEvent::Conversation(
-                            ConversationWindowEvent::Prompt(None),
-                        ));
+                        return Ok(WindowMode::Conversation(Some(
+                            ConversationEvent::Prompt,
+                        )));
                     }
                 }
                 _ => {}
@@ -177,7 +177,7 @@ impl SettingsModal {
 
     pub async fn refresh_list(
         &mut self,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match &mut self.manager {
             SettingsManagerEnum::Profile(manager) => {
                 manager.refresh_list().await
@@ -483,7 +483,7 @@ impl ModalWindowTrait for SettingsModal {
 
     async fn poll_background_task(
         &mut self,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         match &mut self.manager {
             SettingsManagerEnum::Profile(manager) => {
                 if let TabFocus::Creation = self.tab_focus {
@@ -495,13 +495,13 @@ impl ModalWindowTrait for SettingsModal {
                                     manager.creator = None;
                                     self.tab_focus = TabFocus::List;
                                     self.refresh_list().await?;
-                                    return Ok(WindowEvent::Modal(
-                                        ModalAction::PollBackGroundTask,
+                                    return Ok(WindowMode::Modal(
+                                        ModalEvent::PollBackGroundTask,
                                     ));
                                 }
                                 CreatorAction::CreateItem => {
-                                    return Ok(WindowEvent::Modal(
-                                        ModalAction::PollBackGroundTask,
+                                    return Ok(WindowMode::Modal(
+                                        ModalEvent::PollBackGroundTask,
                                     ));
                                 }
                                 _ => {}
@@ -514,7 +514,7 @@ impl ModalWindowTrait for SettingsModal {
                 // Provider creation is instant and does not have background tasks
             }
         }
-        Ok(WindowEvent::Modal(ModalAction::UpdateUI))
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
 
     async fn handle_key_event<'b>(
@@ -522,7 +522,7 @@ impl ModalWindowTrait for SettingsModal {
         key_event: &'b mut KeyTrack,
         _tab_chat: Option<&'b mut ThreadedChatSession>,
         _handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         self.handle_key_event(key_event.current_key()).await
     }
 }

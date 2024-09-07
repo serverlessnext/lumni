@@ -9,8 +9,8 @@ pub use key_event::{KeyEventHandler, KeyTrack};
 use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
-use super::modals::{ModalAction, ModalWindowType};
-use super::ui::{AppUi, NavigationMode};
+use super::modals::ModalWindowType;
+use super::ui::{AppUi, ContentDisplayMode};
 use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
     WindowKind,
@@ -18,19 +18,32 @@ use super::window::{
 use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};
 pub use crate::external as lumni;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum WindowEvent {
-    Quit,
-    Conversation(ConversationWindowEvent),
+#[derive(Debug)]
+pub enum WindowMode {
+    Select,
+    Conversation(Option<ConversationEvent>),
+    FileBrowser(Option<FileBrowserEvent>),
     CommandLine(Option<CommandLineAction>),
     Prompt(PromptAction),
-    Modal(ModalAction),
+    Modal(ModalEvent),
+    Quit,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConversationWindowEvent {
-    Prompt(Option<ConversationEvent>),
+pub enum ConversationEvent {
+    Select,
+    Prompt,
     Response,
+    NewConversation(NewConversation),
+    ReloadConversation, // only reload conversation
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FileBrowserEvent {
+    Select,
+    Search,
+    Quit,
+    OpenFile,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,9 +58,12 @@ pub enum CommandLineAction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConversationEvent {
-    NewConversation(NewConversation),
-    ReloadConversation, // only reload conversation
+pub enum ModalEvent {
+    Open(ModalWindowType), // open the modal
+    PollBackGroundTask,    // modal needs to be polled for background updates
+    UpdateUI, // update the UI of the modal once and wait for the next key event
+    Close,    // close the current modal
+    Event(UserEvent),
 }
 
 #[derive(Debug, Clone, PartialEq)]

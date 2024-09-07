@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ConversationWindowEvent, ModalAction, ModalWindowType,
-    NavigationMode, PromptAction, TextWindowTrait, WindowEvent,
+    AppUi, ContentDisplayMode, ConversationEvent, ModalEvent, ModalWindowType,
+    PromptAction, TextWindowTrait, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -16,7 +16,7 @@ pub fn handle_command_line_event(
     app_ui: &mut AppUi,
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
-) -> Result<WindowEvent, ApplicationError> {
+) -> Result<WindowMode, ApplicationError> {
     let key_code = key_track.current_key().code;
 
     match key_code {
@@ -34,15 +34,15 @@ pub fn handle_command_line_event(
             app_ui.command_line.set_status_inactive();
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
-                    "q" => return Ok(WindowEvent::Quit),
                     "w" => {
-                        if let NavigationMode::Conversation(ref mut conv_ui) =
-                            &mut app_ui.selected_mode
+                        if let ContentDisplayMode::Conversation(
+                            ref mut conv_ui,
+                        ) = &mut app_ui.selected_mode
                         {
                             let question =
                                 conv_ui.prompt.text_buffer().to_string();
                             conv_ui.prompt.text_empty();
-                            return Ok(WindowEvent::Prompt(
+                            return Ok(WindowMode::Prompt(
                                 PromptAction::Write(question),
                             ));
                         } else {
@@ -52,20 +52,18 @@ pub fn handle_command_line_event(
                         }
                     }
                     "stop" => {
-                        return Ok(WindowEvent::Prompt(PromptAction::Stop));
+                        return Ok(WindowMode::Prompt(PromptAction::Stop));
                     }
                     _ => {} // command not recognized
                 }
             }
-            Ok(WindowEvent::Conversation(ConversationWindowEvent::Prompt(
-                None,
-            )))
+            Ok(WindowMode::Conversation(Some(ConversationEvent::Prompt)))
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window
             app_ui.command_line.text_empty();
             app_ui.command_line.set_status_inactive();
-            Ok(WindowEvent::Modal(ModalAction::Open(
+            Ok(WindowMode::Modal(ModalEvent::Open(
                 ModalWindowType::ProfileEdit,
             )))
         }

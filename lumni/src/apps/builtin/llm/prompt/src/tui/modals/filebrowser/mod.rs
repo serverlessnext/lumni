@@ -11,9 +11,9 @@ use ratatui::Frame;
 
 use super::widgets::{FileBrowserState, FileBrowserWidget};
 use super::{
-    ApplicationError, ConversationDbHandler, ConversationWindowEvent, KeyTrack,
-    ModalAction, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
-    WindowEvent,
+    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
+    ModalEvent, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
+    WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -194,7 +194,7 @@ impl ModalWindowTrait for FileBrowserModal {
         key_event: &'b mut KeyTrack,
         _tab_chat: Option<&'b mut ThreadedChatSession>,
         _handler: &mut ConversationDbHandler,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         let modal_action = self
             .file_browser
             .handle_key_event(key_event, &mut self.file_browser_state)?;
@@ -204,22 +204,22 @@ impl ModalWindowTrait for FileBrowserModal {
                 self.update_selected_file_info().await?;
             }
             KeyCode::Esc => {
-                return Ok(WindowEvent::Conversation(
-                    ConversationWindowEvent::Prompt(None),
-                ));
+                return Ok(WindowMode::Conversation(Some(
+                    ConversationEvent::Prompt,
+                )));
             }
             _ => {}
         }
-        Ok(WindowEvent::Modal(modal_action))
+        Ok(WindowMode::Modal(modal_action))
     }
 
     async fn poll_background_task(
         &mut self,
-    ) -> Result<WindowEvent, ApplicationError> {
+    ) -> Result<WindowMode, ApplicationError> {
         self.file_browser
             .poll_background_task(&mut self.file_browser_state)
             .await?;
         self.update_selected_file_info().await?;
-        Ok(WindowEvent::Modal(ModalAction::PollBackGroundTask))
+        Ok(WindowMode::Modal(ModalEvent::PollBackGroundTask))
     }
 }

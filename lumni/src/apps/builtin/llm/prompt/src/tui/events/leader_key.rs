@@ -1,5 +1,5 @@
 use super::key_event::KeyTrack;
-use super::{ModalAction, ModalWindowType, WindowEvent};
+use super::{ModalEvent, ModalWindowType, WindowMode};
 
 pub const LEADER_KEY: char = ' ';
 
@@ -44,7 +44,7 @@ macro_rules! define_commands {
 // is reserved to always trigger insert mode
 define_commands!(PE, PC, PF);
 
-pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
+pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowMode> {
     let leader_key_str = key_track.previous_key_str();
 
     match leader_key_str {
@@ -52,13 +52,13 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowEvent> {
             MatchOutcome::FullMatch(cmd) => {
                 // NOTE: should match define_commands! macro
                 let window_event = match cmd.as_str() {
-                    "pe" => Some(WindowEvent::Modal(ModalAction::Open(
+                    "pe" => Some(WindowMode::Modal(ModalEvent::Open(
                         ModalWindowType::ProfileEdit,
                     ))),
-                    "pc" => Some(WindowEvent::Modal(ModalAction::Open(
+                    "pc" => Some(WindowMode::Modal(ModalEvent::Open(
                         ModalWindowType::ConversationList,
                     ))),
-                    "pf" => Some(WindowEvent::Modal(ModalAction::Open(
+                    "pf" => Some(WindowMode::Modal(ModalEvent::Open(
                         ModalWindowType::FileBrowser,
                     ))),
                     _ => None,

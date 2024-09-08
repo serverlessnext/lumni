@@ -16,7 +16,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
-    Block, Borders, Paragraph, StatefulWidget, StatefulWidgetRef, Widget,
+    Block, Borders, Paragraph, StatefulWidget, StatefulWidgetRef, Widget, Wrap,
 };
 use tokio::sync::mpsc;
 
@@ -191,7 +191,8 @@ impl FileBrowserWidget {
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             )
-            .highlight_symbol("> ".to_string());
+            .highlight_symbol("► ".to_string())
+            .show_borders(false);
 
         let mut widget = Self {
             base_path,
@@ -273,7 +274,8 @@ impl FileBrowserWidget {
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
                 )
-                .highlight_symbol("> ".to_string());
+                .highlight_symbol("► ".to_string())
+                .show_borders(false);
         }
     }
 
@@ -331,36 +333,66 @@ impl FileBrowserWidget {
             .current_path
             .strip_prefix(&self.base_path)
             .unwrap_or(&self.current_path);
-        let path_parts: Vec<&str> = relative_path
-            .to_str()
-            .unwrap_or("")
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
 
-        let mut path_spans = vec![Span::styled(
-            self.base_path.to_str().unwrap_or(""),
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        )];
+        let path_str = relative_path.to_str().unwrap_or("");
+        let path_parts: Vec<&str> =
+            path_str.split('/').filter(|s| !s.is_empty()).collect();
+
+        let mut path_spans = vec![
+            Span::styled("📂 ", Style::default().fg(Color::Cyan)),
+            Span::styled(
+                self.base_path
+                    .file_name()
+                    .unwrap_or(self.base_path.as_os_str())
+                    .to_str()
+                    .unwrap_or(""),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ];
 
         if !path_parts.is_empty() {
-            path_spans.push(Span::raw(" → "));
-            for (i, part) in path_parts.iter().enumerate() {
+            path_spans.push(Span::raw(" / "));
+
+            if path_parts.len() > 2 {
+                // Show first part
                 path_spans.push(Span::styled(
-                    *part,
-                    Style::default().fg(Color::Yellow),
+                    path_parts[0],
+                    Style::default().fg(Color::Gray),
                 ));
-                if i < path_parts.len() - 1 {
-                    path_spans.push(Span::raw(" / "));
+                path_spans.push(Span::raw(" / .. / "));
+
+                // Show last part
+                path_spans.push(Span::styled(
+                    path_parts[path_parts.len() - 1],
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                // If 2 or fewer parts, show all
+                for (i, part) in path_parts.iter().enumerate() {
+                    path_spans.push(Span::styled(
+                        *part,
+                        if i == path_parts.len() - 1 {
+                            Style::default()
+                                .fg(Color::Gray)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(Color::Gray)
+                        },
+                    ));
+                    if i < path_parts.len() - 1 {
+                        path_spans.push(Span::raw(" / "));
+                    }
                 }
             }
         }
 
         let path_widget = Paragraph::new(Line::from(path_spans))
-            .block(Block::default().borders(Borders::ALL).title("Path"))
-            .alignment(Alignment::Left);
+            .block(Block::default().borders(Borders::NONE))
+            .wrap(Wrap { trim: true });
 
         path_widget.render(area, buf);
     }
@@ -373,10 +405,13 @@ impl FileBrowserWidget {
     ) {
         let (input_style, border_style) = match state.focus {
             FileBrowserFocus::PathInput => (
-                Style::default().fg(Color::Yellow),
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(Color::Cyan),
+                Style::default().fg(Color::DarkGray),
             ),
-            FileBrowserFocus::FileList => (Style::default(), Style::default()),
+            FileBrowserFocus::FileList => (
+                Style::default().fg(Color::Gray),
+                Style::default().fg(Color::DarkGray),
+            ),
         };
 
         let block = Block::default()
@@ -395,6 +430,103 @@ impl FileBrowserWidget {
             .widget(&inner_area)
             .style(input_style)
             .render(inner_area, buf);
+    }
+
+    fn get_display_path(&self) -> String {
+        let relative_path = self
+            .current_path
+            .strip_prefix(&self.base_path)
+            .unwrap_or(&self.current_path);
+        let path_parts: Vec<&str> = relative_path
+            .to_str()
+            .unwrap_or("")
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let base_dir_name = self
+            .base_path
+            .file_name()
+            .unwrap_or(self.base_path.as_os_str())
+            .to_str()
+            .unwrap_or("/");
+
+        match path_parts.len() {
+            0 => base_dir_name.to_string(),
+            1 => format!("{}/{}", base_dir_name, path_parts[0]),
+            _ => format!(
+                "{}/../{}",
+                base_dir_name,
+                path_parts.last().unwrap_or(&"")
+            ),
+        }
+    }
+
+    fn render_integrated_path_input(
+        &self,
+        buf: &mut Buffer,
+        area: Rect,
+        state: &mut FileBrowserState,
+    ) {
+        let (input_style, border_style) = match state.focus {
+            FileBrowserFocus::PathInput => (
+                Style::default().fg(Color::Cyan),
+                Style::default().fg(Color::Yellow),
+            ),
+            FileBrowserFocus::FileList => (
+                Style::default().fg(Color::Gray),
+                Style::default().fg(Color::DarkGray),
+            ),
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(border_style);
+
+        let inner_area = block.inner(area);
+        block.render(area, buf);
+
+        // Render current directory path in the title area
+        let display_path = self.get_display_path();
+        let mut title = format!("📂 {}", display_path);
+        let max_title_width = area.width.saturating_sub(2) as usize; // Leave space for borders
+
+        // Truncate the title if it's too long
+        if title.len() > max_title_width {
+            title = title
+                .chars()
+                .take(max_title_width.saturating_sub(3))
+                .collect::<String>()
+                + "...";
+        }
+
+        let title_width = title.len() as u16;
+        let title_area = Rect::new(
+            area.x + 1,
+            area.y,
+            title_width.min(area.width.saturating_sub(2)),
+            1,
+        );
+        let title_paragraph = Paragraph::new(title).style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+        title_paragraph.render(title_area, buf);
+
+        // Render the input field
+        let input_area = Rect {
+            x: inner_area.x,
+            y: inner_area.y,
+            width: inner_area.width,
+            height: 1,
+        };
+
+        state
+            .path_input
+            .widget(&input_area)
+            .style(input_style)
+            .render(input_area, buf);
     }
 
     fn render_loading(
@@ -685,15 +817,16 @@ impl StatefulWidgetRef for &FileBrowserWidget {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Visual path display
-                Constraint::Length(3), // Editable path input
-                Constraint::Min(1),    // File list
+                //Constraint::Length(3), // Editable path input
+                Constraint::Min(1), // File list
             ])
             .split(area);
 
-        self.render_visual_path(buf, chunks[0]);
-        self.render_path_input(buf, chunks[1], state);
+        //self.render_visual_path(buf, chunks[0]);
+        //self.render_path_input(buf, chunks[1], state);
+        self.render_integrated_path_input(buf, chunks[0], state);
         self.list_widget
-            .render(chunks[2], buf, &mut state.list_state);
+            .render(chunks[1], buf, &mut state.list_state);
 
         if state.task_start_time.is_some() {
             self.render_loading(buf, area, state);

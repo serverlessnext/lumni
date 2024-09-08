@@ -17,33 +17,23 @@ pub fn handle_response_window_event(
     key_track: &mut KeyTrack,
     is_running: Arc<AtomicBool>,
 ) -> Result<WindowMode, ApplicationError> {
-    let conv_ui = match &mut app_ui.selected_mode {
-        ContentDisplayMode::Conversation(ui) => ui,
-        _ => {
-            return Err(ApplicationError::InvalidState(
-                "Cant use response window. Not in Conversation mode"
-                    .to_string(),
-            ))
-        }
-    };
-
     match key_track.current_key().code {
         KeyCode::Down => {
-            let (_, row) = conv_ui.response.get_column_row();
-            if row == conv_ui.response.max_row_idx() {
+            let (_, row) = app_ui.conversation_ui.response.get_column_row();
+            if row == app_ui.conversation_ui.response.max_row_idx() {
                 // jump from response window to prompt window
-                return Ok(conv_ui.set_prompt_window(true));
+                return Ok(app_ui.conversation_ui.set_prompt_window(true));
             }
         }
         KeyCode::Tab => {
-            return Ok(conv_ui.set_prompt_window(false));
+            return Ok(app_ui.conversation_ui.set_prompt_window(false));
         }
         KeyCode::Char(key) => {
             // catch Ctrl + shortcut key
             if key_track.current_key().modifiers == KeyModifiers::CONTROL {
                 match key {
                     'a' => {
-                        conv_ui.response.text_select_all();
+                        app_ui.conversation_ui.response.text_select_all();
                     }
                     _ => {}
                 }
@@ -54,22 +44,32 @@ pub fn handle_response_window_event(
                 // process regular key
                 match key {
                     'i' | 'I' => {
-                        return Ok(conv_ui.set_prompt_window(true));
+                        return Ok(app_ui
+                            .conversation_ui
+                            .set_prompt_window(true));
                     }
                     't' | 'T' => {
-                        return Ok(conv_ui.set_prompt_window(false));
+                        return Ok(app_ui
+                            .conversation_ui
+                            .set_prompt_window(false));
                     }
                     '+' => {
-                        conv_ui.set_primary_window(WindowKind::ResponseWindow);
+                        app_ui
+                            .conversation_ui
+                            .set_primary_window(WindowKind::ResponseWindow);
                     }
                     '-' => {
-                        conv_ui.set_primary_window(WindowKind::EditorWindow);
+                        app_ui
+                            .conversation_ui
+                            .set_primary_window(WindowKind::EditorWindow);
                     }
                     ' ' => {
                         if let Some(prev) = key_track.previous_key_str() {
                             if prev == " " {
                                 // change to insert mode if double space
-                                return Ok(conv_ui.set_prompt_window(true));
+                                return Ok(app_ui
+                                    .conversation_ui
+                                    .set_prompt_window(true));
                             }
                         }
                     }
@@ -79,5 +79,9 @@ pub fn handle_response_window_event(
         }
         _ => {}
     }
-    handle_text_window_event(key_track, &mut conv_ui.response, is_running)
+    handle_text_window_event(
+        key_track,
+        &mut app_ui.conversation_ui.response,
+        is_running,
+    )
 }

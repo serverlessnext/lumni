@@ -18,7 +18,7 @@ use super::{
 };
 pub use crate::external as lumni;
 
-const MAX_WIDTH: u16 = 40;
+const MAX_WIDTH: u16 = 36;
 const MAX_HEIGHT: u16 = 60;
 
 pub struct ConversationListModal {

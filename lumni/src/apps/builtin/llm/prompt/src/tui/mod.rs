@@ -1,5 +1,6 @@
 mod clipboard;
 mod colorscheme;
+mod conversations;
 mod draw;
 mod events;
 mod modals;
@@ -8,6 +9,7 @@ pub mod widgets;
 mod window;
 
 pub use colorscheme::{ColorScheme, ColorSchemeType};
+pub use conversations::Conversations;
 pub use draw::draw_ui;
 pub use events::{
     CommandLineAction, ConversationEvent, FileBrowserEvent, KeyEventHandler,

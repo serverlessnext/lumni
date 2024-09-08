@@ -46,7 +46,6 @@ define_commands!(PE, PC, PF);
 
 pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowMode> {
     let leader_key_str = key_track.previous_key_str();
-
     match leader_key_str {
         Some(key_str) => match LeaderKeyCommand::match_command(key_str) {
             MatchOutcome::FullMatch(cmd) => {

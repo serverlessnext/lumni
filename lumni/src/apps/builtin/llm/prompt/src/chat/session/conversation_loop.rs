@@ -63,16 +63,12 @@ pub async fn prompt_app<B: Backend>(
                     if let Ok(event) = active_session.subscribe().recv().await {
                         match event {
                             ChatEvent::ResponseUpdate(content) => {
-                                if let ContentDisplayMode::Conversation(conv_ui) = &mut app.ui.selected_mode {
-                                    conv_ui.response.text_append(&content, Some(color_scheme.get_secondary_style()))?;
-                                    redraw_ui = true;
-                                }
+                                app.ui.conversation_ui.response.text_append(&content, Some(color_scheme.get_secondary_style()))?;
+                                redraw_ui = true;
                             },
                             ChatEvent::FinalResponse => {
-                                if let ContentDisplayMode::Conversation(conv_ui) = &mut app.ui.selected_mode {
-                                    conv_ui.response.text_append("\n\n", Some(color_scheme.get_secondary_style()))?;
-                                    redraw_ui = true;
-                                }
+                                app.ui.conversation_ui.response.text_append("\n\n", Some(color_scheme.get_secondary_style()))?;
+                                redraw_ui = true;
                             },
                             ChatEvent::Error(error) => {
                                 log::error!("Chat session error: {}", error);
@@ -261,18 +257,14 @@ async fn handle_window_event(
 }
 
 fn handle_mouse_event(app: &mut App, mouse_event: MouseEvent) -> bool {
-    match &mut app.ui.selected_mode {
-        ContentDisplayMode::Conversation(conv_ui) => {
-            // handle mouse events in response window
-            match mouse_event.kind {
-                MouseEventKind::ScrollUp => conv_ui.response.scroll_up(),
-                MouseEventKind::ScrollDown => conv_ui.response.scroll_down(),
-                _ => return false, // ignore other mouse events
-            }
-            true // handled mouse event
+    match mouse_event.kind {
+        MouseEventKind::ScrollUp => app.ui.conversation_ui.response.scroll_up(),
+        MouseEventKind::ScrollDown => {
+            app.ui.conversation_ui.response.scroll_down()
         }
-        ContentDisplayMode::FileBrowser(_) => false, // No mouse handling in file mode
+        _ => return false, // ignore other mouse events
     }
+    true // handled mouse event
 }
 
 async fn handle_prompt_action(
@@ -286,20 +278,15 @@ async fn handle_prompt_action(
         }
         PromptAction::Stop => {
             app.stop_active_chat_session().await?;
-            if let ContentDisplayMode::Conversation(conv_ui) =
-                &mut app.ui.selected_mode
-            {
-                conv_ui.response.text_append(
-                    "\n",
-                    Some(color_scheme.get_secondary_style()),
-                )?;
-                // add an empty unstyled line
-                conv_ui.response.text_append("\n", Some(Style::reset()))?;
-            } else {
-                return Err(ApplicationError::InvalidState(
-                    "Not in Conversation mode".to_string(),
-                ));
-            }
+            app.ui
+                .conversation_ui
+                .response
+                .text_append("\n", Some(color_scheme.get_secondary_style()))?;
+            // add an empty unstyled line
+            app.ui
+                .conversation_ui
+                .response
+                .text_append("\n", Some(Style::reset()))?;
         }
     }
     Ok(())
@@ -309,15 +296,10 @@ fn handle_command_line_action(
     app: &mut App,
     action: Option<CommandLineAction>,
 ) {
-    match &mut app.ui.selected_mode {
-        ContentDisplayMode::Conversation(conv_ui) => {
-            if conv_ui.prompt.is_active() {
-                conv_ui.prompt.set_status_background();
-            } else {
-                conv_ui.response.set_status_background();
-            }
-        }
-        ContentDisplayMode::FileBrowser(_) => {} // Not yet implemented
+    if app.ui.conversation_ui.prompt.is_active() {
+        app.ui.conversation_ui.prompt.set_status_background();
+    } else {
+        app.ui.conversation_ui.response.set_status_background();
     }
 
     if let Some(CommandLineAction::Write(prefix)) = action {
@@ -392,25 +374,20 @@ async fn send_prompt<'a>(
 
     match result {
         Ok(_) => {
-            match &mut app.ui.selected_mode {
-                ContentDisplayMode::Conversation(conv_ui) => {
-                    // clear prompt
-                    conv_ui.prompt.text_empty();
-                    conv_ui.prompt.set_status_normal();
-                    conv_ui.response.text_append(
-                        &formatted_prompt,
-                        Some(color_scheme.get_primary_style()),
-                    )?;
-                    conv_ui.response.text_append("\n", Some(Style::reset()))?;
-                    conv_ui.set_primary_window(WindowKind::ResponseWindow);
-                }
-                ContentDisplayMode::FileBrowser(_) => {
-                    // Handle the case where we're not in Conversation mode
-                    return Err(ApplicationError::InvalidState(
-                        "Not in Conversation mode".to_string(),
-                    ));
-                }
-            }
+            // clear prompt
+            app.ui.conversation_ui.prompt.text_empty();
+            app.ui.conversation_ui.prompt.set_status_normal();
+            app.ui.conversation_ui.response.text_append(
+                &formatted_prompt,
+                Some(color_scheme.get_primary_style()),
+            )?;
+            app.ui
+                .conversation_ui
+                .response
+                .text_append("\n", Some(Style::reset()))?;
+            app.ui
+                .conversation_ui
+                .set_primary_window(WindowKind::ResponseWindow);
         }
         Err(prompt_error) => {
             // show error in alert window

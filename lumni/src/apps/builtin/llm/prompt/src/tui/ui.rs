@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
+use super::conversations::Conversations;
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
 use super::{
@@ -11,10 +12,14 @@ use super::{
     ModalEvent, ModalWindowTrait, ModalWindowType, PromptWindow,
     ResponseWindow, TextLine, TextWindowTrait, WindowKind, WindowMode,
 };
+
+#[derive(Debug)]
+pub struct Conversation;
+
 pub use crate::external as lumni;
 #[derive(Debug)]
 pub enum ContentDisplayMode {
-    Conversation(ConversationUi<'static>),
+    Conversation(Option<Conversation>),
     FileBrowser(FileBrowser),
 }
 
@@ -76,25 +81,26 @@ pub struct AppUi<'a> {
     pub command_line: CommandLine<'a>,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
     pub selected_mode: ContentDisplayMode,
+    pub conversations: Conversations,
+    pub conversation_ui: ConversationUi<'a>,
 }
 
 impl AppUi<'_> {
-    pub async fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
+    pub async fn new(
+        conversations: Conversations,
+        conversation_text: Option<Vec<TextLine>>,
+    ) -> Self {
         Self {
             command_line: CommandLine::new(),
             modal: None,
-            selected_mode: ContentDisplayMode::Conversation(
-                ConversationUi::new(conversation_text),
-            ),
+            selected_mode: ContentDisplayMode::Conversation(None),
+            conversations,
+            conversation_ui: ConversationUi::new(conversation_text),
         }
     }
 
     pub fn init(&mut self) {
-        if let ContentDisplayMode::Conversation(conv_ui) =
-            &mut self.selected_mode
-        {
-            conv_ui.init();
-        }
+        self.conversation_ui.init();
         self.command_line.init();
     }
 
@@ -144,30 +150,18 @@ impl AppUi<'_> {
     }
 
     pub fn set_response_window(&mut self) -> WindowMode {
-        if let ContentDisplayMode::Conversation(conv_ui) =
-            &mut self.selected_mode
-        {
-            conv_ui.prompt.set_status_background();
-            conv_ui.response.set_status_normal();
-            conv_ui.response.scroll_to_end();
-        } else {
-            unimplemented!("TODO: switch to ResponseWindow");
-        }
+        self.conversation_ui.prompt.set_status_background();
+        self.conversation_ui.response.set_status_normal();
+        self.conversation_ui.response.scroll_to_end();
         WindowMode::Conversation(Some(ConversationEvent::Response))
     }
 
     pub fn set_prompt_window(&mut self, insert_mode: bool) -> WindowMode {
-        if let ContentDisplayMode::Conversation(conv_ui) =
-            &mut self.selected_mode
-        {
-            conv_ui.response.set_status_background();
-            if insert_mode {
-                conv_ui.prompt.set_status_insert();
-            } else {
-                conv_ui.prompt.set_status_normal();
-            }
+        self.conversation_ui.response.set_status_background();
+        if insert_mode {
+            self.conversation_ui.prompt.set_status_insert();
         } else {
-            unimplemented!("TODO: switch to PromptWindow");
+            self.conversation_ui.prompt.set_status_normal();
         }
         WindowMode::Conversation(Some(ConversationEvent::Prompt))
     }
@@ -176,13 +170,8 @@ impl AppUi<'_> {
         self.modal = None;
     }
 
-    pub fn switch_to_conversation_mode(
-        &mut self,
-        conversation_text: Option<Vec<TextLine>>,
-    ) {
-        self.selected_mode = ContentDisplayMode::Conversation(
-            ConversationUi::new(conversation_text),
-        );
+    pub fn switch_to_conversation_mode(&mut self) {
+        self.selected_mode = ContentDisplayMode::Conversation(None);
     }
 
     fn switch_tab(&mut self, direction: TabDirection) -> WindowMode {
@@ -197,8 +186,7 @@ impl AppUi<'_> {
                 }
             }
             ContentDisplayMode::FileBrowser(_) => {
-                let display_mode =
-                    ContentDisplayMode::Conversation(ConversationUi::new(None));
+                let display_mode = ContentDisplayMode::Conversation(None);
                 match direction {
                     TabDirection::Right => display_mode,
                     TabDirection::Left => display_mode,

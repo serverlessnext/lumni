@@ -14,6 +14,7 @@ pub struct ListWidget {
     pub normal_style: Style,
     pub selected_style: Style,
     pub highlight_symbol: String,
+    pub show_borders: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +42,13 @@ impl ListWidget {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
             highlight_symbol: "> ".to_string(),
+            show_borders: true,
         }
+    }
+
+    pub fn show_borders(mut self, show: bool) -> Self {
+        self.show_borders = show;
+        self
     }
 
     pub fn normal_style(mut self, style: Style) -> Self {
@@ -229,7 +236,11 @@ impl StatefulWidgetRef for &ListWidget {
         let list = List::new(visible_items)
             .block(
                 Block::default()
-                    .borders(Borders::ALL)
+                    .borders(if self.show_borders {
+                        Borders::ALL
+                    } else {
+                        Borders::NONE
+                    })
                     .title(self.title.clone()),
             )
             .highlight_style(self.selected_style)

@@ -16,10 +16,10 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, ContentDisplayMode, ConversationEvent, KeyEventHandler,
-    ModalEvent, ModelServer, PromptAction, PromptError, PromptInstruction,
-    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
-    WindowKind, WindowMode,
+    CompletionResponse, ContentDisplayMode, ConversationEvent, Conversations,
+    KeyEventHandler, ModalEvent, ModelServer, PromptAction, PromptError,
+    PromptInstruction, PromptNotReadyReason, ServerManager, TextWindowTrait,
+    UserEvent, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -52,8 +52,11 @@ impl App<'_> {
         .await;
 
         log::debug!("Chat session manager created");
+        let handler = db_conn.get_conversation_handler(None);
+        let conversations =
+            Conversations::new(handler.fetch_conversation_list(100).await?);
 
-        let mut ui = AppUi::new(conversation_text).await;
+        let mut ui = AppUi::new(conversations, conversation_text).await;
         ui.init();
 
         Ok(App {
@@ -81,21 +84,14 @@ impl App<'_> {
         };
 
         if let Some(conversation_text) = conversation_text {
-            // Update the conversation UI if we're in Conversation mode
-            match &mut self.ui.selected_mode {
-                ContentDisplayMode::Conversation(conv_ui) => {
-                    conv_ui.reload_conversation_text(conversation_text);
-                }
-                ContentDisplayMode::FileBrowser(_) => {
-                    // If we're in File mode, switch to Conversation mode with the new text
-                    self.ui
-                        .switch_to_conversation_mode(Some(conversation_text));
-                }
-            }
+            // Update the conversation UI
+            self.ui
+                .conversation_ui
+                .reload_conversation_text(conversation_text);
         } else {
             // If there's no conversation text, ensure we're in Conversation mode with an empty conversation
             if let ContentDisplayMode::FileBrowser(_) = self.ui.selected_mode {
-                self.ui.switch_to_conversation_mode(None);
+                self.ui.switch_to_conversation_mode();
             }
         }
 

@@ -208,7 +208,7 @@ impl KeyEventHandler {
                 )?;
             }
             WindowMode::Conversation(ref event) => {
-                match event {
+                *current_mode = match event {
                     Some(ConversationEvent::Prompt) => {
                         handle_prompt_window_event(
                             app_ui,
@@ -227,6 +227,9 @@ impl KeyEventHandler {
                         match &mut app_ui.selected_mode {
                             ContentDisplayMode::Conversation(conversation) => {
                                 eprintln!("ConversationEvent::Select");
+                                *current_mode = WindowMode::Conversation(Some(
+                                    ConversationEvent::Prompt,
+                                ));
                             }
                             _ => {
                                 unreachable!(

@@ -35,21 +35,15 @@ pub fn handle_command_line_event(
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
                     "w" => {
-                        if let ContentDisplayMode::Conversation(
-                            ref mut conv_ui,
-                        ) = &mut app_ui.selected_mode
-                        {
-                            let question =
-                                conv_ui.prompt.text_buffer().to_string();
-                            conv_ui.prompt.text_empty();
-                            return Ok(WindowMode::Prompt(
-                                PromptAction::Write(question),
-                            ));
-                        } else {
-                            // Handle the case when not in Conversation mode
-                            //return Ok(WindowEvent::PromptWindow(None));
-                            unimplemented!("TODO: switch to PromptWindow");
-                        }
+                        let question = app_ui
+                            .conversation_ui
+                            .prompt
+                            .text_buffer()
+                            .to_string();
+                        app_ui.conversation_ui.prompt.text_empty();
+                        return Ok(WindowMode::Prompt(PromptAction::Write(
+                            question,
+                        )));
                     }
                     "stop" => {
                         return Ok(WindowMode::Prompt(PromptAction::Stop));

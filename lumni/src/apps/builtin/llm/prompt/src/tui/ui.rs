@@ -5,7 +5,7 @@ use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
 use super::conversations::Conversations;
-use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
+use super::modals::{FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
 use super::{
     CommandLine, ConversationDatabase, ConversationEvent, ConversationId,
@@ -62,10 +62,11 @@ impl<'a> ConversationUi<'a> {
         self.response.set_status_background();
         if insert_mode {
             self.prompt.set_status_insert();
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert))
         } else {
             self.prompt.set_status_normal();
+            WindowMode::Conversation(Some(ConversationEvent::PromptRead))
         }
-        WindowMode::Conversation(Some(ConversationEvent::Prompt))
     }
 
     pub fn set_primary_window(&mut self, window_type: WindowKind) {
@@ -130,13 +131,9 @@ impl AppUi<'_> {
         &mut self,
         modal_type: ModalWindowType,
         db_conn: &Arc<ConversationDatabase>,
-        conversation_id: Option<ConversationId>,
+        _conversation_id: Option<ConversationId>,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
-            ModalWindowType::ConversationList => {
-                let handler = db_conn.get_conversation_handler(conversation_id);
-                Some(Box::new(ConversationListModal::new(handler).await?))
-            }
             ModalWindowType::ProfileEdit => {
                 let handler = db_conn.get_profile_handler(None);
                 Some(Box::new(SettingsModal::new(handler).await?))
@@ -160,10 +157,11 @@ impl AppUi<'_> {
         self.conversation_ui.response.set_status_background();
         if insert_mode {
             self.conversation_ui.prompt.set_status_insert();
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert))
         } else {
             self.conversation_ui.prompt.set_status_normal();
+            WindowMode::Conversation(Some(ConversationEvent::PromptRead))
         }
-        WindowMode::Conversation(Some(ConversationEvent::Prompt))
     }
 
     pub fn clear_modal(&mut self) {

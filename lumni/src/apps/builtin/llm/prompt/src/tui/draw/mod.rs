@@ -1,42 +1,37 @@
 use std::io;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::block::{Position, Title};
-use ratatui::widgets::{
-    Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
-    Tabs,
-};
+use ratatui::widgets::{Block, Borders, Tabs};
 use ratatui::{Frame, Terminal};
 
 use super::ui::{ContentDisplayMode, ConversationUi};
 use super::widgets::FileBrowser;
-use super::{App, TextWindowTrait, WindowKind, WindowMode};
+use super::{App, TextWindowTrait, WindowMode};
+use crate::apps::builtin::llm::prompt::src::tui::ConversationEvent;
 
 pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
     window_mode: &WindowMode,
     app: &mut App<'_>,
 ) -> Result<(), io::Error> {
-    let server_name = app
-        .chat_manager
-        .active_session_info
-        .as_ref()
-        .and_then(|info| info.server_name.as_deref())
-        .unwrap_or_default()
-        .to_string();
-
     terminal.draw(|frame| {
         let terminal_area = frame.size();
-        const NAV_PANE_WIDTH: u16 = 36;
-        const NAV_TAB_HEIGHT: u16 = 3;
-
+        const NAV_PANE_WIDTH: u16 = 32;
+        const NAV_TAB_HEIGHT: u16 = 2;
         // Default background
         frame.render_widget(
             Block::default().style(Style::default().bg(Color::Rgb(16, 24, 32))),
             terminal_area,
         );
+
+        match window_mode {
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert)) => {
+                app.ui.conversation_ui.set_prompt_window(true);
+            }
+            _ => {}
+        }
 
         // Main layout
         let main_layout = Layout::default()
@@ -52,15 +47,15 @@ pub async fn draw_ui<B: Backend>(
 
         // Navigation pane styling
         let nav_block = Block::default()
-            .borders(Borders::RIGHT)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .style(Style::default().bg(Color::Rgb(24, 32, 40)));
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::Rgb(0, 0, 0)))
+            .style(Style::default().bg(Color::Rgb(16, 24, 32)));
         frame.render_widget(nav_block, nav_pane);
 
         // Content pane styling
         let content_block = Block::default()
-            .borders(Borders::NONE)
-            .style(Style::default().bg(Color::Rgb(16, 24, 32)));
+            .borders(Borders::LEFT)
+            .border_style(Style::default().fg(Color::DarkGray));
         frame.render_widget(content_block, content_pane);
 
         // Navigation layout
@@ -97,7 +92,6 @@ pub async fn draw_ui<B: Backend>(
             frame,
             content_inner,
             &mut app.ui.conversation_ui,
-            &server_name,
         );
 
         // Render modals if any
@@ -114,7 +108,7 @@ fn render_nav_tabs<B: Backend>(
     area: Rect,
     selected_mode: &ContentDisplayMode,
 ) {
-    let tabs = vec!["💬 Conversation", "📁 File Browser"];
+    let tabs = vec!["💬 Conversations", "📁 Files"];
     let tab_index = match selected_mode {
         ContentDisplayMode::Conversation(_) => 0,
         ContentDisplayMode::FileBrowser(_) => 1,
@@ -151,17 +145,14 @@ fn render_conversation_mode<B: Backend>(
     frame: &mut Frame,
     area: Rect,
     conv_ui: &mut ConversationUi,
-    server_name: &str,
 ) {
     let conversation_block = Block::default()
-        .title(server_name)
-        .title_alignment(Alignment::Center)
         .borders(Borders::NONE)
-        .style(Style::default().bg(Color::Rgb(16, 24, 32)));
+        .style(Style::default().bg(Color::Rgb(0, 0, 0)));
     frame.render_widget(conversation_block, area);
 
     let inner_area = area.inner(Margin {
-        vertical: 1,
+        vertical: 0,
         horizontal: 1,
     });
 
@@ -184,22 +175,6 @@ fn modal_area(area: Rect) -> Rect {
         area.width.saturating_sub(3),
         area.height.saturating_sub(4),
     )
-}
-
-fn content_window_block(title: &str, hint: Option<String>) -> Block<'_> {
-    let mut block = Block::default()
-        .style(Style::default().bg(Color::Black))
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::LightGreen).bg(Color::Black))
-        .title(Title::from(title).alignment(Alignment::Left));
-
-    if let Some(hint) = hint {
-        let title_hint = Title::from(hint)
-            .alignment(Alignment::Right)
-            .position(Position::Top);
-        block = block.title(title_hint)
-    }
-    block
 }
 
 fn window_hint() -> Option<String> {

@@ -73,7 +73,11 @@ pub fn handle_prompt_window_event(
                     _ => {}
                 }
                 return Ok(WindowMode::Conversation(Some(
-                    ConversationEvent::Prompt,
+                    if app_ui.conversation_ui.prompt.is_status_insert() {
+                        ConversationEvent::PromptInsert
+                    } else {
+                        ConversationEvent::PromptRead
+                    },
                 )));
             } else if !app_ui.conversation_ui.prompt.is_status_insert() {
                 // process regular key

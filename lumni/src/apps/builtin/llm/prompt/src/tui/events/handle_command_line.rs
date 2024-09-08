@@ -51,7 +51,9 @@ pub fn handle_command_line_event(
                     _ => {} // command not recognized
                 }
             }
-            Ok(WindowMode::Conversation(Some(ConversationEvent::Prompt)))
+            Ok(WindowMode::Conversation(Some(
+                ConversationEvent::PromptRead,
+            )))
         }
         KeyCode::Char(':') => {
             // double-colon opens Modal (Config) window

@@ -12,8 +12,9 @@ pub use colorscheme::{ColorScheme, ColorSchemeType};
 pub use conversations::Conversations;
 pub use draw::draw_ui;
 pub use events::{
-    CommandLineAction, ConversationEvent, FileBrowserEvent, KeyEventHandler,
-    KeyTrack, ModalEvent, PromptAction, UserEvent, WindowMode,
+    CommandLineAction, ConversationEvent, ConversationSelectEvent,
+    FileBrowserEvent, KeyEventHandler, KeyTrack, ModalEvent, PromptAction,
+    UserEvent, WindowMode,
 };
 use lumni::api::error::ApplicationError;
 pub use modals::{ModalWindowTrait, ModalWindowType};

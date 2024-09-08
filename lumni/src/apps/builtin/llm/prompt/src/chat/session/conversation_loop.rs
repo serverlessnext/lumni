@@ -32,7 +32,7 @@ pub async fn prompt_app<B: Backend>(
     let mut redraw_ui = true;
     let mut current_mode = match app.ui.selected_mode {
         ContentDisplayMode::Conversation(_) => {
-            WindowMode::Conversation(Some(ConversationEvent::Prompt))
+            WindowMode::Conversation(Some(ConversationEvent::PromptRead))
         }
         ContentDisplayMode::FileBrowser(_) => WindowMode::FileBrowser(None),
     };
@@ -195,19 +195,16 @@ async fn handle_window_event(
     match window_mode {
         WindowMode::Prompt(ref prompt_action) => {
             handle_prompt_action(app, prompt_action.clone()).await?;
-            //Ok(app.ui.set_prompt_window(false))
             *window_mode = app.ui.set_prompt_window(false);
             Ok(())
         }
         WindowMode::CommandLine(ref action) => {
             handle_command_line_action(app, action.clone());
-            //Ok(window_mode)
             Ok(())
         }
         WindowMode::Modal(ref action) => match action {
             ModalEvent::PollBackGroundTask => {
                 app.is_processing = true;
-                //Ok(window_mode)
                 Ok(())
             }
             ModalEvent::Open(ref modal_window_type) => {
@@ -220,21 +217,18 @@ async fn handle_window_event(
                     .await?;
                 // refresh at least once after opening modal
                 app.is_processing = true;
-                //Ok(WindowMode::Modal(ModalEvent::PollBackGroundTask))
                 *window_mode =
                     WindowMode::Modal(ModalEvent::PollBackGroundTask);
                 Ok(())
             }
             ModalEvent::Event(ref user_event) => {
                 handle_modal_user_event(app, user_event, db_conn).await?;
-                //Ok(window_mode)
                 Ok(())
             }
             _ => Ok(()),
         },
         WindowMode::Conversation(_) => {
             app.ui.clear_modal(); // ensure modal is closed
-                                  //Ok(window_mode)
             Ok(())
         }
         // Temporarily disabled: TODO: update to use new conversation events

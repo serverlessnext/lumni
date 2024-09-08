@@ -31,11 +31,16 @@ pub enum WindowMode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConversationEvent {
-    Select,
-    Prompt,
+    Select(Option<ConversationSelectEvent>),
+    PromptInsert,
+    PromptRead,
     Response,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConversationSelectEvent {
     NewConversation(NewConversation),
-    ReloadConversation, // only reload conversation
+    ReloadConversation,
 }
 
 #[derive(Debug, Clone, PartialEq)]

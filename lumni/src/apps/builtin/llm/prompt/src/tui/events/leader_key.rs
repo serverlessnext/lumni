@@ -42,7 +42,7 @@ macro_rules! define_commands {
 // <leader> + [] -> load a modal window
 // NOTE: cant use <leader> + something that includes "i", as this
 // is reserved to always trigger insert mode
-define_commands!(PE, PC, PF);
+define_commands!(PE, PF);
 
 pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowMode> {
     let leader_key_str = key_track.previous_key_str();
@@ -53,9 +53,6 @@ pub fn process_leader_key(key_track: &mut KeyTrack) -> Option<WindowMode> {
                 let window_event = match cmd.as_str() {
                     "pe" => Some(WindowMode::Modal(ModalEvent::Open(
                         ModalWindowType::ProfileEdit,
-                    ))),
-                    "pc" => Some(WindowMode::Modal(ModalEvent::Open(
-                        ModalWindowType::ConversationList,
                     ))),
                     "pf" => Some(WindowMode::Modal(ModalEvent::Open(
                         ModalWindowType::FileBrowser,

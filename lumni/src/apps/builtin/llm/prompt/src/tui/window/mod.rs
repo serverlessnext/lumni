@@ -111,7 +111,11 @@ impl PromptWindow<'_> {
         };
 
         self.set_window_status(next_status);
-        return WindowMode::Conversation(Some(ConversationEvent::Prompt));
+        if next_status == WindowStatus::Insert {
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert))
+        } else {
+            WindowMode::Conversation(Some(ConversationEvent::PromptRead))
+        }
     }
 }
 

@@ -1,9 +1,7 @@
-mod conversations;
 mod filebrowser;
 mod settings;
 
 use async_trait::async_trait;
-pub use conversations::ConversationListModal;
 pub use filebrowser::FileBrowserModal;
 use ratatui::layout::Rect;
 use ratatui::Frame;
@@ -11,17 +9,15 @@ pub use settings::SettingsModal;
 
 pub use super::widgets;
 use super::{
-    ApplicationError, Conversation, ConversationDbHandler, ConversationEvent,
-    ConversationId, ConversationStatus, KeyTrack, MaskMode, ModalEvent,
-    ModelServer, ModelSpec, PromptInstruction, PromptWindow, ProviderConfig,
+    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
+    MaskMode, ModalEvent, ModelServer, ModelSpec, ProviderConfig,
     ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    TextSegment, TextWindowTrait, ThreadedChatSession, UserEvent, UserProfile,
-    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    TextSegment, ThreadedChatSession, UserProfile, UserProfileDbHandler,
+    WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalWindowType {
-    ConversationList,
     ProfileEdit,
     FileBrowser,
 }

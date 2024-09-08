@@ -7,10 +7,10 @@ use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ConversationDbHandler, ConversationEvent,
-    FileBrowserEvent, ModalEvent, ThreadedChatSession, WindowMode,
+    AppUi, ApplicationError, ContentDisplayMode, ConversationDbHandler,
+    ConversationEvent, FileBrowserEvent, ModalEvent, ThreadedChatSession,
+    WindowMode,
 };
-use crate::apps::builtin::llm::prompt::src::tui::ContentDisplayMode;
 
 #[derive(Debug, Clone)]
 pub struct KeyTrack {
@@ -209,7 +209,8 @@ impl KeyEventHandler {
             }
             WindowMode::Conversation(ref event) => {
                 *current_mode = match event {
-                    Some(ConversationEvent::Prompt) => {
+                    Some(ConversationEvent::PromptInsert)
+                    | Some(ConversationEvent::PromptRead) => {
                         handle_prompt_window_event(
                             app_ui,
                             &mut self.key_track,
@@ -223,13 +224,17 @@ impl KeyEventHandler {
                             is_running,
                         )?
                     }
-                    Some(ConversationEvent::Select) => {
+                    Some(ConversationEvent::Select(_)) => {
                         match &mut app_ui.selected_mode {
-                            ContentDisplayMode::Conversation(conversation) => {
-                                eprintln!("ConversationEvent::Select");
-                                *current_mode = WindowMode::Conversation(Some(
-                                    ConversationEvent::Prompt,
-                                ));
+                            ContentDisplayMode::Conversation(_) => {
+                                *current_mode = app_ui
+                                    .conversations
+                                    .handle_key_event(
+                                        &mut self.key_track,
+                                        tab_chat,
+                                        handler,
+                                    )
+                                    .await?;
                             }
                             _ => {
                                 unreachable!(
@@ -315,24 +320,29 @@ impl KeyEventHandler {
                 };
             }
             WindowMode::Select => {
-                // catch Down and Enter
-                match current_key.code {
-                    KeyCode::Down | KeyCode::Enter => {
-                        match app_ui.selected_mode {
-                            ContentDisplayMode::Conversation(_) => {
-                                *current_mode = WindowMode::Conversation(Some(
-                                    ConversationEvent::Select,
-                                ));
-                            }
-                            ContentDisplayMode::FileBrowser(_) => {
-                                *current_mode = WindowMode::FileBrowser(Some(
-                                    FileBrowserEvent::Select,
-                                ));
+                // Forward event to the selected mode
+                match &mut app_ui.selected_mode {
+                    ContentDisplayMode::Conversation(_) => {
+                        *current_mode = app_ui
+                            .conversations
+                            .handle_key_event(
+                                &mut self.key_track,
+                                tab_chat,
+                                handler,
+                            )
+                            .await?;
+                    }
+                    ContentDisplayMode::FileBrowser(filebrowser) => {
+                        match filebrowser.handle_key_event(&mut self.key_track)
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                log::error!(
+                                    "Error handling key event: {:?}",
+                                    e
+                                );
                             }
                         }
-                    }
-                    _ => {
-                        app_ui.handle_key_event(current_key, current_mode);
                     }
                 }
             }

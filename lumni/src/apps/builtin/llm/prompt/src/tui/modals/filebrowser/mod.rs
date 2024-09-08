@@ -205,7 +205,7 @@ impl ModalWindowTrait for FileBrowserModal {
             }
             KeyCode::Esc => {
                 return Ok(WindowMode::Conversation(Some(
-                    ConversationEvent::Prompt,
+                    ConversationEvent::PromptRead,
                 )));
             }
             _ => {}

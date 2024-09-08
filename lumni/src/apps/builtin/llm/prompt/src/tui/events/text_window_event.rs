@@ -103,7 +103,7 @@ where
             WindowMode::Conversation(Some(ConversationEvent::Response))
         }
         WindowKind::EditorWindow => {
-            WindowMode::Conversation(Some(ConversationEvent::Prompt))
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert))
         }
         WindowKind::CommandLine => WindowMode::CommandLine(None),
     };
@@ -214,7 +214,7 @@ where
             WindowMode::Conversation(Some(ConversationEvent::Response))
         }
         WindowKind::EditorWindow => {
-            WindowMode::Conversation(Some(ConversationEvent::Prompt))
+            WindowMode::Conversation(Some(ConversationEvent::PromptInsert))
         }
         WindowKind::CommandLine => WindowMode::CommandLine(None),
     };

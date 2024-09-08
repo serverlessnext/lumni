@@ -125,7 +125,7 @@ impl SettingsModal {
                         return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
                     } else if !self.manager.get_rename_buffer().is_some() {
                         return Ok(WindowMode::Conversation(Some(
-                            ConversationEvent::Prompt,
+                            ConversationEvent::PromptRead,
                         )));
                     }
                 }

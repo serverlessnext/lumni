@@ -7,10 +7,12 @@ use ratatui::widgets::Borders;
 use super::conversations::Conversations;
 use super::modals::{FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
+use super::workspaces::Workspaces;
 use super::{
-    CommandLine, ConversationDatabase, ConversationEvent, ConversationId,
-    ModalEvent, ModalWindowTrait, ModalWindowType, PromptWindow,
-    ResponseWindow, TextLine, TextWindowTrait, WindowKind, WindowMode,
+    workspaces, CommandLine, ConversationDatabase, ConversationEvent,
+    ConversationId, ModalEvent, ModalWindowTrait, ModalWindowType,
+    PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowKind,
+    WindowMode,
 };
 
 #[derive(Debug)]
@@ -82,20 +84,20 @@ pub struct AppUi<'a> {
     pub command_line: CommandLine<'a>,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
     pub selected_mode: ContentDisplayMode,
-    pub conversations: Conversations,
+    pub workspaces: Workspaces,
     pub conversation_ui: ConversationUi<'a>,
 }
 
 impl AppUi<'_> {
     pub async fn new(
-        conversations: Conversations,
+        workspaces: Workspaces,
         conversation_text: Option<Vec<TextLine>>,
     ) -> Self {
         Self {
             command_line: CommandLine::new(),
             modal: None,
             selected_mode: ContentDisplayMode::Conversation(None),
-            conversations,
+            workspaces,
             conversation_ui: ConversationUi::new(conversation_text),
         }
     }

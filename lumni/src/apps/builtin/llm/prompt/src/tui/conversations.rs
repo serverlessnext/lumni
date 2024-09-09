@@ -12,8 +12,8 @@ use ratatui::Frame;
 use super::widgets::{ListWidget, ListWidgetState};
 use super::{
     Conversation, ConversationDbHandler, ConversationEvent, ConversationId,
-    ConversationSelectEvent, ConversationStatus, KeyTrack, ModalEvent,
-    PromptInstruction, ThreadedChatSession, UserEvent, WindowKind, WindowMode,
+    ConversationSelectEvent, ConversationStatus, KeyTrack, PromptInstruction,
+    ThreadedChatSession, WindowMode,
 };
 pub use crate::external as lumni;
 

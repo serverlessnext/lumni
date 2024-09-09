@@ -185,6 +185,11 @@ impl KeyEventHandler {
             }
         }
 
+        eprintln!(
+            "Modifier={:?}, Code={:?}",
+            current_key.modifiers, current_key.code
+        );
+
         if current_key.modifiers == KeyModifiers::SHIFT {
             // Catch Shift + (Back)Tab, Left or Right to switch main ui tabs
             match current_key.code {
@@ -227,14 +232,25 @@ impl KeyEventHandler {
                     Some(ConversationEvent::Select(_)) => {
                         match &mut app_ui.selected_mode {
                             ContentDisplayMode::Conversation(_) => {
-                                *current_mode = app_ui
-                                    .conversations
-                                    .handle_key_event(
-                                        &mut self.key_track,
-                                        tab_chat,
-                                        handler,
-                                    )
-                                    .await?;
+                                if let Some(current_conversations) = app_ui
+                                    .workspaces
+                                    .current_conversations_mut()
+                                {
+                                    *current_mode = current_conversations
+                                        .handle_key_event(
+                                            &mut self.key_track,
+                                            tab_chat,
+                                            handler,
+                                        )
+                                        .await?;
+                                } else {
+                                    // Handle the case where there is no current workspace or conversations
+                                    log::warn!(
+                                        "No current workspace or \
+                                         conversations available"
+                                    );
+                                    // Optionally, you could set an error state or display a message to the user
+                                }
                             }
                             _ => {
                                 unreachable!(
@@ -245,6 +261,7 @@ impl KeyEventHandler {
                         }
                         return Ok(());
                     }
+
                     _ => return Ok(()),
                 };
             }
@@ -323,14 +340,27 @@ impl KeyEventHandler {
                 // Forward event to the selected mode
                 match &mut app_ui.selected_mode {
                     ContentDisplayMode::Conversation(_) => {
-                        *current_mode = app_ui
-                            .conversations
-                            .handle_key_event(
-                                &mut self.key_track,
-                                tab_chat,
-                                handler,
-                            )
-                            .await?;
+                        if let Some(current_conversations) =
+                            app_ui.workspaces.current_conversations_mut()
+                        {
+                            *current_mode = current_conversations
+                                .handle_key_event(
+                                    &mut self.key_track,
+                                    tab_chat,
+                                    handler,
+                                )
+                                .await?;
+                        } else {
+                            log::warn!(
+                                "No current workspace or conversations \
+                                 available"
+                            );
+                            return Err(ApplicationError::NotReady(
+                                "No current workspace or conversations \
+                                 available"
+                                    .to_string(),
+                            ));
+                        }
                     }
                     ContentDisplayMode::FileBrowser(filebrowser) => {
                         match filebrowser.handle_key_event(&mut self.key_track)

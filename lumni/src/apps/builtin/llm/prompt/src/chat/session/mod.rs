@@ -19,7 +19,7 @@ use super::{
     CompletionResponse, ContentDisplayMode, ConversationEvent, Conversations,
     KeyEventHandler, ModalEvent, ModelServer, PromptAction, PromptError,
     PromptInstruction, PromptNotReadyReason, ServerManager, TextWindowTrait,
-    UserEvent, WindowKind, WindowMode,
+    UserEvent, WindowKind, WindowMode, Workspaces,
 };
 pub use crate::external as lumni;
 
@@ -56,7 +56,8 @@ impl App<'_> {
         let conversations =
             Conversations::new(handler.fetch_conversation_list(100).await?);
 
-        let mut ui = AppUi::new(conversations, conversation_text).await;
+        let workspaces = Workspaces::new_as_default(conversations);
+        let mut ui = AppUi::new(workspaces, conversation_text).await;
         ui.init();
 
         Ok(App {

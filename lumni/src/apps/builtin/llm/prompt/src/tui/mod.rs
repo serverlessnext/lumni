@@ -7,6 +7,7 @@ mod modals;
 mod ui;
 pub mod widgets;
 mod window;
+mod workspaces;
 
 pub use colorscheme::{ColorScheme, ColorSchemeType};
 pub use conversations::Conversations;
@@ -24,11 +25,12 @@ pub use window::{
     SimpleString, TextBuffer, TextDocumentTrait, TextLine, TextSegment,
     TextWindowTrait, WindowKind,
 };
+pub use workspaces::{Workspace, Workspaces};
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
     ConversationStatus, MaskMode, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, UserProfile, UserProfileDbHandler,
+    ProviderConfigOptions, UserProfile, UserProfileDbHandler, WorkspaceId,
 };
 use super::chat::{
     App, ChatSessionManager, NewConversation, PromptInstruction,

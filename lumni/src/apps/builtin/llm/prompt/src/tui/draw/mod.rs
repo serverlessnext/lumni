@@ -8,8 +8,7 @@ use ratatui::{Frame, Terminal};
 
 use super::ui::{ContentDisplayMode, ConversationUi};
 use super::widgets::FileBrowser;
-use super::{App, TextWindowTrait, WindowMode};
-use crate::apps::builtin::llm::prompt::src::tui::ConversationEvent;
+use super::{App, TextWindowTrait, WindowMode, Workspaces};
 
 pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -18,39 +17,51 @@ pub async fn draw_ui<B: Backend>(
 ) -> Result<(), io::Error> {
     terminal.draw(|frame| {
         let terminal_area = frame.size();
-        const NAV_PANE_WIDTH: u16 = 32;
-        const NAV_TAB_HEIGHT: u16 = 2;
+        const LIST_PANE_WIDTH: u16 = 32;
+        const LIST_TAB_HEIGHT: u16 = 2;
+        const WORKSPACE_NAV_HEIGHT: u16 = 2;
+
         // Default background
         frame.render_widget(
             Block::default().style(Style::default().bg(Color::Rgb(16, 24, 32))),
             terminal_area,
         );
 
-        match window_mode {
-            WindowMode::Conversation(Some(ConversationEvent::PromptInsert)) => {
-                app.ui.conversation_ui.set_prompt_window(true);
-            }
-            _ => {}
-        }
-
-        // Main layout
+        // Main layout with workspace navigation
         let main_layout = Layout::default()
-            .direction(Direction::Horizontal)
+            .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(NAV_PANE_WIDTH),
+                Constraint::Length(WORKSPACE_NAV_HEIGHT),
                 Constraint::Min(0),
             ])
             .split(terminal_area);
 
-        let nav_pane = main_layout[0];
-        let content_pane = main_layout[1];
+        let workspace_nav_area = main_layout[0];
+        let content_area = main_layout[1];
 
-        // Navigation pane styling
-        let nav_block = Block::default()
+        render_workspace_nav::<B>(
+            frame,
+            workspace_nav_area,
+            &app.ui.workspaces,
+        );
+
+        // Sub-layout for list pane and content pane
+        let sub_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(LIST_PANE_WIDTH),
+                Constraint::Min(0),
+            ])
+            .split(content_area);
+
+        let list_pane = sub_layout[0];
+        let content_pane = sub_layout[1];
+        // List pane styling
+        let list_block = Block::default()
             .borders(Borders::NONE)
             .style(Style::default().bg(Color::Rgb(0, 0, 0)))
             .style(Style::default().bg(Color::Rgb(16, 24, 32)));
-        frame.render_widget(nav_block, nav_pane);
+        frame.render_widget(list_block, list_pane);
 
         // Content pane styling
         let content_block = Block::default()
@@ -62,21 +73,25 @@ pub async fn draw_ui<B: Backend>(
         let nav_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(NAV_TAB_HEIGHT),
+                Constraint::Length(LIST_TAB_HEIGHT),
                 Constraint::Min(0),
             ])
-            .split(nav_pane);
+            .split(list_pane);
 
-        let nav_tab_area = nav_layout[0];
+        let list_tab_area = nav_layout[0];
         let nav_content_area = nav_layout[1];
 
         // Render navigation tabs
-        render_nav_tabs::<B>(frame, nav_tab_area, &app.ui.selected_mode);
+        render_list_tabs::<B>(frame, list_tab_area, &app.ui.selected_mode);
 
         // Render navigation pane content
         match &mut app.ui.selected_mode {
             ContentDisplayMode::Conversation(_) => {
-                app.ui.conversations.render(frame, nav_content_area);
+                if let Some(conversations) =
+                    app.ui.workspaces.current_conversations_mut()
+                {
+                    conversations.render(frame, nav_content_area);
+                }
             }
             ContentDisplayMode::FileBrowser(filebrowser) => {
                 render_file_nav::<B>(frame, nav_content_area, filebrowser);
@@ -103,7 +118,31 @@ pub async fn draw_ui<B: Backend>(
     Ok(())
 }
 
-fn render_nav_tabs<B: Backend>(
+fn render_workspace_nav<B: Backend>(
+    frame: &mut Frame,
+    area: Rect,
+    workspaces: &Workspaces,
+) {
+    let workspace_names: Vec<&str> = workspaces
+        .workspaces
+        .iter()
+        .map(|w| w.name.as_str())
+        .collect();
+
+    let tabs = Tabs::new(workspace_names)
+        .block(Block::default().borders(Borders::BOTTOM))
+        .select(workspaces.current_workspace_index)
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+
+    frame.render_widget(tabs, area);
+}
+
+fn render_list_tabs<B: Backend>(
     frame: &mut Frame,
     area: Rect,
     selected_mode: &ContentDisplayMode,

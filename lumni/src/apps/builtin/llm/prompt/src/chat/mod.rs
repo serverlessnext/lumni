@@ -23,6 +23,7 @@ use super::tui::{
     ContentDisplayMode, ConversationEvent, Conversations, KeyEventHandler,
     ModalEvent, ModalWindowType, PromptAction, SimpleString, TextLine,
     TextSegment, TextWindowTrait, UserEvent, WindowKind, WindowMode,
+    Workspaces,
 };
 
 // gets PERSONAS from the generated code

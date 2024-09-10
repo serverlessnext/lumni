@@ -2,6 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use hmac::crypto_mac::Key;
 
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
@@ -185,19 +186,64 @@ impl KeyEventHandler {
             }
         }
 
-        eprintln!(
-            "Modifier={:?}, Code={:?}",
-            current_key.modifiers, current_key.code
-        );
+        match current_mode {
+            WindowMode::Modal(_) => {
+                // key event is handled by modal window
+                *current_mode = if let Some(modal) = app_ui.modal.as_mut() {
+                    let new_window_event = match modal
+                        .handle_key_event(
+                            &mut self.key_track,
+                            tab_chat,
+                            handler,
+                        )
+                        .await
+                    {
+                        Ok(WindowMode::Modal(action)) => {
+                            // pass as-is
+                            WindowMode::Modal(action)
+                        }
+                        Ok(new_window_event) => new_window_event,
+                        Err(modal_error) => {
+                            match modal_error {
+                                ApplicationError::NotReady(message) => {
+                                    // pass as warning to the user
+                                    log::debug!("Not ready: {:?}", message);
+                                    app_ui.command_line.set_alert(&format!(
+                                        "Not Ready: {}",
+                                        message
+                                    ))?;
+                                    WindowMode::Modal(ModalEvent::UpdateUI)
+                                }
+                                _ => {
+                                    log::error!(
+                                        "Unexpected modal error: {:?}",
+                                        modal_error
+                                    );
+                                    return Err(modal_error);
+                                }
+                            }
+                        }
+                    };
+                    new_window_event
+                } else {
+                    WindowMode::Modal(ModalEvent::UpdateUI)
+                };
+                return Ok(());
+            }
+            _ => {}
+        }
 
         if current_key.modifiers == KeyModifiers::SHIFT {
             // Catch Shift + (Back)Tab, Left or Right to switch main ui tabs
             match current_key.code {
                 KeyCode::BackTab
                 | KeyCode::Tab
+                | KeyCode::Up
                 | KeyCode::Left
                 | KeyCode::Right => {
-                    app_ui.handle_key_event(current_key, current_mode);
+                    app_ui
+                        .handle_key_event(current_key, current_mode, handler)
+                        .await?;
                     return Ok(());
                 }
                 _ => {}
@@ -265,77 +311,7 @@ impl KeyEventHandler {
                     _ => return Ok(()),
                 };
             }
-            WindowMode::FileBrowser(ref event) => {
-                match event {
-                    Some(FileBrowserEvent::Select) => {
-                        match &mut app_ui.selected_mode {
-                            ContentDisplayMode::FileBrowser(filebrowser) => {
-                                match filebrowser
-                                    .handle_key_event(&mut self.key_track)
-                                {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error handling key event: {:?}",
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                            _ => {
-                                unreachable!(
-                                    "Invalid selected mode: {:?}",
-                                    app_ui.selected_mode
-                                );
-                            }
-                        }
-                        return Ok(());
-                    }
-                    _ => return Ok(()),
-                };
-            }
-            WindowMode::Modal(_) => {
-                // key event is handled by modal window
-                *current_mode = if let Some(modal) = app_ui.modal.as_mut() {
-                    let new_window_event = match modal
-                        .handle_key_event(
-                            &mut self.key_track,
-                            tab_chat,
-                            handler,
-                        )
-                        .await
-                    {
-                        Ok(WindowMode::Modal(action)) => {
-                            // pass as-is
-                            WindowMode::Modal(action)
-                        }
-                        Ok(new_window_event) => new_window_event,
-                        Err(modal_error) => {
-                            match modal_error {
-                                ApplicationError::NotReady(message) => {
-                                    // pass as warning to the user
-                                    log::debug!("Not ready: {:?}", message);
-                                    app_ui.command_line.set_alert(&format!(
-                                        "Not Ready: {}",
-                                        message
-                                    ))?;
-                                    WindowMode::Modal(ModalEvent::UpdateUI)
-                                }
-                                _ => {
-                                    log::error!(
-                                        "Unexpected modal error: {:?}",
-                                        modal_error
-                                    );
-                                    return Err(modal_error);
-                                }
-                            }
-                        }
-                    };
-                    new_window_event
-                } else {
-                    WindowMode::Modal(ModalEvent::UpdateUI)
-                };
-            }
+
             WindowMode::Select => {
                 // Forward event to the selected mode
                 match &mut app_ui.selected_mode {
@@ -360,18 +336,6 @@ impl KeyEventHandler {
                                  available"
                                     .to_string(),
                             ));
-                        }
-                    }
-                    ContentDisplayMode::FileBrowser(filebrowser) => {
-                        match filebrowser.handle_key_event(&mut self.key_track)
-                        {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::error!(
-                                    "Error handling key event: {:?}",
-                                    e
-                                );
-                            }
                         }
                     }
                 }

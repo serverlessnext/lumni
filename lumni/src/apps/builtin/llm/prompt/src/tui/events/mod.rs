@@ -18,7 +18,7 @@ use super::window::{
 use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};
 pub use crate::external as lumni;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum WindowMode {
     Select,
     Conversation(Option<ConversationEvent>),

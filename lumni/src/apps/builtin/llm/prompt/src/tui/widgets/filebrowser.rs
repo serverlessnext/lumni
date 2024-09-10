@@ -184,7 +184,8 @@ impl FileBrowserWidget {
         let mut path_input = PromptWindow::new();
         path_input.text_set("", None).unwrap();
 
-        let list_widget = ListWidget::new(Vec::new(), "Files".to_string())
+        let list_widget = ListWidget::new(Vec::new())
+            .title("Files")
             .normal_style(Style::default().fg(Color::White))
             .selected_style(
                 Style::default()
@@ -267,7 +268,8 @@ impl FileBrowserWidget {
                 })
                 .collect();
 
-            self.list_widget = ListWidget::new(items, "Files".to_string())
+            self.list_widget = ListWidget::new(items)
+                .title("Files")
                 .normal_style(Style::default().fg(Color::White))
                 .selected_style(
                     Style::default()

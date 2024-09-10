@@ -4,15 +4,14 @@ use crossterm::event::{KeyCode, KeyEvent};
 use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
-use super::conversations::Conversations;
-use super::modals::{FileBrowserModal, SettingsModal};
+use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
 use super::widgets::FileBrowser;
 use super::workspaces::Workspaces;
 use super::{
-    workspaces, CommandLine, ConversationDatabase, ConversationEvent,
-    ConversationId, ModalEvent, ModalWindowTrait, ModalWindowType,
-    PromptWindow, ResponseWindow, TextLine, TextWindowTrait, WindowKind,
-    WindowMode,
+    CommandLine, ConversationDatabase, ConversationDbHandler,
+    ConversationEvent, ConversationId, ModalEvent, ModalWindowTrait,
+    ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
+    WindowKind, WindowMode,
 };
 
 #[derive(Debug)]
@@ -22,7 +21,6 @@ pub use crate::external as lumni;
 #[derive(Debug)]
 pub enum ContentDisplayMode {
     Conversation(Option<Conversation>),
-    FileBrowser(FileBrowser),
 }
 
 #[derive(Debug)]
@@ -107,22 +105,32 @@ impl AppUi<'_> {
         self.command_line.init();
     }
 
-    pub fn handle_key_event(
+    pub async fn handle_key_event(
         &mut self,
         key: KeyEvent,
         window_mode: &mut WindowMode,
-    ) {
+        handler: &ConversationDbHandler,
+    ) -> Result<(), ApplicationError> {
         *window_mode = match key.code {
             KeyCode::Left | KeyCode::BackTab => {
-                self.switch_tab(TabDirection::Left)
+                // TODO: handle workspace nav
+                return Ok(());
             }
             KeyCode::Right | KeyCode::Tab => {
-                self.switch_tab(TabDirection::Right)
+                self.modal = Some(Box::new(
+                    ConversationListModal::new(handler.clone()).await?,
+                ));
+                WindowMode::Modal(ModalEvent::UpdateUI)
+            }
+            KeyCode::Up => {
+                self.modal = Some(Box::new(FileBrowserModal::new(None)));
+                WindowMode::Modal(ModalEvent::PollBackGroundTask)
             }
             _ => {
-                return;
+                return Ok(());
             }
         };
+        Ok(())
     }
 
     pub fn set_alert(&mut self, message: &str) -> Result<(), ApplicationError> {
@@ -133,9 +141,13 @@ impl AppUi<'_> {
         &mut self,
         modal_type: ModalWindowType,
         db_conn: &Arc<ConversationDatabase>,
-        _conversation_id: Option<ConversationId>,
+        conversation_id: Option<ConversationId>,
     ) -> Result<(), ApplicationError> {
         self.modal = match modal_type {
+            ModalWindowType::ConversationList => {
+                let handler = db_conn.get_conversation_handler(conversation_id);
+                Some(Box::new(ConversationListModal::new(handler).await?))
+            }
             ModalWindowType::ProfileEdit => {
                 let handler = db_conn.get_profile_handler(None);
                 Some(Box::new(SettingsModal::new(handler).await?))
@@ -174,47 +186,26 @@ impl AppUi<'_> {
         self.selected_mode = ContentDisplayMode::Conversation(None);
     }
 
-    fn switch_tab(&mut self, direction: TabDirection) -> WindowMode {
-        self.selected_mode = match self.selected_mode {
-            ContentDisplayMode::Conversation(_) => {
-                // as there are only two tabs currently, both directions are currently the same
-                let display_mode =
-                    ContentDisplayMode::FileBrowser(FileBrowser::new(None));
-                match direction {
-                    TabDirection::Right => display_mode,
-                    TabDirection::Left => display_mode,
-                }
-            }
-            ContentDisplayMode::FileBrowser(_) => {
-                let display_mode = ContentDisplayMode::Conversation(None);
-                match direction {
-                    TabDirection::Right => display_mode,
-                    TabDirection::Left => display_mode,
-                }
-            }
-        };
-        WindowMode::Select
-    }
-
     pub async fn poll_widgets(&mut self) -> Result<bool, ApplicationError> {
-        let mut redraw_ui = false;
-
-        match &mut self.selected_mode {
-            ContentDisplayMode::FileBrowser(file_browser) => {
-                match file_browser.poll_background_task().await? {
-                    Some(ModalEvent::UpdateUI) => {
-                        redraw_ui = true;
-                    }
-                    _ => {
-                        // No update needed
-                    }
-                }
-            }
-            _ => {
-                // No background task to poll
-            }
-        }
-        Ok(redraw_ui)
+        //        let mut redraw_ui = false;
+        //
+        //        match &mut self.selected_mode {
+        //            ContentDisplayMode::FileBrowser(file_browser) => {
+        //                match file_browser.poll_background_task().await? {
+        //                    Some(ModalEvent::UpdateUI) => {
+        //                        redraw_ui = true;
+        //                    }
+        //                    _ => {
+        //                        // No update needed
+        //                    }
+        //                }
+        //            }
+        //            _ => {
+        //                // No background task to poll
+        //            }
+        //        }
+        //        Ok(redraw_ui)
+        Ok(false)
     }
 }
 enum TabDirection {

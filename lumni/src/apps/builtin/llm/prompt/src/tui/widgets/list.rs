@@ -2,6 +2,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::block::title;
 use ratatui::widgets::{
     Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation,
     ScrollbarState, StatefulWidget, StatefulWidgetRef,
@@ -10,7 +11,7 @@ use ratatui::widgets::{
 #[derive(Debug, Clone)]
 pub struct ListWidget {
     pub items: Vec<Text<'static>>,
-    pub title: String,
+    pub title: Option<String>,
     pub normal_style: Style,
     pub selected_style: Style,
     pub highlight_symbol: String,
@@ -33,10 +34,10 @@ impl Default for ListWidgetState {
 }
 
 impl ListWidget {
-    pub fn new(items: Vec<Text<'static>>, title: String) -> Self {
+    pub fn new(items: Vec<Text<'static>>) -> Self {
         Self {
             items,
-            title,
+            title: None,
             normal_style: Style::default().fg(Color::Cyan),
             selected_style: Style::default()
                 .fg(Color::Yellow)
@@ -44,6 +45,11 @@ impl ListWidget {
             highlight_symbol: "> ".to_string(),
             show_borders: true,
         }
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
     }
 
     pub fn show_borders(mut self, show: bool) -> Self {
@@ -233,19 +239,20 @@ impl StatefulWidgetRef for &ListWidget {
             current_height += height;
         }
 
+        let mut block = Block::default().borders(if self.show_borders {
+            Borders::ALL
+        } else {
+            Borders::NONE
+        });
+
+        if let Some(title) = &self.title {
+            block = block.title(title.clone());
+        }
+
         let list = List::new(visible_items)
-            .block(
-                Block::default()
-                    .borders(if self.show_borders {
-                        Borders::ALL
-                    } else {
-                        Borders::NONE
-                    })
-                    .title(self.title.clone()),
-            )
+            .block(block)
             .highlight_style(self.selected_style)
             .highlight_symbol(&self.highlight_symbol);
-
         let mut list_state = ListState::default();
         list_state.select(Some(visible_index));
 

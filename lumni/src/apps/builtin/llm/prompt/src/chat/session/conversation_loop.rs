@@ -34,7 +34,6 @@ pub async fn prompt_app<B: Backend>(
         ContentDisplayMode::Conversation(_) => {
             WindowMode::Conversation(Some(ConversationEvent::PromptRead))
         }
-        ContentDisplayMode::FileBrowser(_) => WindowMode::FileBrowser(None),
     };
 
     let mut widget_poll_tick = interval(Duration::from_millis(10));

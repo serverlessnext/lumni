@@ -34,16 +34,16 @@ impl Conversations {
         tab_indices.insert(ConversationStatus::Archived, 0);
         tab_indices.insert(ConversationStatus::Deleted, 0);
 
-        let list_widget =
-            ListWidget::new(Vec::new(), "Conversations".to_string())
-                .normal_style(
-                    Style::default().bg(Color::Rgb(24, 32, 40)).fg(Color::Gray),
-                )
-                .selected_style(
-                    Style::default().bg(Color::Rgb(32, 40, 48)).fg(Color::Cyan),
-                )
-                .highlight_symbol("► ".to_string())
-                .show_borders(false);
+        let list_widget = ListWidget::new(Vec::new())
+            .title("Conversations")
+            .normal_style(
+                Style::default().bg(Color::Rgb(24, 32, 40)).fg(Color::Gray),
+            )
+            .selected_style(
+                Style::default().bg(Color::Rgb(32, 40, 48)).fg(Color::Cyan),
+            )
+            .highlight_symbol("► ".to_string())
+            .show_borders(false);
 
         Self {
             conversations,
@@ -152,18 +152,6 @@ impl Conversations {
         ])
     }
 
-    pub fn move_selection(&mut self, offset: i32) {
-        self.list_widget
-            .move_selection(&mut self.list_widget_state, offset);
-        *self.tab_indices.get_mut(&self.current_tab).unwrap() =
-            self.list_widget_state.selected_index;
-    }
-
-    pub fn get_selected_conversation(&self) -> Option<&Conversation> {
-        self.conversations_in_current_tab()
-            .nth(self.list_widget_state.selected_index)
-    }
-
     fn get_current_conversation(&self) -> Option<&Conversation> {
         let index = *self.tab_indices.get(&self.current_tab).unwrap_or(&0);
         self.conversations_in_current_tab().nth(index)
@@ -217,23 +205,6 @@ impl Conversations {
             self.last_selected_conversation_id = None;
         }
         Ok(())
-    }
-
-    fn update_list_widget(&mut self) {
-        let items: Vec<Text<'static>> = self
-            .conversations_in_current_tab()
-            .enumerate()
-            .map(|(index, conversation)| {
-                self.create_conversation_list_item(conversation, index)
-            })
-            .collect();
-
-        self.list_widget = ListWidget::new(items, "Conversations".to_string())
-            .normal_style(Style::default().bg(Color::Black).fg(Color::Cyan))
-            .selected_style(
-                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
-            )
-            .highlight_symbol(">> ".to_string());
     }
 
     fn conversations_in_tab(
@@ -318,9 +289,7 @@ impl Conversations {
         }
         Ok(())
     }
-}
 
-impl Conversations {
     fn move_selection_up(&mut self) {
         self.list_widget
             .move_selection(&mut self.list_widget_state, -1);
@@ -481,7 +450,9 @@ impl Conversations {
             Some(ConversationSelectEvent::ReloadConversation),
         ))))
     }
+}
 
+impl Conversations {
     pub async fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,

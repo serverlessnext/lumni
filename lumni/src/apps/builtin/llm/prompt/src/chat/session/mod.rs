@@ -91,9 +91,7 @@ impl App<'_> {
                 .reload_conversation_text(conversation_text);
         } else {
             // If there's no conversation text, ensure we're in Conversation mode with an empty conversation
-            if let ContentDisplayMode::FileBrowser(_) = self.ui.selected_mode {
-                self.ui.switch_to_conversation_mode();
-            }
+            self.ui.switch_to_conversation_mode();
         }
 
         Ok(())

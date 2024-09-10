@@ -694,7 +694,8 @@ impl ProviderCreator {
                     })
                     .collect();
                 self.model_list = Some(
-                    ListWidget::new(model_items, "Select Model".to_string())
+                    ListWidget::new(model_items)
+                        .title("Select Model")
                         .normal_style(Style::default().fg(Color::Cyan))
                         .selected_style(
                             Style::default()

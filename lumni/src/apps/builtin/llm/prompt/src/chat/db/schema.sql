@@ -38,12 +38,19 @@ CREATE TABLE models (
     input_token_limit INTEGER
 );
 
+CREATE TABLE workspaces (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    path TEXT
+);
+
 CREATE TABLE conversations (
     id INTEGER PRIMARY KEY,
     name TEXT,
     info TEXT, -- JSON string including description and other metadata
     completion_options TEXT, -- JSON string
     model_identifier TEXT NOT NULL,
+    workspace_id INTEGER,
     parent_conversation_id INTEGER,
     fork_message_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -56,6 +63,7 @@ CREATE TABLE conversations (
     FOREIGN KEY (parent_conversation_id) REFERENCES conversations(id),
     FOREIGN KEY (model_identifier) REFERENCES models(identifier),
     FOREIGN KEY (fork_message_id) REFERENCES messages(id),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
     CONSTRAINT check_message_count CHECK (message_count >= 0),
     CONSTRAINT check_total_tokens CHECK (total_tokens >= 0)
 );
@@ -114,3 +122,5 @@ CREATE INDEX idx_message_previous ON messages(previous_message_id);
 CREATE INDEX idx_attachment_conversation ON attachments(conversation_id);
 CREATE INDEX idx_conversation_pinned_updated ON conversations(is_pinned DESC, updated_at DESC);
 CREATE UNIQUE INDEX idx_user_profiles_default ON user_profiles(is_default) WHERE is_default = 1;
+CREATE INDEX idx_conversations_workspace_id ON conversations(workspace_id);
+CREATE INDEX idx_conversations_no_workspace ON conversations(workspace_id) WHERE workspace_id IS NULL;

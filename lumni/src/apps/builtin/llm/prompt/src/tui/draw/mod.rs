@@ -17,6 +17,7 @@ pub async fn draw_ui<B: Backend>(
     terminal.draw(|frame| {
         let terminal_area = frame.size();
         const WORKSPACE_NAV_HEIGHT: u16 = 2;
+        const COMMAND_LINE_HEIGHT: u16 = 2;
 
         // Default background
         frame.render_widget(
@@ -30,11 +31,13 @@ pub async fn draw_ui<B: Backend>(
             .constraints([
                 Constraint::Length(WORKSPACE_NAV_HEIGHT),
                 Constraint::Min(0),
+                Constraint::Length(COMMAND_LINE_HEIGHT),
             ])
             .split(terminal_area);
 
         let workspace_nav_area = main_layout[0];
         let content_pane = main_layout[1];
+        let command_line_area = main_layout[2];
 
         render_workspace_nav::<B>(
             frame,
@@ -46,6 +49,11 @@ pub async fn draw_ui<B: Backend>(
         let content_block = Block::default();
         frame.render_widget(content_block, content_pane);
 
+        // Render active conversation stats
+        if let Some(session_info) = &app.chat_manager.active_session_info {
+            log::debug!("Active session info: {:?}", session_info);
+        }
+
         // Render conversation mode
         let content_inner = content_pane.inner(Margin {
             vertical: 0,
@@ -55,6 +63,12 @@ pub async fn draw_ui<B: Backend>(
             frame,
             content_inner,
             &mut app.ui.conversation_ui,
+        );
+
+        // Render command line
+        frame.render_widget(
+            app.ui.command_line.widget(&command_line_area),
+            command_line_area,
         );
 
         // Render modals if any

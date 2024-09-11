@@ -18,9 +18,7 @@ pub fn handle_command_line_event(
     is_running: Arc<AtomicBool>,
 ) -> Result<WindowMode, ApplicationError> {
     let key_code = key_track.current_key().code;
-
     match key_code {
-        // Escape key
         KeyCode::Esc => {
             // exit command line
             app_ui.command_line.text_empty();

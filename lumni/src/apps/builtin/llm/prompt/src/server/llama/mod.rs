@@ -12,9 +12,10 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_get_with_response, http_post, ChatMessage, CompletionResponse,
-    CompletionStats, ConversationDbHandler, Endpoints, HttpClient, ModelSpec,
-    PromptRole, ServerSpecTrait, ServerTrait, DEFAULT_CONTEXT_SIZE,
+    http_get_with_response, http_post, ChatEvent, ChatMessage,
+    CompletionResponse, CompletionStats, ConversationDbHandler, Endpoints,
+    HttpClient, ModelSpec, PromptRole, ServerSpecTrait, ServerTrait,
+    DEFAULT_CONTEXT_SIZE,
 };
 use crate::external as lumni;
 
@@ -164,6 +165,7 @@ impl ServerTrait for Llama {
         _model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError> {
         let formatter = self.formatter.as_ref().ok_or_else(|| {
             ApplicationError::NotReady("Formatter not initialized".to_string())
@@ -185,6 +187,7 @@ impl ServerTrait for Llama {
             data_payload,
             None,
             cancel_rx,
+            event_sender,
         )
         .await;
         Ok(())
@@ -233,6 +236,7 @@ impl ServerTrait for Llama {
                 self.http_client.clone(),
                 None,
                 payload,
+                None,
                 None,
                 None,
             )
@@ -286,13 +290,13 @@ impl LlamaServerSystemPrompt {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct LlamaServerDefaultGenerationSettings {
     n_ctx: usize,
     model: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct LlamaServerSettingsResponse {
     default_generation_settings: LlamaServerDefaultGenerationSettings,
 }

@@ -26,7 +26,14 @@ pub enum WindowMode {
     CommandLine(Option<CommandLineAction>),
     Prompt(PromptAction),
     Modal(ModalEvent),
+    Alert(String),
     Quit,
+}
+
+impl Default for WindowMode {
+    fn default() -> Self {
+        WindowMode::Conversation(Some(ConversationEvent::PromptRead))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

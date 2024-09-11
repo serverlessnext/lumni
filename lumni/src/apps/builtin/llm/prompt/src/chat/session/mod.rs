@@ -16,10 +16,10 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, ContentDisplayMode, ConversationEvent, Conversations,
-    KeyEventHandler, ModalEvent, ModelServer, PromptAction, PromptError,
-    PromptInstruction, PromptNotReadyReason, ServerManager, TextWindowTrait,
-    UserEvent, WindowKind, WindowMode, Workspaces,
+    CompletionResponse, Conversations, KeyEventHandler, ModalEvent,
+    ModelServer, PromptAction, PromptError, PromptInstruction,
+    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
+    WindowKind, WindowMode, Workspaces,
 };
 pub use crate::external as lumni;
 

@@ -5,6 +5,7 @@ impl ConversationDbHandler {
         &mut self,
         name: &str,
         parent_id: Option<ConversationId>,
+        workspace_id: Option<WorkspaceId>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
         model: &ModelSpec,
@@ -52,6 +53,7 @@ impl ConversationDbHandler {
                     name: name.to_string(),
                     info: serde_json::Value::Null,
                     model_identifier: model.identifier.clone(),
+                    workspace_id,
                     parent_conversation_id: parent_id,
                     fork_message_id,
                     completion_options,
@@ -66,18 +68,20 @@ impl ConversationDbHandler {
 
                 tx.execute(
                     "INSERT INTO conversations (
-                        name, info, model_identifier, parent_conversation_id, 
+                        name, info, model_identifier, workspace_id, \
+                     parent_conversation_id, 
                         fork_message_id, completion_options, created_at, \
                      updated_at, 
                         message_count, total_tokens, is_deleted, is_pinned, \
                      status
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
                     params![
                         conversation.name,
                         serde_json::to_string(&conversation.info)
                             .unwrap_or_default(),
                         conversation.model_identifier.0,
+                        conversation.workspace_id.map(|id| id.0),
                         conversation.parent_conversation_id.map(|id| id.0),
                         conversation.fork_message_id.map(|id| id.0),
                         conversation

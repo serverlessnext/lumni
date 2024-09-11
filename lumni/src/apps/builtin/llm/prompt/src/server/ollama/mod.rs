@@ -9,9 +9,9 @@ use url::Url;
 
 use super::{
     http_get_with_response, http_post, http_post_with_response,
-    ApplicationError, ChatMessage, CompletionResponse, CompletionStats,
-    ConversationDbHandler, Endpoints, HttpClient, ModelSpec, ServerSpecTrait,
-    ServerTrait,
+    ApplicationError, ChatEvent, ChatMessage, CompletionResponse,
+    CompletionStats, ConversationDbHandler, Endpoints, HttpClient, ModelSpec,
+    ServerSpecTrait, ServerTrait,
 };
 
 pub const DEFAULT_COMPLETION_ENDPOINT: &str = "http://localhost:11434/api/chat";
@@ -127,7 +127,7 @@ impl ServerTrait for Ollama {
         match OllamaCompletionResponse::extract_content(response) {
             Ok(completion_response) => Some(completion_response),
             Err(e) => Some(CompletionResponse::new_final(
-                format!("Failed to parse JSON: {}", e),
+                format!("Ollama: failed to parse JSON: {}", e),
                 None,
             )),
         }
@@ -139,6 +139,7 @@ impl ServerTrait for Ollama {
         model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError> {
         let data_payload = self.completion_api_payload(model, messages);
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
@@ -151,6 +152,7 @@ impl ServerTrait for Ollama {
                 payload,
                 None,
                 cancel_rx,
+                event_sender,
             )
             .await;
         }

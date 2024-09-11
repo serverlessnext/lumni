@@ -9,14 +9,14 @@ use super::threaded_chat_session::ThreadedChatSession;
 use super::PromptInstruction;
 pub use crate::external as lumni;
 
-// add clone
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum ChatEvent {
     ResponseUpdate(String),
     FinalResponse,
     Error(String),
 }
 
+#[derive(Debug)]
 pub struct SessionInfo {
     pub id: Uuid,
     pub conversation_id: Option<ConversationId>,

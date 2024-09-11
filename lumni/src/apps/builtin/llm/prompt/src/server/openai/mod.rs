@@ -20,7 +20,7 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatMessage, CompletionResponse, CompletionStats,
+    http_post, ChatEvent, ChatMessage, CompletionResponse, CompletionStats,
     ConversationDbHandler, Endpoints, ModelSpec, ServerSpecTrait, ServerTrait,
 };
 pub use crate::external as lumni;
@@ -126,6 +126,7 @@ impl ServerTrait for OpenAI {
         model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError> {
         let completion_endpoint = self.endpoints.get_completion_endpoint()?;
         let data_payload = self
@@ -151,6 +152,7 @@ impl ServerTrait for OpenAI {
             data_payload,
             Some(headers),
             cancel_rx,
+            event_sender,
         )
         .await;
         Ok(())

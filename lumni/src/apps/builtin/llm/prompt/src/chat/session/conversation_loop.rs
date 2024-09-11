@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crossterm::event::{
     poll, read, Event, KeyEvent, MouseEvent, MouseEventKind,
 };
-use futures::future::FutureExt;
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
 use ratatui::style::Style;
@@ -14,9 +13,8 @@ use tokio::time::{interval, Duration};
 use super::chat_session_manager::ChatEvent;
 use super::db::ConversationDatabase;
 use super::{
-    App, CommandLineAction, ContentDisplayMode, ConversationEvent,
-    KeyEventHandler, ModalEvent, PromptAction, TextWindowTrait, UserEvent,
-    WindowKind, WindowMode,
+    App, ColorScheme, CommandLineAction, KeyEventHandler, ModalEvent,
+    PromptAction, TextWindowTrait, UserEvent, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -26,22 +24,18 @@ pub async fn prompt_app<B: Backend>(
     mut db_conn: Arc<ConversationDatabase>,
 ) -> Result<(), ApplicationError> {
     let color_scheme = app.color_scheme.clone();
-    let mut tick = interval(Duration::from_millis(16)); // ~60 fps
+
+    let mut input_tick = interval(Duration::from_millis(1));
+    let mut widget_poll_tick = interval(Duration::from_millis(100));
+    let mut chat_event_tick = interval(Duration::from_millis(10));
     let keep_running = Arc::new(AtomicBool::new(true));
-
     let mut redraw_ui = true;
-    let mut current_mode = match app.ui.selected_mode {
-        ContentDisplayMode::Conversation(_) => {
-            WindowMode::Conversation(Some(ConversationEvent::PromptRead))
-        }
-    };
-
-    let mut widget_poll_tick = interval(Duration::from_millis(10));
+    let mut current_mode = WindowMode::default();
     let mut key_event_handler = KeyEventHandler::new();
 
     loop {
         tokio::select! {
-            _ = tick.tick().fuse() => {
+            _ = input_tick.tick() => {
                 handle_input_event(
                     &mut app,
                     &mut redraw_ui,
@@ -56,37 +50,37 @@ pub async fn prompt_app<B: Backend>(
                     redraw_ui = true;
                 }
             }
-            _ = async {
-                // Process chat events
-                if let Ok(Some(active_session)) = app.chat_manager.get_active_session() {
-                    if let Ok(event) = active_session.subscribe().recv().await {
-                        match event {
-                            ChatEvent::ResponseUpdate(content) => {
-                                app.ui.conversation_ui.response.text_append(&content, Some(color_scheme.get_secondary_style()))?;
-                                redraw_ui = true;
-                            },
-                            ChatEvent::FinalResponse => {
-                                app.ui.conversation_ui.response.text_append("\n\n", Some(color_scheme.get_secondary_style()))?;
-                                redraw_ui = true;
-                            },
-                            ChatEvent::Error(error) => {
-                                log::error!("Chat session error: {}", error);
-                                redraw_ui = true;
-                            }
+            _ = chat_event_tick.tick() => {
+                match handle_chat_events(&mut app, &color_scheme).await {
+                    Ok(updated) => {
+                        if updated {
+                            redraw_ui = true;
                         }
                     }
+                    Err(e) => {
+                        // TODO: if handling chat events fails, prompt should
+                        // reverted back to the previous state
+                        current_mode = WindowMode::Alert(e.to_string());
+                    }
                 }
-                Ok::<(), ApplicationError>(())
-            }.fuse() => {}
+            }
+            else => break,
         }
-        if let WindowMode::Quit = current_mode {
-            break;
+
+        // Catch interrupting events
+        match current_mode {
+            WindowMode::Quit => break,
+            WindowMode::Alert(ref message) => {
+                app.ui.command_line.set_alert(message)?;
+                current_mode = WindowMode::default();
+                redraw_ui = true;
+            }
+            _ => {}
         }
 
         // Handle processing state
         if app.is_processing {
             redraw_ui = true;
-
             // Handle modal refresh if it's responsible for the processing state
             if let WindowMode::Modal(_) = current_mode {
                 current_mode =
@@ -98,8 +92,41 @@ pub async fn prompt_app<B: Backend>(
             app.draw_ui(terminal, &current_mode).await?;
             redraw_ui = false;
         }
+
+        // Yield to the scheduler to allow other tasks to progress
+        tokio::task::yield_now().await;
     }
     Ok(())
+}
+
+async fn handle_chat_events(
+    app: &mut App<'_>,
+    color_scheme: &ColorScheme,
+) -> Result<bool, ApplicationError> {
+    let mut updated = false;
+    if let Ok(Some(active_session)) = app.chat_manager.get_active_session() {
+        while let Ok(event) = active_session.event_receiver.try_recv() {
+            updated = true;
+            match event {
+                ChatEvent::ResponseUpdate(content) => {
+                    app.ui.conversation_ui.response.text_append(
+                        &content,
+                        Some(color_scheme.get_secondary_style()),
+                    )?;
+                }
+                ChatEvent::FinalResponse => {
+                    app.ui.conversation_ui.response.text_append(
+                        "\n\n",
+                        Some(color_scheme.get_secondary_style()),
+                    )?;
+                }
+                ChatEvent::Error(error) => {
+                    return Err(ApplicationError::NotReady(error));
+                }
+            }
+        }
+    }
+    Ok(updated)
 }
 
 async fn handle_input_event(
@@ -138,7 +165,7 @@ async fn handle_input_event(
 
 async fn handle_key_event(
     app: &mut App<'_>,
-    current_mode: &mut WindowMode,
+    window_mode: &mut WindowMode,
     key_event_handler: &mut KeyEventHandler,
     key_event: KeyEvent,
     keep_running: &Arc<AtomicBool>,
@@ -152,12 +179,17 @@ async fn handle_key_event(
             key_event,
             &mut app.ui,
             active_session,
-            current_mode,
+            window_mode,
             keep_running.clone(),
             &mut conversation_handler,
         )
         .await?;
-    handle_window_event(app, current_mode, db_conn).await?;
+    match handle_window_event(app, window_mode, db_conn).await {
+        Ok(_) => {}
+        Err(e) => {
+            *window_mode = WindowMode::Alert(e.to_string());
+        }
+    }
     Ok(())
 }
 
@@ -230,21 +262,6 @@ async fn handle_window_event(
             app.ui.clear_modal(); // ensure modal is closed
             Ok(())
         }
-        // Temporarily disabled: TODO: update to use new conversation events
-        //        WindowEvent::Conversation(ConversationEvent::Prompt(
-        //            ref event,
-        //        )) => {
-        //            let mut conversation_handler = db_conn.get_conversation_handler(
-        //                app.get_conversation_id_for_active_session(),
-        //            );
-        //            handle_prompt_window_event(
-        //                app,
-        //                event.clone(),
-        //                &mut conversation_handler,
-        //            )
-        //            .await?;
-        //            Ok(window_event)
-        //        }
         _ => Ok(()),
     }
 }
@@ -320,36 +337,6 @@ async fn handle_modal_user_event(
     Ok(())
 }
 
-//async fn handle_prompt_window_event(
-//    app: &mut App<'_>,
-//    event: Option<ConversationEventOld>,
-//    db_handler: &mut ConversationDbHandler,
-//) -> Result<(), ApplicationError> {
-//    // switch to prompt window
-//    match event {
-//        Some(ConversationEventOld::NewConversation(new_conversation)) => {
-//            // TODO: handle in modal
-//            let prompt_instruction =
-//                PromptInstruction::new(new_conversation.clone(), db_handler)
-//                    .await?;
-//            _ = app
-//                .load_instruction_for_active_session(prompt_instruction)
-//                .await?;
-//            _ = app.reload_conversation().await;
-//        }
-//        Some(_) => {
-//            // any other ConversationEvent is a reload
-//            _ = app.reload_conversation().await;
-//        }
-//        None => {
-//            log::debug!("No prompt window event to handle");
-//        }
-//    }
-//    // ensure modal is closed
-//    app.ui.clear_modal();
-//    Ok(())
-//}
-
 async fn send_prompt<'a>(
     app: &mut App<'a>,
     prompt: &str,
@@ -363,29 +350,21 @@ async fn send_prompt<'a>(
                 "No active session available".to_string(),
             )
         })?;
-    let result = active_session.message(&formatted_prompt).await;
+    active_session.message(&formatted_prompt).await?;
 
-    match result {
-        Ok(_) => {
-            // clear prompt
-            app.ui.conversation_ui.prompt.text_empty();
-            app.ui.conversation_ui.prompt.set_status_normal();
-            app.ui.conversation_ui.response.text_append(
-                &formatted_prompt,
-                Some(color_scheme.get_primary_style()),
-            )?;
-            app.ui
-                .conversation_ui
-                .response
-                .text_append("\n", Some(Style::reset()))?;
-            app.ui
-                .conversation_ui
-                .set_primary_window(WindowKind::ResponseWindow);
-        }
-        Err(prompt_error) => {
-            // show error in alert window
-            app.ui.command_line.set_alert(&prompt_error.to_string())?;
-        }
-    }
+    // clear prompt
+    app.ui.conversation_ui.prompt.text_empty();
+    app.ui.conversation_ui.prompt.set_status_normal();
+    app.ui.conversation_ui.response.text_append(
+        &formatted_prompt,
+        Some(color_scheme.get_primary_style()),
+    )?;
+    app.ui
+        .conversation_ui
+        .response
+        .text_append("\n", Some(Style::reset()))?;
+    app.ui
+        .conversation_ui
+        .set_primary_window(WindowKind::ResponseWindow);
     Ok(())
 }

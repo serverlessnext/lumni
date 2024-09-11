@@ -226,7 +226,8 @@ impl ConversationDbHandler {
     ) -> Result<Vec<Conversation>, DatabaseOperationError> {
         let query = format!(
             "SELECT id, name, info, completion_options, model_identifier, 
-             parent_conversation_id, fork_message_id, created_at, updated_at, 
+             workspace_id, parent_conversation_id, fork_message_id, \
+             created_at, updated_at, 
              is_deleted, is_pinned, status, message_count, total_tokens
              FROM conversations
              WHERE is_deleted = FALSE
@@ -250,22 +251,25 @@ impl ConversationDbHandler {
                                 serde_json::from_str(&s).unwrap_or_default()
                             }),
                         model_identifier: ModelIdentifier(row.get(4)?),
-                        parent_conversation_id: row
+                        workspace_id: row
                             .get::<_, Option<i64>>(5)?
+                            .map(WorkspaceId),
+                        parent_conversation_id: row
+                            .get::<_, Option<i64>>(6)?
                             .map(ConversationId),
                         fork_message_id: row
-                            .get::<_, Option<i64>>(6)?
+                            .get::<_, Option<i64>>(7)?
                             .map(MessageId),
-                        created_at: row.get(7)?,
-                        updated_at: row.get(8)?,
-                        is_deleted: row.get::<_, i64>(9)? != 0,
-                        is_pinned: row.get::<_, i64>(10)? != 0,
+                        created_at: row.get(8)?,
+                        updated_at: row.get(9)?,
+                        is_deleted: row.get::<_, i64>(10)? != 0,
+                        is_pinned: row.get::<_, i64>(11)? != 0,
                         status: ConversationStatus::from_str(
-                            &row.get::<_, String>(11)?,
+                            &row.get::<_, String>(12)?,
                         )
                         .unwrap_or(ConversationStatus::Active),
-                        message_count: row.get(12)?,
-                        total_tokens: row.get(13)?,
+                        message_count: row.get(13)?,
+                        total_tokens: row.get(14)?,
                     })
                 })?;
                 rows.collect()

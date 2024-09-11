@@ -196,6 +196,8 @@ async fn process_non_interactive_input(
     db_conn: Arc<ConversationDatabase>,
     question: Option<String>,
 ) -> Result<(), ApplicationError> {
+    return Ok(());
+
     let instruction = match prompt_instruction {
         Some(instruction) => instruction,
         None => {
@@ -248,75 +250,75 @@ async fn process_non_interactive_input(
 
     let chat_clone = chat.clone();
 
-    // Process the prompt
-    let process_handle = tokio::spawn(async move {
-        chat_clone.lock().await.message(&input).await?;
-
-        let mut receiver = chat_clone.lock().await.subscribe();
-        while let Ok(event) = receiver.recv().await {
-            match event {
-                ChatEvent::ResponseUpdate(content) => {
-                    print!("{}", content);
-                    std::io::stdout().flush().unwrap();
-                }
-                ChatEvent::FinalResponse => break,
-                ChatEvent::Error(e) => {
-                    return Err(ApplicationError::Unexpected(e));
-                }
-            }
-        }
-        Ok(())
-    });
-
-    // Wait for the process to complete or for a shutdown signal
-    loop {
-        if *shutdown_signal.lock().await {
-            // Shutdown signal received, set a timeout for graceful shutdown
-            const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
-            match timeout(GRACEFUL_SHUTDOWN_TIMEOUT, process_handle).await {
-                Ok(Ok(_)) => {
-                    eprintln!(
-                        "Processing completed successfully during shutdown."
-                    );
-                    chat.lock().await.stop();
-                    return Ok(());
-                }
-                Ok(Err(e)) => {
-                    eprintln!("Process error during shutdown: {}", e);
-                    chat.lock().await.stop();
-                    return Err(ApplicationError::Unexpected(format!(
-                        "Process error: {}",
-                        e
-                    )));
-                }
-                Err(_) => {
-                    eprintln!("Graceful shutdown timed out. Forcing exit...");
-                    chat.lock().await.stop();
-                    return Ok(());
-                }
-            }
-        }
-
-        // Check if the process has completed naturally
-        if process_handle.is_finished() {
-            process_handle
-                .await
-                .map_err(|e| {
-                    ApplicationError::Unexpected(format!("Join error: {}", e))
-                })?
-                .map_err(|e| {
-                    ApplicationError::Unexpected(format!(
-                        "Process error: {}",
-                        e
-                    ))
-                })?;
-            chat.lock().await.stop();
-            return Ok(());
-        }
-
-        // Wait a bit before checking again
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+    //    // Process the prompt
+    //    let process_handle = tokio::spawn(async move {
+    //        chat_clone.lock().await.message(&input).await?;
+    //
+    //        let mut receiver = chat_clone.lock().await.subscribe();
+    //        while let Ok(event) = receiver.recv().await {
+    //            match event {
+    //                ChatEvent::ResponseUpdate(content) => {
+    //                    print!("{}", content);
+    //                    std::io::stdout().flush().unwrap();
+    //                }
+    //                ChatEvent::FinalResponse => break,
+    //                ChatEvent::Error(e) => {
+    //                    return Err(ApplicationError::Unexpected(e));
+    //                }
+    //            }
+    //        }
+    //        Ok(())
+    //    });
+    //
+    //    // Wait for the process to complete or for a shutdown signal
+    //    loop {
+    //        if *shutdown_signal.lock().await {
+    //            // Shutdown signal received, set a timeout for graceful shutdown
+    //            const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
+    //            match timeout(GRACEFUL_SHUTDOWN_TIMEOUT, process_handle).await {
+    //                Ok(Ok(_)) => {
+    //                    eprintln!(
+    //                        "Processing completed successfully during shutdown."
+    //                    );
+    //                    chat.lock().await.stop();
+    //                    return Ok(());
+    //                }
+    //                Ok(Err(e)) => {
+    //                    eprintln!("Process error during shutdown: {}", e);
+    //                    chat.lock().await.stop();
+    //                    return Err(ApplicationError::Unexpected(format!(
+    //                        "Process error: {}",
+    //                        e
+    //                    )));
+    //                }
+    //                Err(_) => {
+    //                    eprintln!("Graceful shutdown timed out. Forcing exit...");
+    //                    chat.lock().await.stop();
+    //                    return Ok(());
+    //                }
+    //            }
+    //        }
+    //
+    //        // Check if the process has completed naturally
+    //        if process_handle.is_finished() {
+    //            process_handle
+    //                .await
+    //                .map_err(|e| {
+    //                    ApplicationError::Unexpected(format!("Join error: {}", e))
+    //                })?
+    //                .map_err(|e| {
+    //                    ApplicationError::Unexpected(format!(
+    //                        "Process error: {}",
+    //                        e
+    //                    ))
+    //                })?;
+    //            chat.lock().await.stop();
+    //            return Ok(());
+    //        }
+    //
+    //        // Wait a bit before checking again
+    //        tokio::time::sleep(Duration::from_millis(100)).await;
+    //    }
 }
 
 async fn handle_ctrl_c(r: Arc<Mutex<bool>>, s: Arc<Mutex<bool>>) {

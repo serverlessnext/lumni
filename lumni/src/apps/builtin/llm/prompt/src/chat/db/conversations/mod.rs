@@ -15,7 +15,7 @@ use super::encryption::EncryptionHandler;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
-    Timestamp,
+    Timestamp, WorkspaceId,
 };
 use crate::external as lumni;
 

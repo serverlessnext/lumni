@@ -2,7 +2,7 @@ use lumni::api::error::ApplicationError;
 
 use super::db::{
     ConversationCache, ConversationDbHandler, ConversationId, Message,
-    MessageId, ModelSpec, Timestamp,
+    MessageId, ModelSpec, Timestamp, WorkspaceId,
 };
 use super::prepare::NewConversation;
 use super::{
@@ -33,12 +33,14 @@ impl PromptInstruction {
             None => ChatCompletionOptions::default(),
         };
 
+        let workspace_id: Option<WorkspaceId> = None;
         let conversation_id = if let Some(ref model) = new_conversation.model {
             Some(
                 db_handler
                     .new_conversation(
                         "New Conversation",
                         new_conversation.parent.as_ref().map(|p| p.id),
+                        workspace_id,
                         new_conversation
                             .parent
                             .as_ref()

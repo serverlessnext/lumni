@@ -18,7 +18,7 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
 use super::{
-    http_post, ChatMessage, CompletionResponse, CompletionStats,
+    http_post, ChatEvent, ChatMessage, CompletionResponse, CompletionStats,
     ConversationDbHandler, Endpoints, ModelSpec, PromptRole, ServerSpecTrait,
     ServerTrait,
 };
@@ -218,6 +218,7 @@ impl ServerTrait for Bedrock {
         model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError> {
         let resource = HttpClient::percent_encode_with_exclusion(
             &format!(
@@ -265,6 +266,7 @@ impl ServerTrait for Bedrock {
             data_payload,
             Some(headers),
             cancel_rx,
+            event_sender,
         )
         .await;
         Ok(())

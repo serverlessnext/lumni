@@ -28,7 +28,7 @@ pub use spec::ServerSpecTrait;
 use tokio::sync::{mpsc, oneshot};
 
 use super::chat::db::{ConversationDbHandler, ModelServerName, ModelSpec};
-use super::chat::{ChatMessage, PromptRole};
+use super::chat::{ChatEvent, ChatMessage, PromptRole};
 use super::defaults::*;
 use crate::external as lumni;
 
@@ -151,19 +151,28 @@ impl ServerTrait for ModelServer {
         model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError> {
         match self {
             ModelServer::Llama(llama) => {
-                llama.completion(messages, model, tx, cancel_rx).await
+                llama
+                    .completion(messages, model, tx, cancel_rx, event_sender)
+                    .await
             }
             ModelServer::Ollama(ollama) => {
-                ollama.completion(messages, model, tx, cancel_rx).await
+                ollama
+                    .completion(messages, model, tx, cancel_rx, event_sender)
+                    .await
             }
             ModelServer::Bedrock(bedrock) => {
-                bedrock.completion(messages, model, tx, cancel_rx).await
+                bedrock
+                    .completion(messages, model, tx, cancel_rx, event_sender)
+                    .await
             }
             ModelServer::OpenAI(openai) => {
-                openai.completion(messages, model, tx, cancel_rx).await
+                openai
+                    .completion(messages, model, tx, cancel_rx, event_sender)
+                    .await
             }
         }
     }
@@ -194,6 +203,7 @@ pub trait ServerTrait: Send + Sync {
         model: &ModelSpec,
         tx: Option<mpsc::Sender<Bytes>>,
         cancel_rx: Option<oneshot::Receiver<()>>,
+        event_sender: Option<mpsc::Sender<ChatEvent>>,
     ) -> Result<(), ApplicationError>;
 
     async fn list_models(&self) -> Result<Vec<ModelSpec>, ApplicationError>;

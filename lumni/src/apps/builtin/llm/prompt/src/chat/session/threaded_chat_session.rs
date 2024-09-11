@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 use super::chat_session_manager::ChatEvent;
 use super::db::{ConversationDatabase, ConversationDbHandler};
@@ -59,9 +59,10 @@ impl ModelServerSession {
     }
 }
 
+#[derive(Debug)]
 pub struct ThreadedChatSession {
     command_sender: mpsc::Sender<ThreadedChatSessionCommand>,
-    event_receiver: broadcast::Receiver<ChatEvent>,
+    pub event_receiver: mpsc::Receiver<ChatEvent>,
 }
 
 struct ThreadedChatSessionInner {
@@ -69,7 +70,7 @@ struct ThreadedChatSessionInner {
     model_server_session: ModelServerSession,
     response_sender: mpsc::Sender<Bytes>,
     response_receiver: mpsc::Receiver<Bytes>,
-    event_sender: broadcast::Sender<ChatEvent>,
+    event_sender: mpsc::Sender<ChatEvent>,
 }
 
 #[derive(Debug)]
@@ -89,7 +90,7 @@ impl ThreadedChatSession {
     ) -> Self {
         let (response_sender, response_receiver) =
             mpsc::channel(CHANNEL_QUEUE_SIZE);
-        let (event_sender, event_receiver) = broadcast::channel(100);
+        let (event_sender, event_receiver) = mpsc::channel(100);
         let (command_sender, command_receiver) = mpsc::channel(100);
 
         let inner = Arc::new(Mutex::new(ThreadedChatSessionInner {
@@ -100,9 +101,9 @@ impl ThreadedChatSession {
             event_sender,
         }));
 
-        let inner_clone = inner.clone();
+        //let inner_clone = inner.clone();
         tokio::spawn(async move {
-            Self::run(inner_clone, command_receiver, db_conn).await;
+            Self::run(inner, command_receiver, db_conn).await;
         });
 
         Self {
@@ -128,7 +129,7 @@ impl ThreadedChatSession {
                     let mut locked_inner = inner.lock().await;
                     match command {
                         ThreadedChatSessionCommand::Message(question, response_sender) => {
-                            let result = locked_inner.handle_message(&question, &db_handler).await;
+                        let result = locked_inner.handle_message(&question, &db_handler).await;
                             let _ = response_sender.send(result);
                         }
                         ThreadedChatSessionCommand::LoadInstruction(prompt_instruction) => {
@@ -167,9 +168,11 @@ impl ThreadedChatSession {
         }
     }
 
-    pub async fn message(&self, question: &str) -> Result<(), PromptError> {
+    pub async fn message(
+        &self,
+        question: &str,
+    ) -> Result<(), ApplicationError> {
         let (response_sender, response_receiver) = oneshot::channel();
-
         self.command_sender
             .send(ThreadedChatSessionCommand::Message(
                 question.to_string(),
@@ -177,25 +180,23 @@ impl ThreadedChatSession {
             ))
             .await
             .map_err(|e| {
-                PromptError::Runtime(format!("Failed to send message: {}", e))
+                ApplicationError::Runtime(format!(
+                    "Failed to send message: {}",
+                    e
+                ))
             })?;
-
-        response_receiver.await.map_err(|e| {
-            PromptError::Runtime(format!(
+        Ok(response_receiver.await.map_err(|e| {
+            ApplicationError::Runtime(format!(
                 "Failed to receive message response: {}",
                 e
             ))
-        })?
+        })??)
     }
 
     pub fn stop(&self) {
         let _ = self
             .command_sender
             .try_send(ThreadedChatSessionCommand::Stop);
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<ChatEvent> {
-        self.event_receiver.resubscribe()
     }
 
     pub async fn load_instruction(
@@ -289,6 +290,7 @@ impl ThreadedChatSessionInner {
                 &model,
                 Some(self.response_sender.clone()),
                 Some(cancel_rx),
+                Some(self.event_sender.clone()),
             )
             .await
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
@@ -366,6 +368,8 @@ impl ThreadedChatSessionInner {
         response: Bytes,
         start_of_stream: bool,
     ) -> Result<Option<CompletionResponse>, ApplicationError> {
+        // if bytes contain an error, do not continue processing but return the error
+
         self.model_server_session
             .server
             .as_mut()
@@ -397,6 +401,7 @@ impl ThreadedChatSessionInner {
             self.update_last_exchange(&content);
             self.event_sender
                 .send(ChatEvent::ResponseUpdate(content))
+                .await
                 .ok();
         }
 
@@ -419,7 +424,7 @@ impl ThreadedChatSessionInner {
         self.finalize_last_exchange(db_handler, tokens_predicted)
             .await?;
 
-        self.event_sender.send(ChatEvent::FinalResponse).ok();
+        self.event_sender.send(ChatEvent::FinalResponse).await.ok();
 
         Ok(())
     }
@@ -438,7 +443,10 @@ impl ThreadedChatSessionInner {
                 Ok(false)
             }
             Err(e) => {
-                self.event_sender.send(ChatEvent::Error(e.to_string())).ok();
+                self.event_sender
+                    .send(ChatEvent::Error(e.to_string()))
+                    .await
+                    .ok();
                 Err(e)
             }
         }

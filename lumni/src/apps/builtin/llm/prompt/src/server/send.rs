@@ -5,6 +5,7 @@ use lumni::api::error::{ApplicationError, HttpClientError};
 use lumni::HttpClient;
 use tokio::sync::{mpsc, oneshot};
 
+use super::ChatEvent;
 pub use crate::external as lumni;
 
 pub async fn http_post(
@@ -14,6 +15,7 @@ pub async fn http_post(
     payload: String,
     http_headers: Option<HashMap<String, String>>,
     cancel_rx: Option<oneshot::Receiver<()>>,
+    event_sender: Option<mpsc::Sender<ChatEvent>>,
 ) {
     let headers = if let Some(http_headers) = http_headers {
         http_headers
@@ -37,7 +39,14 @@ pub async fn http_post(
             .await
         {
             Err(HttpClientError::RequestCancelled) => {} // request cancelled by user
-            Err(e) => log::error!("HTTP Post error: {}", e),
+            Err(e) => {
+                log::error!("HTTP Post error: {}", e);
+                if let Some(event_sender) = event_sender {
+                    _ = event_sender
+                        .send(ChatEvent::Error(e.to_string()))
+                        .await;
+                }
+            }
             Ok(_) => {} // request successful
         }
     });
@@ -51,7 +60,7 @@ pub async fn http_get_with_response(
         "Content-Type".to_string(),
         "application/json".to_string(),
     )]);
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel(4);
 
     // Spawn a task to handle the HTTP request
     let request_task = tokio::spawn(async move {
@@ -86,7 +95,7 @@ pub async fn http_post_with_response(
         "Content-Type".to_string(),
         "application/json".to_string(),
     )]);
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel(4);
     let payload_bytes = Bytes::from(payload.into_bytes());
 
     // Spawn a task to handle the HTTP request

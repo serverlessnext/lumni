@@ -2,15 +2,13 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use hmac::crypto_mac::Key;
 
 use super::handle_command_line::handle_command_line_event;
 use super::handle_prompt_window::handle_prompt_window_event;
 use super::handle_response_window::handle_response_window_event;
 use super::{
-    AppUi, ApplicationError, ContentDisplayMode, ConversationDbHandler,
-    ConversationEvent, FileBrowserEvent, ModalEvent, ThreadedChatSession,
-    WindowMode,
+    AppUi, ApplicationError, ChatSessionManager, ConversationDbHandler,
+    ConversationEvent, ModalEvent, ThreadedChatSession, WindowMode,
 };
 
 #[derive(Debug, Clone)]
@@ -168,7 +166,7 @@ impl KeyEventHandler {
         &mut self,
         key_event: KeyEvent,
         app_ui: &mut AppUi<'_>,
-        tab_chat: Option<&mut ThreadedChatSession>,
+        chat_manager: &mut ChatSessionManager,
         current_mode: &mut WindowMode,
         is_running: Arc<AtomicBool>,
         handler: &mut ConversationDbHandler,
@@ -193,7 +191,7 @@ impl KeyEventHandler {
                     let new_window_event = match modal
                         .handle_key_event(
                             &mut self.key_track,
-                            tab_chat,
+                            chat_manager,
                             handler,
                         )
                         .await
@@ -275,71 +273,55 @@ impl KeyEventHandler {
                             is_running,
                         )?
                     }
-                    Some(ConversationEvent::Select(_)) => {
-                        match &mut app_ui.selected_mode {
-                            ContentDisplayMode::Conversation(_) => {
-                                if let Some(current_conversations) = app_ui
-                                    .workspaces
-                                    .current_conversations_mut()
-                                {
-                                    *current_mode = current_conversations
-                                        .handle_key_event(
-                                            &mut self.key_track,
-                                            tab_chat,
-                                            handler,
-                                        )
-                                        .await?;
-                                } else {
-                                    // Handle the case where there is no current workspace or conversations
-                                    log::warn!(
-                                        "No current workspace or \
-                                         conversations available"
-                                    );
-                                    // Optionally, you could set an error state or display a message to the user
-                                }
-                            }
-                            _ => {
-                                unreachable!(
-                                    "Invalid selected mode: {:?}",
-                                    app_ui.selected_mode
-                                );
-                            }
-                        }
-                        return Ok(());
-                    }
-
+                    //                    Some(ConversationEvent::Select(_)) => {
+                    //                        if let Some(current_conversations) = app_ui
+                    //                            .workspaces
+                    //                            .current_conversations_mut()
+                    //                        {
+                    //                            *current_mode = current_conversations
+                    //                                .handle_key_event(
+                    //                                    &mut self.key_track,
+                    //                                    tab_chat,
+                    //                                    handler,
+                    //                                )
+                    //                                .await?;
+                    //                        } else {
+                    //                            // Handle the case where there is no current workspace or conversations
+                    //                            log::warn!(
+                    //                                "No current workspace or \
+                    //                                 conversations available"
+                    //                            );
+                    //                        }
+                    //                        return Ok(());
+                    //                    }
                     _ => return Ok(()),
                 };
             }
 
-            WindowMode::Select => {
-                // Forward event to the selected mode
-                match &mut app_ui.selected_mode {
-                    ContentDisplayMode::Conversation(_) => {
-                        if let Some(current_conversations) =
-                            app_ui.workspaces.current_conversations_mut()
-                        {
-                            *current_mode = current_conversations
-                                .handle_key_event(
-                                    &mut self.key_track,
-                                    tab_chat,
-                                    handler,
-                                )
-                                .await?;
-                        } else {
-                            log::warn!(
-                                "No current workspace or conversations \
-                                 available"
-                            );
-                            return Err(ApplicationError::NotReady(
-                                "No current workspace or conversations \
-                                 available"
-                                    .to_string(),
-                            ));
-                        }
-                    }
-                }
-            }
+            //            WindowMode::Select => {
+            //                // Forward event to the selected mode
+            //                if let Some(current_conversations) =
+            //                    app_ui.workspaces.current_conversations_mut()
+            //                {
+            //                    *current_mode = current_conversations
+            //                        .handle_key_event(
+            //                            &mut self.key_track,
+            //                            tab_chat,
+            //                            handler,
+            //                        )
+            //                        .await?;
+            //                } else {
+            //                    log::warn!(
+            //                        "No current workspace or conversations \
+            //                         available"
+            //                    );
+            //                    return Err(ApplicationError::NotReady(
+            //                        "No current workspace or conversations \
+            //                         available"
+            //                            .to_string(),
+            //                    ));
+            //                }
+            //            }
             _ => {}
         };
         Ok(())

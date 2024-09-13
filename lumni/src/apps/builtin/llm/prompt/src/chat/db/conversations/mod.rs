@@ -3,6 +3,7 @@ mod fetch;
 mod insert;
 mod update;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
@@ -15,7 +16,7 @@ use super::encryption::EncryptionHandler;
 use super::{
     Attachment, AttachmentData, AttachmentId, Conversation, ConversationId,
     ConversationStatus, Message, MessageId, ModelIdentifier, ModelSpec,
-    Timestamp, WorkspaceId,
+    Timestamp, Workspace, WorkspaceId,
 };
 use crate::external as lumni;
 

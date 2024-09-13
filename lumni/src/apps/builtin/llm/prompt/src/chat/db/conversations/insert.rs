@@ -5,7 +5,7 @@ impl ConversationDbHandler {
         &mut self,
         name: &str,
         parent_id: Option<ConversationId>,
-        workspace_id: Option<WorkspaceId>,
+        workspace: Option<Workspace>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
         model: &ModelSpec,
@@ -14,7 +14,7 @@ impl ConversationDbHandler {
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let result: Result<ConversationId, SqliteError> = {
-                // Ensure the model exists
+                // Ensure the model exists (unchanged)
                 let exists: bool = tx
                     .query_row(
                         "SELECT 1 FROM models WHERE identifier = ?",
@@ -53,7 +53,7 @@ impl ConversationDbHandler {
                     name: name.to_string(),
                     info: serde_json::Value::Null,
                     model_identifier: model.identifier.clone(),
-                    workspace_id,
+                    workspace,
                     parent_conversation_id: parent_id,
                     fork_message_id,
                     completion_options,
@@ -65,6 +65,22 @@ impl ConversationDbHandler {
                     is_pinned: false,
                     status: ConversationStatus::Active,
                 };
+
+                // Insert workspace if it doesn't exist
+                if let Some(workspace) = &conversation.workspace {
+                    tx.execute(
+                        "INSERT OR IGNORE INTO workspaces (id, name, path) \
+                         VALUES (?, ?, ?)",
+                        params![
+                            workspace.id.0,
+                            workspace.name,
+                            workspace
+                                .directory_path
+                                .as_ref()
+                                .map(|p| p.to_string_lossy().to_string()),
+                        ],
+                    )?;
+                }
 
                 tx.execute(
                     "INSERT INTO conversations (
@@ -81,7 +97,7 @@ impl ConversationDbHandler {
                         serde_json::to_string(&conversation.info)
                             .unwrap_or_default(),
                         conversation.model_identifier.0,
-                        conversation.workspace_id.map(|id| id.0),
+                        conversation.workspace.as_ref().map(|w| w.id.0),
                         conversation.parent_conversation_id.map(|id| id.0),
                         conversation.fork_message_id.map(|id| id.0),
                         conversation

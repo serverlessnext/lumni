@@ -4,7 +4,7 @@ use std::sync::Arc;
 use lumni::api::error::ApplicationError;
 use uuid::Uuid;
 
-use super::db::{ConversationDatabase, ConversationId};
+use super::db::{Conversation, ConversationDatabase, ConversationId};
 use super::threaded_chat_session::ThreadedChatSession;
 use super::PromptInstruction;
 pub use crate::external as lumni;
@@ -19,7 +19,7 @@ pub enum ChatEvent {
 #[derive(Debug)]
 pub struct SessionInfo {
     pub id: Uuid,
-    pub conversation_id: Option<ConversationId>,
+    pub conversation: Option<Conversation>,
     pub server_name: Option<String>,
 }
 
@@ -45,12 +45,21 @@ impl ChatSessionManager {
                 .model_server
                 .as_ref()
                 .map(|s| s.to_string());
+
+            let conversation = if let Some(conv_id) = conversation_id {
+                let handler = db_conn.get_conversation_handler(Some(conv_id));
+                handler.fetch_conversation(conv_id).await.ok().flatten()
+            } else {
+                None
+            };
+
             let initial_session =
                 ThreadedChatSession::new(prompt_instruction, db_conn.clone());
             sessions.insert(session_id, initial_session);
+
             Some(SessionInfo {
                 id: session_id,
-                conversation_id,
+                conversation,
                 server_name,
             })
         } else {
@@ -84,7 +93,7 @@ impl ChatSessionManager {
     ) -> Option<ConversationId> {
         self.active_session_info
             .as_ref()
-            .and_then(|info| info.conversation_id)
+            .and_then(|info| info.conversation.as_ref().map(|conv| conv.id))
     }
 
     pub fn get_active_session_id(&self) -> Option<Uuid> {
@@ -125,6 +134,7 @@ impl ChatSessionManager {
     pub async fn set_active_session(
         &mut self,
         id: Uuid,
+        db_conn: Arc<ConversationDatabase>,
     ) -> Result<(), ApplicationError> {
         if let Some(session) = self.sessions.get(&id) {
             let instruction = session.get_instruction().await?;
@@ -135,9 +145,18 @@ impl ChatSessionManager {
                 .as_ref()
                 .map(|s| s.to_string());
 
+            let conversation = if let Some(conv_id) = conversation_id {
+                let handler = db_conn.get_conversation_handler(Some(conv_id));
+                handler.fetch_conversation(conv_id).await.map_err(|e| {
+                    ApplicationError::DatabaseError(e.to_string())
+                })?
+            } else {
+                None
+            };
+
             self.active_session_info = Some(SessionInfo {
                 id,
-                conversation_id,
+                conversation,
                 server_name,
             });
             Ok(())

@@ -11,10 +11,10 @@ use ratatui::Frame;
 
 use super::widgets::{ListWidget, ListWidgetState};
 use super::{
-    ApplicationError, Conversation, ConversationDbHandler, ConversationEvent,
-    ConversationId, ConversationStatus, KeyTrack, ModalEvent, ModalWindowTrait,
-    ModalWindowType, PromptInstruction, ThreadedChatSession, UserEvent,
-    WindowMode,
+    ApplicationError, ChatSessionManager, Conversation, ConversationDbHandler,
+    ConversationEvent, ConversationId, ConversationStatus, KeyTrack,
+    ModalEvent, ModalWindowTrait, ModalWindowType, PromptInstruction,
+    ThreadedChatSession, UserEvent, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -89,6 +89,11 @@ impl ConversationListModal {
                 KeyCode::BackTab | KeyCode::Left => {
                     return Ok(WindowMode::Conversation(Some(
                         ConversationEvent::PromptRead,
+                    )));
+                }
+                KeyCode::Up => {
+                    return Ok(WindowMode::Modal(ModalEvent::Open(
+                        ModalWindowType::FileBrowser,
                     )));
                 }
                 _ => {}
@@ -436,24 +441,6 @@ impl ConversationListModal {
         Ok(())
     }
 
-    fn update_list_widget(&mut self) {
-        let items: Vec<Text<'static>> = self
-            .conversations_in_current_tab()
-            .enumerate()
-            .map(|(index, conversation)| {
-                self.create_conversation_list_item(conversation, index)
-            })
-            .collect();
-
-        self.list_widget = ListWidget::new(items)
-            //.title("Conversations")
-            .normal_style(Style::default().bg(Color::Black).fg(Color::Cyan))
-            .selected_style(
-                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
-            )
-            .highlight_symbol(">> ".to_string());
-    }
-
     fn create_conversation_list_item(
         &self,
         conversation: &Conversation,
@@ -536,7 +523,7 @@ impl ConversationListModal {
 
             // Render the title
             frame.render_widget(
-                Paragraph::new(title.clone()).style(style),
+                Paragraph::new(*title).style(style),
                 Rect::new(x, area.top() + 1, title.len() as u16, 1),
             );
 
@@ -642,9 +629,10 @@ impl ModalWindowTrait for ConversationListModal {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        tab_chat: Option<&'b mut ThreadedChatSession>,
+        chat_manager: &mut ChatSessionManager,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError> {
+        let tab_chat = chat_manager.get_active_session()?;
         self.handle_key_event(key_event, tab_chat, handler).await
     }
 }

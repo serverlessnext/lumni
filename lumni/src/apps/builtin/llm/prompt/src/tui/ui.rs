@@ -5,29 +5,25 @@ use lumni::api::error::ApplicationError;
 use ratatui::widgets::Borders;
 
 use super::modals::{ConversationListModal, FileBrowserModal, SettingsModal};
-use super::widgets::FileBrowser;
-use super::workspaces::Workspaces;
 use super::{
     CommandLine, ConversationDatabase, ConversationDbHandler,
     ConversationEvent, ConversationId, ModalEvent, ModalWindowTrait,
     ModalWindowType, PromptWindow, ResponseWindow, TextLine, TextWindowTrait,
-    WindowKind, WindowMode,
+    WindowMode,
 };
-
-#[derive(Debug)]
-pub struct Conversation;
-
 pub use crate::external as lumni;
-#[derive(Debug)]
-pub enum ContentDisplayMode {
-    Conversation(Option<Conversation>),
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ConversationUiMode {
+    Chat,
+    Instruction,
 }
 
 #[derive(Debug)]
 pub struct ConversationUi<'a> {
     pub prompt: PromptWindow<'a>,
     pub response: ResponseWindow<'a>,
-    pub primary_window: WindowKind,
+    pub mode: ConversationUiMode,
 }
 
 impl<'a> ConversationUi<'a> {
@@ -35,7 +31,7 @@ impl<'a> ConversationUi<'a> {
         Self {
             prompt: PromptWindow::new().with_borders(Borders::ALL),
             response: ResponseWindow::new(conversation_text),
-            primary_window: WindowKind::ResponseWindow,
+            mode: ConversationUiMode::Chat,
         }
     }
 
@@ -68,34 +64,19 @@ impl<'a> ConversationUi<'a> {
             WindowMode::Conversation(Some(ConversationEvent::PromptRead))
         }
     }
-
-    pub fn set_primary_window(&mut self, window_type: WindowKind) {
-        self.primary_window = match window_type {
-            WindowKind::ResponseWindow | WindowKind::EditorWindow => {
-                window_type
-            }
-            _ => unreachable!("Invalid primary window type: {:?}", window_type),
-        };
-    }
 }
+
 pub struct AppUi<'a> {
     pub command_line: CommandLine<'a>,
     pub modal: Option<Box<dyn ModalWindowTrait>>,
-    pub selected_mode: ContentDisplayMode,
-    pub workspaces: Workspaces,
     pub conversation_ui: ConversationUi<'a>,
 }
 
 impl AppUi<'_> {
-    pub async fn new(
-        workspaces: Workspaces,
-        conversation_text: Option<Vec<TextLine>>,
-    ) -> Self {
+    pub async fn new(conversation_text: Option<Vec<TextLine>>) -> Self {
         Self {
             command_line: CommandLine::new(),
             modal: None,
-            selected_mode: ContentDisplayMode::Conversation(None),
-            workspaces,
             conversation_ui: ConversationUi::new(conversation_text),
         }
     }
@@ -180,10 +161,6 @@ impl AppUi<'_> {
 
     pub fn clear_modal(&mut self) {
         self.modal = None;
-    }
-
-    pub fn switch_to_conversation_mode(&mut self) {
-        self.selected_mode = ContentDisplayMode::Conversation(None);
     }
 
     pub async fn poll_widgets(&mut self) -> Result<bool, ApplicationError> {

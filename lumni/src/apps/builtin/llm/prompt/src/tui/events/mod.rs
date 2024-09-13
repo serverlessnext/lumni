@@ -10,12 +10,15 @@ use lumni::api::error::ApplicationError;
 
 use super::clipboard::ClipboardProvider;
 use super::modals::ModalWindowType;
-use super::ui::{AppUi, ContentDisplayMode};
+use super::ui::AppUi;
 use super::window::{
     LineType, MoveCursor, PromptWindow, TextDocumentTrait, TextWindowTrait,
     WindowKind,
 };
-use super::{ConversationDbHandler, NewConversation, ThreadedChatSession};
+use super::{
+    ChatSessionManager, ConversationDbHandler, NewConversation,
+    ThreadedChatSession,
+};
 pub use crate::external as lumni;
 
 #[derive(Debug, PartialEq)]

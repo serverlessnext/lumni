@@ -200,7 +200,7 @@ impl<'a, T: TextDocumentTrait> TextWindow<'a, T> {
                 unimplemented!("Unsupported border type: {:?}", self.borders);
             }
         };
-
+        let time = std::time::Instant::now();
         if self.area.update(area, h_borders, v_borders) == true {
             // re-fit text to updated display
             self.text_buffer.set_width(self.area.width() as usize);

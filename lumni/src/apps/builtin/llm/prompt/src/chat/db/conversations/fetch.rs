@@ -2,6 +2,76 @@ use super::*;
 
 #[allow(dead_code)]
 impl ConversationDbHandler {
+    pub async fn fetch_conversation(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<Option<Conversation>, DatabaseOperationError> {
+        let query = "SELECT c.id, c.name, c.info, c.completion_options, 
+                     c.model_identifier, 
+                     c.workspace_id, w.name AS workspace_name, w.path AS \
+                     workspace_path,
+                     c.parent_conversation_id, c.fork_message_id, 
+                     c.created_at, c.updated_at, 
+                     c.is_deleted, c.is_pinned, c.status, c.message_count, \
+                     c.total_tokens
+                     FROM conversations c
+                     LEFT JOIN workspaces w ON c.workspace_id = w.id
+                     WHERE c.id = ?1 AND c.status != 'deleted'";
+        let mut db = self.db.lock().await;
+        db.process_queue_with_result(|tx| {
+            let result: Result<Option<Conversation>, SqliteError> = {
+                let mut stmt = tx.prepare(query)?;
+                let mut rows = stmt.query([conversation_id.0])?;
+                if let Some(row) = rows.next()? {
+                    Ok(Some(Conversation {
+                        id: ConversationId(row.get(0)?),
+                        name: row.get(1)?,
+                        info: serde_json::from_str(&row.get::<_, String>(2)?)
+                            .unwrap_or_default(),
+                        completion_options: row
+                            .get::<_, Option<String>>(3)?
+                            .map(|s| {
+                                serde_json::from_str(&s).unwrap_or_default()
+                            }),
+                        model_identifier: ModelIdentifier(row.get(4)?),
+                        workspace: row.get::<_, Option<i64>>(5)?.and_then(
+                            |id| {
+                                let name =
+                                    row.get::<_, Option<String>>(6).ok()?;
+                                let path =
+                                    row.get::<_, Option<String>>(7).ok()?;
+                                Some(Workspace {
+                                    id: WorkspaceId(id),
+                                    name: name?,
+                                    directory_path: path.map(PathBuf::from),
+                                })
+                            },
+                        ),
+                        parent_conversation_id: row
+                            .get::<_, Option<i64>>(8)?
+                            .map(ConversationId),
+                        fork_message_id: row
+                            .get::<_, Option<i64>>(9)?
+                            .map(MessageId),
+                        created_at: row.get(10)?,
+                        updated_at: row.get(11)?,
+                        is_deleted: row.get::<_, i64>(12)? != 0,
+                        is_pinned: row.get::<_, i64>(13)? != 0,
+                        status: ConversationStatus::from_str(
+                            &row.get::<_, String>(14)?,
+                        )
+                        .unwrap_or(ConversationStatus::Active),
+                        message_count: row.get(15)?,
+                        total_tokens: row.get(16)?,
+                    }))
+                } else {
+                    Ok(None)
+                }
+            };
+            result.map_err(DatabaseOperationError::from)
+        })
+    }
+
     pub async fn fetch_completion_options(
         &self,
     ) -> Result<JsonValue, DatabaseOperationError> {
@@ -225,13 +295,18 @@ impl ConversationDbHandler {
         limit: usize,
     ) -> Result<Vec<Conversation>, DatabaseOperationError> {
         let query = format!(
-            "SELECT id, name, info, completion_options, model_identifier, 
-             workspace_id, parent_conversation_id, fork_message_id, \
-             created_at, updated_at, 
-             is_deleted, is_pinned, status, message_count, total_tokens
-             FROM conversations
-             WHERE is_deleted = FALSE
-             ORDER BY is_pinned DESC, updated_at DESC
+            "SELECT c.id, c.name, c.info, c.completion_options, \
+             c.model_identifier, 
+             c.workspace_id, w.name AS workspace_name, w.path AS \
+             workspace_path,
+             c.parent_conversation_id, c.fork_message_id, 
+             c.created_at, c.updated_at, 
+             c.is_deleted, c.is_pinned, c.status, c.message_count, \
+             c.total_tokens
+             FROM conversations c
+             LEFT JOIN workspaces w ON c.workspace_id = w.id
+             WHERE c.is_deleted = FALSE
+             ORDER BY c.is_pinned DESC, c.updated_at DESC
              LIMIT {}",
             limit
         );
@@ -251,25 +326,35 @@ impl ConversationDbHandler {
                                 serde_json::from_str(&s).unwrap_or_default()
                             }),
                         model_identifier: ModelIdentifier(row.get(4)?),
-                        workspace_id: row
-                            .get::<_, Option<i64>>(5)?
-                            .map(WorkspaceId),
+                        workspace: row.get::<_, Option<i64>>(5)?.and_then(
+                            |id| {
+                                let name =
+                                    row.get::<_, Option<String>>(6).ok()?;
+                                let path =
+                                    row.get::<_, Option<String>>(7).ok()?;
+                                Some(Workspace {
+                                    id: WorkspaceId(id),
+                                    name: name?,
+                                    directory_path: path.map(PathBuf::from),
+                                })
+                            },
+                        ),
                         parent_conversation_id: row
-                            .get::<_, Option<i64>>(6)?
+                            .get::<_, Option<i64>>(8)?
                             .map(ConversationId),
                         fork_message_id: row
-                            .get::<_, Option<i64>>(7)?
+                            .get::<_, Option<i64>>(9)?
                             .map(MessageId),
-                        created_at: row.get(8)?,
-                        updated_at: row.get(9)?,
-                        is_deleted: row.get::<_, i64>(10)? != 0,
-                        is_pinned: row.get::<_, i64>(11)? != 0,
+                        created_at: row.get(10)?,
+                        updated_at: row.get(11)?,
+                        is_deleted: row.get::<_, i64>(12)? != 0,
+                        is_pinned: row.get::<_, i64>(13)? != 0,
                         status: ConversationStatus::from_str(
-                            &row.get::<_, String>(12)?,
+                            &row.get::<_, String>(14)?,
                         )
                         .unwrap_or(ConversationStatus::Active),
-                        message_count: row.get(13)?,
-                        total_tokens: row.get(14)?,
+                        message_count: row.get(15)?,
+                        total_tokens: row.get(16)?,
                     })
                 })?;
                 rows.collect()

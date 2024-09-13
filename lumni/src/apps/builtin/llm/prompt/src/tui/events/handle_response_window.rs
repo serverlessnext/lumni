@@ -7,8 +7,7 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ContentDisplayMode, ConversationEvent, TextWindowTrait, WindowKind,
-    WindowMode,
+    AppUi, ConversationEvent, TextWindowTrait, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -52,16 +51,6 @@ pub fn handle_response_window_event(
                         return Ok(app_ui
                             .conversation_ui
                             .set_prompt_window(false));
-                    }
-                    '+' => {
-                        app_ui
-                            .conversation_ui
-                            .set_primary_window(WindowKind::ResponseWindow);
-                    }
-                    '-' => {
-                        app_ui
-                            .conversation_ui
-                            .set_primary_window(WindowKind::EditorWindow);
                     }
                     ' ' => {
                         if let Some(prev) = key_track.previous_key_str() {

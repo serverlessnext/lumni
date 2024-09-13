@@ -19,11 +19,12 @@ use settings_editor::{SettingsAction, SettingsEditor};
 
 use super::widgets::{ListWidget, ListWidgetState, TextArea};
 use super::{
-    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
-    MaskMode, ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer,
-    ModelSpec, ProviderConfig, ProviderConfigOptions, ReadDocument,
-    ServerTrait, SimpleString, TextLine, TextSegment, ThreadedChatSession,
-    UserProfile, UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    ApplicationError, ChatSessionManager, ConversationDbHandler,
+    ConversationEvent, KeyTrack, MaskMode, ModalEvent, ModalWindowTrait,
+    ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
+    ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
+    ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowMode,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -520,7 +521,7 @@ impl ModalWindowTrait for SettingsModal {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        _tab_chat: Option<&'b mut ThreadedChatSession>,
+        _chat_manager: &mut ChatSessionManager,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError> {
         self.handle_key_event(key_event.current_key()).await

@@ -11,13 +11,14 @@ pub use settings::SettingsModal;
 
 pub use super::widgets;
 use super::{
-    ApplicationError, Conversation, ConversationDbHandler, ConversationEvent,
-    ConversationId, ConversationStatus, KeyTrack, MaskMode, ModalEvent,
-    ModelServer, ModelSpec, PromptInstruction, ProviderConfig,
+    ApplicationError, ChatSessionManager, Conversation, ConversationDbHandler,
+    ConversationEvent, ConversationId, ConversationStatus, KeyTrack, MaskMode,
+    ModalEvent, ModelServer, ModelSpec, PromptInstruction, ProviderConfig,
     ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
     TextSegment, ThreadedChatSession, UserEvent, UserProfile,
     UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
+use crate::apps::builtin::llm::prompt::src::chat;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalWindowType {
@@ -40,7 +41,7 @@ pub trait ModalWindowTrait: Send + Sync {
     async fn handle_key_event<'a>(
         &'a mut self,
         key_event: &'a mut KeyTrack,
-        tab_chat: Option<&'a mut ThreadedChatSession>,
+        chat_manager: &mut ChatSessionManager,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError>;
 }

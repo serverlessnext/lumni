@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::path::PathBuf;
 
 mod connector;
 mod conversations;
@@ -78,12 +79,19 @@ impl ConversationStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Workspace {
+    pub id: WorkspaceId,
+    pub name: String,
+    pub directory_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: ConversationId,
     pub name: String,
     pub info: serde_json::Value,
     pub model_identifier: ModelIdentifier,
-    pub workspace_id: Option<WorkspaceId>,
+    pub workspace: Option<Workspace>, // this used to be a WorkspaceId
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_message_id: Option<MessageId>, // New field
     pub completion_options: Option<serde_json::Value>,

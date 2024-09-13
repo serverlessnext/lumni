@@ -10,9 +10,9 @@ use ratatui::Frame;
 
 use super::widgets::{FileBrowserState, FileBrowserWidget};
 use super::{
-    ApplicationError, ConversationDbHandler, ConversationEvent, KeyTrack,
-    ModalEvent, ModalWindowTrait, ModalWindowType, ThreadedChatSession,
-    WindowMode,
+    ApplicationError, ChatSessionManager, ConversationDbHandler,
+    ConversationEvent, KeyTrack, ModalEvent, ModalWindowTrait, ModalWindowType,
+    ThreadedChatSession, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -181,7 +181,7 @@ impl ModalWindowTrait for FileBrowserModal {
     async fn handle_key_event<'b>(
         &'b mut self,
         key_event: &'b mut KeyTrack,
-        _tab_chat: Option<&'b mut ThreadedChatSession>,
+        _chat_manager: &mut ChatSessionManager,
         _handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError> {
         let current_key = key_event.current_key();
@@ -190,6 +190,11 @@ impl ModalWindowTrait for FileBrowserModal {
                 KeyCode::BackTab | KeyCode::Left => {
                     return Ok(WindowMode::Conversation(Some(
                         ConversationEvent::PromptRead,
+                    )));
+                }
+                KeyCode::Right => {
+                    return Ok(WindowMode::Modal(ModalEvent::Open(
+                        ModalWindowType::ConversationList,
                     )));
                 }
                 _ => {}

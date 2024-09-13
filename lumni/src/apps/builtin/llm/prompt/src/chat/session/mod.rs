@@ -6,7 +6,7 @@ mod threaded_chat_session;
 use std::io;
 use std::sync::Arc;
 
-pub use chat_session_manager::{ChatEvent, ChatSessionManager};
+pub use chat_session_manager::{ChatEvent, ChatSessionManager, SessionInfo};
 pub use conversation_loop::prompt_app;
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
@@ -16,10 +16,9 @@ pub use threaded_chat_session::ThreadedChatSession;
 use super::db::{ConversationDatabase, ConversationId};
 use super::{
     db, draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    CompletionResponse, Conversations, KeyEventHandler, ModalEvent,
-    ModelServer, PromptAction, PromptError, PromptInstruction,
-    PromptNotReadyReason, ServerManager, TextWindowTrait, UserEvent,
-    WindowKind, WindowMode, Workspaces,
+    CompletionResponse, KeyEventHandler, ModalEvent, ModelServer, PromptAction,
+    PromptError, PromptInstruction, PromptNotReadyReason, ServerManager,
+    TextWindowTrait, UserEvent, WindowKind, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -52,12 +51,8 @@ impl App<'_> {
         .await;
 
         log::debug!("Chat session manager created");
-        let handler = db_conn.get_conversation_handler(None);
-        let conversations =
-            Conversations::new(handler.fetch_conversation_list(100).await?);
 
-        let workspaces = Workspaces::new_as_default(conversations);
-        let mut ui = AppUi::new(workspaces, conversation_text).await;
+        let mut ui = AppUi::new(conversation_text).await;
         ui.init();
 
         Ok(App {
@@ -89,11 +84,7 @@ impl App<'_> {
             self.ui
                 .conversation_ui
                 .reload_conversation_text(conversation_text);
-        } else {
-            // If there's no conversation text, ensure we're in Conversation mode with an empty conversation
-            self.ui.switch_to_conversation_mode();
         }
-
         Ok(())
     }
 

@@ -17,11 +17,11 @@ use ratatui::Terminal;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::signal;
 use tokio::sync::Mutex;
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 
 use super::chat::db::ConversationDatabase;
 use super::chat::{
-    prompt_app, App, ChatEvent, PromptInstruction, PromptInstructionBuilder,
+    prompt_app, App, PromptInstruction, PromptInstructionBuilder,
     ThreadedChatSession,
 };
 use super::cli::{

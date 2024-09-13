@@ -10,7 +10,6 @@ use super::{
     AppUi, ConversationEvent, LineType, PromptAction, PromptWindow,
     TextWindowTrait, WindowMode,
 };
-use crate::apps::builtin::llm::prompt::src::tui::WindowKind;
 pub use crate::external as lumni;
 
 pub fn handle_prompt_window_event(
@@ -91,16 +90,6 @@ pub fn handle_prompt_window_event(
                         return Ok(app_ui
                             .conversation_ui
                             .set_prompt_window(true));
-                    }
-                    '+' => {
-                        app_ui
-                            .conversation_ui
-                            .set_primary_window(WindowKind::EditorWindow);
-                    }
-                    '-' => {
-                        app_ui
-                            .conversation_ui
-                            .set_primary_window(WindowKind::ResponseWindow);
                     }
                     ' ' => {
                         if let Some(prev) = key_track.previous_key_str() {

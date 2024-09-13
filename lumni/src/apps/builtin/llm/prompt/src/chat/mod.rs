@@ -10,7 +10,8 @@ pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
 pub use prompt::{PromptInstructionBuilder, PromptRole};
 pub use session::{
-    prompt_app, App, ChatEvent, ChatSessionManager, ThreadedChatSession,
+    prompt_app, App, ChatEvent, ChatSessionManager, SessionInfo,
+    ThreadedChatSession,
 };
 
 pub use super::defaults::*;
@@ -20,10 +21,8 @@ use super::server::{
 };
 use super::tui::{
     draw_ui, AppUi, ColorScheme, ColorSchemeType, CommandLineAction,
-    ContentDisplayMode, ConversationEvent, Conversations, KeyEventHandler,
-    ModalEvent, ModalWindowType, PromptAction, SimpleString, TextLine,
+    KeyEventHandler, ModalEvent, PromptAction, SimpleString, TextLine,
     TextSegment, TextWindowTrait, UserEvent, WindowKind, WindowMode,
-    Workspaces,
 };
 
 // gets PERSONAS from the generated code

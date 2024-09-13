@@ -1,13 +1,16 @@
 use std::io;
 
+use lumni::Timestamp;
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, Tabs};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::{Frame, Terminal};
 
 use super::ui::ConversationUi;
-use super::{App, TextWindowTrait, WindowMode, Workspaces};
+use super::{App, SessionInfo, TextWindowTrait, WindowMode};
+pub use crate::external as lumni;
 
 pub async fn draw_ui<B: Backend>(
     terminal: &mut Terminal<B>,
@@ -16,7 +19,6 @@ pub async fn draw_ui<B: Backend>(
 ) -> Result<(), io::Error> {
     terminal.draw(|frame| {
         let terminal_area = frame.size();
-        const WORKSPACE_NAV_HEIGHT: u16 = 2;
         const COMMAND_LINE_HEIGHT: u16 = 2;
 
         // Default background
@@ -29,30 +31,18 @@ pub async fn draw_ui<B: Backend>(
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(WORKSPACE_NAV_HEIGHT),
+                Constraint::Length(0),
                 Constraint::Min(0),
                 Constraint::Length(COMMAND_LINE_HEIGHT),
             ])
             .split(terminal_area);
 
-        let workspace_nav_area = main_layout[0];
         let content_pane = main_layout[1];
         let command_line_area = main_layout[2];
-
-        render_workspace_nav::<B>(
-            frame,
-            workspace_nav_area,
-            &app.ui.workspaces,
-        );
 
         // Content pane styling
         let content_block = Block::default();
         frame.render_widget(content_block, content_pane);
-
-        // Render active conversation stats
-        if let Some(session_info) = &app.chat_manager.active_session_info {
-            log::debug!("Active session info: {:?}", session_info);
-        }
 
         // Render conversation mode
         let content_inner = content_pane.inner(Margin {
@@ -62,6 +52,7 @@ pub async fn draw_ui<B: Backend>(
         render_conversation_mode::<B>(
             frame,
             content_inner,
+            app.chat_manager.active_session_info.as_ref(),
             &mut app.ui.conversation_ui,
         );
 
@@ -79,12 +70,11 @@ pub async fn draw_ui<B: Backend>(
     Ok(())
 }
 
-fn render_workspace_nav<B: Backend>(
-    frame: &mut Frame,
-    area: Rect,
-    workspaces: &Workspaces,
-) {
-    let workspace_names: Vec<String> = [].to_vec();
+fn render_workspace_nav<B: Backend>(frame: &mut Frame, area: Rect) {
+    let workspace_names: Vec<String> = vec!["Chat", "Instruction"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
     let tabs = Tabs::new(workspace_names)
         .block(
@@ -92,7 +82,7 @@ fn render_workspace_nav<B: Backend>(
                 .borders(Borders::NONE)
                 .border_style(Style::default().fg(Color::DarkGray)),
         )
-        .select(workspaces.current_workspace_index)
+        .select(0)
         .style(Style::default().fg(Color::DarkGray).bg(Color::Black))
         .highlight_style(
             Style::default()
@@ -106,26 +96,80 @@ fn render_workspace_nav<B: Backend>(
 fn render_conversation_mode<B: Backend>(
     frame: &mut Frame,
     area: Rect,
+    session_info: Option<&SessionInfo>,
     conv_ui: &mut ConversationUi,
 ) {
     let conversation_block = Block::default()
         .borders(Borders::NONE)
-        .style(Style::default().bg(Color::Rgb(0, 0, 0)));
+        .style(Style::default().bg(Color::Black));
     frame.render_widget(conversation_block, area);
-
     let inner_area = area.inner(Margin {
         vertical: 0,
         horizontal: 1,
     });
-
     let conversation_panel = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(80), Constraint::Min(5)])
+        .constraints([
+            Constraint::Length(2),      // Nav and info line
+            Constraint::Percentage(80), // Response area
+            Constraint::Min(5),         // Prompt area
+        ])
         .split(inner_area);
+    let nav_area = conversation_panel[0];
+    let response_area = conversation_panel[1];
+    let prompt_area = conversation_panel[2];
 
-    let response_area = conversation_panel[0];
-    let prompt_area = conversation_panel[1];
+    // Render navigation area with info line
+    let nav_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(30), // Chat | Instruction nav
+            Constraint::Percentage(70), // Info line
+        ])
+        .split(nav_area);
 
-    frame.render_widget(conv_ui.prompt.widget(&prompt_area), prompt_area);
+    // Render Chat | Instruction navigation
+    render_workspace_nav::<B>(frame, nav_layout[0]);
+
+    // Render info line
+    if let Some(info) = session_info {
+        if let Some(conv) = &info.conversation {
+            let info_text = Text::from(vec![Line::from(vec![
+                Span::styled("Tokens: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{}", conv.total_tokens.unwrap_or(0)),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::raw(" | "),
+                Span::styled(
+                    "Messages: ",
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    format!("{}", conv.message_count.unwrap_or(0)),
+                    Style::default().fg(Color::Magenta),
+                ),
+                Span::raw(" | "),
+                Span::styled("Updated: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format_timestamp(conv.updated_at),
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ])]);
+            frame.render_widget(
+                Paragraph::new(info_text).alignment(Alignment::Right),
+                nav_layout[1],
+            );
+        }
+    }
+
+    // Render response and prompt areas
     frame.render_widget(conv_ui.response.widget(&response_area), response_area);
+    frame.render_widget(conv_ui.prompt.widget(&prompt_area), prompt_area);
+}
+
+fn format_timestamp(timestamp: i64) -> String {
+    Timestamp::new(timestamp)
+        .format("[year]-[month]-[day] [hour]:[minute]")
+        .unwrap_or_else(|_| "Invalid timestamp".to_string())
 }

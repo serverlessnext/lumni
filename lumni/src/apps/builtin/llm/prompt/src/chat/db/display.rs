@@ -8,7 +8,7 @@ impl ConversationDatabase {
         &self,
     ) -> Result<(), ApplicationError> {
         if let Some((conversation, messages)) =
-            self.fetch_conversation(None, None).await?
+            self.fetch_conversation_with_messages(None, None).await?
         {
             display_conversation_with_messages(&conversation, &messages);
         } else {
@@ -41,8 +41,9 @@ impl ConversationDatabase {
             ))
         })?);
 
-        if let Some((conversation, messages)) =
-            self.fetch_conversation(Some(conversation_id), None).await?
+        if let Some((conversation, messages)) = self
+            .fetch_conversation_with_messages(Some(conversation_id), None)
+            .await?
         {
             display_conversation_with_messages(&conversation, &messages);
         } else {

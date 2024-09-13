@@ -173,12 +173,11 @@ async fn handle_key_event(
 ) -> Result<(), ApplicationError> {
     let mut conversation_handler = db_conn
         .get_conversation_handler(app.get_conversation_id_for_active_session());
-    let active_session = app.chat_manager.get_active_session()?;
     key_event_handler
         .process_key(
             key_event,
             &mut app.ui,
-            active_session,
+            &mut app.chat_manager,
             window_mode,
             keep_running.clone(),
             &mut conversation_handler,
@@ -363,8 +362,6 @@ async fn send_prompt<'a>(
         .conversation_ui
         .response
         .text_append("\n", Some(Style::reset()))?;
-    app.ui
-        .conversation_ui
-        .set_primary_window(WindowKind::ResponseWindow);
+
     Ok(())
 }

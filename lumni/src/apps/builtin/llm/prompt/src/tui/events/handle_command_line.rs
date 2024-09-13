@@ -7,8 +7,8 @@ use lumni::api::error::ApplicationError;
 use super::key_event::KeyTrack;
 use super::text_window_event::handle_text_window_event;
 use super::{
-    AppUi, ContentDisplayMode, ConversationEvent, ModalEvent, ModalWindowType,
-    PromptAction, TextWindowTrait, WindowMode,
+    AppUi, ConversationEvent, ModalEvent, ModalWindowType, PromptAction,
+    TextWindowTrait, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -32,6 +32,9 @@ pub fn handle_command_line_event(
             app_ui.command_line.set_status_inactive();
             if command.starts_with(':') {
                 match command.trim_start_matches(':') {
+                    "q" => {
+                        return Ok(WindowMode::Quit);
+                    }
                     "w" => {
                         let question = app_ui
                             .conversation_ui

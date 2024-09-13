@@ -11,7 +11,7 @@ use super::encryption::EncryptionHandler;
 use super::user_profile::{UserProfile, UserProfileDbHandler};
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
-    ModelIdentifier, WorkspaceId,
+    ModelIdentifier, Workspace, WorkspaceId,
 };
 use crate::external as lumni;
 
@@ -107,7 +107,7 @@ impl ConversationDatabase {
         })
     }
 
-    pub async fn fetch_conversation(
+    pub async fn fetch_conversation_with_messages(
         &self,
         conversation_id: Option<ConversationId>,
         limit: Option<usize>,
@@ -122,12 +122,14 @@ impl ConversationDatabase {
                 ORDER BY updated_at DESC
                 LIMIT 1
             )
-            SELECT c.*, m.id as message_id, m.role, m.message_type, 
+            SELECT c.*, w.name AS workspace_name, w.path AS workspace_path,
+            m.id as message_id, m.role, m.message_type, 
             m.content, m.has_attachments, m.token_length, 
             m.previous_message_id, m.created_at as message_created_at,
             m.vote, m.include_in_prompt, m.is_hidden, m.is_deleted
             FROM target_conversation tc
             JOIN conversations c ON c.id = tc.id
+            LEFT JOIN workspaces w ON c.workspace_id = w.id
             LEFT JOIN messages m ON c.id = m.conversation_id
             ORDER BY m.created_at ASC
             {}",
@@ -149,12 +151,25 @@ impl ConversationDatabase {
                         info: serde_json::from_str(&row.get::<_, String>(2)?)
                             .unwrap_or_default(),
                         model_identifier: ModelIdentifier(row.get(3)?),
-                        workspace_id: row.get(4).map(WorkspaceId).ok(),
+                        workspace: row.get::<_, Option<i64>>(4)?.and_then(
+                            |id| {
+                                let name =
+                                    row.get::<_, Option<String>>(15).ok()?;
+                                let path =
+                                    row.get::<_, Option<String>>(16).ok()?;
+                                Some(Workspace {
+                                    id: WorkspaceId(id),
+                                    name: name?,
+                                    directory_path: path.map(PathBuf::from),
+                                })
+                            },
+                        ),
                         parent_conversation_id: row
-                            .get(5)
-                            .map(ConversationId)
-                            .ok(),
-                        fork_message_id: row.get(6).map(MessageId).ok(),
+                            .get::<_, Option<i64>>(5)?
+                            .map(ConversationId),
+                        fork_message_id: row
+                            .get::<_, Option<i64>>(6)?
+                            .map(MessageId),
                         completion_options: row
                             .get::<_, Option<String>>(7)?
                             .map(|s| {
@@ -173,24 +188,25 @@ impl ConversationDatabase {
                             _ => ConversationStatus::Active,
                         },
                     };
-                    let message = if !row.get::<_, Option<i64>>(15)?.is_none() {
+                    let message = if let Some(message_id) =
+                        row.get::<_, Option<i64>>(17)?
+                    {
                         Some(Message {
-                            id: MessageId(row.get(15)?),
+                            id: MessageId(message_id),
                             conversation_id: conversation.id,
-                            role: row.get(16)?,
-                            message_type: row.get(17)?,
-                            content: row.get(18)?,
-                            has_attachments: row.get::<_, i64>(19)? != 0,
-                            token_length: row.get(20)?,
+                            role: row.get(18)?,
+                            message_type: row.get(19)?,
+                            content: row.get(20)?,
+                            has_attachments: row.get::<_, i64>(21)? != 0,
+                            token_length: row.get(22)?,
                             previous_message_id: row
-                                .get(21)
-                                .map(MessageId)
-                                .ok(),
-                            created_at: row.get(22)?,
-                            vote: row.get(23)?,
-                            include_in_prompt: row.get::<_, i64>(24)? != 0,
-                            is_hidden: row.get::<_, i64>(25)? != 0,
-                            is_deleted: row.get::<_, i64>(26)? != 0,
+                                .get::<_, Option<i64>>(23)?
+                                .map(MessageId),
+                            created_at: row.get(24)?,
+                            vote: row.get(25)?,
+                            include_in_prompt: row.get::<_, i64>(26)? != 0,
+                            is_hidden: row.get::<_, i64>(27)? != 0,
+                            is_deleted: row.get::<_, i64>(28)? != 0,
                         })
                     } else {
                         None
@@ -213,6 +229,7 @@ impl ConversationDatabase {
             result.map_err(DatabaseOperationError::from)
         })
     }
+
     pub async fn fetch_conversation_list(
         &self,
         limit: usize,

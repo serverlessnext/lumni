@@ -10,8 +10,7 @@ pub use conversation::{ConversationCache, NewConversation, PromptInstruction};
 use prompt::Prompt;
 pub use prompt::{PromptInstructionBuilder, PromptRole};
 pub use session::{
-    prompt_app, App, ChatEvent, ChatSessionManager, SessionInfo,
-    ThreadedChatSession,
+    prompt_app, App, ChatEvent, ChatSessionManager, ThreadedChatSession,
 };
 
 pub use super::defaults::*;

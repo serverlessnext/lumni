@@ -207,10 +207,9 @@ async fn process_non_interactive_input(
         }
     };
 
-    let chat = Arc::new(Mutex::new(ThreadedChatSession::new(
-        instruction,
-        db_conn.clone(),
-    )));
+    let db_handler = db_conn
+        .get_conversation_handler(Some(instruction.get_conversation_id()));
+    let chat = Arc::new(Mutex::new(ThreadedChatSession::new(instruction)));
 
     // Shared state for handling Ctrl+C
     let running = Arc::new(Mutex::new(true));

@@ -62,15 +62,10 @@ impl ConversationListModal {
 
     async fn reload_conversation(
         &mut self,
-        tab_chat: &mut ThreadedChatSession,
-        db_handler: &mut ConversationDbHandler,
+        chat_manager: &mut ChatSessionManager,
     ) -> Result<WindowMode, ApplicationError> {
-        match self.current_tab {
-            ConversationStatus::Deleted => {
-                self.undo_delete_and_load_conversation(tab_chat, db_handler)
-                    .await?
-            }
-            _ => self.load_and_set_conversation(tab_chat, db_handler).await?,
+        if let Some(conversation) = self.get_current_conversation() {
+            chat_manager.load_conversation(conversation.clone()).await?;
         }
         Ok(WindowMode::Modal(ModalEvent::Event(
             UserEvent::ReloadConversation,
@@ -80,7 +75,7 @@ impl ConversationListModal {
     pub async fn handle_key_event(
         &mut self,
         key_event: &mut KeyTrack,
-        tab_chat: Option<&mut ThreadedChatSession>,
+        chat_manager: &mut ChatSessionManager,
         db_handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError> {
         let current_key = key_event.current_key();
@@ -104,24 +99,12 @@ impl ConversationListModal {
             KeyCode::Up => {
                 self.move_selection_up();
                 self.last_selected_conversation_id = None;
-                if let Some(tab_chat) = tab_chat {
-                    return self
-                        .reload_conversation(tab_chat, db_handler)
-                        .await;
-                }
-                log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
+                return self.reload_conversation(chat_manager).await;
             }
             KeyCode::Down => {
                 self.move_selection_down();
                 self.last_selected_conversation_id = None;
-                if let Some(tab_chat) = tab_chat {
-                    return self
-                        .reload_conversation(tab_chat, db_handler)
-                        .await;
-                }
-                log::warn!("ThreadedChatSession is not available");
-                return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
+                return self.reload_conversation(chat_manager).await;
             }
             KeyCode::Enter => {
                 return Ok(WindowMode::Conversation(Some(
@@ -242,20 +225,6 @@ impl ConversationListModal {
         Ok(())
     }
 
-    async fn load_conversation(
-        &self,
-        db_handler: &mut ConversationDbHandler,
-    ) -> Result<Option<PromptInstruction>, ApplicationError> {
-        if let Some(conversation) = self.get_current_conversation() {
-            db_handler.set_conversation_id(conversation.id);
-            let prompt_instruction =
-                PromptInstruction::from_reader(db_handler).await?;
-            Ok(Some(prompt_instruction))
-        } else {
-            Ok(None)
-        }
-    }
-
     async fn toggle_pin_status(
         &mut self,
         handler: &mut ConversationDbHandler,
@@ -354,7 +323,7 @@ impl ConversationListModal {
 
     async fn undo_delete_conversation(
         &mut self,
-        handler: &mut ConversationDbHandler,
+        handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         if let Some(conversation) = self.get_current_conversation_mut() {
             handler
@@ -397,48 +366,6 @@ impl ConversationListModal {
             .iter_mut()
             .filter(|conv| conv.status == self.current_tab)
             .nth(index)
-    }
-
-    async fn load_and_set_conversation(
-        &mut self,
-        tab_chat: &mut ThreadedChatSession,
-        db_handler: &mut ConversationDbHandler,
-    ) -> Result<(), ApplicationError> {
-        let prompt_instruction = self.load_conversation(db_handler).await?;
-        match prompt_instruction {
-            Some(prompt_instruction) => {
-                tab_chat.load_instruction(prompt_instruction).await?;
-            }
-            None => {}
-        }
-        Ok(())
-    }
-
-    async fn undo_delete_and_load_conversation(
-        &mut self,
-        tab_chat: &mut ThreadedChatSession,
-        db_handler: &mut ConversationDbHandler,
-    ) -> Result<(), ApplicationError> {
-        if let Some(conversation) = self.get_current_conversation_mut() {
-            let conversation_id = conversation.id;
-            db_handler
-                .undo_delete_conversation(Some(conversation_id))
-                .await?;
-            conversation.status = ConversationStatus::Active;
-            self.adjust_indices();
-
-            // Switch to Active tab
-            self.current_tab = ConversationStatus::Active;
-            self.adjust_indices();
-
-            // Now load the conversation
-            db_handler.set_conversation_id(conversation_id);
-            let prompt_instruction =
-                PromptInstruction::from_reader(db_handler).await?;
-            tab_chat.load_instruction(prompt_instruction).await?;
-            self.last_selected_conversation_id = None;
-        }
-        Ok(())
     }
 
     fn create_conversation_list_item(
@@ -632,8 +559,8 @@ impl ModalWindowTrait for ConversationListModal {
         chat_manager: &mut ChatSessionManager,
         handler: &mut ConversationDbHandler,
     ) -> Result<WindowMode, ApplicationError> {
-        let tab_chat = chat_manager.get_active_session()?;
-        self.handle_key_event(key_event, tab_chat, handler).await
+        self.handle_key_event(key_event, chat_manager, handler)
+            .await
     }
 }
 

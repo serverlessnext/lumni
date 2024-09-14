@@ -8,43 +8,45 @@ impl ConversationDbHandler {
         workspace: Option<Workspace>,
         fork_message_id: Option<MessageId>,
         completion_options: Option<serde_json::Value>,
-        model: &ModelSpec,
+        model: Option<&ModelSpec>,
     ) -> Result<ConversationId, DatabaseOperationError> {
         let timestamp = Timestamp::from_system_time().unwrap().as_millis();
         let mut db = self.db.lock().await;
         db.process_queue_with_result(|tx| {
             let result: Result<ConversationId, SqliteError> = {
-                // Ensure the model exists (unchanged)
-                let exists: bool = tx
-                    .query_row(
-                        "SELECT 1 FROM models WHERE identifier = ?",
-                        params![model.identifier.0],
-                        |_| Ok(true),
-                    )
-                    .optional()?
-                    .unwrap_or(false);
+                // Ensure the model exists (if provided)
+                if let Some(model) = model {
+                    let exists: bool = tx
+                        .query_row(
+                            "SELECT 1 FROM models WHERE identifier = ?",
+                            params![model.identifier.0],
+                            |_| Ok(true),
+                        )
+                        .optional()?
+                        .unwrap_or(false);
 
-                if !exists {
-                    tx.execute(
-                        "INSERT INTO models (identifier, info, config, \
-                         context_window_size, input_token_limit)
-                        VALUES (?, ?, ?, ?, ?)",
-                        params![
-                            model.identifier.0,
-                            model
-                                .info
-                                .as_ref()
-                                .map(|v| serde_json::to_string(v)
-                                    .unwrap_or_default()),
-                            model
-                                .config
-                                .as_ref()
-                                .map(|v| serde_json::to_string(v)
-                                    .unwrap_or_default()),
-                            model.context_window_size,
-                            model.input_token_limit,
-                        ],
-                    )?;
+                    if !exists {
+                        tx.execute(
+                            "INSERT INTO models (identifier, info, config, \
+                             context_window_size, input_token_limit)
+                            VALUES (?, ?, ?, ?, ?)",
+                            params![
+                                model.identifier.0,
+                                model
+                                    .info
+                                    .as_ref()
+                                    .map(|v| serde_json::to_string(v)
+                                        .unwrap_or_default()),
+                                model
+                                    .config
+                                    .as_ref()
+                                    .map(|v| serde_json::to_string(v)
+                                        .unwrap_or_default()),
+                                model.context_window_size,
+                                model.input_token_limit,
+                            ],
+                        )?;
+                    }
                 }
 
                 // Create the conversation
@@ -52,15 +54,15 @@ impl ConversationDbHandler {
                     id: ConversationId(-1), // Temporary ID
                     name: name.to_string(),
                     info: serde_json::Value::Null,
-                    model_identifier: model.identifier.clone(),
+                    model_identifier: model.map(|m| m.identifier.clone()),
                     workspace,
                     parent_conversation_id: parent_id,
                     fork_message_id,
                     completion_options,
                     created_at: timestamp,
                     updated_at: timestamp,
-                    message_count: None,
-                    total_tokens: None,
+                    message_count: Some(0), // Initialize with 0
+                    total_tokens: Some(0),  // Initialize with 0
                     is_deleted: false,
                     is_pinned: false,
                     status: ConversationStatus::Active,
@@ -91,12 +93,15 @@ impl ConversationDbHandler {
                         message_count, total_tokens, is_deleted, is_pinned, \
                      status
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     params![
                         conversation.name,
                         serde_json::to_string(&conversation.info)
                             .unwrap_or_default(),
-                        conversation.model_identifier.0,
+                        conversation
+                            .model_identifier
+                            .as_ref()
+                            .map(|id| id.0.clone()),
                         conversation.workspace.as_ref().map(|w| w.id.0),
                         conversation.parent_conversation_id.map(|id| id.0),
                         conversation.fork_message_id.map(|id| id.0),
@@ -107,6 +112,8 @@ impl ConversationDbHandler {
                                 .unwrap_or_default()),
                         conversation.created_at,
                         conversation.updated_at,
+                        conversation.message_count,
+                        conversation.total_tokens,
                         conversation.is_deleted,
                         conversation.is_pinned,
                         match conversation.status {

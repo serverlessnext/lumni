@@ -6,7 +6,7 @@ mod threaded_chat_session;
 use std::io;
 use std::sync::Arc;
 
-pub use chat_session_manager::{ChatEvent, ChatSessionManager, SessionInfo};
+pub use chat_session_manager::{ChatEvent, ChatSessionManager};
 pub use conversation_loop::prompt_app;
 use lumni::api::error::ApplicationError;
 use ratatui::backend::Backend;
@@ -66,8 +66,11 @@ impl App<'_> {
     pub async fn reload_conversation(
         &mut self,
     ) -> Result<(), ApplicationError> {
-        let active_session =
-            self.chat_manager.get_active_session()?.ok_or_else(|| {
+        let active_session = self
+            .chat_manager
+            .get_current_session()
+            .await?
+            .ok_or_else(|| {
                 ApplicationError::NotReady(
                     "Reload failed. No active session available".to_string(),
                 )
@@ -112,20 +115,5 @@ impl App<'_> {
         &mut self,
     ) -> Result<(), ApplicationError> {
         self.chat_manager.stop_active_chat_session()
-    }
-
-    pub async fn load_instruction_for_active_session(
-        &mut self,
-        prompt_instruction: PromptInstruction,
-    ) -> Result<(), ApplicationError> {
-        let active_session =
-            self.chat_manager.get_active_session()?.ok_or_else(|| {
-                ApplicationError::NotReady(
-                    "Cant load instruction. No active session available"
-                        .to_string(),
-                )
-            })?;
-
-        active_session.load_instruction(prompt_instruction).await
     }
 }

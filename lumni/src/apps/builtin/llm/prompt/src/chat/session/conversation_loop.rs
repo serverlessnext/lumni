@@ -14,7 +14,7 @@ use super::chat_session_manager::ChatEvent;
 use super::db::ConversationDatabase;
 use super::{
     App, ColorScheme, CommandLineAction, KeyEventHandler, ModalEvent,
-    PromptAction, TextWindowTrait, UserEvent, WindowKind, WindowMode,
+    PromptAction, TextWindowTrait, UserEvent, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -104,24 +104,33 @@ async fn handle_chat_events(
     color_scheme: &ColorScheme,
 ) -> Result<bool, ApplicationError> {
     let mut updated = false;
-    if let Ok(Some(active_session)) = app.chat_manager.get_active_session() {
-        while let Ok(event) = active_session.event_receiver.try_recv() {
-            updated = true;
-            match event {
-                ChatEvent::ResponseUpdate(content) => {
-                    app.ui.conversation_ui.response.text_append(
-                        &content,
-                        Some(color_scheme.get_secondary_style()),
-                    )?;
-                }
-                ChatEvent::FinalResponse => {
-                    app.ui.conversation_ui.response.text_append(
-                        "\n\n",
-                        Some(color_scheme.get_secondary_style()),
-                    )?;
-                }
-                ChatEvent::Error(error) => {
-                    return Err(ApplicationError::NotReady(error));
+
+    if !app.chat_manager.is_current_session_active().await? {
+        return Ok(updated);
+    }
+
+    if let Some(active_session) =
+        app.chat_manager.get_current_session_mut().await?
+    {
+        if let Some(event_receiver) = active_session.event_receiver.as_mut() {
+            while let Ok(event) = event_receiver.try_recv() {
+                updated = true;
+                match event {
+                    ChatEvent::ResponseUpdate(content) => {
+                        app.ui.conversation_ui.response.text_append(
+                            &content,
+                            Some(color_scheme.get_secondary_style()),
+                        )?;
+                    }
+                    ChatEvent::FinalResponse => {
+                        app.ui.conversation_ui.response.text_append(
+                            "\n\n",
+                            Some(color_scheme.get_secondary_style()),
+                        )?;
+                    }
+                    ChatEvent::Error(error) => {
+                        return Err(ApplicationError::NotReady(error));
+                    }
                 }
             }
         }
@@ -343,8 +352,11 @@ async fn send_prompt<'a>(
     let color_scheme = app.color_scheme.clone();
     let formatted_prompt = format!("{}\n", prompt.trim_end());
 
-    let active_session =
-        app.chat_manager.get_active_session()?.ok_or_else(|| {
+    let active_session = app
+        .chat_manager
+        .get_current_session_mut()
+        .await?
+        .ok_or_else(|| {
             ApplicationError::NotReady(
                 "No active session available".to_string(),
             )

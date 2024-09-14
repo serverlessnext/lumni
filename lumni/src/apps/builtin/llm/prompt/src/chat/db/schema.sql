@@ -49,7 +49,7 @@ CREATE TABLE conversations (
     name TEXT,
     info TEXT, -- JSON string including description and other metadata
     completion_options TEXT, -- JSON string
-    model_identifier TEXT NOT NULL,
+    model_identifier TEXT,  -- CHANGED: model_identifier can now be NULL
     workspace_id INTEGER,
     parent_conversation_id INTEGER,
     fork_message_id INTEGER,

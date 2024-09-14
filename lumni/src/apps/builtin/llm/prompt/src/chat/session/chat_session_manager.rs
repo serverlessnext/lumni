@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use lumni::api::error::ApplicationError;
-use uuid::Uuid;
 
-use super::db::{Conversation, ConversationDatabase, ConversationId};
+use super::db::{
+    Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
+};
 use super::threaded_chat_session::ThreadedChatSession;
 use super::PromptInstruction;
 pub use crate::external as lumni;
@@ -16,16 +17,10 @@ pub enum ChatEvent {
     Error(String),
 }
 
-#[derive(Debug)]
-pub struct SessionInfo {
-    pub id: Uuid,
-    pub conversation: Option<Conversation>,
-    pub server_name: Option<String>,
-}
-
 pub struct ChatSessionManager {
-    sessions: HashMap<Uuid, ThreadedChatSession>,
-    pub active_session_info: Option<SessionInfo>,
+    db_handler: ConversationDbHandler,
+    sessions: HashMap<ConversationId, ThreadedChatSession>,
+    pub current_conversation: Option<Conversation>,
 }
 
 #[allow(dead_code)]
@@ -35,48 +30,98 @@ impl ChatSessionManager {
         db_conn: Arc<ConversationDatabase>,
     ) -> Self {
         let mut sessions = HashMap::new();
-        let active_session_info = if let Some(prompt_instruction) =
+        let db_handler = db_conn.get_conversation_handler(None);
+        let current_conversation = if let Some(prompt_instruction) =
             initial_prompt_instruction
         {
-            let session_id = Uuid::new_v4();
             let conversation_id = prompt_instruction.get_conversation_id();
-            let server_name = prompt_instruction
-                .get_completion_options()
-                .model_server
-                .as_ref()
-                .map(|s| s.to_string());
 
-            let conversation = if let Some(conv_id) = conversation_id {
-                let handler = db_conn.get_conversation_handler(Some(conv_id));
-                handler.fetch_conversation(conv_id).await.ok().flatten()
-            } else {
-                None
-            };
+            // TODO: remove expect. Validate there is always a conversation, if not fix
+            let conversation = db_handler
+                .fetch_conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .expect("Conversation not found");
 
-            let initial_session =
-                ThreadedChatSession::new(prompt_instruction, db_conn.clone());
-            sessions.insert(session_id, initial_session);
+            let initial_session = ThreadedChatSession::new(prompt_instruction);
+            sessions.insert(conversation_id, initial_session);
 
-            Some(SessionInfo {
-                id: session_id,
-                conversation,
-                server_name,
-            })
+            Some(conversation)
         } else {
             None
         };
 
         Self {
+            db_handler,
             sessions,
-            active_session_info,
+            current_conversation,
         }
     }
 
-    pub fn get_active_session(
+    pub async fn load_conversation(
+        &mut self,
+        conversation: Conversation,
+    ) -> Result<(), ApplicationError> {
+        self.db_handler.set_conversation_id(conversation.id);
+
+        if self.sessions.contains_key(&conversation.id) {
+            // conversation already loaded - set as current
+            self.current_conversation = Some(conversation);
+            return Ok(());
+        }
+
+        // Load as a new session
+        let prompt_instruction =
+            PromptInstruction::from_reader(&self.db_handler).await?;
+        let new_session = ThreadedChatSession::new(prompt_instruction);
+        self.sessions.insert(conversation.id, new_session);
+        self.current_conversation = Some(conversation);
+        Ok(())
+    }
+
+    pub async fn is_current_session_active(
+        &self,
+    ) -> Result<bool, ApplicationError> {
+        if let Some(ref current_conversation) = self.current_conversation {
+            if let Some(session) = self.sessions.get(&current_conversation.id) {
+                Ok(session.is_initialized())
+            } else {
+                Err(ApplicationError::NotFound(
+                    "Active session not found".to_string(),
+                ))
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn get_current_session(
+        &self,
+    ) -> Result<Option<&ThreadedChatSession>, ApplicationError> {
+        if let Some(ref current_conversation) = self.current_conversation {
+            if let Some(session) = self.sessions.get(&current_conversation.id) {
+                Ok(Some(session))
+            } else {
+                Err(ApplicationError::Runtime(
+                    "Active session not found".to_string(),
+                ))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_current_session_mut(
         &mut self,
     ) -> Result<Option<&mut ThreadedChatSession>, ApplicationError> {
-        if let Some(ref session_info) = self.active_session_info {
-            if let Some(session) = self.sessions.get_mut(&session_info.id) {
+        if let Some(ref current_conversation) = self.current_conversation {
+            if let Some(session) =
+                self.sessions.get_mut(&current_conversation.id)
+            {
+                if !session.is_initialized() {
+                    session.initialize(self.db_handler.clone()).await?;
+                }
                 Ok(Some(session))
             } else {
                 Err(ApplicationError::Runtime(
@@ -91,18 +136,20 @@ impl ChatSessionManager {
     pub fn get_conversation_id_for_active_session(
         &self,
     ) -> Option<ConversationId> {
-        self.active_session_info
+        self.current_conversation
             .as_ref()
-            .and_then(|info| info.conversation.as_ref().map(|conv| conv.id))
+            .and_then(|conversation| Some(conversation.id))
     }
 
-    pub fn get_active_session_id(&self) -> Option<Uuid> {
-        self.active_session_info.as_ref().map(|info| info.id)
+    pub fn get_active_session_id(&self) -> Option<ConversationId> {
+        self.current_conversation
+            .as_ref()
+            .map(|conversation| conversation.id)
     }
 
     pub async fn stop_session(
         &mut self,
-        id: &Uuid,
+        id: &ConversationId,
     ) -> Result<(), ApplicationError> {
         if let Some(session) = self.sessions.remove(id) {
             session.stop();
@@ -123,53 +170,19 @@ impl ChatSessionManager {
     pub async fn create_session(
         &mut self,
         prompt_instruction: PromptInstruction,
-        db_conn: Arc<ConversationDatabase>,
-    ) -> Uuid {
-        let session_id = Uuid::new_v4();
-        let new_session = ThreadedChatSession::new(prompt_instruction, db_conn);
-        self.sessions.insert(session_id, new_session);
-        session_id
-    }
+    ) -> ConversationId {
+        let conversation_id = prompt_instruction.get_conversation_id();
+        let new_session = ThreadedChatSession::new(prompt_instruction);
 
-    pub async fn set_active_session(
-        &mut self,
-        id: Uuid,
-        db_conn: Arc<ConversationDatabase>,
-    ) -> Result<(), ApplicationError> {
-        if let Some(session) = self.sessions.get(&id) {
-            let instruction = session.get_instruction().await?;
-            let conversation_id = instruction.get_conversation_id();
-            let server_name = instruction
-                .get_completion_options()
-                .model_server
-                .as_ref()
-                .map(|s| s.to_string());
-
-            let conversation = if let Some(conv_id) = conversation_id {
-                let handler = db_conn.get_conversation_handler(Some(conv_id));
-                handler.fetch_conversation(conv_id).await.map_err(|e| {
-                    ApplicationError::DatabaseError(e.to_string())
-                })?
-            } else {
-                None
-            };
-
-            self.active_session_info = Some(SessionInfo {
-                id,
-                conversation,
-                server_name,
-            });
-            Ok(())
-        } else {
-            Err(ApplicationError::InvalidInput(
-                "Session not found".to_string(),
-            ))
-        }
+        self.sessions.insert(conversation_id, new_session);
+        conversation_id
     }
 
     pub fn stop_active_chat_session(&mut self) -> Result<(), ApplicationError> {
-        if let Some(ref session_info) = self.active_session_info {
-            if let Some(session) = self.sessions.get_mut(&session_info.id) {
+        if let Some(ref current_conversation) = self.current_conversation {
+            if let Some(session) =
+                self.sessions.get_mut(&current_conversation.id)
+            {
                 session.stop();
                 Ok(())
             } else {

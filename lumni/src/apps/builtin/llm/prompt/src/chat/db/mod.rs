@@ -90,7 +90,7 @@ pub struct Conversation {
     pub id: ConversationId,
     pub name: String,
     pub info: serde_json::Value,
-    pub model_identifier: ModelIdentifier,
+    pub model_identifier: Option<ModelIdentifier>, // ModelIdentifier is now optional
     pub workspace: Option<Workspace>, // this used to be a WorkspaceId
     pub parent_conversation_id: Option<ConversationId>,
     pub fork_message_id: Option<MessageId>, // New field

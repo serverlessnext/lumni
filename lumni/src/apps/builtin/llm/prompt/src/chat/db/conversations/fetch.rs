@@ -33,7 +33,9 @@ impl ConversationDbHandler {
                             .map(|s| {
                                 serde_json::from_str(&s).unwrap_or_default()
                             }),
-                        model_identifier: ModelIdentifier(row.get(4)?),
+                        model_identifier: row
+                            .get::<_, Option<String>>(4)?
+                            .map(ModelIdentifier),
                         workspace: row.get::<_, Option<i64>>(5)?.and_then(
                             |id| {
                                 let name =
@@ -305,7 +307,7 @@ impl ConversationDbHandler {
              c.total_tokens
              FROM conversations c
              LEFT JOIN workspaces w ON c.workspace_id = w.id
-             WHERE c.is_deleted = FALSE
+             WHERE c.status != 'deleted'
              ORDER BY c.is_pinned DESC, c.updated_at DESC
              LIMIT {}",
             limit
@@ -325,7 +327,9 @@ impl ConversationDbHandler {
                             .map(|s| {
                                 serde_json::from_str(&s).unwrap_or_default()
                             }),
-                        model_identifier: ModelIdentifier(row.get(4)?),
+                        model_identifier: row
+                            .get::<_, Option<String>>(4)?
+                            .map(ModelIdentifier),
                         workspace: row.get::<_, Option<i64>>(5)?.and_then(
                             |id| {
                                 let name =

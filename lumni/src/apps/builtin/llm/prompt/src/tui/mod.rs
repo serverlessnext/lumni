@@ -29,7 +29,7 @@ use super::chat::db::{
     ProviderConfigOptions, UserProfile, UserProfileDbHandler,
 };
 use super::chat::{
-    App, ChatSessionManager, NewConversation, PromptInstruction, SessionInfo,
+    App, ChatSessionManager, NewConversation, PromptInstruction,
     ThreadedChatSession,
 };
 use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};

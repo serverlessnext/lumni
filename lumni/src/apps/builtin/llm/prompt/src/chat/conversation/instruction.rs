@@ -15,7 +15,7 @@ pub use crate::external as lumni;
 pub struct PromptInstruction {
     cache: ConversationCache,
     model: Option<ModelSpec>,
-    conversation_id: Option<ConversationId>,
+    conversation_id: ConversationId,
     completion_options: ChatCompletionOptions,
 }
 
@@ -34,26 +34,17 @@ impl PromptInstruction {
         };
 
         let workspace: Option<Workspace> = None;
-        let conversation_id = if let Some(ref model) = new_conversation.model {
-            Some(
-                db_handler
-                    .new_conversation(
-                        "New Conversation",
-                        new_conversation.parent.as_ref().map(|p| p.id),
-                        workspace,
-                        new_conversation
-                            .parent
-                            .as_ref()
-                            .map(|p| p.fork_message_id),
-                        Some(serde_json::to_value(&completion_options)?),
-                        model,
-                    )
-                    .await?,
+
+        let conversation_id = db_handler
+            .new_conversation(
+                "New Conversation",
+                new_conversation.parent.as_ref().map(|p| p.id),
+                workspace,
+                new_conversation.parent.as_ref().map(|p| p.fork_message_id),
+                Some(serde_json::to_value(&completion_options)?),
+                new_conversation.model.as_ref(),
             )
-        } else {
-            // Model is required to add conversation to the database
-            None
-        };
+            .await?;
 
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
@@ -62,16 +53,13 @@ impl PromptInstruction {
             completion_options,
         };
 
-        if let Some(conversation_id) = prompt_instruction.conversation_id {
-            prompt_instruction
-                .cache
-                .set_conversation_id(conversation_id);
-        }
+        prompt_instruction
+            .cache
+            .set_conversation_id(prompt_instruction.conversation_id);
 
-        if new_conversation.parent.is_some() || conversation_id.is_none() {
+        if new_conversation.parent.is_some() {
             // if parent is provided, do not evaluate system_prompt and initial_messages
             // as they are already evaluated in the parent
-            // If conversation_id is none, cant create system prompt or initial messages yet
         } else {
             // evaluate system_prompt and initial_messages only if parent is not provided
             if let Some(messages) = new_conversation.initial_messages {
@@ -142,7 +130,7 @@ impl PromptInstruction {
         let mut prompt_instruction = PromptInstruction {
             cache: ConversationCache::new(),
             model: Some(model_spec),
-            conversation_id: Some(conversation_id),
+            conversation_id: conversation_id,
             completion_options,
         };
 
@@ -178,7 +166,7 @@ impl PromptInstruction {
         self.model.as_ref()
     }
 
-    pub fn get_conversation_id(&self) -> Option<ConversationId> {
+    pub fn get_conversation_id(&self) -> ConversationId {
         // return the conversation_id from an active conversation
         // use the ConversationId from this struct, and not the cache as
         // the latter can be from a non-active conversation

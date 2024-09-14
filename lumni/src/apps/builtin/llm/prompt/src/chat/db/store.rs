@@ -150,7 +150,9 @@ impl ConversationDatabase {
                         name: row.get(1)?,
                         info: serde_json::from_str(&row.get::<_, String>(2)?)
                             .unwrap_or_default(),
-                        model_identifier: ModelIdentifier(row.get(3)?),
+                        model_identifier: row
+                            .get::<_, Option<String>>(3)?
+                            .map(|s| ModelIdentifier(s)),
                         workspace: row.get::<_, Option<i64>>(4)?.and_then(
                             |id| {
                                 let name =

@@ -143,7 +143,7 @@ impl ConversationDbHandler {
     }
 
     pub async fn undo_delete_conversation(
-        &mut self,
+        &self,
         conversation_id: Option<ConversationId>,
     ) -> Result<(), DatabaseOperationError> {
         let target_conversation_id = conversation_id.or(self.conversation_id);

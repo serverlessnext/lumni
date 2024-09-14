@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::{Frame, Terminal};
 
 use super::ui::ConversationUi;
-use super::{App, SessionInfo, TextWindowTrait, WindowMode};
+use super::{App, Conversation, TextWindowTrait, WindowMode};
 pub use crate::external as lumni;
 
 pub async fn draw_ui<B: Backend>(
@@ -52,7 +52,7 @@ pub async fn draw_ui<B: Backend>(
         render_conversation_mode::<B>(
             frame,
             content_inner,
-            app.chat_manager.active_session_info.as_ref(),
+            app.chat_manager.current_conversation.as_ref(),
             &mut app.ui.conversation_ui,
         );
 
@@ -96,7 +96,7 @@ fn render_workspace_nav<B: Backend>(frame: &mut Frame, area: Rect) {
 fn render_conversation_mode<B: Backend>(
     frame: &mut Frame,
     area: Rect,
-    session_info: Option<&SessionInfo>,
+    current_conversation: Option<&Conversation>,
     conv_ui: &mut ConversationUi,
 ) {
     let conversation_block = Block::default()
@@ -132,35 +132,30 @@ fn render_conversation_mode<B: Backend>(
     render_workspace_nav::<B>(frame, nav_layout[0]);
 
     // Render info line
-    if let Some(info) = session_info {
-        if let Some(conv) = &info.conversation {
-            let info_text = Text::from(vec![Line::from(vec![
-                Span::styled("Tokens: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    format!("{}", conv.total_tokens.unwrap_or(0)),
-                    Style::default().fg(Color::Green),
-                ),
-                Span::raw(" | "),
-                Span::styled(
-                    "Messages: ",
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    format!("{}", conv.message_count.unwrap_or(0)),
-                    Style::default().fg(Color::Magenta),
-                ),
-                Span::raw(" | "),
-                Span::styled("Updated: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    format_timestamp(conv.updated_at),
-                    Style::default().fg(Color::DarkGray),
-                ),
-            ])]);
-            frame.render_widget(
-                Paragraph::new(info_text).alignment(Alignment::Right),
-                nav_layout[1],
-            );
-        }
+    if let Some(conversation) = current_conversation {
+        let info_text = Text::from(vec![Line::from(vec![
+            Span::styled("Tokens: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("{}", conversation.total_tokens.unwrap_or(0)),
+                Style::default().fg(Color::Green),
+            ),
+            Span::raw(" | "),
+            Span::styled("Messages: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("{}", conversation.message_count.unwrap_or(0)),
+                Style::default().fg(Color::Magenta),
+            ),
+            Span::raw(" | "),
+            Span::styled("Updated: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format_timestamp(conversation.updated_at),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ])]);
+        frame.render_widget(
+            Paragraph::new(info_text).alignment(Alignment::Right),
+            nav_layout[1],
+        );
     }
 
     // Render response and prompt areas

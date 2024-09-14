@@ -49,4 +49,8 @@ impl ConversationDbHandler {
     pub fn set_conversation_id(&mut self, conversation_id: ConversationId) {
         self.conversation_id = Some(conversation_id);
     }
+
+    pub fn unset_conversation_id(&mut self) {
+        self.conversation_id = None;
+    }
 }

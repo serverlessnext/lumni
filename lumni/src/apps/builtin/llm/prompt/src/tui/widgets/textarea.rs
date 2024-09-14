@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Margin, Rect};
 use ratatui::style::Style;
@@ -65,6 +65,7 @@ pub struct TextAreaState<'a, T: TextDocumentTrait> {
     text_buffer: TextBuffer<'a, T>,
     key_track: KeyTrack,
     scroll_offset: usize,
+    viewport_height: usize,
 }
 
 impl<T: TextDocumentTrait> TextAreaWidget<T> {
@@ -89,9 +90,17 @@ impl<T: TextDocumentTrait> TextAreaWidget<T> {
         });
 
         let total_lines = state.text_buffer.display_lines_len();
-        let viewport_height = area.height as usize;
+        let viewport_height = state.viewport_height;
+
+        let scrollable_area =
+            total_lines.saturating_sub(viewport_height).max(1);
+
+        let position = (state.scroll_offset as f64 / scrollable_area as f64
+            * scrollable_area as f64)
+            .round() as usize;
+
         let mut scrollbar_state =
-            ScrollbarState::new(total_lines).position(state.scroll_offset);
+            ScrollbarState::new(scrollable_area).position(position);
 
         StatefulWidget::render(
             scrollbar,
@@ -108,6 +117,7 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
             text_buffer: TextBuffer::new(document),
             key_track: KeyTrack::new(),
             scroll_offset: 0,
+            viewport_height: 0,
         }
     }
 
@@ -122,11 +132,37 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
     pub fn handle_key_event(&mut self, key_event: KeyEvent) {
         self.key_track.process_key(key_event);
 
-        // For now, just print the received key events
-        eprintln!(
-            "Received key event for TextArea: {:?}",
-            self.key_track.current_key()
-        );
+        match key_event.code {
+            KeyCode::Up => self.scroll_up(1),
+            KeyCode::Down => self.scroll_down(1),
+            KeyCode::PageUp => self.scroll_up(self.viewport_height),
+            KeyCode::PageDown => self.scroll_down(self.viewport_height),
+            _ => {
+                eprintln!(
+                    "Received key event for TextArea: {:?}",
+                    self.key_track.current_key()
+                );
+            }
+        }
+    }
+
+    fn scroll_up(&mut self, amount: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(amount);
+    }
+
+    fn scroll_down(&mut self, amount: usize) {
+        let total_lines = self.text_buffer.display_lines_len();
+        let max_scroll = total_lines.saturating_sub(self.viewport_height);
+        self.scroll_offset = (self.scroll_offset + amount).min(max_scroll);
+    }
+
+    fn max_scroll(&self) -> usize {
+        let total_lines = self.text_buffer.display_lines_len();
+        total_lines.saturating_sub(self.viewport_height)
+    }
+
+    pub fn set_viewport_height(&mut self, height: usize) {
+        self.viewport_height = height;
     }
 }
 
@@ -175,10 +211,11 @@ impl<T: TextDocumentTrait> StatefulWidgetRef for &TextAreaWidget<T> {
         let total_lines = state.text_buffer.display_lines_len();
         let viewport_height = area.height as usize;
 
-        // Adjust scroll if necessary
+        state.set_viewport_height(viewport_height);
+
         if total_lines > viewport_height {
-            state.scroll_offset =
-                state.scroll_offset.min(total_lines - viewport_height);
+            let max_scroll = total_lines - viewport_height;
+            state.scroll_offset = state.scroll_offset.min(max_scroll);
         } else {
             state.scroll_offset = 0;
         }
@@ -191,7 +228,6 @@ impl<T: TextDocumentTrait> StatefulWidgetRef for &TextAreaWidget<T> {
         let paragraph = Paragraph::new(visible_text).style(Style::default());
         Widget::render(paragraph, area, buf);
 
-        // Render scrollbar if there's more content than can fit in the viewport
         if total_lines > viewport_height {
             self.render_scrollbar(buf, area, state);
         }

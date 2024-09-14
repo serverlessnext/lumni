@@ -273,55 +273,9 @@ impl KeyEventHandler {
                             is_running,
                         )?
                     }
-                    //                    Some(ConversationEvent::Select(_)) => {
-                    //                        if let Some(current_conversations) = app_ui
-                    //                            .workspaces
-                    //                            .current_conversations_mut()
-                    //                        {
-                    //                            *current_mode = current_conversations
-                    //                                .handle_key_event(
-                    //                                    &mut self.key_track,
-                    //                                    tab_chat,
-                    //                                    handler,
-                    //                                )
-                    //                                .await?;
-                    //                        } else {
-                    //                            // Handle the case where there is no current workspace or conversations
-                    //                            log::warn!(
-                    //                                "No current workspace or \
-                    //                                 conversations available"
-                    //                            );
-                    //                        }
-                    //                        return Ok(());
-                    //                    }
                     _ => return Ok(()),
                 };
             }
-
-            //            WindowMode::Select => {
-            //                // Forward event to the selected mode
-            //                if let Some(current_conversations) =
-            //                    app_ui.workspaces.current_conversations_mut()
-            //                {
-            //                    *current_mode = current_conversations
-            //                        .handle_key_event(
-            //                            &mut self.key_track,
-            //                            tab_chat,
-            //                            handler,
-            //                        )
-            //                        .await?;
-            //                } else {
-            //                    log::warn!(
-            //                        "No current workspace or conversations \
-            //                         available"
-            //                    );
-            //                    return Err(ApplicationError::NotReady(
-            //                        "No current workspace or conversations \
-            //                         available"
-            //                            .to_string(),
-            //                    ));
-            //                }
-            //            }
             _ => {}
         };
         Ok(())

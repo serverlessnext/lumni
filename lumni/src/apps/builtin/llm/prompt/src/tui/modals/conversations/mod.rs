@@ -13,8 +13,7 @@ use super::widgets::{ListWidget, ListWidgetState};
 use super::{
     ApplicationError, ChatSessionManager, Conversation, ConversationDbHandler,
     ConversationEvent, ConversationId, ConversationStatus, KeyTrack,
-    ModalEvent, ModalWindowTrait, ModalWindowType, PromptInstruction,
-    ThreadedChatSession, UserEvent, WindowMode,
+    ModalEvent, ModalWindowTrait, ModalWindowType, UserEvent, WindowMode,
 };
 pub use crate::external as lumni;
 
@@ -86,11 +85,7 @@ impl ConversationListModal {
                         ConversationEvent::PromptRead,
                     )));
                 }
-                KeyCode::Up => {
-                    return Ok(WindowMode::Modal(ModalEvent::Open(
-                        ModalWindowType::FileBrowser,
-                    )));
-                }
+                KeyCode::Up => {}
                 _ => {}
             }
         }

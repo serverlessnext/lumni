@@ -1,8 +1,7 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
+use ratatui::layout::{Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::block::title;
 use ratatui::widgets::{
     Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation,
     ScrollbarState, StatefulWidget, StatefulWidgetRef,

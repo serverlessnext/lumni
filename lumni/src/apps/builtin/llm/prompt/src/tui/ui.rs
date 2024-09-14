@@ -93,9 +93,14 @@ impl AppUi<'_> {
         handler: &ConversationDbHandler,
     ) -> Result<(), ApplicationError> {
         *window_mode = match key.code {
-            KeyCode::Left | KeyCode::BackTab => {
-                // TODO: handle workspace nav
+            KeyCode::BackTab => {
+                // TODO: move in main navigation
+                log::info!("BackTab");
                 return Ok(());
+            }
+            KeyCode::Left => {
+                self.modal = Some(Box::new(FileBrowserModal::new(None)));
+                WindowMode::Modal(ModalEvent::PollBackGroundTask)
             }
             KeyCode::Right | KeyCode::Tab => {
                 self.modal = Some(Box::new(
@@ -104,8 +109,14 @@ impl AppUi<'_> {
                 WindowMode::Modal(ModalEvent::UpdateUI)
             }
             KeyCode::Up => {
-                self.modal = Some(Box::new(FileBrowserModal::new(None)));
-                WindowMode::Modal(ModalEvent::PollBackGroundTask)
+                // TODO: move up a block in conversation
+                log::info!("Shift Up");
+                return Ok(());
+            }
+            KeyCode::Down => {
+                // TODO: move down a block in conversation
+                log::info!("Shift Down");
+                return Ok(());
             }
             _ => {
                 return Ok(());
@@ -184,8 +195,4 @@ impl AppUi<'_> {
         //        Ok(redraw_ui)
         Ok(false)
     }
-}
-enum TabDirection {
-    Left,
-    Right,
 }

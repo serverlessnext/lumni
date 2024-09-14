@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ratatui::layout::{Margin, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{
     Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
@@ -70,6 +70,35 @@ pub struct TextAreaState<'a, T: TextDocumentTrait> {
 impl<T: TextDocumentTrait> TextAreaWidget<T> {
     pub fn new() -> Self {
         Self(std::marker::PhantomData)
+    }
+
+    fn render_scrollbar(
+        &self,
+        buf: &mut Buffer,
+        area: Rect,
+        state: &TextAreaState<'_, T>,
+    ) {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(None)
+            .end_symbol(None);
+
+        let scrollbar_area = area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        });
+
+        let total_lines = state.text_buffer.display_lines_len();
+        let viewport_height = area.height as usize;
+        let mut scrollbar_state =
+            ScrollbarState::new(total_lines).position(state.scroll_offset);
+
+        StatefulWidget::render(
+            scrollbar,
+            scrollbar_area,
+            buf,
+            &mut scrollbar_state,
+        );
     }
 }
 
@@ -143,12 +172,28 @@ impl<T: TextDocumentTrait> StatefulWidgetRef for &TextAreaWidget<T> {
         state.text_buffer.set_width(area.width as usize);
         state.text_buffer.update_display_text();
 
+        let total_lines = state.text_buffer.display_lines_len();
+        let viewport_height = area.height as usize;
+
+        // Adjust scroll if necessary
+        if total_lines > viewport_height {
+            state.scroll_offset =
+                state.scroll_offset.min(total_lines - viewport_height);
+        } else {
+            state.scroll_offset = 0;
+        }
+
         let visible_text = state.text_buffer.display_window_lines(
             state.scroll_offset,
-            state.scroll_offset + area.height as usize,
+            state.scroll_offset + viewport_height,
         );
 
         let paragraph = Paragraph::new(visible_text).style(Style::default());
         Widget::render(paragraph, area, buf);
+
+        // Render scrollbar if there's more content than can fit in the viewport
+        if total_lines > viewport_height {
+            self.render_scrollbar(buf, area, state);
+        }
     }
 }

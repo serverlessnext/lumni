@@ -188,13 +188,13 @@ impl ModalWindowTrait for FileBrowserModal {
         if current_key.modifiers == KeyModifiers::SHIFT {
             match current_key.code {
                 KeyCode::BackTab | KeyCode::Left => {
-                    return Ok(WindowMode::Conversation(Some(
-                        ConversationEvent::PromptRead,
-                    )));
+                    //return Ok(WindowMode::Modal(ModalEvent::Open(
+                    //    ModalWindowType::Files,
+                    //)));
                 }
                 KeyCode::Right => {
-                    return Ok(WindowMode::Modal(ModalEvent::Open(
-                        ModalWindowType::ConversationList,
+                    return Ok(WindowMode::Conversation(Some(
+                        ConversationEvent::PromptRead,
                     )));
                 }
                 _ => {}

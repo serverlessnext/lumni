@@ -156,7 +156,7 @@ impl ListItemTrait for ProviderConfig {
     }
 
     fn id(&self) -> i64 {
-        self.id.unwrap_or(0)
+        self.id
     }
 
     fn with_new_name(&self, new_name: String) -> Self {
@@ -168,5 +168,26 @@ impl ListItemTrait for ProviderConfig {
 
     fn item_type() -> &'static str {
         "Provider"
+    }
+}
+
+impl ListItemTrait for DatabaseConfigurationItem {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn with_new_name(&self, new_name: String) -> Self {
+        DatabaseConfigurationItem {
+            name: new_name,
+            ..self.clone()
+        }
+    }
+
+    fn item_type() -> &'static str {
+        "Configuration"
     }
 }

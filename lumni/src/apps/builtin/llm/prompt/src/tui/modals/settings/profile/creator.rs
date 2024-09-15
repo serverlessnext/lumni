@@ -38,8 +38,7 @@ impl ProfileCreator {
     pub async fn new(
         db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
-        // Load existing provider configs
-        let provider_configs = db_handler.load_provider_configs().await?;
+        //let provider_configs = db_handler.list_providers().await?;
 
         Ok(Self {
             new_profile_name: String::new(),
@@ -48,7 +47,7 @@ impl ProfileCreator {
             background_task: None,
             task_start_time: None,
             selected_provider: None,
-            provider_configs,
+            provider_configs: Vec::new(),
             selected_provider_index: 0,
             sub_part_creation_state: SubPartCreationState::NotCreating,
             text_area: None,

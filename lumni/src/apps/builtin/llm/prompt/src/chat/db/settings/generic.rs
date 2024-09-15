@@ -281,7 +281,6 @@ impl UserProfileDbHandler {
         section: &str,
     ) -> Result<Vec<DatabaseConfigurationItem>, ApplicationError> {
         let mut db = self.db.lock().await;
-
         db.process_queue_with_result(|tx| {
             let mut stmt = tx
                 .prepare(

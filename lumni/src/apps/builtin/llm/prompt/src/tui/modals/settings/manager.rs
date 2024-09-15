@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use ratatui::prelude::*;
@@ -62,41 +63,27 @@ impl ManagedItem for ProviderConfig {
         &self,
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<(), ApplicationError> {
-        if let Some(id) = self.id {
-            db_handler.delete_provider_config(id).await
-        } else {
-            Ok(())
-        }
+        let item = DatabaseConfigurationItem {
+            id: self.id,
+            name: self.name.clone(),
+            section: "provider".to_string(),
+        };
+        db_handler.delete_configuration_item(&item).await
     }
 
     async fn get_settings(
         &self,
-        _db_handler: &mut UserProfileDbHandler,
-        _mask_mode: MaskMode,
+        db_handler: &mut UserProfileDbHandler,
+        mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
-        let mut settings = serde_json::Map::new();
-
-        // Add provider_type (server)
-        settings.insert(
-            "provider_type".to_string(),
-            JsonValue::String(self.provider_type.clone()),
-        );
-
-        // Add model_identifier if present
-        if let Some(model) = &self.model_identifier {
-            settings.insert(
-                "model_identifier".to_string(),
-                JsonValue::String(model.clone()),
-            );
-        }
-
-        // Add other additional settings
-        for (key, value) in &self.additional_settings {
-            settings
-                .insert(key.clone(), JsonValue::String(value.value.clone()));
-        }
-
-        Ok(JsonValue::Object(settings))
+        let item = DatabaseConfigurationItem {
+            id: self.id,
+            name: self.name.clone(),
+            section: "provider".to_string(),
+        };
+        db_handler
+            .get_configuration_parameters(&item, mask_mode)
+            .await
     }
 
     async fn update_settings(
@@ -104,19 +91,55 @@ impl ManagedItem for ProviderConfig {
         db_handler: &mut UserProfileDbHandler,
         settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
-        let mut updated_config = self.clone();
-        if let JsonValue::Object(map) = settings {
-            for (key, value) in map {
-                if let Some(setting) =
-                    updated_config.additional_settings.get_mut(key)
-                {
-                    setting.value =
-                        value.as_str().unwrap_or_default().to_string();
-                }
-            }
-        }
-        _ = db_handler.save_provider_config(&updated_config).await?;
-        Ok(())
+        let item = DatabaseConfigurationItem {
+            id: self.id,
+            name: self.name.clone(),
+            section: "provider".to_string(),
+        };
+        db_handler.update_configuration_item(&item, settings).await
+    }
+}
+
+#[async_trait]
+impl ManagedItem for DatabaseConfigurationItem {
+    async fn delete(
+        &self,
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<(), ApplicationError> {
+        db_handler.delete_configuration_item(self).await
+    }
+
+    async fn get_settings(
+        &self,
+        db_handler: &mut UserProfileDbHandler,
+        mask_mode: MaskMode,
+    ) -> Result<JsonValue, ApplicationError> {
+        db_handler
+            .get_configuration_parameters(self, mask_mode)
+            .await
+    }
+
+    async fn update_settings(
+        &self,
+        db_handler: &mut UserProfileDbHandler,
+        settings: &JsonValue,
+    ) -> Result<(), ApplicationError> {
+        db_handler.update_configuration_item(self, settings).await
+    }
+}
+
+#[async_trait]
+impl LoadableItem for DatabaseConfigurationItem {
+    async fn load_items(
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Vec<Self>, ApplicationError> {
+        db_handler.list_configuration_items("configuration").await
+    }
+
+    async fn load_default_item(
+        _db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Option<Self>, ApplicationError> {
+        Ok(None) // DatabaseConfigurationItem doesn't have a default item
     }
 }
 
@@ -450,11 +473,16 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         if let Some(profile) = (item as &dyn Any).downcast_ref::<UserProfile>()
         {
             self.db_handler.rename_profile(profile, new_name).await?;
-        } else if let Some(provider) =
+        } else if let Some(_) =
             (item as &dyn Any).downcast_ref::<ProviderConfig>()
         {
+            let config_item = DatabaseConfigurationItem {
+                id: item.id(),
+                name: item.name().to_string(),
+                section: "provider".to_string(),
+            };
             self.db_handler
-                .rename_provider_config(provider, new_name)
+                .rename_configuration_item(&config_item, new_name)
                 .await?;
         }
         Ok(())
@@ -616,13 +644,65 @@ impl LoadableItem for ProviderConfig {
     async fn load_items(
         db_handler: &mut UserProfileDbHandler,
     ) -> Result<Vec<Self>, ApplicationError> {
-        db_handler.load_provider_configs().await
+        let items = db_handler.list_configuration_items("provider").await?;
+        let mut configs = Vec::new();
+        for item in items {
+            let settings = db_handler
+                .get_configuration_parameters(&item, MaskMode::Mask)
+                .await?;
+            configs.push(ProviderConfig {
+                id: item.id,
+                name: item.name,
+                provider_type: settings["provider_type"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+                model_identifier: settings["model_identifier"]
+                    .as_str()
+                    .map(String::from),
+                additional_settings: parse_additional_settings(&settings),
+            });
+        }
+        Ok(configs)
     }
+
     async fn load_default_item(
         _db_handler: &mut UserProfileDbHandler,
     ) -> Result<Option<Self>, ApplicationError> {
         Ok(None) // ProviderConfig doesn't have a default item
     }
+}
+
+fn parse_additional_settings(
+    settings: &JsonValue,
+) -> HashMap<String, ProviderConfigOptions> {
+    settings["additional_settings"]
+        .as_object()
+        .map(|obj| {
+            obj.iter()
+                .filter_map(|(key, value)| {
+                    let is_secure = value.is_object()
+                        && value.get("encryption_key").is_some();
+                    let value_str = if is_secure {
+                        value.to_string()
+                    } else {
+                        value.as_str().unwrap_or_default().to_string()
+                    };
+
+                    Some((
+                        key.clone(),
+                        ProviderConfigOptions {
+                            name: key.clone(),
+                            display_name: key.clone(),
+                            value: value_str,
+                            is_secure,
+                            placeholder: String::new(),
+                        },
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[async_trait]

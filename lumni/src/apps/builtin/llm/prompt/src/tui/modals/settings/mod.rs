@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use crossterm::event::{KeyCode, KeyEvent};
 use list::{ListItemTrait, SettingsList, SettingsListTrait};
 use manager::{Creator, CreatorAction, SettingsManager};
+use provider::{ProviderConfig, ProviderConfigOptions};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -22,9 +23,8 @@ use super::{
     ApplicationError, ChatSessionManager, ConversationDbHandler,
     ConversationEvent, DatabaseConfigurationItem, KeyTrack, MaskMode,
     ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec,
-    ProviderConfig, ProviderConfigOptions, ReadDocument, ServerTrait,
-    SimpleString, TextLine, UserProfile, UserProfileDbHandler, WindowMode,
-    SUPPORTED_MODEL_ENDPOINTS,
+    ReadDocument, ServerTrait, SimpleString, TextLine, UserProfile,
+    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -550,5 +550,15 @@ impl SettingsItem for ProviderConfig {
 
     fn item_type(&self) -> &'static str {
         "Provider"
+    }
+}
+
+impl SettingsItem for DatabaseConfigurationItem {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn item_type(&self) -> &'static str {
+        "Configuration"
     }
 }

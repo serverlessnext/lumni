@@ -16,8 +16,7 @@ pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
 pub use settings::{
-    DatabaseConfigurationItem, MaskMode, ProviderConfig, ProviderConfigOptions,
-    UserProfile, UserProfileDbHandler,
+    DatabaseConfigurationItem, MaskMode, UserProfile, UserProfileDbHandler,
 };
 pub use store::ConversationDatabase;
 

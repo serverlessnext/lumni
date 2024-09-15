@@ -2,16 +2,13 @@ mod content_operations;
 mod encryption_operations;
 mod generic;
 mod profile;
-mod provider;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 pub use generic::DatabaseConfigurationItem;
-use lumni::api::error::{ApplicationError, EncryptionError};
+use lumni::api::error::ApplicationError;
 pub use profile::UserProfile;
-pub use provider::{ProviderConfig, ProviderConfigOptions};
 use rusqlite::params;
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::Mutex as TokioMutex;
 

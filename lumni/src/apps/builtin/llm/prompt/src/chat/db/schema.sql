@@ -15,16 +15,6 @@ CREATE TABLE configuration (
     FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
 );
 
-CREATE TABLE provider_configs (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    provider_type TEXT NOT NULL,
-    model_identifier TEXT,
-    additional_settings TEXT, -- JSON string
-    encryption_key_id INTEGER NOT NULL,
-    FOREIGN KEY (encryption_key_id) REFERENCES encryption_keys(id)
-);
-
 CREATE TABLE encryption_keys (
     id INTEGER PRIMARY KEY,
     file_path TEXT NOT NULL,

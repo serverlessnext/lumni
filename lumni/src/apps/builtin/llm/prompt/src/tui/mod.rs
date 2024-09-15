@@ -25,7 +25,7 @@ pub use window::{
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
     ConversationStatus, DatabaseConfigurationItem, MaskMode, ModelSpec,
-    ProviderConfig, ProviderConfigOptions, UserProfile, UserProfileDbHandler,
+    UserProfile, UserProfileDbHandler,
 };
 use super::chat::{
     App, ChatSessionManager, NewConversation, ThreadedChatSession,

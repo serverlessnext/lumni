@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ratatui::layout::Margin;
 use ratatui::text::Text;
-use serde_json::Value as JsonValue;
+use serde_json::{json, Value as JsonValue};
 
 use super::*;
 
@@ -767,16 +767,60 @@ impl ProviderCreator {
     pub async fn create_provider(
         &mut self,
     ) -> Result<ProviderConfig, ApplicationError> {
-        let new_config = ProviderConfig {
-            id: None,
-            name: self.name.clone(),
+        let mut parameters = json!({
+            "provider_type": self.provider_type,
+        });
+
+        if let Some(model) = &self.model_identifier {
+            parameters["model_identifier"] = json!(model);
+        }
+
+        let additional_settings = self
+            .additional_settings
+            .iter()
+            .map(|(key, setting)| {
+                (
+                    key.clone(),
+                    json!({
+                        "name": setting.name,
+                        "display_name": setting.display_name,
+                        "value": if setting.is_secure {
+                            json!({
+                                "content": setting.value,
+                                "encryption_key": "",
+                                "type_info": "string",
+                            })
+                        } else {
+                            json!(setting.value)
+                        },
+                        "is_secure": setting.is_secure,
+                        "placeholder": setting.placeholder,
+                    }),
+                )
+            })
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+
+        parameters["additional_settings"] = json!(additional_settings);
+
+        let item = self
+            .db_handler
+            .create_configuration_item(
+                self.name.clone(),
+                "provider",
+                parameters,
+            )
+            .await?;
+
+        // Convert the created item back to a ProviderConfig
+        let config = ProviderConfig {
+            id: item.id,
+            name: item.name,
             provider_type: self.provider_type.clone(),
             model_identifier: self.model_identifier.clone(),
             additional_settings: self.additional_settings.clone(),
         };
-        let stored_config =
-            self.db_handler.save_provider_config(&new_config).await?;
-        Ok(stored_config)
+
+        Ok(config)
     }
 
     pub fn render_creating_provider(&self, f: &mut Frame, area: Rect) {

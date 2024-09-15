@@ -4,10 +4,11 @@ CREATE TABLE metadata (
     value TEXT NOT NULL
 );
 
-CREATE TABLE user_profiles (
+CREATE TABLE configuration (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    options TEXT NOT NULL, -- JSON string
+    section TEXT NOT NULL CHECK(section IN ('profile', 'provider', 'prompt')),
+    parameters TEXT NOT NULL, -- JSON string
     is_default INTEGER DEFAULT 0,
     encryption_key_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -121,6 +122,5 @@ CREATE INDEX idx_message_conversation_created ON messages(conversation_id, creat
 CREATE INDEX idx_message_previous ON messages(previous_message_id);
 CREATE INDEX idx_attachment_conversation ON attachments(conversation_id);
 CREATE INDEX idx_conversation_pinned_updated ON conversations(is_pinned DESC, updated_at DESC);
-CREATE UNIQUE INDEX idx_user_profiles_default ON user_profiles(is_default) WHERE is_default = 1;
 CREATE INDEX idx_conversations_workspace_id ON conversations(workspace_id);
 CREATE INDEX idx_conversations_no_workspace ON conversations(workspace_id) WHERE workspace_id IS NULL;

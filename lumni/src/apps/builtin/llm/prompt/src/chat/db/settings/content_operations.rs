@@ -7,7 +7,7 @@ use super::{
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
-    pub fn process_settings(
+    pub fn process_parameters(
         &self,
         value: &JsonValue,
         encryption_mode: EncryptionMode,
@@ -28,7 +28,7 @@ impl UserProfileDbHandler {
                 let new_arr: Result<Vec<JsonValue>, _> = arr
                     .iter()
                     .map(|v| {
-                        self.process_settings(v, encryption_mode, mask_mode)
+                        self.process_parameters(v, encryption_mode, mask_mode)
                     })
                     .collect();
                 Ok(JsonValue::Array(new_arr?))
@@ -37,7 +37,7 @@ impl UserProfileDbHandler {
         }
     }
 
-    pub fn process_settings_with_metadata(
+    pub fn process_parameters_with_metadata(
         &self,
         value: &JsonValue,
         encryption_mode: EncryptionMode,
@@ -60,7 +60,7 @@ impl UserProfileDbHandler {
                 let new_arr: Result<Vec<JsonValue>, _> = arr
                     .iter()
                     .map(|v| {
-                        self.process_settings_with_metadata(
+                        self.process_parameters_with_metadata(
                             v,
                             encryption_mode,
                             mask_mode,
@@ -73,7 +73,7 @@ impl UserProfileDbHandler {
         }
     }
 
-    pub fn merge_settings(
+    pub fn merge_parameters(
         &self,
         current_data: &JsonValue,
         new_settings: &JsonValue,

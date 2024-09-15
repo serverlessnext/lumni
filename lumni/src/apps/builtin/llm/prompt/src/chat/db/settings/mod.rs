@@ -1,12 +1,15 @@
 mod content_operations;
 mod encryption_operations;
-mod provider_config;
-mod user_profile;
+mod generic;
+mod profile;
+mod provider;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub use generic::DatabaseConfigurationItem;
 use lumni::api::error::{ApplicationError, EncryptionError};
-pub use provider_config::{ProviderConfig, ProviderConfigOptions};
+pub use profile::UserProfile;
+pub use provider::{ProviderConfig, ProviderConfigOptions};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -22,12 +25,6 @@ pub struct UserProfileDbHandler {
     pub profile: Option<UserProfile>,
     db: Arc<TokioMutex<DatabaseConnector>>,
     encryption_handler: Option<Arc<EncryptionHandler>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct UserProfile {
-    pub id: i64,
-    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -67,7 +64,7 @@ impl UserProfileDbHandler {
         if let Some(profile) = user_profile {
             self.unlock_profile_settings(&profile).await?;
             let settings = self
-                .get_profile_settings(&profile, MaskMode::Unmask)
+                .get_configuration_parameters(&profile.into(), MaskMode::Unmask)
                 .await?;
 
             let model_server = match settings
@@ -116,17 +113,17 @@ impl UserProfileDbHandler {
         } else {
             self.profile.clone().unwrap()
         };
-
         let (key_hash, key_path): (String, String) = {
             let mut db = self.db.lock().await;
             db.process_queue_with_result(|tx| {
                 tx.query_row(
                     "SELECT encryption_keys.sha256_hash, \
                      encryption_keys.file_path
-                     FROM user_profiles
-                     JOIN encryption_keys ON user_profiles.encryption_key_id = \
+                     FROM configuration
+                     JOIN encryption_keys ON configuration.encryption_key_id = \
                      encryption_keys.id
-                     WHERE user_profiles.name = ?",
+                     WHERE configuration.name = ? AND configuration.section = \
+                     'profile'",
                     params![profile.name],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -134,7 +131,7 @@ impl UserProfileDbHandler {
             })?
         };
         if self.encryption_handler.is_none() {
-            // encryption handled required for decryption
+            // encryption handler required for decryption
             let encryption_handler =
                 EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?
                     .ok_or_else(|| {
@@ -142,7 +139,6 @@ impl UserProfileDbHandler {
                             "Failed to load encryption handler".to_string(),
                         )
                     })?;
-
             self.set_encryption_handler(Arc::new(encryption_handler))?;
             self.verify_encryption_key_hash(&key_hash)?;
         }
@@ -154,8 +150,9 @@ impl UserProfileDbHandler {
         profile: &UserProfile,
     ) -> Result<JsonValue, ApplicationError> {
         self.unlock_profile_settings(profile).await?;
-        let settings =
-            self.get_profile_settings(profile, MaskMode::Unmask).await?;
+        let settings = self
+            .get_configuration_parameters(&profile.into(), MaskMode::Unmask)
+            .await?;
         self.create_export_json(&settings).await
     }
 
@@ -165,10 +162,10 @@ impl UserProfileDbHandler {
             // Disable foreign key constraints temporarily
             tx.execute("PRAGMA foreign_keys = OFF", [])?;
 
-            // NOTE: encryption_keys is currently only used in user_profiles, if this changes (e.g. keys used to encrypt conversations) we should add a check so we only delete unused keys -- for now, just delete everything
+            // NOTE: encryption_keys is currently only used in configuration, if this changes (e.g. keys used to encrypt conversations) we should add a check so we only delete unused keys -- for now, just delete everything
             tx.execute_batch(
                 "
-                DELETE FROM user_profiles;
+                DELETE FROM configuration;
                 DELETE FROM provider_configs;
                 DELETE FROM encryption_keys;
             ",
@@ -183,5 +180,18 @@ impl UserProfileDbHandler {
         // Vacuum the database to reclaim unused space
         db.vacuum()?;
         Ok(())
+    }
+
+    pub async fn get_default_profile(
+        &self,
+    ) -> Result<Option<UserProfile>, ApplicationError> {
+        let item = self.get_default_configuration_item("profile").await?;
+        match item {
+            Some(item) => Ok(Some(UserProfile {
+                id: item.id,
+                name: item.name,
+            })),
+            _ => Ok(None),
+        }
     }
 }

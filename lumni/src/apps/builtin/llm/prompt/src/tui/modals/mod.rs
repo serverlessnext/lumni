@@ -12,13 +12,12 @@ pub use settings::SettingsModal;
 pub use super::widgets;
 use super::{
     ApplicationError, ChatSessionManager, Conversation, ConversationDbHandler,
-    ConversationEvent, ConversationId, ConversationStatus, KeyTrack, MaskMode,
-    ModalEvent, ModelServer, ModelSpec, PromptInstruction, ProviderConfig,
-    ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    TextSegment, ThreadedChatSession, UserEvent, UserProfile,
-    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    ConversationEvent, ConversationId, ConversationStatus,
+    DatabaseConfigurationItem, KeyTrack, MaskMode, ModalEvent, ModelServer,
+    ModelSpec, ProviderConfig, ProviderConfigOptions, ReadDocument,
+    ServerTrait, SimpleString, TextLine, ThreadedChatSession, UserEvent,
+    UserProfile, UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
-use crate::apps::builtin::llm::prompt::src::chat;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalWindowType {

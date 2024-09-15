@@ -8,7 +8,7 @@ use tokio::sync::Mutex as TokioMutex;
 use super::connector::{DatabaseConnector, DatabaseOperationError};
 use super::conversations::ConversationDbHandler;
 use super::encryption::EncryptionHandler;
-use super::user_profile::{UserProfile, UserProfileDbHandler};
+use super::settings::{UserProfile, UserProfileDbHandler};
 use super::{
     Conversation, ConversationId, ConversationStatus, Message, MessageId,
     ModelIdentifier, Workspace, WorkspaceId,
@@ -74,7 +74,7 @@ impl ConversationDatabase {
             // Disable foreign key constraints temporarily
             tx.execute("PRAGMA foreign_keys = OFF", [])?;
 
-            // Truncate all tables except metadata, user_profiles, and models
+            // Truncate all tables except metadata, settings, and models
             tx.execute_batch(
                 "
                 DELETE FROM conversation_tags;

@@ -127,7 +127,7 @@ impl ConversationListModal {
             KeyCode::Char('u') | KeyCode::Char('U') => {
                 self.handle_unarchive_undo_action(db_handler).await?
             }
-            KeyCode::Esc => {
+            KeyCode::Esc | KeyCode::Backspace => {
                 return Ok(WindowMode::Conversation(Some(
                     ConversationEvent::PromptRead,
                 )))

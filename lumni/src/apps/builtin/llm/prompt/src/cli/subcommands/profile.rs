@@ -262,7 +262,7 @@ pub async fn handle_profile_subcommand(
             };
 
             let new_profile =
-                db_handler.create_profile(name, &settings).await?;
+                db_handler.create_profile(name.clone(), settings).await?;
             println!(
                 "Created new profile - ID: {}, Name: {}",
                 new_profile.id, new_profile.name

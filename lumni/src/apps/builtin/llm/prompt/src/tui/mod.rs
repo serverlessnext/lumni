@@ -10,9 +10,8 @@ mod window;
 pub use colorscheme::{ColorScheme, ColorSchemeType};
 pub use draw::draw_ui;
 pub use events::{
-    CommandLineAction, ConversationEvent, ConversationSelectEvent,
-    FileBrowserEvent, KeyEventHandler, KeyTrack, ModalEvent, PromptAction,
-    UserEvent, WindowMode,
+    CommandLineAction, ConversationEvent, KeyEventHandler, KeyTrack,
+    ModalEvent, PromptAction, UserEvent, WindowMode,
 };
 use lumni::api::error::ApplicationError;
 pub use modals::{ModalWindowTrait, ModalWindowType};
@@ -25,12 +24,11 @@ pub use window::{
 
 use super::chat::db::{
     Conversation, ConversationDatabase, ConversationDbHandler, ConversationId,
-    ConversationStatus, MaskMode, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, UserProfile, UserProfileDbHandler,
+    ConversationStatus, DatabaseConfigurationItem, MaskMode, ModelSpec,
+    ProviderConfig, ProviderConfigOptions, UserProfile, UserProfileDbHandler,
 };
 use super::chat::{
-    App, ChatSessionManager, NewConversation, PromptInstruction,
-    ThreadedChatSession,
+    App, ChatSessionManager, NewConversation, ThreadedChatSession,
 };
 use super::server::{ModelServer, ServerTrait, SUPPORTED_MODEL_ENDPOINTS};
 use crate::external as lumni;

@@ -169,7 +169,6 @@ impl UserProfileDbHandler {
                     .to_string(),
             )
         })?;
-
         // Check if the profile exists in the database and compare encryption handlers
         let db = self.db.clone();
         let result = tokio::task::block_in_place(|| {
@@ -180,22 +179,21 @@ impl UserProfileDbHandler {
                         .query_row(
                             "SELECT encryption_keys.file_path, \
                              encryption_keys.sha256_hash
-                             FROM user_profiles
+                             FROM configuration
                              JOIN encryption_keys ON \
-                             user_profiles.encryption_key_id = \
+                             configuration.encryption_key_id = \
                              encryption_keys.id
-                             WHERE user_profiles.name = ?",
+                             WHERE configuration.name = ? AND \
+                             configuration.section = 'profile'",
                             params![profile.name],
                             |row| Ok((row.get(0)?, row.get(1)?)),
                         )
                         .optional()
                         .map_err(DatabaseOperationError::SqliteError)?;
-
                     if let Some((_, existing_hash)) = existing_key {
                         let new_path = encryption_handler.get_key_path();
                         let new_hash =
                             EncryptionHandler::get_private_key_hash(&new_path)?;
-
                         if existing_hash != new_hash {
                             return Err(
                                 DatabaseOperationError::ApplicationError(
@@ -213,14 +211,12 @@ impl UserProfileDbHandler {
                 })
             })
         });
-
         result.map_err(|e| match e {
             DatabaseOperationError::SqliteError(sqlite_err) => {
                 ApplicationError::DatabaseError(sqlite_err.to_string())
             }
             DatabaseOperationError::ApplicationError(app_err) => app_err,
         })?;
-
         // If we've made it this far, either the profile doesn't exist yet or the encryption handler matches
         self.encryption_handler = Some(encryption_handler);
         Ok(())
@@ -381,10 +377,11 @@ impl UserProfileDbHandler {
         db.process_queue_with_result(|tx| {
             tx.query_row(
                 "SELECT encryption_keys.file_path, encryption_keys.sha256_hash
-                 FROM user_profiles
-                 JOIN encryption_keys ON user_profiles.encryption_key_id = \
+                 FROM configuration
+                 JOIN encryption_keys ON configuration.encryption_key_id = \
                  encryption_keys.id
-                 WHERE user_profiles.id = ?",
+                 WHERE configuration.id = ? AND configuration.section = \
+                 'profile'",
                 params![self.profile.as_ref().map(|p| p.id).unwrap_or(0)],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )

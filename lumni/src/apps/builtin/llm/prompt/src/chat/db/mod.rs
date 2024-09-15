@@ -7,19 +7,19 @@ mod conversations;
 mod display;
 mod encryption;
 mod model;
+mod settings;
 mod store;
-mod user_profile;
 
 pub use conversations::ConversationDbHandler;
 pub use encryption::EncryptionHandler;
 pub use lumni::Timestamp;
 pub use model::{ModelIdentifier, ModelSpec};
 use serde::{Deserialize, Serialize};
-pub use store::ConversationDatabase;
-pub use user_profile::{
-    MaskMode, ProviderConfig, ProviderConfigOptions, UserProfile,
-    UserProfileDbHandler,
+pub use settings::{
+    DatabaseConfigurationItem, MaskMode, ProviderConfig, ProviderConfigOptions,
+    UserProfile, UserProfileDbHandler,
 };
+pub use store::ConversationDatabase;
 
 pub use super::ConversationCache;
 use super::{ModelBackend, ModelServer, PromptRole};

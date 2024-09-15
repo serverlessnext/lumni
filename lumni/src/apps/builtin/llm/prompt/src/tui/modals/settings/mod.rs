@@ -20,10 +20,11 @@ use settings_editor::{SettingsAction, SettingsEditor};
 use super::widgets::{ListWidget, ListWidgetState, TextArea};
 use super::{
     ApplicationError, ChatSessionManager, ConversationDbHandler,
-    ConversationEvent, KeyTrack, MaskMode, ModalEvent, ModalWindowTrait,
-    ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
-    ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    UserProfile, UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    ConversationEvent, DatabaseConfigurationItem, KeyTrack, MaskMode,
+    ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec,
+    ProviderConfig, ProviderConfigOptions, ReadDocument, ServerTrait,
+    SimpleString, TextLine, UserProfile, UserProfileDbHandler, WindowMode,
+    SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]

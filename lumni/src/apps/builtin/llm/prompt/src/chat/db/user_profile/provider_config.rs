@@ -1,6 +1,27 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
+use rusqlite::params;
+
 use super::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub id: Option<i64>,
+    pub name: String,
+    pub provider_type: String,
+    pub model_identifier: Option<String>,
+    pub additional_settings: HashMap<String, ProviderConfigOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfigOptions {
+    pub name: String,
+    pub display_name: String,
+    pub value: String,
+    pub is_secure: bool,
+    pub placeholder: String,
+}
 
 impl UserProfileDbHandler {
     pub async fn save_provider_config(

@@ -23,8 +23,7 @@ use super::{
     ConversationEvent, KeyTrack, MaskMode, ModalEvent, ModalWindowTrait,
     ModalWindowType, ModelServer, ModelSpec, ProviderConfig,
     ProviderConfigOptions, ReadDocument, ServerTrait, SimpleString, TextLine,
-    ThreadedChatSession, UserProfile, UserProfileDbHandler, WindowMode,
-    SUPPORTED_MODEL_ENDPOINTS,
+    UserProfile, UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]

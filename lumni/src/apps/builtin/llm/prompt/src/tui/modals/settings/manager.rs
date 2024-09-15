@@ -12,10 +12,6 @@ use super::*;
 
 #[async_trait]
 pub trait ManagedItem: Clone + Send + Sync + ListItemTrait {
-    async fn save(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError>;
     async fn delete(
         &self,
         db_handler: &mut UserProfileDbHandler,
@@ -34,12 +30,6 @@ pub trait ManagedItem: Clone + Send + Sync + ListItemTrait {
 
 #[async_trait]
 impl ManagedItem for UserProfile {
-    async fn save(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError> {
-        db_handler.update(self, &JsonValue::Null).await
-    }
     async fn delete(
         &self,
         db_handler: &mut UserProfileDbHandler,
@@ -52,7 +42,9 @@ impl ManagedItem for UserProfile {
         db_handler: &mut UserProfileDbHandler,
         mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
-        db_handler.get_profile_settings(self, mask_mode).await
+        db_handler.unlock_profile_settings(&self).await?;
+        let settings = db_handler.get_profile_settings(self, mask_mode).await?;
+        Ok(settings)
     }
 
     async fn update_settings(
@@ -60,19 +52,12 @@ impl ManagedItem for UserProfile {
         db_handler: &mut UserProfileDbHandler,
         settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
-        db_handler.update(self, settings).await
+        db_handler.update_profile(self, settings).await
     }
 }
 
 #[async_trait]
 impl ManagedItem for ProviderConfig {
-    async fn save(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError> {
-        db_handler.save_provider_config(self).await.map(|_| ())
-    }
-
     async fn delete(
         &self,
         db_handler: &mut UserProfileDbHandler,
@@ -89,11 +74,29 @@ impl ManagedItem for ProviderConfig {
         _db_handler: &mut UserProfileDbHandler,
         _mask_mode: MaskMode,
     ) -> Result<JsonValue, ApplicationError> {
-        Ok(JsonValue::Object(serde_json::Map::from_iter(
-            self.additional_settings
-                .iter()
-                .map(|(k, v)| (k.clone(), JsonValue::String(v.value.clone()))),
-        )))
+        let mut settings = serde_json::Map::new();
+
+        // Add provider_type (server)
+        settings.insert(
+            "provider_type".to_string(),
+            JsonValue::String(self.provider_type.clone()),
+        );
+
+        // Add model_identifier if present
+        if let Some(model) = &self.model_identifier {
+            settings.insert(
+                "model_identifier".to_string(),
+                JsonValue::String(model.clone()),
+            );
+        }
+
+        // Add other additional settings
+        for (key, value) in &self.additional_settings {
+            settings
+                .insert(key.clone(), JsonValue::String(value.value.clone()));
+        }
+
+        Ok(JsonValue::Object(settings))
     }
 
     async fn update_settings(

@@ -261,7 +261,8 @@ pub async fn handle_profile_subcommand(
                 JsonValue::Object(Map::new())
             };
 
-            let new_profile = db_handler.create(name, &settings).await?;
+            let new_profile =
+                db_handler.create_profile(name, &settings).await?;
             println!(
                 "Created new profile - ID: {}, Name: {}",
                 new_profile.id, new_profile.name
@@ -294,7 +295,7 @@ pub async fn handle_profile_subcommand(
                     settings[key.to_string()] = typed_value;
                 }
 
-                db_handler.update(&profile, &settings).await?;
+                db_handler.update_profile(&profile, &settings).await?;
                 println!(
                     "Profile ID: {} - {} updated. Key '{}' set.",
                     profile.id, profile.name, key
@@ -340,7 +341,7 @@ pub async fn handle_profile_subcommand(
                 let mut settings = JsonValue::Object(Map::new());
                 settings[key.to_string()] = JsonValue::Null; // Null indicates deletion
 
-                db_handler.update(&profile, &settings).await?;
+                db_handler.update_profile(&profile, &settings).await?;
                 println!(
                     "Key '{}' deleted from profile ID: {} - {}.",
                     key, profile.id, profile.name

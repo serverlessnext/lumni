@@ -1,69 +1,92 @@
 use lumni::api::error::ApplicationError;
-use rusqlite::params;
 use serde_json::{json, Map, Value as JsonValue};
 
 use super::{
-    DatabaseOperationError, EncryptionMode, MaskMode, UserProfile,
-    UserProfileDbHandler,
+    DatabaseOperationError, EncryptionMode, MaskMode, UserProfileDbHandler,
 };
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
-    pub async fn update_profile_settings(
-        &mut self,
-        profile: &UserProfile,
+    pub fn process_settings(
+        &self,
+        value: &JsonValue,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
+    ) -> Result<JsonValue, ApplicationError> {
+        match value {
+            JsonValue::Object(obj) => {
+                let mut new_obj = Map::new();
+                for (k, v) in obj {
+                    new_obj.insert(
+                        k.clone(),
+                        self.process_value(v, encryption_mode, mask_mode)?,
+                    );
+                }
+                Ok(JsonValue::Object(new_obj))
+            }
+            JsonValue::Array(arr) => {
+                let new_arr: Result<Vec<JsonValue>, _> = arr
+                    .iter()
+                    .map(|v| {
+                        self.process_settings(v, encryption_mode, mask_mode)
+                    })
+                    .collect();
+                Ok(JsonValue::Array(new_arr?))
+            }
+            _ => Ok(value.clone()),
+        }
+    }
+
+    pub fn process_settings_with_metadata(
+        &self,
+        value: &JsonValue,
+        encryption_mode: EncryptionMode,
+        mask_mode: MaskMode,
+    ) -> Result<JsonValue, ApplicationError> {
+        match value {
+            JsonValue::Object(obj) => {
+                let mut new_obj = Map::new();
+                for (k, v) in obj {
+                    let processed = self.process_value_with_metadata(
+                        v,
+                        encryption_mode,
+                        mask_mode,
+                    )?;
+                    new_obj.insert(k.clone(), processed);
+                }
+                Ok(JsonValue::Object(new_obj))
+            }
+            JsonValue::Array(arr) => {
+                let new_arr: Result<Vec<JsonValue>, _> = arr
+                    .iter()
+                    .map(|v| {
+                        self.process_settings_with_metadata(
+                            v,
+                            encryption_mode,
+                            mask_mode,
+                        )
+                    })
+                    .collect();
+                Ok(JsonValue::Array(new_arr?))
+            }
+            _ => Ok(value.clone()),
+        }
+    }
+
+    pub fn merge_settings(
+        &self,
+        current_data: &JsonValue,
         new_settings: &JsonValue,
-    ) -> Result<(), ApplicationError> {
-        // Retrieve existing settings and merge with new settings
-        let existing_settings =
-            self.get_profile_settings(profile, MaskMode::Unmask).await?;
-        let merged_settings =
-            self.merge_settings(&existing_settings, new_settings)?;
-
-        let processed_settings = self.process_settings(
-            &merged_settings,
-            EncryptionMode::Encrypt,
-            MaskMode::Unmask,
-        )?;
-
-        // Serialize the processed settings
-        let json_string =
-            serde_json::to_string(&processed_settings).map_err(|e| {
-                ApplicationError::InvalidInput(format!(
-                    "Failed to serialize JSON: {}",
-                    e
-                ))
-            })?;
-
-        // Update the database
-        let mut db = self.db.lock().await;
-        db.process_queue_with_result(|tx| {
-            let updated_rows = tx
-                .execute(
-                    "UPDATE user_profiles SET options = ? WHERE id = ?",
-                    params![json_string, profile.id],
-                )
-                .map_err(DatabaseOperationError::SqliteError)?;
-
-            if updated_rows == 0 {
-                return Err(DatabaseOperationError::ApplicationError(
-                    ApplicationError::InvalidInput(format!(
-                        "Profile with id {} not found",
-                        profile.id
-                    )),
-                ));
+    ) -> Result<JsonValue, DatabaseOperationError> {
+        let mut merged = current_data.clone();
+        if let (Some(merged_obj), Some(new_obj)) =
+            (merged.as_object_mut(), new_settings.as_object())
+        {
+            for (key, new_value) in new_obj {
+                self.merge_setting(merged_obj, key, new_value, current_data)?;
             }
-
-            Ok(())
-        })
-        .map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => {
-                ApplicationError::DatabaseError(sqlite_err.to_string())
-            }
-            DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })?;
-
-        Ok(())
+        }
+        Ok(merged)
     }
 
     pub async fn create_export_json(
@@ -179,22 +202,6 @@ impl UserProfileDbHandler {
         }
     }
 
-    fn merge_settings(
-        &self,
-        current_data: &JsonValue,
-        new_settings: &JsonValue,
-    ) -> Result<JsonValue, DatabaseOperationError> {
-        let mut merged = current_data.clone();
-        if let (Some(merged_obj), Some(new_obj)) =
-            (merged.as_object_mut(), new_settings.as_object())
-        {
-            for (key, new_value) in new_obj {
-                self.merge_setting(merged_obj, key, new_value, current_data)?;
-            }
-        }
-        Ok(merged)
-    }
-
     fn merge_setting(
         &self,
         merged_obj: &mut Map<String, JsonValue>,
@@ -258,37 +265,7 @@ impl UserProfileDbHandler {
         Ok(())
     }
 
-    pub fn process_settings(
-        &self,
-        value: &JsonValue,
-        encryption_mode: EncryptionMode,
-        mask_mode: MaskMode,
-    ) -> Result<JsonValue, ApplicationError> {
-        match value {
-            JsonValue::Object(obj) => {
-                let mut new_obj = Map::new();
-                for (k, v) in obj {
-                    new_obj.insert(
-                        k.clone(),
-                        self.process_value(v, encryption_mode, mask_mode)?,
-                    );
-                }
-                Ok(JsonValue::Object(new_obj))
-            }
-            JsonValue::Array(arr) => {
-                let new_arr: Result<Vec<JsonValue>, _> = arr
-                    .iter()
-                    .map(|v| {
-                        self.process_settings(v, encryption_mode, mask_mode)
-                    })
-                    .collect();
-                Ok(JsonValue::Array(new_arr?))
-            }
-            _ => Ok(value.clone()),
-        }
-    }
-
-    pub fn process_value(
+    fn process_value(
         &self,
         value: &JsonValue,
         encryption_mode: EncryptionMode,
@@ -354,43 +331,7 @@ impl UserProfileDbHandler {
         }
     }
 
-    pub fn process_settings_with_metadata(
-        &self,
-        value: &JsonValue,
-        encryption_mode: EncryptionMode,
-        mask_mode: MaskMode,
-    ) -> Result<JsonValue, ApplicationError> {
-        match value {
-            JsonValue::Object(obj) => {
-                let mut new_obj = Map::new();
-                for (k, v) in obj {
-                    let processed = self.process_value_with_metadata(
-                        v,
-                        encryption_mode,
-                        mask_mode,
-                    )?;
-                    new_obj.insert(k.clone(), processed);
-                }
-                Ok(JsonValue::Object(new_obj))
-            }
-            JsonValue::Array(arr) => {
-                let new_arr: Result<Vec<JsonValue>, _> = arr
-                    .iter()
-                    .map(|v| {
-                        self.process_settings_with_metadata(
-                            v,
-                            encryption_mode,
-                            mask_mode,
-                        )
-                    })
-                    .collect();
-                Ok(JsonValue::Array(new_arr?))
-            }
-            _ => Ok(value.clone()),
-        }
-    }
-
-    pub fn is_encrypted_value(value: &JsonValue) -> bool {
+    fn is_encrypted_value(value: &JsonValue) -> bool {
         if let Some(obj) = value.as_object() {
             obj.contains_key("content") && obj.contains_key("encryption_key")
         } else {
@@ -398,7 +339,7 @@ impl UserProfileDbHandler {
         }
     }
 
-    pub fn is_marked_for_encryption(value: &JsonValue) -> bool {
+    fn is_marked_for_encryption(value: &JsonValue) -> bool {
         if let Some(obj) = value.as_object() {
             obj.contains_key("content")
                 && obj.get("encryption_key")

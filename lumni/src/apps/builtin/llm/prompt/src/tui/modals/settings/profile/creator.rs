@@ -259,8 +259,9 @@ impl ProfileCreator {
                 }
             }
 
-            let result =
-                db_handler.create(&new_profile_name, &json!(settings)).await;
+            let result = db_handler
+                .create_profile(&new_profile_name, &json!(settings))
+                .await;
             let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
         });
 

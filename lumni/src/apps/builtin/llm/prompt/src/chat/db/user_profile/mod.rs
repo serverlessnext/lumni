@@ -1,14 +1,13 @@
 mod content_operations;
-mod database_operations;
 mod encryption_operations;
-mod profile_operations;
 mod provider_config;
-
-use std::collections::HashMap;
+mod user_profile;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use lumni::api::error::{ApplicationError, EncryptionError};
-use rusqlite::{params, OptionalExtension};
+pub use provider_config::{ProviderConfig, ProviderConfigOptions};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::Mutex as TokioMutex;
@@ -18,12 +17,6 @@ use super::encryption::EncryptionHandler;
 use super::{ModelBackend, ModelServer, ModelSpec};
 use crate::external as lumni;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct UserProfile {
-    pub id: i64,
-    pub name: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct UserProfileDbHandler {
     pub profile: Option<UserProfile>,
@@ -31,22 +24,10 @@ pub struct UserProfileDbHandler {
     encryption_handler: Option<Arc<EncryptionHandler>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderConfig {
-    pub id: Option<i64>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserProfile {
+    pub id: i64,
     pub name: String,
-    pub provider_type: String,
-    pub model_identifier: Option<String>,
-    pub additional_settings: HashMap<String, ProviderConfigOptions>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderConfigOptions {
-    pub name: String,
-    pub display_name: String,
-    pub value: String,
-    pub is_secure: bool,
-    pub placeholder: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -78,16 +59,13 @@ impl UserProfileDbHandler {
         self.profile = Some(profile);
     }
 
-    pub fn get_profile(&self) -> Option<&UserProfile> {
-        self.profile.as_ref()
-    }
-
     pub async fn model_backend(
         &mut self,
     ) -> Result<Option<ModelBackend>, ApplicationError> {
         let user_profile = self.profile.clone();
 
         if let Some(profile) = user_profile {
+            self.unlock_profile_settings(&profile).await?;
             let settings = self
                 .get_profile_settings(&profile, MaskMode::Unmask)
                 .await?;
@@ -114,88 +92,68 @@ impl UserProfileDbHandler {
         }
     }
 
-    pub fn set_encryption_handler(
+    pub async fn unlock_profile_settings(
         &mut self,
-        encryption_handler: Arc<EncryptionHandler>,
+        profile: &UserProfile,
     ) -> Result<(), ApplicationError> {
-        // If profile is not yet set, return error as we need to know the profile to validate against existing encryption handler
-        let profile = self.profile.as_ref().ok_or_else(|| {
-            ApplicationError::InvalidInput(
-                "UserProfile must be defined before setting encryption handler"
-                    .to_string(),
-            )
-        })?;
-
-        // Check if the profile exists in the database and compare encryption handlers
-        let db = self.db.clone();
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut db = db.lock().await;
-                db.process_queue_with_result(|tx| {
-                    let existing_key: Option<(String, String)> = tx
-                        .query_row(
-                            "SELECT encryption_keys.file_path, \
-                             encryption_keys.sha256_hash
-                             FROM user_profiles
-                             JOIN encryption_keys ON \
-                             user_profiles.encryption_key_id = \
-                             encryption_keys.id
-                             WHERE user_profiles.name = ?",
-                            params![profile.name],
-                            |row| Ok((row.get(0)?, row.get(1)?)),
-                        )
-                        .optional()
-                        .map_err(DatabaseOperationError::SqliteError)?;
-
-                    if let Some((_, existing_hash)) = existing_key {
-                        let new_path = encryption_handler.get_key_path();
-                        let new_hash =
-                            EncryptionHandler::get_private_key_hash(&new_path)?;
-
-                        if existing_hash != new_hash {
-                            return Err(
-                                DatabaseOperationError::ApplicationError(
-                                    ApplicationError::InvalidInput(
-                                        "New encryption handler does not \
-                                         match the existing one for this \
-                                         profile"
-                                            .to_string(),
-                                    ),
-                                ),
-                            );
-                        }
-                    }
-
-                    Ok(())
-                })
-            })
-        });
-
-        result.map_err(|e| match e {
-            DatabaseOperationError::SqliteError(sqlite_err) => {
-                ApplicationError::DatabaseError(sqlite_err.to_string())
+        // check if profile is already set
+        if let Some(current_profile) = &self.profile {
+            if current_profile == profile && self.encryption_handler.is_some() {
+                // profile already set
+                return Ok(());
             }
-            DatabaseOperationError::ApplicationError(app_err) => app_err,
-        })?;
-
-        // If we've made it this far, either the profile doesn't exist yet or the encryption handler matches
-        self.encryption_handler = Some(encryption_handler);
-        Ok(())
+        }
+        // change profile
+        self.profile = Some(profile.clone());
+        self.unlock_current_profile().await
     }
 
-    pub fn set_profile_with_encryption_handler(
-        &mut self,
-        profile: UserProfile,
-        encryption_handler: Arc<EncryptionHandler>,
-    ) -> Result<(), ApplicationError> {
-        self.set_profile(profile);
-        self.set_encryption_handler(encryption_handler)
+    async fn unlock_current_profile(&mut self) -> Result<(), ApplicationError> {
+        let profile = if self.profile.is_none() {
+            return Err(ApplicationError::InvalidInput(
+                "Profile not set".to_string(),
+            ));
+        } else {
+            self.profile.clone().unwrap()
+        };
+
+        let (key_hash, key_path): (String, String) = {
+            let mut db = self.db.lock().await;
+            db.process_queue_with_result(|tx| {
+                tx.query_row(
+                    "SELECT encryption_keys.sha256_hash, \
+                     encryption_keys.file_path
+                     FROM user_profiles
+                     JOIN encryption_keys ON user_profiles.encryption_key_id = \
+                     encryption_keys.id
+                     WHERE user_profiles.name = ?",
+                    params![profile.name],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .map_err(DatabaseOperationError::SqliteError)
+            })?
+        };
+        if self.encryption_handler.is_none() {
+            // encryption handled required for decryption
+            let encryption_handler =
+                EncryptionHandler::new_from_path(&PathBuf::from(&key_path))?
+                    .ok_or_else(|| {
+                        ApplicationError::InvalidInput(
+                            "Failed to load encryption handler".to_string(),
+                        )
+                    })?;
+
+            self.set_encryption_handler(Arc::new(encryption_handler))?;
+            self.verify_encryption_key_hash(&key_hash)?;
+        }
+        Ok(())
     }
 
     pub async fn export_profile_settings(
         &mut self,
         profile: &UserProfile,
     ) -> Result<JsonValue, ApplicationError> {
+        self.unlock_profile_settings(profile).await?;
         let settings =
             self.get_profile_settings(profile, MaskMode::Unmask).await?;
         self.create_export_json(&settings).await

@@ -156,11 +156,6 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
         self.scroll_offset = (self.scroll_offset + amount).min(max_scroll);
     }
 
-    fn max_scroll(&self) -> usize {
-        let total_lines = self.text_buffer.display_lines_len();
-        total_lines.saturating_sub(self.viewport_height)
-    }
-
     pub fn set_viewport_height(&mut self, height: usize) {
         self.viewport_height = height;
     }

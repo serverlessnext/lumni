@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use ratatui::layout::Margin;
 use ratatui::text::Text;
 use serde_json::{json, Value as JsonValue};
@@ -218,7 +216,7 @@ impl ProviderCreator {
     pub async fn handle_key_event(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match input.code {
             KeyCode::Esc => {
                 if self.current_step == ProviderCreationStep::ConfirmCreate {
@@ -413,7 +411,7 @@ impl ProviderCreator {
 
     fn go_to_previous_step(
         &mut self,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match self.current_step {
             ProviderCreationStep::EnterName => Ok(CreatorAction::Cancel),
             ProviderCreationStep::SelectProviderType => {
@@ -446,7 +444,7 @@ impl ProviderCreator {
     pub fn handle_enter_name(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match input.code {
             KeyCode::Char(c) => {
                 self.name.push(c);
@@ -466,7 +464,7 @@ impl ProviderCreator {
     async fn handle_select_provider_type(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         let provider_types: Vec<String> = SUPPORTED_MODEL_ENDPOINTS
             .iter()
             .map(|s| s.to_string())
@@ -512,7 +510,7 @@ impl ProviderCreator {
     async fn handle_select_model(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
                 if let Some(list_widget) = &self.model_list {
@@ -555,7 +553,7 @@ impl ProviderCreator {
     fn handle_configure_settings(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match input.code {
             KeyCode::Up => {
                 if !self.is_editing {
@@ -658,12 +656,21 @@ impl ProviderCreator {
     async fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
         match input.code {
             KeyCode::Enter => {
                 self.current_step = ProviderCreationStep::CreatingProvider;
-                let new_config = self.create_provider().await?;
-                Ok(CreatorAction::Finish(new_config))
+                match self.create_provider().await {
+                    Ok(new_config) => {
+                        // Immediately return the Finish action with the new config
+                        Ok(CreatorAction::Finish(new_config))
+                    }
+                    Err(e) => {
+                        log::error!("Failed to create provider: {}", e);
+                        self.current_step = ProviderCreationStep::ConfirmCreate;
+                        Ok(CreatorAction::Continue)
+                    }
+                }
             }
             KeyCode::Esc => {
                 self.text_area = None;
@@ -766,61 +773,25 @@ impl ProviderCreator {
 
     pub async fn create_provider(
         &mut self,
-    ) -> Result<ProviderConfig, ApplicationError> {
-        let mut parameters = json!({
-            "provider_type": self.provider_type,
-        });
-
-        if let Some(model) = &self.model_identifier {
-            parameters["model_identifier"] = json!(model);
-        }
-
-        let additional_settings = self
-            .additional_settings
-            .iter()
-            .map(|(key, setting)| {
-                (
-                    key.clone(),
-                    json!({
-                        "name": setting.name,
-                        "display_name": setting.display_name,
-                        "value": if setting.is_secure {
-                            json!({
-                                "content": setting.value,
-                                "encryption_key": "",
-                                "type_info": "string",
-                            })
-                        } else {
-                            json!(setting.value)
-                        },
-                        "is_secure": setting.is_secure,
-                        "placeholder": setting.placeholder,
-                    }),
-                )
-            })
-            .collect::<serde_json::Map<String, serde_json::Value>>();
-
-        parameters["additional_settings"] = json!(additional_settings);
-
-        let item = self
+    ) -> Result<ConfigItem, ApplicationError> {
+        let new_config = self
             .db_handler
             .create_configuration_item(
                 self.name.clone(),
                 "provider",
-                parameters,
+                self.create_provider_parameters(),
             )
             .await?;
 
-        // Convert the created item back to a ProviderConfig
-        let config = ProviderConfig {
-            id: item.id,
-            name: item.name,
-            provider_type: self.provider_type.clone(),
-            model_identifier: self.model_identifier.clone(),
-            additional_settings: self.additional_settings.clone(),
-        };
+        Ok(ConfigItem::DatabaseConfig(new_config))
+    }
 
-        Ok(config)
+    fn create_provider_parameters(&self) -> serde_json::Value {
+        json!({
+            "provider_type": self.provider_type,
+            "model_identifier": self.model_identifier,
+            "additional_settings": self.additional_settings,
+        })
     }
 
     pub fn render_creating_provider(&self, f: &mut Frame, area: Rect) {
@@ -837,4 +808,13 @@ impl ProviderCreator {
 
         f.render_widget(paragraph, area);
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProviderConfigOptions {
+    pub name: String,
+    pub display_name: String,
+    pub value: String,
+    pub is_secure: bool,
+    pub placeholder: String,
 }

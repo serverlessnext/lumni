@@ -1,18 +1,13 @@
-use std::any::Any;
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
-use super::profile::{
-    ProfileCreationStep, ProfileCreator, SubPartCreationState,
-};
-use super::provider::{ProviderCreationStep, ProviderCreator};
+use super::profile::{ProfileCreationStep, SubPartCreationState};
+use super::provider::ProviderCreationStep;
 use super::*;
 
 #[async_trait]
-pub trait ManagedItem: Clone + Send + Sync + ListItemTrait {
+pub trait ManagedItem: Clone + Send + Sync {
     async fn delete(
         &self,
         db_handler: &mut UserProfileDbHandler,
@@ -54,49 +49,6 @@ impl ManagedItem for UserProfile {
         settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
         db_handler.update_profile(self, settings).await
-    }
-}
-
-#[async_trait]
-impl ManagedItem for ProviderConfig {
-    async fn delete(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<(), ApplicationError> {
-        let item = DatabaseConfigurationItem {
-            id: self.id,
-            name: self.name.clone(),
-            section: "provider".to_string(),
-        };
-        db_handler.delete_configuration_item(&item).await
-    }
-
-    async fn get_settings(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-        mask_mode: MaskMode,
-    ) -> Result<JsonValue, ApplicationError> {
-        let item = DatabaseConfigurationItem {
-            id: self.id,
-            name: self.name.clone(),
-            section: "provider".to_string(),
-        };
-        db_handler
-            .get_configuration_parameters(&item, mask_mode)
-            .await
-    }
-
-    async fn update_settings(
-        &self,
-        db_handler: &mut UserProfileDbHandler,
-        settings: &JsonValue,
-    ) -> Result<(), ApplicationError> {
-        let item = DatabaseConfigurationItem {
-            id: self.id,
-            name: self.name.clone(),
-            section: "provider".to_string(),
-        };
-        db_handler.update_configuration_item(&item, settings).await
     }
 }
 
@@ -156,6 +108,7 @@ pub trait Creator<T: ManagedItem>: Send + Sync + 'static {
     fn poll_background_task(&mut self) -> Option<CreatorAction<T>>;
 }
 
+#[derive(Debug)]
 pub enum CreatorAction<T: ManagedItem> {
     Continue, // continue to next step
     Cancel,
@@ -164,24 +117,181 @@ pub enum CreatorAction<T: ManagedItem> {
     CreateItem, // spawn a background task to create the item
 }
 
-pub struct SettingsManager<T: ManagedItem + LoadableItem + CreatableItem> {
-    pub list: SettingsList<T>,
-    pub settings_editor: SettingsEditor,
-    pub creator: Option<Box<dyn Creator<T>>>,
-    pub rename_buffer: Option<String>,
-    pub db_handler: UserProfileDbHandler,
-    pub tab_focus: TabFocus,
+impl<T: ManagedItem> CreatorAction<T> {
+    fn map_to_config_item(self) -> CreatorAction<ConfigItem> {
+        match self {
+            CreatorAction::Continue => CreatorAction::Continue,
+            CreatorAction::Cancel => CreatorAction::Cancel,
+            CreatorAction::Finish(_) => {
+                panic!("Finish action should be handled separately")
+            }
+            CreatorAction::LoadAdditionalSettings => {
+                CreatorAction::LoadAdditionalSettings
+            }
+            CreatorAction::CreateItem => CreatorAction::CreateItem,
+        }
+    }
 }
 
-impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
-    SettingsManager<T>
-{
+#[async_trait]
+pub trait LoadableItem: ManagedItem {
+    async fn load_items(
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Vec<Self>, ApplicationError>;
+    async fn load_default_item(
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Option<Self>, ApplicationError>;
+}
+
+#[async_trait]
+impl LoadableItem for UserProfile {
+    async fn load_items(
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Vec<Self>, ApplicationError> {
+        db_handler.list_profiles().await
+    }
+    async fn load_default_item(
+        db_handler: &mut UserProfileDbHandler,
+    ) -> Result<Option<Self>, ApplicationError> {
+        db_handler.get_default_profile().await
+    }
+}
+
+#[async_trait]
+impl Creator<ConfigItem> for ProfileCreator {
+    async fn handle_input(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        let action = self.handle_key_event(input).await?;
+        Ok(match action {
+            CreatorAction::Continue => CreatorAction::Continue,
+            CreatorAction::Cancel => CreatorAction::Cancel,
+            CreatorAction::Finish(profile) => {
+                CreatorAction::Finish(ConfigItem::UserProfile(profile))
+            }
+            CreatorAction::LoadAdditionalSettings => {
+                CreatorAction::LoadAdditionalSettings
+            }
+            CreatorAction::CreateItem => CreatorAction::CreateItem,
+        })
+    }
+
+    fn render(&mut self, f: &mut Frame, area: Rect) {
+        match self.sub_part_creation_state {
+            SubPartCreationState::NotCreating => match self.creation_step {
+                ProfileCreationStep::EnterName => {
+                    self.render_enter_name(f, area)
+                }
+                ProfileCreationStep::SelectProvider => {
+                    self.render_select_provider(f, area)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.render_confirm_create(f, area)
+                }
+                ProfileCreationStep::CreatingProfile => {
+                    self.render_creating_profile(f, area)
+                }
+            },
+            SubPartCreationState::CreatingProvider(ref mut creator) => {
+                creator.render(f, area);
+            }
+        }
+    }
+
+    async fn create_item(
+        &mut self,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        let action = self.create_profile().await?;
+        Ok(match action {
+            CreatorAction::Finish(profile) => {
+                CreatorAction::Finish(ConfigItem::UserProfile(profile))
+            }
+            other => other.map_to_config_item(),
+        })
+    }
+
+    fn poll_background_task(&mut self) -> Option<CreatorAction<ConfigItem>> {
+        self.check_profile_creation_status()
+            .map(|action| match action {
+                CreatorAction::Finish(profile) => {
+                    CreatorAction::Finish(ConfigItem::UserProfile(profile))
+                }
+                other => other.map_to_config_item(),
+            })
+    }
+}
+
+#[async_trait]
+impl Creator<ConfigItem> for ProviderCreator {
+    async fn handle_input(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        self.handle_key_event(input).await
+    }
+
+    fn render(&mut self, f: &mut Frame, area: Rect) {
+        match self.current_step {
+            ProviderCreationStep::EnterName => self.render_enter_name(f, area),
+            ProviderCreationStep::SelectProviderType => {
+                self.render_select_provider_type(f, area)
+            }
+            ProviderCreationStep::SelectModel => {
+                self.render_select_model(f, area)
+            }
+            ProviderCreationStep::ConfigureSettings => {
+                self.render_configure_settings(f, area)
+            }
+            ProviderCreationStep::ConfirmCreate => {
+                self.render_confirm_create(f, area)
+            }
+            ProviderCreationStep::CreatingProvider => {
+                self.render_creating_provider(f, area)
+            }
+        }
+    }
+
+    async fn create_item(
+        &mut self,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        self.current_step = ProviderCreationStep::CreatingProvider;
+        match self.create_provider().await {
+            Ok(new_config) => Ok(CreatorAction::Finish(new_config)),
+            Err(e) => {
+                log::error!("Failed to create provider: {}", e);
+                self.current_step = ProviderCreationStep::ConfirmCreate;
+                Ok(CreatorAction::Continue)
+            }
+        }
+    }
+
+    fn poll_background_task(&mut self) -> Option<CreatorAction<ConfigItem>> {
+        None // ProviderCreator doesn't have a background task
+    }
+}
+
+pub struct ConfigItemManager {
+    pub list: SettingsList<ConfigItem>,
+    pub settings_editor: SettingsEditor,
+    pub creator: Option<Box<dyn Creator<ConfigItem>>>,
+    pub rename_buffer: Option<String>,
+    pub db_handler: UserProfileDbHandler,
+}
+
+impl ConfigItemManager {
     pub async fn new(
         mut db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
-        let items = T::load_items(&mut db_handler).await?;
-        let default_item = T::load_default_item(&mut db_handler).await?;
-        let list = SettingsList::new(items, default_item);
+        let profiles = UserProfile::load_items(&mut db_handler).await?;
+        let items = profiles.into_iter().map(ConfigItem::UserProfile).collect();
+        let default_profile =
+            UserProfile::load_default_item(&mut db_handler).await?;
+        let list = SettingsList::new(
+            items,
+            default_profile.map(ConfigItem::UserProfile),
+            "Profile".to_string(),
+        );
 
         let settings = if let Some(item) = list.get_selected_item() {
             item.get_settings(&mut db_handler, MaskMode::Mask).await?
@@ -196,21 +306,51 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             creator: None,
             rename_buffer: None,
             db_handler,
-            tab_focus: TabFocus::List,
         })
     }
 
     pub async fn refresh_list(
         &mut self,
+        current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
-        let items = T::load_items(&mut self.db_handler).await?;
-        let default_item = T::load_default_item(&mut self.db_handler).await?;
+        let (items, default_item, item_type) = match current_tab {
+            ConfigTab::Profiles => {
+                let profiles =
+                    UserProfile::load_items(&mut self.db_handler).await?;
+                let default_profile =
+                    UserProfile::load_default_item(&mut self.db_handler)
+                        .await?;
+                (
+                    profiles.into_iter().map(ConfigItem::UserProfile).collect(),
+                    default_profile.map(ConfigItem::UserProfile),
+                    "Profile".to_string(),
+                )
+            }
+            ConfigTab::Providers => {
+                let providers = self
+                    .db_handler
+                    .list_configuration_items("provider")
+                    .await?;
+                (
+                    providers
+                        .into_iter()
+                        .map(|p| {
+                            ConfigItem::DatabaseConfig(
+                                DatabaseConfigurationItem {
+                                    id: p.id,
+                                    name: p.name,
+                                    section: "provider".to_string(),
+                                },
+                            )
+                        })
+                        .collect(),
+                    None,
+                    "Provider".to_string(),
+                )
+            }
+        };
 
-        // Preserve the current default item if a new one wasn't loaded
-        let default_item =
-            default_item.or_else(|| self.list.default_item.clone());
-
-        self.list = SettingsList::new(items, default_item);
+        self.list = SettingsList::new(items, default_item, item_type);
         self.load_selected_item_settings().await?;
         Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
@@ -219,16 +359,19 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
+        current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
         match *tab_focus {
             TabFocus::List => {
-                self.handle_list_input(key_event, tab_focus).await
+                self.handle_list_input(key_event, tab_focus, current_tab)
+                    .await
             }
             TabFocus::Settings => {
                 self.handle_settings_input(key_event, tab_focus).await
             }
             TabFocus::Creation => {
-                self.handle_creation_input(key_event, tab_focus).await
+                self.handle_creation_input(key_event, tab_focus, current_tab)
+                    .await
             }
         }
     }
@@ -237,6 +380,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
+        current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
         match key_event.code {
             KeyCode::Up => {
@@ -259,10 +403,9 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             }
             KeyCode::Enter => {
                 if self.rename_buffer.is_some() {
-                    // ensure this is matched before any other action
                     self.confirm_rename_item().await?;
                 } else if self.list.is_new_item_selected() {
-                    self.start_item_creation().await?;
+                    self.start_item_creation(current_tab).await?;
                     *tab_focus = TabFocus::Creation;
                 } else {
                     *tab_focus = TabFocus::Settings;
@@ -271,30 +414,11 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             }
             KeyCode::Char(' ') => {
                 let selected_item = self.list.get_selected_item().cloned();
-                if let Some(item) = selected_item {
-                    if let Some(profile) =
-                        (&item as &dyn Any).downcast_ref::<UserProfile>()
-                    {
-                        self.list.mark_as_default(&item);
-                        self.db_handler.set_default_profile(profile).await?;
-                        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
-                    } else {
-                        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
-                    }
-                } else {
-                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
-                }
-            }
-            KeyCode::Backspace if self.get_rename_buffer().is_some() => {
-                if let Some(buffer) = &mut self.rename_buffer {
-                    buffer.pop();
-                }
-                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
-            }
-            KeyCode::Char(c) if self.rename_buffer.is_some() => {
-                // ensure this is matched before any other char
-                if let Some(buffer) = &mut self.rename_buffer {
-                    buffer.push(c);
+                if let Some(ConfigItem::UserProfile(profile)) = selected_item {
+                    self.list.mark_as_default(&ConfigItem::UserProfile(
+                        profile.clone(),
+                    ));
+                    self.db_handler.set_default_profile(&profile).await?;
                 }
                 Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
@@ -302,15 +426,27 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                 self.start_item_renaming();
                 Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
-            KeyCode::Backspace if self.rename_buffer.is_some() => {
+            KeyCode::Char(c) if self.rename_buffer.is_some() => {
                 if let Some(buffer) = &mut self.rename_buffer {
-                    buffer.pop();
+                    buffer.push(c);
                 }
                 Ok(WindowMode::Modal(ModalEvent::UpdateUI))
             }
-            KeyCode::Esc if self.rename_buffer.is_some() => {
-                self.cancel_rename_item();
-                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+            KeyCode::Backspace => {
+                if let Some(buffer) = &mut self.rename_buffer {
+                    buffer.pop();
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+                } else {
+                    self.go_to_previous_step(tab_focus)
+                }
+            }
+            KeyCode::Esc => {
+                if self.rename_buffer.is_some() {
+                    self.cancel_rename_item();
+                    Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+                } else {
+                    self.go_to_previous_step(tab_focus)
+                }
             }
             KeyCode::Char('D') => {
                 self.delete_selected_item().await?;
@@ -325,7 +461,6 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
     ) -> Result<WindowMode, ApplicationError> {
-        // Handle key event in settings editor
         let (new_mode, handled, action) =
             self.settings_editor.handle_key_event(key_event.code);
 
@@ -333,30 +468,28 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             self.settings_editor.edit_mode = new_mode;
 
             if let Some(action) = action {
-                // Get the profile outside the mutable borrow
                 let item = self.list.get_selected_item().cloned();
 
-                if let Some(ref item) = item {
+                if let Some(item) = item {
                     match action {
                         SettingsAction::ToggleSecureVisibility => {
-                            self.toggle_secure_visibility(item).await?
+                            self.toggle_secure_visibility(&item).await?
                         }
                         SettingsAction::DeleteCurrentKey => {
-                            self.delete_current_key(item).await?
+                            self.delete_current_key(&item).await?
                         }
                         SettingsAction::ClearCurrentKey => {
-                            self.clear_current_key(item).await?
+                            self.clear_current_key(&item).await?
                         }
                         SettingsAction::SaveEdit => {
-                            self.save_edit(item).await?
+                            self.save_edit(&item).await?
                         }
                         SettingsAction::SaveNewValue => {
-                            self.save_new_value(item).await?
+                            self.save_new_value(&item).await?
                         }
                     }
                 }
             }
-
             return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
         }
 
@@ -377,6 +510,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         &mut self,
         key_event: KeyEvent,
         tab_focus: &mut TabFocus,
+        current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
         if let Some(creator) = &mut self.creator {
             let action = creator.handle_input(key_event).await?;
@@ -402,9 +536,8 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                             self.list.add_item(new_item);
                             self.creator = None;
                             *tab_focus = TabFocus::List;
-                            Ok(WindowMode::Modal(
-                                ModalEvent::PollBackGroundTask,
-                            ))
+                            self.refresh_list(current_tab).await?;
+                            Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                         }
                         _ => Ok(WindowMode::Modal(
                             ModalEvent::PollBackGroundTask,
@@ -412,11 +545,11 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
                     }
                 }
                 CreatorAction::LoadAdditionalSettings => {
-                    // Handle loading additional settings if needed
                     Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
             }
         } else {
+            eprintln!("No creator found");
             Ok(WindowMode::Modal(ModalEvent::UpdateUI))
         }
     }
@@ -439,15 +572,25 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         Ok(())
     }
 
-    async fn start_item_creation(&mut self) -> Result<(), ApplicationError> {
-        let creator = T::create_creator(self.db_handler.clone()).await?;
-        self.creator = Some(Box::new(creator));
+    async fn start_item_creation(
+        &mut self,
+        current_tab: ConfigTab,
+    ) -> Result<(), ApplicationError> {
+        let creation_type = match current_tab {
+            ConfigTab::Profiles => ConfigCreationType::UserProfile,
+            ConfigTab::Providers => ConfigCreationType::Provider,
+        };
+        self.creator = Some(Box::new(
+            ConfigItemCreator::new(self.db_handler.clone(), creation_type)
+                .await?,
+        ));
         Ok(())
     }
 
     pub fn start_item_renaming(&mut self) {
         if let Some(item) = self.list.get_selected_item() {
-            self.rename_buffer = Some(item.name().to_string());
+            self.rename_buffer =
+                Some(<ConfigItem as SettingsItem>::name(item).to_string());
         }
     }
 
@@ -456,7 +599,6 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
             (&self.rename_buffer, self.list.get_selected_item())
         {
             if !new_name.is_empty() {
-                // Use type-specific renaming method
                 self.rename_item(item, new_name).await?;
                 self.list.rename_selected_item(new_name.clone());
             }
@@ -467,23 +609,18 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     async fn rename_item(
         &self,
-        item: &T,
+        item: &ConfigItem,
         new_name: &str,
     ) -> Result<(), ApplicationError> {
-        if let Some(profile) = (item as &dyn Any).downcast_ref::<UserProfile>()
-        {
-            self.db_handler.rename_profile(profile, new_name).await?;
-        } else if let Some(_) =
-            (item as &dyn Any).downcast_ref::<ProviderConfig>()
-        {
-            let config_item = DatabaseConfigurationItem {
-                id: item.id(),
-                name: item.name().to_string(),
-                section: "provider".to_string(),
-            };
-            self.db_handler
-                .rename_configuration_item(&config_item, new_name)
-                .await?;
+        match item {
+            ConfigItem::UserProfile(profile) => {
+                self.db_handler.rename_profile(profile, new_name).await?;
+            }
+            ConfigItem::DatabaseConfig(config) => {
+                self.db_handler
+                    .rename_configuration_item(config, new_name)
+                    .await?;
+            }
         }
         Ok(())
     }
@@ -504,7 +641,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     async fn toggle_secure_visibility(
         &mut self,
-        item: &T,
+        item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         self.settings_editor.show_secure = !self.settings_editor.show_secure;
         let mask_mode = if self.settings_editor.show_secure {
@@ -520,7 +657,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     async fn delete_current_key(
         &mut self,
-        item: &T,
+        item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         if let Some(current_key) = self.settings_editor.get_current_key() {
             if !current_key.starts_with("__") {
@@ -536,7 +673,7 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     async fn clear_current_key(
         &mut self,
-        item: &T,
+        item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         if let Some(current_key) = self.settings_editor.get_current_key() {
             if !current_key.starts_with("__") {
@@ -550,7 +687,10 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
         Ok(())
     }
 
-    async fn save_edit(&mut self, item: &T) -> Result<(), ApplicationError> {
+    async fn save_edit(
+        &mut self,
+        item: &ConfigItem,
+    ) -> Result<(), ApplicationError> {
         if let Some(current_key) = self.settings_editor.get_current_key() {
             let current_value =
                 &self.settings_editor.get_settings()[current_key];
@@ -585,13 +725,13 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
 
     async fn save_new_value(
         &mut self,
-        item: &T,
+        item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         let new_key = self.settings_editor.get_new_key_buffer().to_string();
         let new_value = if self.settings_editor.is_new_value_secure() {
             json!({
                 "content": self.settings_editor.get_edit_buffer(),
-                "encryption_key": "",   // signal that value must be encrypted, encryption key will be set by the handler
+                "encryption_key": "",  // signal that value must be encrypted, encryption key will be set by the handler
                 "type_info": "string",
             })
         } else {
@@ -613,219 +753,243 @@ impl<T: ManagedItem + LoadableItem + CreatableItem + 'static>
     pub fn get_rename_buffer(&self) -> Option<&String> {
         self.rename_buffer.as_ref()
     }
-}
 
-#[async_trait]
-pub trait LoadableItem: ManagedItem {
-    async fn load_items(
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Vec<Self>, ApplicationError>;
-    async fn load_default_item(
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Option<Self>, ApplicationError>;
-}
-
-#[async_trait]
-impl LoadableItem for UserProfile {
-    async fn load_items(
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Vec<Self>, ApplicationError> {
-        db_handler.list_profiles().await
-    }
-    async fn load_default_item(
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Option<Self>, ApplicationError> {
-        db_handler.get_default_profile().await
-    }
-}
-
-#[async_trait]
-impl LoadableItem for ProviderConfig {
-    async fn load_items(
-        db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Vec<Self>, ApplicationError> {
-        let items = db_handler.list_configuration_items("provider").await?;
-        let mut configs = Vec::new();
-        for item in items {
-            let settings = db_handler
-                .get_configuration_parameters(&item, MaskMode::Mask)
-                .await?;
-            configs.push(ProviderConfig {
-                id: item.id,
-                name: item.name,
-                provider_type: settings["provider_type"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string(),
-                model_identifier: settings["model_identifier"]
-                    .as_str()
-                    .map(String::from),
-                additional_settings: parse_additional_settings(&settings),
-            });
+    fn go_to_previous_step(
+        &mut self,
+        tab_focus: &mut TabFocus,
+    ) -> Result<WindowMode, ApplicationError> {
+        match tab_focus {
+            TabFocus::List => Ok(WindowMode::Conversation(Some(
+                ConversationEvent::PromptRead,
+            ))),
+            TabFocus::Settings => {
+                *tab_focus = TabFocus::List;
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+            }
+            TabFocus::Creation => {
+                self.creator = None;
+                *tab_focus = TabFocus::List;
+                Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+            }
         }
-        Ok(configs)
     }
 
-    async fn load_default_item(
-        _db_handler: &mut UserProfileDbHandler,
-    ) -> Result<Option<Self>, ApplicationError> {
-        Ok(None) // ProviderConfig doesn't have a default item
+    pub async fn poll_background_task(
+        &mut self,
+        tab_focus: &mut TabFocus,
+        current_tab: ConfigTab,
+    ) -> Result<WindowMode, ApplicationError> {
+        if let Some(creator) = &mut self.creator {
+            if let Some(action) = creator.poll_background_task() {
+                match action {
+                    CreatorAction::Finish(new_item) => {
+                        self.list.add_item(new_item);
+                        self.creator = None;
+                        *tab_focus = TabFocus::List;
+                        self.refresh_list(current_tab).await?;
+                        return Ok(WindowMode::Modal(
+                            ModalEvent::PollBackGroundTask,
+                        ));
+                    }
+                    CreatorAction::CreateItem => {
+                        return Ok(WindowMode::Modal(
+                            ModalEvent::PollBackGroundTask,
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
-}
 
-fn parse_additional_settings(
-    settings: &JsonValue,
-) -> HashMap<String, ProviderConfigOptions> {
-    settings["additional_settings"]
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter_map(|(key, value)| {
-                    let is_secure = value.is_object()
-                        && value.get("encryption_key").is_some();
-                    let value_str = if is_secure {
-                        value.to_string()
+    pub fn render_list(&self, f: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self
+            .list
+            .get_items()
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let content = if i == self.list.get_selected_index()
+                    && self.get_rename_buffer().is_some()
+                {
+                    self.get_rename_buffer().unwrap().clone()
+                } else {
+                    item.to_string()
+                };
+
+                let style = if i == self.list.get_selected_index() {
+                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
+                } else if i == self.list.get_items().len() - 1 {
+                    Style::default().fg(Color::Green)
+                } else if content.ends_with("(default)") {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default().fg(Color::Cyan)
+                };
+                ListItem::new(Span::styled(content, style))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(self.get_list_title()),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol("> ");
+
+        let mut list_state = ListState::default();
+        list_state.select(Some(self.list.get_selected_index()));
+
+        f.render_stateful_widget(list, area, &mut list_state);
+    }
+
+    fn get_list_title(&self) -> &str {
+        match self.list.get_selected_item() {
+            Some(ConfigItem::UserProfile(_)) => "Profiles",
+            Some(ConfigItem::DatabaseConfig(config)) => {
+                match config.section.as_str() {
+                    "provider" => "Providers",
+                    "configuration" => "Configurations",
+                    _ => "Items",
+                }
+            }
+            None => "Items",
+        }
+    }
+
+    pub fn render_settings(&self, f: &mut Frame, area: Rect) {
+        let item = self.list.get_selected_item();
+        let settings_editor = &self.settings_editor;
+
+        if let Some(item) = item {
+            let settings = settings_editor.get_settings();
+            let mut items: Vec<ListItem> = settings
+                .as_object()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .map(|(i, (key, value))| {
+                    let is_editable = !key.starts_with("__");
+                    let display_value =
+                        settings_editor.get_display_value(value);
+
+                    let content = if settings_editor.edit_mode
+                        == EditMode::EditingValue
+                        && i == settings_editor.get_current_field()
+                        && is_editable
+                    {
+                        format!(
+                            "{}: {}",
+                            key,
+                            settings_editor.get_edit_buffer()
+                        )
                     } else {
-                        value.as_str().unwrap_or_default().to_string()
+                        format!("{}: {}", key, display_value)
                     };
 
-                    Some((
-                        key.clone(),
-                        ProviderConfigOptions {
-                            name: key.clone(),
-                            display_name: key.clone(),
-                            value: value_str,
-                            is_secure,
-                            placeholder: String::new(),
-                        },
-                    ))
+                    let style = if i == settings_editor.get_current_field() {
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White)
+                    } else if is_editable {
+                        Style::default().bg(Color::Black).fg(Color::Cyan)
+                    } else {
+                        Style::default().bg(Color::Black).fg(Color::DarkGray)
+                    };
+                    ListItem::new(Line::from(vec![Span::styled(
+                        content, style,
+                    )]))
                 })
-                .collect()
-        })
-        .unwrap_or_default()
-}
+                .collect();
 
-#[async_trait]
-pub trait CreatableItem: ManagedItem {
-    type Creator: Creator<Self> + Send + Sync + 'static;
-
-    async fn create_creator(
-        db_handler: UserProfileDbHandler,
-    ) -> Result<Self::Creator, ApplicationError>;
-}
-
-#[async_trait]
-impl CreatableItem for UserProfile {
-    type Creator = ProfileCreator;
-
-    async fn create_creator(
-        db_handler: UserProfileDbHandler,
-    ) -> Result<Self::Creator, ApplicationError> {
-        ProfileCreator::new(db_handler).await
-    }
-}
-
-#[async_trait]
-impl CreatableItem for ProviderConfig {
-    type Creator = ProviderCreator;
-
-    async fn create_creator(
-        db_handler: UserProfileDbHandler,
-    ) -> Result<Self::Creator, ApplicationError> {
-        ProviderCreator::new(db_handler).await
-    }
-}
-
-#[async_trait]
-impl Creator<UserProfile> for ProfileCreator {
-    async fn handle_input(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        self.handle_key_event(input).await
-    }
-
-    fn render(&mut self, f: &mut Frame, area: Rect) {
-        match self.sub_part_creation_state {
-            SubPartCreationState::NotCreating => match self.creation_step {
-                ProfileCreationStep::EnterName => {
-                    self.render_enter_name(f, area)
-                }
-                ProfileCreationStep::SelectProvider => {
-                    self.render_select_provider(f, area)
-                }
-                ProfileCreationStep::ConfirmCreate => {
-                    self.render_confirm_create(f, area)
-                }
-                ProfileCreationStep::CreatingProfile => {
-                    self.render_creating_profile(f, area)
-                }
-            },
-            SubPartCreationState::CreatingProvider(ref mut creator) => {
-                creator.render(f, area);
+            // Add new key input field if in AddingNewKey mode
+            if settings_editor.edit_mode == EditMode::AddingNewKey {
+                let secure_indicator = if settings_editor.is_new_value_secure()
+                {
+                    "🔒 "
+                } else {
+                    ""
+                };
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    format!(
+                        "{}New key: {}",
+                        secure_indicator,
+                        settings_editor.get_new_key_buffer()
+                    ),
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::White),
+                )])));
             }
+
+            // Add new value input field if in AddingNewValue mode
+            if settings_editor.edit_mode == EditMode::AddingNewValue {
+                let secure_indicator = if settings_editor.is_new_value_secure()
+                {
+                    "🔒 "
+                } else {
+                    ""
+                };
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    format!(
+                        "{}{}: {}",
+                        secure_indicator,
+                        settings_editor.get_new_key_buffer(),
+                        settings_editor.get_edit_buffer()
+                    ),
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::White),
+                )])));
+            }
+
+            let list = List::new(items)
+                .block(Block::default().borders(Borders::ALL).title(format!(
+                    "{} Settings: {}",
+                    item.item_type(),
+                    <ConfigItem as SettingsItem>::name(item)
+                )))
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+                .highlight_symbol(">> ");
+
+            let mut state = ListState::default();
+            state.select(Some(settings_editor.get_current_field()));
+
+            f.render_stateful_widget(list, area, &mut state);
+        } else {
+            let paragraph = Paragraph::new("No item selected").block(
+                Block::default().borders(Borders::ALL).title("Settings"),
+            );
+            f.render_widget(paragraph, area);
         }
     }
 
-    async fn create_item(
+    pub fn render_content(
         &mut self,
-    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        self.create_profile().await
-    }
-
-    fn poll_background_task(&mut self) -> Option<CreatorAction<UserProfile>> {
-        self.check_profile_creation_status()
-    }
-}
-
-#[async_trait]
-impl Creator<ProviderConfig> for ProviderCreator {
-    async fn handle_input(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
-        self.handle_key_event(input).await
-    }
-
-    fn render(&mut self, f: &mut Frame, area: Rect) {
-        match self.current_step {
-            ProviderCreationStep::EnterName => self.render_enter_name(f, area),
-            ProviderCreationStep::SelectProviderType => {
-                self.render_select_provider_type(f, area)
+        f: &mut Frame,
+        area: Rect,
+        tab_focus: TabFocus,
+    ) {
+        match tab_focus {
+            TabFocus::Settings | TabFocus::List => {
+                self.render_settings(f, area);
             }
-            ProviderCreationStep::SelectModel => {
-                self.render_select_model(f, area)
-            }
-            ProviderCreationStep::ConfigureSettings => {
-                self.render_configure_settings(f, area)
-            }
-            ProviderCreationStep::ConfirmCreate => {
-                self.render_confirm_create(f, area)
-            }
-            ProviderCreationStep::CreatingProvider => {
-                self.render_creating_provider(f, area)
+            TabFocus::Creation => {
+                if let Some(creator) = &mut self.creator {
+                    creator.render(f, area);
+                } else {
+                    let paragraph = Paragraph::new("No creator available")
+                        .block(
+                            Block::default()
+                                .borders(Borders::ALL)
+                                .title("Creation"),
+                        );
+                    f.render_widget(paragraph, area);
+                }
             }
         }
-    }
-
-    async fn create_item(
-        &mut self,
-    ) -> Result<CreatorAction<ProviderConfig>, ApplicationError> {
-        self.current_step = ProviderCreationStep::CreatingProvider;
-        match self.create_provider().await {
-            Ok(new_config) => Ok(CreatorAction::Finish(new_config)),
-            Err(e) => {
-                log::error!("Failed to create provider: {}", e);
-                self.current_step = ProviderCreationStep::ConfirmCreate;
-                Ok(CreatorAction::Continue)
-            }
-        }
-    }
-
-    fn poll_background_task(
-        &mut self,
-    ) -> Option<CreatorAction<ProviderConfig>> {
-        // No background task to poll
-        None
     }
 }

@@ -4,23 +4,27 @@ pub trait ListItemTrait: Clone {
     fn name(&self) -> &str;
     fn id(&self) -> i64;
     fn with_new_name(&self, new_name: String) -> Self;
-    fn item_type() -> &'static str
-    where
-        Self: Sized;
 }
 
+#[derive(Debug)]
 pub struct SettingsList<T: ListItemTrait> {
     items: Vec<T>,
     selected_index: usize,
     pub default_item: Option<T>,
+    item_type: String,
 }
 
 impl<T: ListItemTrait> SettingsList<T> {
-    pub fn new(items: Vec<T>, default_item: Option<T>) -> Self {
+    pub fn new(
+        items: Vec<T>,
+        default_item: Option<T>,
+        item_type: String,
+    ) -> Self {
         let mut list = SettingsList {
             items,
             selected_index: 0,
             default_item: None,
+            item_type,
         };
         if let Some(default) = default_item {
             list.mark_as_default(&default);
@@ -101,7 +105,7 @@ impl<T: ListItemTrait> SettingsList<T> {
                 }
             })
             .collect();
-        items.push(format!("Create new {}", T::item_type()));
+        items.push(format!("Create new {}", self.item_type));
         items
     }
 }
@@ -109,85 +113,46 @@ impl<T: ListItemTrait> SettingsList<T> {
 impl<T: ListItemTrait + SettingsItem> SettingsListTrait for SettingsList<T> {
     type Item = T;
 
-    fn get_items(&self) -> Vec<String> {
-        self.get_items()
-    }
-
     fn get_selected_index(&self) -> usize {
         self.selected_index
-    }
-
-    fn get_selected_item(&self) -> Option<&Self::Item> {
-        self.items.get(self.selected_index)
     }
 }
 
 pub trait SettingsListTrait {
     type Item: ListItemTrait + SettingsItem;
-    fn get_items(&self) -> Vec<String>;
     fn get_selected_index(&self) -> usize;
-    fn get_selected_item(&self) -> Option<&Self::Item>;
 }
 
-impl ListItemTrait for UserProfile {
+impl ListItemTrait for ConfigItem {
     fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn id(&self) -> i64 {
-        self.id
-    }
-
-    fn with_new_name(&self, new_name: String) -> Self {
-        UserProfile {
-            name: new_name,
-            ..self.clone()
+        match self {
+            ConfigItem::UserProfile(profile) => &profile.name,
+            ConfigItem::DatabaseConfig(config) => &config.name,
         }
     }
 
-    fn item_type() -> &'static str {
-        "Profile"
-    }
-}
-
-impl ListItemTrait for ProviderConfig {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
     fn id(&self) -> i64 {
-        self.id
-    }
-
-    fn with_new_name(&self, new_name: String) -> Self {
-        ProviderConfig {
-            name: new_name,
-            ..self.clone()
+        match self {
+            ConfigItem::UserProfile(profile) => profile.id,
+            ConfigItem::DatabaseConfig(config) => config.id,
         }
     }
 
-    fn item_type() -> &'static str {
-        "Provider"
-    }
-}
-
-impl ListItemTrait for DatabaseConfigurationItem {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn id(&self) -> i64 {
-        self.id
-    }
-
     fn with_new_name(&self, new_name: String) -> Self {
-        DatabaseConfigurationItem {
-            name: new_name,
-            ..self.clone()
+        match self {
+            ConfigItem::UserProfile(profile) => {
+                ConfigItem::UserProfile(UserProfile {
+                    id: profile.id,
+                    name: new_name,
+                })
+            }
+            ConfigItem::DatabaseConfig(config) => {
+                ConfigItem::DatabaseConfig(DatabaseConfigurationItem {
+                    id: config.id,
+                    name: new_name,
+                    section: config.section.clone(),
+                })
+            }
         }
-    }
-
-    fn item_type() -> &'static str {
-        "Configuration"
     }
 }

@@ -4,7 +4,6 @@ use ratatui::layout::Margin;
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use super::provider::ProviderCreator;
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,8 +26,8 @@ pub struct ProfileCreator {
     db_handler: UserProfileDbHandler,
     pub background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
     task_start_time: Option<Instant>,
-    selected_provider: Option<ProviderConfig>,
-    provider_configs: Vec<ProviderConfig>,
+    selected_provider: Option<ConfigItem>,
+    provider_configs: Vec<ConfigItem>,
     selected_provider_index: usize,
     pub sub_part_creation_state: SubPartCreationState,
     text_area: Option<TextArea<ReadDocument>>,
@@ -38,22 +37,256 @@ impl ProfileCreator {
     pub async fn new(
         db_handler: UserProfileDbHandler,
     ) -> Result<Self, ApplicationError> {
-        //let provider_configs = db_handler.list_providers().await?;
+        let providers = db_handler.list_configuration_items("provider").await?;
+        let provider_configs = providers
+            .into_iter()
+            .map(ConfigItem::DatabaseConfig)
+            .collect();
 
         Ok(Self {
             new_profile_name: String::new(),
             creation_step: ProfileCreationStep::EnterName,
-            db_handler: db_handler.clone(),
+            db_handler,
             background_task: None,
             task_start_time: None,
             selected_provider: None,
-            provider_configs: Vec::new(),
+            provider_configs,
             selected_provider_index: 0,
             sub_part_creation_state: SubPartCreationState::NotCreating,
             text_area: None,
         })
     }
 
+    pub async fn handle_select_provider(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        match input.code {
+            KeyCode::Up => {
+                if self.selected_provider_index > 0 {
+                    self.selected_provider_index -= 1;
+                } else {
+                    self.selected_provider_index = self.provider_configs.len(); // Wrap to "Create new Provider" option
+                }
+            }
+            KeyCode::Down => {
+                if self.selected_provider_index < self.provider_configs.len() {
+                    self.selected_provider_index += 1;
+                } else {
+                    self.selected_provider_index = 0; // Wrap to first provider
+                }
+            }
+            KeyCode::Enter => {
+                if self.selected_provider_index == self.provider_configs.len() {
+                    // "Create new Provider" option selected
+                    let creator =
+                        ProviderCreator::new(self.db_handler.clone()).await?;
+                    self.sub_part_creation_state =
+                        SubPartCreationState::CreatingProvider(creator);
+                } else {
+                    // Existing provider selected
+                    self.selected_provider = Some(
+                        self.provider_configs[self.selected_provider_index]
+                            .clone(),
+                    );
+                    self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    self.initialize_confirm_create_state().await;
+                }
+            }
+            KeyCode::Esc | KeyCode::Backspace => {
+                return self.go_to_previous_step();
+            }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
+    }
+
+    pub async fn create_profile(
+        &mut self,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        let (tx, rx) = mpsc::channel(1);
+        let mut db_handler = self.db_handler.clone();
+        let new_profile_name = self.new_profile_name.clone();
+        let selected_provider = self.selected_provider.clone();
+
+        tokio::spawn(async move {
+            let mut settings = serde_json::Map::new();
+            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_provider
+            {
+                if let Ok(provider_settings) = db_handler
+                    .get_configuration_parameters(config, MaskMode::Unmask)
+                    .await
+                {
+                    if let Some(provider_type) =
+                        provider_settings["provider_type"].as_str()
+                    {
+                        settings.insert(
+                            "__TEMPLATE.__MODEL_SERVER".to_string(),
+                            json!(provider_type),
+                        );
+                    }
+                    if let Some(model) =
+                        provider_settings["model_identifier"].as_str()
+                    {
+                        settings.insert(
+                            "__TEMPLATE.MODEL_IDENTIFIER".to_string(),
+                            json!(model),
+                        );
+                    }
+                    if let Some(additional_settings) =
+                        provider_settings["additional_settings"].as_object()
+                    {
+                        for (key, value) in additional_settings {
+                            settings.insert(
+                                format!("__TEMPLATE.{}", key),
+                                value.clone(),
+                            );
+                        }
+                    }
+                }
+            }
+
+            let result = db_handler
+                .create_profile(new_profile_name, json!(settings))
+                .await;
+            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
+        });
+
+        self.background_task = Some(rx);
+        self.task_start_time = Some(Instant::now());
+        self.creation_step = ProfileCreationStep::CreatingProfile;
+
+        Ok(CreatorAction::CreateItem)
+    }
+
+    pub fn render_select_provider(&self, f: &mut Frame, area: Rect) {
+        let mut items: Vec<ListItem> = self
+            .provider_configs
+            .iter()
+            .map(|config| {
+                if let ConfigItem::DatabaseConfig(config) = config {
+                    ListItem::new(format!(
+                        "{}: {}",
+                        config.name, config.section
+                    ))
+                } else {
+                    ListItem::new("Invalid config item")
+                }
+            })
+            .collect();
+
+        // Add "Create new Provider" option
+        items.push(
+            ListItem::new("Create new Provider")
+                .style(Style::default().fg(Color::Green)),
+        );
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Select Provider"),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(Some(self.selected_provider_index));
+
+        f.render_stateful_widget(list, area, &mut state);
+    }
+
+    async fn create_confirm_details(&self) -> Vec<TextLine> {
+        let mut lines = Vec::new();
+
+        // Name Section
+        let mut name_line = TextLine::new();
+        name_line.add_segment(
+            "Name:",
+            Some(Style::default().add_modifier(Modifier::BOLD)),
+        );
+        lines.push(name_line);
+
+        let mut name_value_line = TextLine::new();
+        name_value_line.add_segment(
+            format!("  {}", self.new_profile_name),
+            Some(Style::default().fg(Color::Cyan)),
+        );
+        lines.push(name_value_line);
+
+        lines.push(TextLine::new()); // Empty line for spacing
+
+        // Provider Section
+        if let Some(ConfigItem::DatabaseConfig(config)) =
+            &self.selected_provider
+        {
+            let mut provider_line = TextLine::new();
+            provider_line.add_segment(
+                "Provider:",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            lines.push(provider_line);
+
+            let mut type_line = TextLine::new();
+            type_line.add_segment(
+                format!("  Type: {}", config.section),
+                Some(Style::default().fg(Color::Cyan)),
+            );
+            lines.push(type_line);
+
+            if let Ok(settings) = self
+                .db_handler
+                .get_configuration_parameters(config, MaskMode::Mask)
+                .await
+            {
+                if let Some(model) = settings["model_identifier"].as_str() {
+                    let mut model_line = TextLine::new();
+                    model_line.add_segment(
+                        format!("  Model: {}", model),
+                        Some(Style::default().fg(Color::Cyan)),
+                    );
+                    lines.push(model_line);
+                }
+
+                if let Some(additional_settings) =
+                    settings["additional_settings"].as_object()
+                {
+                    let mut settings_line = TextLine::new();
+                    settings_line.add_segment("  Additional Settings:", None);
+                    lines.push(settings_line);
+
+                    for (key, value) in additional_settings {
+                        let mut setting_line = TextLine::new();
+                        setting_line.add_segment(
+                            format!("    • {}: ", key),
+                            Some(Style::default().fg(Color::Yellow)),
+                        );
+                        setting_line.add_segment(
+                            value.as_str().unwrap_or("").to_string(),
+                            Some(Style::default().fg(Color::Cyan)),
+                        );
+                        lines.push(setting_line);
+                    }
+                }
+            }
+        } else {
+            let mut no_provider_line = TextLine::new();
+            no_provider_line.add_segment(
+                "Provider: ",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            no_provider_line.add_segment(
+                "No provider selected",
+                Some(Style::default().fg(Color::Red)),
+            );
+            lines.push(no_provider_line);
+        }
+
+        lines
+    }
+}
+
+impl ProfileCreator {
     pub async fn handle_key_event(
         &mut self,
         input: KeyEvent,
@@ -150,52 +383,8 @@ impl ProfileCreator {
         }
     }
 
-    pub async fn handle_select_provider(
-        &mut self,
-        input: KeyEvent,
-    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        match input.code {
-            KeyCode::Up => {
-                if self.selected_provider_index > 0 {
-                    self.selected_provider_index -= 1;
-                } else {
-                    self.selected_provider_index = self.provider_configs.len(); // Wrap to "Create new Provider" option
-                }
-            }
-            KeyCode::Down => {
-                if self.selected_provider_index < self.provider_configs.len() {
-                    self.selected_provider_index += 1;
-                } else {
-                    self.selected_provider_index = 0; // Wrap to first provider
-                }
-            }
-            KeyCode::Enter => {
-                if self.selected_provider_index == self.provider_configs.len() {
-                    // "Create new Provider" option selected
-                    let creator =
-                        ProviderCreator::new(self.db_handler.clone()).await?;
-                    self.sub_part_creation_state =
-                        SubPartCreationState::CreatingProvider(creator);
-                } else {
-                    // Existing provider selected
-                    self.selected_provider = Some(
-                        self.provider_configs[self.selected_provider_index]
-                            .clone(),
-                    );
-                    self.creation_step = ProfileCreationStep::ConfirmCreate;
-                    self.initialize_confirm_create_state();
-                }
-            }
-            KeyCode::Esc | KeyCode::Backspace => {
-                return self.go_to_previous_step();
-            }
-            _ => {}
-        };
-        Ok(CreatorAction::Continue)
-    }
-
-    fn initialize_confirm_create_state(&mut self) {
-        let text_lines = self.create_confirm_details();
+    async fn initialize_confirm_create_state(&mut self) {
+        let text_lines = self.create_confirm_details().await;
         self.text_area = Some(TextArea::with_read_document(Some(text_lines)));
     }
 
@@ -221,54 +410,6 @@ impl ProfileCreator {
                 Ok(CreatorAction::Continue)
             }
         }
-    }
-
-    pub async fn create_profile(
-        &mut self,
-    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        let (tx, rx) = mpsc::channel(1);
-        let mut db_handler = self.db_handler.clone();
-        let new_profile_name = self.new_profile_name.clone();
-        let selected_provider = self.selected_provider.clone();
-
-        tokio::spawn(async move {
-            let mut settings = serde_json::Map::new();
-            if let Some(selected_config) = &selected_provider {
-                settings.insert(
-                    "__TEMPLATE.__MODEL_SERVER".to_string(),
-                    json!(selected_config.provider_type),
-                );
-                if let Some(model) = &selected_config.model_identifier {
-                    settings.insert(
-                        "__TEMPLATE.MODEL_IDENTIFIER".to_string(),
-                        json!(model),
-                    );
-                }
-                for (key, setting) in &selected_config.additional_settings {
-                    let value = if setting.is_secure {
-                        json!({
-                            "content": setting.value,
-                            "encryption_key": "",
-                            "type_info": "string",
-                        })
-                    } else {
-                        json!(setting.value)
-                    };
-                    settings.insert(format!("__TEMPLATE.{}", key), value);
-                }
-            }
-
-            let result = db_handler
-                .create_profile(new_profile_name, json!(settings))
-                .await;
-            let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
-        });
-
-        self.background_task = Some(rx);
-        self.task_start_time = Some(Instant::now());
-        self.creation_step = ProfileCreationStep::CreatingProfile;
-
-        Ok(CreatorAction::CreateItem)
     }
 
     pub fn check_profile_creation_status(
@@ -311,39 +452,6 @@ impl ProfileCreator {
                     .title("Enter New Profile Name"),
             );
         f.render_widget(input, area);
-    }
-
-    pub fn render_select_provider(&self, f: &mut Frame, area: Rect) {
-        let mut items: Vec<ListItem> = self
-            .provider_configs
-            .iter()
-            .map(|config| {
-                ListItem::new(format!(
-                    "{}: {}",
-                    config.name, config.provider_type
-                ))
-            })
-            .collect();
-
-        // Add "Create new Provider" option
-        items.push(
-            ListItem::new("Create new Provider")
-                .style(Style::default().fg(Color::Green)),
-        );
-
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Select Provider"),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-            .highlight_symbol("> ");
-
-        let mut state = ListState::default();
-        state.select(Some(self.selected_provider_index));
-
-        f.render_stateful_widget(list, area, &mut state);
     }
 
     pub fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
@@ -397,85 +505,6 @@ impl ProfileCreator {
             )
             .alignment(Alignment::Center);
         f.render_widget(create_button, button_chunks[1]);
-    }
-
-    fn create_confirm_details(&self) -> Vec<TextLine> {
-        let mut lines = Vec::new();
-
-        // Name Section
-        let mut name_line = TextLine::new();
-        name_line.add_segment(
-            "Name:",
-            Some(Style::default().add_modifier(Modifier::BOLD)),
-        );
-        lines.push(name_line);
-
-        let mut name_value_line = TextLine::new();
-        name_value_line.add_segment(
-            format!("  {}", self.new_profile_name),
-            Some(Style::default().fg(Color::Cyan)),
-        );
-        lines.push(name_value_line);
-
-        lines.push(TextLine::new()); // Empty line for spacing
-
-        // Provider Section
-        if let Some(config) = &self.selected_provider {
-            let mut provider_line = TextLine::new();
-            provider_line.add_segment(
-                "Provider:",
-                Some(Style::default().add_modifier(Modifier::BOLD)),
-            );
-            lines.push(provider_line);
-
-            let mut type_line = TextLine::new();
-            type_line.add_segment(
-                format!("  Type: {}", config.provider_type),
-                Some(Style::default().fg(Color::Cyan)),
-            );
-            lines.push(type_line);
-
-            if let Some(model) = &config.model_identifier {
-                let mut model_line = TextLine::new();
-                model_line.add_segment(
-                    format!("  Model: {}", model),
-                    Some(Style::default().fg(Color::Cyan)),
-                );
-                lines.push(model_line);
-            }
-
-            if !config.additional_settings.is_empty() {
-                let mut settings_line = TextLine::new();
-                settings_line.add_segment("  Additional Settings:", None);
-                lines.push(settings_line);
-
-                for (key, setting) in &config.additional_settings {
-                    let mut setting_line = TextLine::new();
-                    setting_line.add_segment(
-                        format!("    • {}: ", key),
-                        Some(Style::default().fg(Color::Yellow)),
-                    );
-                    setting_line.add_segment(
-                        &setting.value,
-                        Some(Style::default().fg(Color::Cyan)),
-                    );
-                    lines.push(setting_line);
-                }
-            }
-        } else {
-            let mut no_provider_line = TextLine::new();
-            no_provider_line.add_segment(
-                "Provider: ",
-                Some(Style::default().add_modifier(Modifier::BOLD)),
-            );
-            no_provider_line.add_segment(
-                "No provider selected",
-                Some(Style::default().fg(Color::Red)),
-            );
-            lines.push(no_provider_line);
-        }
-
-        lines
     }
 
     pub fn go_to_previous_step(

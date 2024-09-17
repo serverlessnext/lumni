@@ -274,3 +274,28 @@ impl SettingsEditor {
         self.is_new_value_secure = false;
     }
 }
+
+pub trait SettingsItem {
+    fn name(&self) -> &str;
+    fn item_type(&self) -> &'static str;
+}
+
+impl SettingsItem for UserProfile {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn item_type(&self) -> &'static str {
+        "Profile"
+    }
+}
+
+impl SettingsItem for DatabaseConfigurationItem {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn item_type(&self) -> &'static str {
+        "Configuration"
+    }
+}

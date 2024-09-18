@@ -487,6 +487,10 @@ impl ConfigItemManager {
                         SettingsAction::SaveNewValue => {
                             self.save_new_value(&item).await?
                         }
+                        SettingsAction::OpenSection
+                        | SettingsAction::CloseSection => {
+                            // Section is already opened in SettingsEditor, just update UI
+                        }
                     }
                 }
             }
@@ -659,14 +663,15 @@ impl ConfigItemManager {
         &mut self,
         item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
-        if let Some(current_key) = self.settings_editor.get_current_key() {
-            if !current_key.starts_with("__") {
-                let mut settings = self.settings_editor.get_settings().clone();
-                settings[current_key] = JsonValue::Null; // Null indicates deletion
-                item.update_settings(&mut self.db_handler, &settings)
-                    .await?;
-                self.load_selected_item_settings().await?;
+        let current_field = self.settings_editor.get_current_field();
+        if !current_field.starts_with("__") {
+            let mut settings = self.settings_editor.get_settings().clone();
+            if let Some(obj) = settings.as_object_mut() {
+                obj.remove(current_field);
             }
+            item.update_settings(&mut self.db_handler, &settings)
+                .await?;
+            self.load_selected_item_settings().await?;
         }
         Ok(())
     }
@@ -675,14 +680,15 @@ impl ConfigItemManager {
         &mut self,
         item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
-        if let Some(current_key) = self.settings_editor.get_current_key() {
-            if !current_key.starts_with("__") {
-                let mut settings = self.settings_editor.get_settings().clone();
-                settings[current_key] = JsonValue::String("".to_string());
-                item.update_settings(&mut self.db_handler, &settings)
-                    .await?;
-                self.load_selected_item_settings().await?;
+        let current_field = self.settings_editor.get_current_field();
+        if !current_field.starts_with("__") {
+            let mut settings = self.settings_editor.get_settings().clone();
+            if let Some(obj) = settings.as_object_mut() {
+                obj[current_field] = JsonValue::String("".to_string());
             }
+            item.update_settings(&mut self.db_handler, &settings)
+                .await?;
+            self.load_selected_item_settings().await?;
         }
         Ok(())
     }
@@ -691,9 +697,10 @@ impl ConfigItemManager {
         &mut self,
         item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
-        if let Some(current_key) = self.settings_editor.get_current_key() {
-            let current_value =
-                &self.settings_editor.get_settings()[current_key];
+        let current_field = self.settings_editor.get_current_field();
+        let mut settings = self.settings_editor.get_settings().clone();
+        if let Some(obj) = settings.as_object_mut() {
+            let current_value = &obj[current_field];
             let is_encrypted = if let Some(obj) = current_value.as_object() {
                 obj.contains_key("was_encrypted")
                     && obj["was_encrypted"].as_bool().unwrap_or(false)
@@ -713,13 +720,12 @@ impl ConfigItemManager {
                 )
             };
 
-            let mut settings = self.settings_editor.get_settings().clone();
-            settings[current_key] = new_value;
-            item.update_settings(&mut self.db_handler, &settings)
-                .await?;
-
-            self.load_selected_item_settings().await?;
+            obj[current_field] = new_value;
         }
+        item.update_settings(&mut self.db_handler, &settings)
+            .await?;
+
+        self.load_selected_item_settings().await?;
         Ok(())
     }
 
@@ -741,7 +747,9 @@ impl ConfigItemManager {
         };
 
         let mut settings = self.settings_editor.get_settings().clone();
-        settings[&new_key] = new_value.clone();
+        if let Some(obj) = settings.as_object_mut() {
+            obj.insert(new_key, new_value);
+        }
         item.update_settings(&mut self.db_handler, &settings)
             .await?;
 
@@ -865,45 +873,54 @@ impl ConfigItemManager {
         let settings_editor = &self.settings_editor;
 
         if let Some(item) = item {
-            let settings = settings_editor.get_settings();
-            let mut items: Vec<ListItem> = settings
-                .as_object()
-                .unwrap()
-                .iter()
-                .enumerate()
-                .map(|(i, (key, value))| {
-                    let is_editable = !key.starts_with("__");
-                    let display_value =
-                        settings_editor.get_display_value(value);
+            let current_value = settings_editor.get_current_value();
+            let mut items: Vec<ListItem> = if let Some(obj) =
+                current_value.as_object()
+            {
+                obj.iter()
+                    .map(|(key, value)| {
+                        let is_editable = !key.starts_with("__");
+                        let display_value =
+                            settings_editor.get_display_value(key, value);
 
-                    let content = if settings_editor.edit_mode
-                        == EditMode::EditingValue
-                        && i == settings_editor.get_current_field()
-                        && is_editable
-                    {
-                        format!(
-                            "{}: {}",
-                            key,
-                            settings_editor.get_edit_buffer()
-                        )
-                    } else {
-                        format!("{}: {}", key, display_value)
-                    };
+                        let content = if settings_editor.edit_mode
+                            == EditMode::EditingValue
+                            && key == settings_editor.get_current_field()
+                            && is_editable
+                        {
+                            format!(
+                                "{}: {}",
+                                key,
+                                settings_editor.get_edit_buffer()
+                            )
+                        } else if key.starts_with("__section.") {
+                            display_value
+                        } else {
+                            format!("{}: {}", key, display_value)
+                        };
 
-                    let style = if i == settings_editor.get_current_field() {
-                        Style::default()
-                            .bg(Color::Rgb(40, 40, 40))
-                            .fg(Color::White)
-                    } else if is_editable {
-                        Style::default().bg(Color::Black).fg(Color::Cyan)
-                    } else {
-                        Style::default().bg(Color::Black).fg(Color::DarkGray)
-                    };
-                    ListItem::new(Line::from(vec![Span::styled(
-                        content, style,
-                    )]))
-                })
-                .collect();
+                        let style = if key
+                            == settings_editor.get_current_field()
+                        {
+                            Style::default()
+                                .bg(Color::Rgb(40, 40, 40))
+                                .fg(Color::White)
+                        } else if is_editable {
+                            Style::default().bg(Color::Black).fg(Color::Cyan)
+                        } else {
+                            Style::default()
+                                .bg(Color::Black)
+                                .fg(Color::DarkGray)
+                        };
+
+                        ListItem::new(Line::from(vec![Span::styled(
+                            content, style,
+                        )]))
+                    })
+                    .collect()
+            } else {
+                vec![ListItem::new("Not an object")]
+            };
 
             // Add new key input field if in AddingNewKey mode
             if settings_editor.edit_mode == EditMode::AddingNewKey {
@@ -946,17 +963,35 @@ impl ConfigItemManager {
                 )])));
             }
 
+            let mut title = format!(
+                "{} Settings: {}",
+                item.item_type(),
+                <ConfigItem as SettingsItem>::name(item)
+            );
+            if !settings_editor.current_path.is_empty() {
+                let path_display: Vec<String> = settings_editor
+                    .current_path
+                    .iter()
+                    .map(|key| {
+                        if key.starts_with("__section.") {
+                            let section_type =
+                                key.split('.').nth(1).unwrap_or("Unknown");
+                            section_type.to_string().capitalize()
+                        } else {
+                            key.clone()
+                        }
+                    })
+                    .collect();
+                title = format!("{} > {}", title, path_display.join(" > "));
+            }
+
             let list = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title(format!(
-                    "{} Settings: {}",
-                    item.item_type(),
-                    <ConfigItem as SettingsItem>::name(item)
-                )))
+                .block(Block::default().borders(Borders::ALL).title(title))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
 
             let mut state = ListState::default();
-            state.select(Some(settings_editor.get_current_field()));
+            state.select(Some(settings_editor.get_current_index()));
 
             f.render_stateful_widget(list, area, &mut state);
         } else {

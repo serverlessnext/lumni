@@ -110,44 +110,25 @@ impl ProfileCreator {
         let selected_provider = self.selected_provider.clone();
 
         tokio::spawn(async move {
-            let mut settings = serde_json::Map::new();
+            let mut profile_settings = json!({});
+
+            profile_settings["name"] = json!(new_profile_name);
+
             if let Some(ConfigItem::DatabaseConfig(config)) = &selected_provider
             {
                 if let Ok(provider_settings) = db_handler
                     .get_configuration_parameters(config, MaskMode::Unmask)
                     .await
                 {
-                    if let Some(provider_type) =
-                        provider_settings["provider_type"].as_str()
-                    {
-                        settings.insert(
-                            "__TEMPLATE.__MODEL_SERVER".to_string(),
-                            json!(provider_type),
-                        );
-                    }
-                    if let Some(model) =
-                        provider_settings["model_identifier"].as_str()
-                    {
-                        settings.insert(
-                            "__TEMPLATE.MODEL_IDENTIFIER".to_string(),
-                            json!(model),
-                        );
-                    }
-                    if let Some(additional_settings) =
-                        provider_settings["additional_settings"].as_object()
-                    {
-                        for (key, value) in additional_settings {
-                            settings.insert(
-                                format!("__TEMPLATE.{}", key),
-                                value.clone(),
-                            );
-                        }
-                    }
+                    profile_settings["__section.provider"] = json!({
+                        "name": config.name,
+                        "settings": provider_settings
+                    });
                 }
             }
 
             let result = db_handler
-                .create_profile(new_profile_name, json!(settings))
+                .create_profile(new_profile_name, profile_settings)
                 .await;
             let _ = tx.send(BackgroundTaskResult::ProfileCreated(result)).await;
         });

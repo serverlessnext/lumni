@@ -337,6 +337,22 @@ impl ConfigItemCreator {
     }
 }
 
+trait Capitalize {
+    fn capitalize(&self) -> String;
+}
+
+impl Capitalize for str {
+    fn capitalize(&self) -> String {
+        let mut chars = self.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(first) => {
+                first.to_uppercase().collect::<String>() + chars.as_str()
+            }
+        }
+    }
+}
+
 // generic config example
 //pub struct ConfigurationCreator {
 //    db_handler: UserProfileDbHandler,

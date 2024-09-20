@@ -41,9 +41,9 @@ impl UserProfileDbHandler {
                     )
                 })?;
             Ok(json!({
-                "content": encrypted_content,
-                "encryption_key": encryption_key,
-                "type_info": type_info
+                "__content": encrypted_content,
+                "__encryption_key": encryption_key,
+                "__type_info": type_info
             }))
         } else {
             Err(ApplicationError::EncryptionError(
@@ -65,9 +65,9 @@ impl UserProfileDbHandler {
                     Some(JsonValue::String(encrypted_key)),
                     Some(JsonValue::String(type_info)),
                 ) = (
-                    obj.get("content"),
-                    obj.get("encryption_key"),
-                    obj.get("type_info"),
+                    obj.get("__content"),
+                    obj.get("__encryption_key"),
+                    obj.get("__type_info"),
                 ) {
                     let decrypted_string = encryption_handler
                         .decrypt_string(content, encrypted_key)

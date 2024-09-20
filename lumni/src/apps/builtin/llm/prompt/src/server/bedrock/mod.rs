@@ -125,16 +125,16 @@ impl ServerTrait for Bedrock {
         json!({
             "__MODEL_SERVER": "bedrock",
             "AWS_PROFILE": {
-                "display_name": "AWS Profile",
-                "placeholder": "AWS Profile",
-                "content": "",
-                "type_info": "string"
+                "__display_name": "AWS Profile",
+                "__placeholder": "AWS Profile",
+                "__content": "",
+                "__type_info": "string"
             },
             "AWS_REGION": {
-                "display_name": "AWS Region",
-                "placeholder": "AWS Region",
-                "content": "",
-                "type_info": "string"
+                "__display_name": "AWS Region",
+                "__placeholder": "AWS Region",
+                "__content": "",
+                "__type_info": "string"
             }
         })
     }

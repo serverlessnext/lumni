@@ -111,16 +111,15 @@ impl UserProfileDbHandler {
                         let (param_type, param_value, encrypted) =
                             if let Some(metadata) = processed_value.as_object()
                             {
-                                if metadata.get("was_encrypted")
-                                    == Some(&JsonValue::Bool(true))
-                                {
+                                // check if the value was encrypted
+                                if metadata.contains_key("__encryption_key") {
                                     (
                                         metadata
-                                            .get("type")
+                                            .get("__type_info")
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("Unknown"),
                                         metadata
-                                            .get("content")
+                                            .get("__content")
                                             .unwrap_or(value)
                                             .clone(),
                                         true,
@@ -192,9 +191,9 @@ impl UserProfileDbHandler {
             if Self::is_encrypted_value(value) {
                 let (param_type, _) = self.get_json_type(&decrypted);
                 Ok(json!({
-                    "content": decrypted,
-                    "was_encrypted": true,
-                    "type": param_type
+                    "__content": decrypted,
+                    "__encryption_key": "",
+                    "__type_info": param_type
                 }))
             } else {
                 Ok(decrypted)
@@ -245,7 +244,7 @@ impl UserProfileDbHandler {
         let is_existing_value_encrypted = merged_obj
             .get(key)
             .and_then(|v| v.as_object())
-            .and_then(|obj| obj.get("encryption_key"))
+            .and_then(|obj| obj.get("__encryption_key"))
             .is_some();
 
         if is_new_value_marked_for_encryption || is_existing_value_encrypted {
@@ -283,22 +282,22 @@ impl UserProfileDbHandler {
         value: &JsonValue,
     ) -> Result<JsonValue, ApplicationError> {
         if Self::is_marked_for_encryption(value) {
-            if let Some(content) = value.get("content") {
+            if let Some(content) = value.get("__content") {
                 let encrypted_value = self.encrypt_value(content)?;
 
                 // Check if the encrypted_value already has the correct structure
                 if encrypted_value.is_object()
-                    && encrypted_value.get("content").is_some()
-                    && encrypted_value.get("encryption_key").is_some()
-                    && encrypted_value.get("type_info").is_some()
+                    && encrypted_value.get("__content").is_some()
+                    && encrypted_value.get("__encryption_key").is_some()
+                    && encrypted_value.get("__type_info").is_some()
                 {
                     Ok(encrypted_value)
                 } else {
                     // If not, construct the correct structure
                     Ok(json!({
-                        "content": encrypted_value.get("content").unwrap_or(&JsonValue::Null),
-                        "encryption_key": encrypted_value.get("encryption_key").unwrap_or(&JsonValue::String("".to_string())),
-                        "type_info": encrypted_value.get("type_info").unwrap_or(&JsonValue::String("unknown".to_string()))
+                        "__content": encrypted_value.get("__content").unwrap_or(&JsonValue::Null),
+                        "__encryption_key": encrypted_value.get("__encryption_key").unwrap_or(&JsonValue::String("".to_string())),
+                        "__type_info": encrypted_value.get("__type_info").unwrap_or(&JsonValue::String("unknown".to_string()))
                     }))
                 }
             } else {
@@ -333,7 +332,7 @@ impl UserProfileDbHandler {
 
     fn is_encrypted_value(value: &JsonValue) -> bool {
         if let Some(obj) = value.as_object() {
-            obj.contains_key("content") && obj.contains_key("encryption_key")
+            obj.contains_key("__content") && obj.contains_key("__encryption_key")
         } else {
             false
         }
@@ -341,8 +340,8 @@ impl UserProfileDbHandler {
 
     fn is_marked_for_encryption(value: &JsonValue) -> bool {
         if let Some(obj) = value.as_object() {
-            obj.contains_key("content")
-                && obj.get("encryption_key")
+            obj.contains_key("__content")
+                && obj.get("__encryption_key")
                     == Some(&JsonValue::String("".to_string()))
         } else {
             false

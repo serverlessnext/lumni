@@ -736,21 +736,21 @@ impl ProviderCreator {
                 if !key.starts_with("__") {
                     if let JsonValue::Object(setting_map) = value {
                         let display_name = setting_map
-                            .get("display_name")
+                            .get("__display_name")
                             .and_then(|v| v.as_str())
                             .unwrap_or(&key)
                             .to_string();
                         let is_secure =
-                            setting_map.get("encryption_key").is_some();
+                            setting_map.get("__encryption_key").is_some();
                         let placeholder = setting_map
-                            .get("placeholder")
+                            .get("__placeholder")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
                         self.additional_settings.insert(
                             key.clone(),
                             ProviderConfigOptions {
-                                name: format!("__TEMPLATE.{}", key),
+                                name: key.clone(),
                                 display_name,
                                 value: String::new(),
                                 is_secure,

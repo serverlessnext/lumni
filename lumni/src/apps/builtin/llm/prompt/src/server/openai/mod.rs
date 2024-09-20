@@ -96,10 +96,10 @@ impl ServerTrait for OpenAI {
         json!({
             "__MODEL_SERVER": "openai",
             "OPENAI_API_KEY": {
-                "display_name": "OpenAI API Key",
-                "content": "",
-                "encryption_key": "",
-                "type_info": "string"
+                "__display_name": "OpenAI API Key",
+                "__content": "",
+                "__encryption_key": "",
+                "__type_info": "string"
             }
         })
     }

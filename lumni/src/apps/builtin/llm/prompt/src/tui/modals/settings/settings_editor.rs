@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+
 use serde_json::{Map, Value as JsonValue};
 
 use super::*;
@@ -27,7 +28,6 @@ pub struct SettingsEditor {
     pub edit_mode: EditMode,
 }
 
-
 impl SettingsEditor {
     pub fn new(settings: JsonValue) -> Self {
         let current_field = settings
@@ -51,14 +51,13 @@ impl SettingsEditor {
     pub fn load_settings(&mut self, settings: JsonValue) {
         self.settings = settings;
         self.current_path.clear();
-        self.current_field = self
-            .settings
-            .as_object()
-            .and_then(|obj| obj.keys().next().cloned())
-            .unwrap_or_default();
         self.edit_buffer.clear();
         self.new_key_buffer.clear();
         self.is_new_value_secure = false;
+    }
+
+    pub fn set_current_field(&mut self, field: String) {
+        self.current_field = field;
     }
 
     pub fn handle_key_event(
@@ -88,21 +87,45 @@ impl SettingsEditor {
             }
             KeyCode::Enter => {
                 let current_value = self.get_current_value();
-                eprintln!("Enter, current_field: {}, current_value: {:?}", self.current_field, current_value);
-                
-                let field_value = if self.current_field.starts_with("__section.") {
-                    Some(current_value)
-                } else {
-                    current_value.get(&self.current_field)
-                };
-                
-                eprintln!("field_value: {:?}", field_value);
+                let field_value =
+                    if self.current_field.starts_with("__section.") {
+                        Some(current_value)
+                    } else {
+                        current_value.get(&self.current_field)
+                    };
 
                 if let Some(value) = field_value {
-                    if value.is_object() || value.is_array() {
+                    if let JsonValue::Object(obj) = value {
+                        if Self::is_encrypted_value(obj) {
+                            if self.show_secure {
+                                // Encrypted value and unmasked, allow editing
+                                self.start_editing();
+                                (EditMode::EditingValue, true, None)
+                            } else {
+                                // Encrypted value but masked, don't allow editing
+                                (EditMode::NotEditing, true, None)
+                            }
+                        } else if obj.is_empty() {
+                            // Empty object, don't expand
+                            (EditMode::NotEditing, false, None)
+                        } else {
+                            // Regular object, expand it
+                            self.toggle_section_expansion();
+                            (
+                                EditMode::NotEditing,
+                                true,
+                                Some(SettingsAction::ToggleSection),
+                            )
+                        }
+                    } else if value.is_array() {
                         self.toggle_section_expansion();
-                        (EditMode::NotEditing, true, Some(SettingsAction::ToggleSection))
+                        (
+                            EditMode::NotEditing,
+                            true,
+                            Some(SettingsAction::ToggleSection),
+                        )
                     } else {
+                        // Regular value, start editing
                         self.start_editing();
                         (EditMode::EditingValue, true, None)
                     }
@@ -113,7 +136,11 @@ impl SettingsEditor {
             KeyCode::Left => {
                 if !self.current_path.is_empty() {
                     self.close_current_section();
-                    (EditMode::NotEditing, true, Some(SettingsAction::CloseSection))
+                    (
+                        EditMode::NotEditing,
+                        true,
+                        Some(SettingsAction::CloseSection),
+                    )
                 } else {
                     (EditMode::NotEditing, false, None)
                 }
@@ -223,37 +250,56 @@ impl SettingsEditor {
         }
     }
 
-    pub fn get_display_value(&self, value: &JsonValue) -> String {
+    fn is_encrypted_value(obj: &serde_json::Map<String, JsonValue>) -> bool {
+        obj.contains_key("__encryption_key")
+            && obj.contains_key("__content")
+            && obj.contains_key("__type_info")
+    }
+
+    pub fn get_display_value_span(&self, value: &JsonValue) -> Span<'static> {
         match value {
-            JsonValue::Object(obj) if obj.contains_key("__encryption_key") => {
-                let display = if self.show_secure {
+            JsonValue::Object(obj) if Self::is_encrypted_value(obj) => {
+                if self.show_secure {
                     match obj.get("__content") {
-                        Some(JsonValue::String(s)) => s.clone(),
-                        _ => "Invalid Value".to_string(),
+                        Some(JsonValue::String(s)) => Span::styled(
+                            s.clone(),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        _ => Span::styled(
+                            "Invalid Value",
+                            Style::default().fg(Color::Red),
+                        ),
                     }
                 } else {
-                    "*****".to_string()
-                };
-                format!("{} (Encrypted)", display)
-            }
-            JsonValue::Object(obj) => {
-                if obj.is_empty() {
-                    "{}".to_string()
-                } else if let Some(name) = obj.get("name") {
-                    match name {
-                        JsonValue::String(s) => format!("{} {{...}}", s),
-                        _ => format!("{} {{...}}", name),
-                    }
-                } else {
-                    "{...}".to_string()
+                    Span::styled("*****", Style::default().fg(Color::DarkGray))
                 }
             }
-            JsonValue::Array(arr) if arr.is_empty() => "[]".to_string(),
-            JsonValue::Array(arr) => format!("[{} items]", arr.len()),
-            JsonValue::String(s) => s.clone(),
-            JsonValue::Number(n) => n.to_string(),
-            JsonValue::Bool(b) => b.to_string(),
-            JsonValue::Null => "null".to_string(),
+            JsonValue::Object(obj) => {
+                if let Some(name) = obj.get("__name").and_then(|v| v.as_str()) {
+                    Span::styled(
+                        format!("{} {{...}}", name),
+                        Style::default().fg(Color::Cyan),
+                    )
+                } else {
+                    Span::styled("{...}", Style::default().fg(Color::Cyan))
+                }
+            }
+            JsonValue::Array(arr) => Span::styled(
+                format!("[{} items]", arr.len()),
+                Style::default().fg(Color::Cyan),
+            ),
+            JsonValue::String(s) => {
+                Span::styled(s.clone(), Style::default().fg(Color::Cyan))
+            }
+            JsonValue::Number(n) => {
+                Span::styled(n.to_string(), Style::default().fg(Color::Cyan))
+            }
+            JsonValue::Bool(b) => {
+                Span::styled(b.to_string(), Style::default().fg(Color::Cyan))
+            }
+            JsonValue::Null => {
+                Span::styled("null", Style::default().fg(Color::Cyan))
+            }
         }
     }
 
@@ -271,13 +317,20 @@ impl SettingsEditor {
                 } else {
                     format!("{prefix}.")
                 };
-                
+
                 for (key, val) in obj {
                     let full_key = format!("{current_path}{key}");
                     result.push((full_key.clone(), val, depth));
-                    
-                    if self.is_section_expanded(&full_key) && (val.is_object() || val.is_array()) {
-                        self.flatten_settings(&full_key, val, depth + 1, result);
+
+                    if self.is_section_expanded(&full_key)
+                        && (val.is_object() || val.is_array())
+                    {
+                        self.flatten_settings(
+                            &full_key,
+                            val,
+                            depth + 1,
+                            result,
+                        );
                     }
                 }
             }
@@ -285,9 +338,16 @@ impl SettingsEditor {
                 for (index, val) in arr.iter().enumerate() {
                     let full_key = format!("{prefix}[{index}]");
                     result.push((full_key.clone(), val, depth));
-                    
-                    if self.is_section_expanded(&full_key) && (val.is_object() || val.is_array()) {
-                        self.flatten_settings(&full_key, val, depth + 1, result);
+
+                    if self.is_section_expanded(&full_key)
+                        && (val.is_object() || val.is_array())
+                    {
+                        self.flatten_settings(
+                            &full_key,
+                            val,
+                            depth + 1,
+                            result,
+                        );
                     }
                 }
             }
@@ -331,7 +391,8 @@ impl SettingsEditor {
 
         if self.expanded_sections.contains(&full_path) {
             self.expanded_sections.remove(&full_path);
-            self.expanded_sections.retain(|path| !path.starts_with(&format!("{}.", full_path)));
+            self.expanded_sections
+                .retain(|path| !path.starts_with(&format!("{}.", full_path)));
         } else {
             self.expanded_sections.insert(full_path);
         }
@@ -354,17 +415,35 @@ impl SettingsEditor {
             .position(|(key, _, _)| key == &self.current_field)
             .unwrap_or(0);
         let new_index = (current_index as i32 + delta)
-            .rem_euclid(flattened.len() as i32) as usize;
+            .rem_euclid(flattened.len() as i32)
+            as usize;
         self.current_field = flattened[new_index].0.clone();
     }
 
-
     fn start_editing(&mut self) {
-        if let Some(value) =
-            self.get_current_value()[&self.current_field].as_str()
-        {
-            self.edit_buffer = value.to_string();
+        let current_value = self.get_current_value().get(&self.current_field);
+
+        if let Some(value) = current_value {
+            self.edit_buffer = match value {
+                JsonValue::Object(obj)
+                    if obj.contains_key("__encryption_key") =>
+                {
+                    // This is a secure key
+                    match obj.get("__content") {
+                        Some(JsonValue::String(s)) => s.clone(),
+                        _ => String::new(), // Default to empty string if content is invalid
+                    }
+                }
+                JsonValue::String(s) => s.clone(),
+                _ => {
+                    unreachable!("Can only edit string values");
+                }
+            };
+        } else {
+            self.edit_buffer = String::new();
         }
+
+        self.edit_mode = EditMode::EditingValue;
     }
 
     fn confirm_new_key(&mut self) -> bool {

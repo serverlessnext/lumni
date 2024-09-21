@@ -7,6 +7,17 @@ use super::{
 use crate::external as lumni;
 
 impl UserProfileDbHandler {
+    pub fn type_info(&self, content: &JsonValue) -> &'static str {
+        match content {
+            JsonValue::Null => "null",
+            JsonValue::Bool(_) => "boolean",
+            JsonValue::Number(_) => "number",
+            JsonValue::String(_) => "string",
+            JsonValue::Array(_) => "array",
+            JsonValue::Object(_) => "object",
+        }
+    }
+
     pub fn process_parameters(
         &self,
         value: &JsonValue,
@@ -217,49 +228,21 @@ impl UserProfileDbHandler {
             let is_new_value_marked_for_encryption =
                 Self::is_marked_for_encryption(new_value);
 
-            if is_currently_encrypted {
-                self.handle_encrypted_value(
-                    merged_obj,
-                    key,
-                    new_value,
-                    is_new_value_marked_for_encryption,
-                )?;
-            } else if is_new_value_marked_for_encryption {
-                merged_obj.insert(key.clone(), new_value.clone());
+            let new_value = if is_currently_encrypted
+                && !is_new_value_marked_for_encryption
+            {
+                // current encrypted value exist - ensure new value is also encrypted
+                // by adding encryption key marker
+                let type_info = self.type_info(new_value);
+                json! ({
+                    "__content": new_value,
+                    "__encryption_key": "",
+                    "__type_info":  type_info
+                })
             } else {
-                merged_obj.insert(key.clone(), new_value.clone());
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_encrypted_value(
-        &self,
-        merged_obj: &mut Map<String, JsonValue>,
-        key: &String,
-        new_value: &JsonValue,
-        is_new_value_marked_for_encryption: bool,
-    ) -> Result<(), DatabaseOperationError> {
-        // Check if the existing value is already encrypted
-        let is_existing_value_encrypted = merged_obj
-            .get(key)
-            .and_then(|v| v.as_object())
-            .and_then(|obj| obj.get("__encryption_key"))
-            .is_some();
-
-        if is_new_value_marked_for_encryption || is_existing_value_encrypted {
-            // If the new value is marked for encryption or the existing value was encrypted,
-            // we need to encrypt the new value
-            let encrypted_value = self
-                .encrypt_value(new_value)
-                .map_err(DatabaseOperationError::ApplicationError)?;
-
-            // Insert the encrypted value
-            merged_obj.insert(key.clone(), encrypted_value);
-        } else {
-            // If it's not marked for encryption and the existing value wasn't encrypted,
-            // we can insert it as is
-            merged_obj.insert(key.clone(), new_value.clone());
+                new_value.clone()
+            };
+            merged_obj.insert(key.clone(), new_value);
         }
         Ok(())
     }
@@ -332,7 +315,8 @@ impl UserProfileDbHandler {
 
     fn is_encrypted_value(value: &JsonValue) -> bool {
         if let Some(obj) = value.as_object() {
-            obj.contains_key("__content") && obj.contains_key("__encryption_key")
+            obj.contains_key("__content")
+                && obj.contains_key("__encryption_key")
         } else {
             false
         }

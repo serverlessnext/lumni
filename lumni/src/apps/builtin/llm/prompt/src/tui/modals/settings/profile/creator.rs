@@ -112,18 +112,21 @@ impl ProfileCreator {
         tokio::spawn(async move {
             let mut profile_settings = json!({});
 
-            profile_settings["name"] = json!(new_profile_name);
+            profile_settings["__name"] = json!(new_profile_name);
 
             if let Some(ConfigItem::DatabaseConfig(config)) = &selected_provider
             {
-                if let Ok(provider_settings) = db_handler
+                if let Ok(mut provider_settings) = db_handler
                     .get_configuration_parameters(config, MaskMode::Unmask)
                     .await
                 {
-                    profile_settings["__section.provider"] = json!({
-                        "name": config.name,
-                        "settings": provider_settings
-                    });
+                    match provider_settings {
+                        serde_json::Value::Object(_) => {
+                            provider_settings["__name"] = json!(config.name);
+                        }
+                        _ => {}
+                    }
+                    profile_settings["__section.provider"] = provider_settings;
                 }
             }
 

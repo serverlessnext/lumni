@@ -295,7 +295,12 @@ pub async fn handle_profile_subcommand(
                     settings[key.to_string()] = typed_value;
                 }
 
-                db_handler.update_profile(&profile, &settings).await?;
+                db_handler
+                    .update_configuration_item(
+                        &profile.clone().into(),
+                        &settings,
+                    )
+                    .await?;
                 println!(
                     "Profile ID: {} - {} updated. Key '{}' set.",
                     profile.id, profile.name, key
@@ -340,8 +345,12 @@ pub async fn handle_profile_subcommand(
                 let profile = get_profile_by_id(&db_handler, id_str).await?;
                 let mut settings = JsonValue::Object(Map::new());
                 settings[key.to_string()] = JsonValue::Null; // Null indicates deletion
-
-                db_handler.update_profile(&profile, &settings).await?;
+                db_handler
+                    .update_configuration_item(
+                        &profile.clone().into(),
+                        &settings,
+                    )
+                    .await?;
                 println!(
                     "Key '{}' deleted from profile ID: {} - {}.",
                     key, profile.id, profile.name

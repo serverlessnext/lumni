@@ -37,15 +37,6 @@ impl UserProfileDbHandler {
         self.delete_configuration_item(&profile.into()).await
     }
 
-    pub async fn update_profile(
-        &mut self,
-        profile: &UserProfile,
-        new_settings: &JsonValue,
-    ) -> Result<(), ApplicationError> {
-        self.update_configuration_item(&profile.into(), new_settings)
-            .await
-    }
-
     pub async fn rename_profile(
         &self,
         profile: &UserProfile,

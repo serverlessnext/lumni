@@ -18,15 +18,7 @@ impl UserProfileDbHandler {
         &self,
         content: &JsonValue,
     ) -> Result<JsonValue, ApplicationError> {
-        let type_info = match content {
-            JsonValue::Null => "null",
-            JsonValue::Bool(_) => "boolean",
-            JsonValue::Number(_) => "number",
-            JsonValue::String(_) => "string",
-            JsonValue::Array(_) => "array",
-            JsonValue::Object(_) => "object",
-        };
-
+        let type_info = self.type_info(content);
         let content_string = match content {
             JsonValue::String(s) => s.clone(), // Use the string value directly
             _ => content.to_string(), // For other types, use JSON serialization

@@ -8,8 +8,8 @@ pub trait ListItemTrait: Clone {
 
 #[derive(Debug)]
 pub struct SettingsList<T: ListItemTrait> {
-    items: Vec<T>,
-    selected_index: usize,
+    pub items: Vec<T>,
+    pub selected_index: usize,
     pub default_item: Option<T>,
     item_type: String,
 }

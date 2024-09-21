@@ -157,7 +157,6 @@ impl UserProfileDbHandler {
             .await?;
         let merged_parameters =
             self.merge_parameters(&existing_parameters, new_parameters)?;
-
         let processed_parameters = self.process_parameters(
             &merged_parameters,
             EncryptionMode::Encrypt,

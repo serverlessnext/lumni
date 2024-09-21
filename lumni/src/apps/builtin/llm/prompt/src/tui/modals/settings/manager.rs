@@ -48,7 +48,9 @@ impl ManagedItem for UserProfile {
         db_handler: &mut UserProfileDbHandler,
         settings: &JsonValue,
     ) -> Result<(), ApplicationError> {
-        db_handler.update_profile(self, settings).await
+        db_handler
+            .update_configuration_item(&self.into(), settings)
+            .await
     }
 }
 
@@ -487,7 +489,8 @@ impl ConfigItemManager {
                         SettingsAction::SaveNewValue => {
                             self.save_new_value(&item).await?
                         }
-                        SettingsAction::CloseSection | SettingsAction::ToggleSection => {
+                        SettingsAction::CloseSection
+                        | SettingsAction::ToggleSection => {
                             // Section is already opened in SettingsEditor, just update UI
                         }
                     }
@@ -552,7 +555,6 @@ impl ConfigItemManager {
                 }
             }
         } else {
-            eprintln!("No creator found");
             Ok(WindowMode::Modal(ModalEvent::UpdateUI))
         }
     }
@@ -664,12 +666,34 @@ impl ConfigItemManager {
     ) -> Result<(), ApplicationError> {
         let current_field = self.settings_editor.get_current_field();
         if !current_field.starts_with("__") {
-            let mut settings = self.settings_editor.get_settings().clone();
-            if let Some(obj) = settings.as_object_mut() {
-                obj.remove(current_field);
-            }
-            item.update_settings(&mut self.db_handler, &settings)
+            let mut update_settings = JsonValue::Object(serde_json::Map::new());
+            // Set the field to null to signal that it should be deleted
+            update_settings[current_field] = JsonValue::Null;
+
+            item.update_settings(&mut self.db_handler, &update_settings)
                 .await?;
+
+            // Find the next key or set to empty if there are no more keys
+            let settings = self.settings_editor.get_settings();
+            if let Some(obj) = settings.as_object() {
+                let keys: Vec<_> = obj.keys().collect();
+                if let Some(pos) =
+                    keys.iter().position(|&k| k == &current_field)
+                {
+                    if pos < keys.len().saturating_sub(1) {
+                        self.settings_editor
+                            .set_current_field(keys[pos + 1].to_string());
+                    } else if pos > 0 {
+                        self.settings_editor
+                            .set_current_field(keys[pos - 1].to_string());
+                    } else {
+                        self.settings_editor.set_current_field(String::new());
+                    }
+                }
+            } else {
+                self.settings_editor.set_current_field(String::new());
+            }
+
             self.load_selected_item_settings().await?;
         }
         Ok(())
@@ -697,32 +721,33 @@ impl ConfigItemManager {
         item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         let current_field = self.settings_editor.get_current_field();
-        let mut settings = self.settings_editor.get_settings().clone();
-        if let Some(obj) = settings.as_object_mut() {
-            let current_value = &obj[current_field];
-            let is_encrypted = if let Some(obj) = current_value.as_object() {
-                obj.contains_key("__encryption_key")
-            } else {
-                false
-            };
+        let current_settings = self.settings_editor.get_settings();
+        let new_value = self.settings_editor.get_edit_buffer();
 
-            let new_value = if is_encrypted {
-                json!({
-                    "__content": self.settings_editor.get_edit_buffer(),
-                    "__encryption_key": "",   // signal that the value must be encrypted
-                    "__type_info": "string",
-                })
-            } else {
-                serde_json::Value::String(
-                    self.settings_editor.get_edit_buffer().to_string(),
-                )
-            };
+        let mut update_settings = JsonValue::Object(serde_json::Map::new());
 
-            obj[current_field] = new_value;
+        if let Some(current_value) = current_settings.get(current_field) {
+            if let Some(obj) = current_value.as_object() {
+                if obj.contains_key("__encryption_key") {
+                    // This is an encrypted value
+                    update_settings[current_field] = json!({
+                        "__content": new_value,
+                        "__encryption_key": "",   // Keep this empty as per your requirement
+                        "__type_info": "string",
+                    });
+                } else {
+                    // Update as regular string
+                    update_settings[current_field] =
+                        JsonValue::String(new_value.to_string());
+                }
+            } else {
+                // Update as regular string
+                update_settings[current_field] =
+                    JsonValue::String(new_value.to_string());
+            }
         }
-        item.update_settings(&mut self.db_handler, &settings)
+        item.update_settings(&mut self.db_handler, &update_settings)
             .await?;
-
         self.load_selected_item_settings().await?;
         Ok(())
     }
@@ -732,27 +757,22 @@ impl ConfigItemManager {
         item: &ConfigItem,
     ) -> Result<(), ApplicationError> {
         let new_key = self.settings_editor.get_new_key_buffer().to_string();
-        let new_value = if self.settings_editor.is_new_value_secure() {
-            json!({
-                "__content": self.settings_editor.get_edit_buffer(),
-                "__encryption_key": "",  // signal that value must be encrypted, encryption key will be set by the handler
+        let new_value = self.settings_editor.get_edit_buffer().to_string();
+        let mut update_settings = JsonValue::Object(serde_json::Map::new());
+
+        if self.settings_editor.is_new_value_secure() {
+            update_settings[&new_key] = json!({
+                "__content": new_value,
+                "__encryption_key": "",  // Keep this empty as per your requirement
                 "__type_info": "string",
-            })
+            });
         } else {
-            serde_json::Value::String(
-                self.settings_editor.get_edit_buffer().to_string(),
-            )
-        };
-
-        let mut settings = self.settings_editor.get_settings().clone();
-        if let Some(obj) = settings.as_object_mut() {
-            obj.insert(new_key, new_value);
+            update_settings[&new_key] = JsonValue::String(new_value);
         }
-        item.update_settings(&mut self.db_handler, &settings)
+        item.update_settings(&mut self.db_handler, &update_settings)
             .await?;
-
+        self.settings_editor.set_current_field(new_key);
         self.load_selected_item_settings().await?;
-
         Ok(())
     }
 
@@ -872,40 +892,59 @@ impl ConfigItemManager {
 
         if let Some(item) = item {
             let flattened_settings = settings_editor.get_flattened_settings();
-            eprintln!("Flattened settings: {:?}", flattened_settings);
             let mut items: Vec<ListItem> = flattened_settings
                 .iter()
                 .map(|(key, value, depth)| {
-                    eprintln!("Key: {}, Value: {}, Depth: {}", key, value, depth);
                     let indent = "  ".repeat(*depth);
                     let is_editable = !key.starts_with("__");
-                    let display_value = settings_editor.get_display_value(value);
 
                     // Extract the last part of the key
                     let display_key = key.split('.').last().unwrap_or(key);
 
-                    let content = if settings_editor.edit_mode == EditMode::EditingValue
+                    let key_style = if key == &settings_editor.current_field {
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White)
+                    } else if is_editable {
+                        Style::default().fg(Color::Cyan)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    };
+
+                    let key_span = Span::styled(
+                        format!("{}{}: ", indent, display_key),
+                        key_style,
+                    );
+
+                    let value_span = if settings_editor.edit_mode
+                        == EditMode::EditingValue
                         && key == &settings_editor.current_field
                         && is_editable
                     {
-                        format!("{}{}: {}", indent, display_key, settings_editor.get_edit_buffer())
+                        Span::styled(
+                            settings_editor.get_edit_buffer(),
+                            Style::default()
+                                .bg(Color::Rgb(40, 40, 40))
+                                .fg(Color::White),
+                        )
                     } else {
-                        format!("{}{}: {}", indent, display_key, display_value)
+                        let mut span =
+                            settings_editor.get_display_value_span(value);
+                        if key == &settings_editor.current_field {
+                            span.style = Style::default()
+                                .bg(Color::Rgb(40, 40, 40))
+                                .fg(Color::White);
+                        }
+                        span
                     };
 
-                    let style = if key == &settings_editor.current_field {
-                        Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
-                    } else if is_editable {
-                        Style::default().bg(Color::Black).fg(Color::Cyan)
-                    } else {
-                        Style::default().bg(Color::Black).fg(Color::DarkGray)
-                    };
-
-                    ListItem::new(Line::from(vec![Span::styled(content, style)]))
+                    ListItem::new(Line::from(vec![key_span, value_span]))
                 })
                 .collect();
+
             if settings_editor.edit_mode == EditMode::AddingNewKey {
-                let secure_indicator = if settings_editor.is_new_value_secure() {
+                let secure_indicator = if settings_editor.is_new_value_secure()
+                {
                     "🔒 "
                 } else {
                     ""
@@ -916,13 +955,16 @@ impl ConfigItemManager {
                         secure_indicator,
                         settings_editor.get_new_key_buffer()
                     ),
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::White),
                 )])));
             }
 
             // Add new value input field if in AddingNewValue mode
             if settings_editor.edit_mode == EditMode::AddingNewValue {
-                let secure_indicator = if settings_editor.is_new_value_secure() {
+                let secure_indicator = if settings_editor.is_new_value_secure()
+                {
                     "🔒 "
                 } else {
                     ""
@@ -934,7 +976,9 @@ impl ConfigItemManager {
                         settings_editor.get_new_key_buffer(),
                         settings_editor.get_edit_buffer()
                     ),
-                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+                    Style::default()
+                        .bg(Color::Rgb(40, 40, 40))
+                        .fg(Color::White),
                 )])));
             }
 
@@ -949,7 +993,8 @@ impl ConfigItemManager {
                     .iter()
                     .map(|key| {
                         if key.starts_with("__section.") {
-                            let section_type = key.split('.').nth(1).unwrap_or("Unknown");
+                            let section_type =
+                                key.split('.').nth(1).unwrap_or("Unknown");
                             section_type.to_string().capitalize()
                         } else {
                             key.clone()
@@ -968,14 +1013,17 @@ impl ConfigItemManager {
             state.select(Some(
                 flattened_settings
                     .iter()
-                    .position(|(key, _, _)| key == &settings_editor.current_field)
+                    .position(|(key, _, _)| {
+                        key == &settings_editor.current_field
+                    })
                     .unwrap_or(0),
             ));
 
             f.render_stateful_widget(list, area, &mut state);
         } else {
-            let paragraph = Paragraph::new("No item selected")
-                .block(Block::default().borders(Borders::ALL).title("Settings"));
+            let paragraph = Paragraph::new("No item selected").block(
+                Block::default().borders(Borders::ALL).title("Settings"),
+            );
             f.render_widget(paragraph, area);
         }
     }

@@ -277,10 +277,14 @@ impl ManagedItem for ConfigItem {
     ) -> Result<(), ApplicationError> {
         match self {
             ConfigItem::UserProfile(profile) => {
-                profile.update_settings(db_handler, settings).await
+                db_handler
+                    .update_configuration_item(&profile.into(), settings)
+                    .await
             }
             ConfigItem::DatabaseConfig(config) => {
-                config.update_settings(db_handler, settings).await
+                db_handler
+                    .update_configuration_item(config.into(), settings)
+                    .await
             }
         }
     }

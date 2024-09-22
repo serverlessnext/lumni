@@ -226,27 +226,6 @@ impl ProviderCreator {
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-        //        match input.code {
-        //            KeyCode::Esc => {
-        //                if self.current_step == ProviderCreationStep::ConfirmCreate {
-        //                    self.text_area = None;
-        //                }
-        //                return self.go_to_previous_step();
-        //            }
-        //            KeyCode::Backspace => match self.current_step {
-        //                ProviderCreationStep::EnterName if !self.name.is_empty() => {
-        //                    self.name.pop();
-        //                    return Ok(CreatorAction::Continue);
-        //                }
-        //                ProviderCreationStep::ConfirmCreate => {
-        //                    self.text_area = None;
-        //                    return self.go_to_previous_step();
-        //                }
-        //                _ => return self.go_to_previous_step(),
-        //            },
-        //            _ => {}
-        //        }
-
         match self.current_step {
             ProviderCreationStep::EnterName => self.handle_enter_name(input),
             ProviderCreationStep::SelectProviderType => {

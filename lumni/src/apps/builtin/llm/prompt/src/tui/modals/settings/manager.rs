@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
-use super::profile::{ProfileCreationStep, SubPartCreationState};
 use super::provider::ProviderCreationStep;
 use super::*;
 
@@ -483,9 +482,7 @@ impl ConfigItemManager {
         current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
         if let Some(creator) = &mut self.creator {
-            eprintln!("Handling creation input");
             let action = creator.handle_input(key_event).await?;
-            eprintln!("Action: {:?}", action);
             match action {
                 CreatorAction::Continue => {
                     Ok(WindowMode::Modal(ModalEvent::UpdateUI))
@@ -858,8 +855,25 @@ impl ConfigItemManager {
 
         if let Some(item) = item {
             let flattened_settings = settings_editor.get_flattened_settings();
-            let mut items: Vec<ListItem> = flattened_settings
-                .iter()
+            let mut visible_items: Vec<(&String, &JsonValue, &usize)> =
+                Vec::new();
+            let mut selected_index = 0;
+            let mut found_selected = false;
+
+            for (key, value, depth) in flattened_settings.iter() {
+                let last_part = key.split('.').last().unwrap_or(key);
+                if !last_part.starts_with("__") {
+                    if !found_selected && key == &settings_editor.current_field
+                    {
+                        selected_index = visible_items.len();
+                        found_selected = true;
+                    }
+                    visible_items.push((key, value, depth));
+                }
+            }
+
+            let mut items: Vec<ListItem> = visible_items
+                .into_iter()
                 .map(|(key, value, depth)| {
                     let indent = "  ".repeat(*depth);
                     let is_editable = !key.starts_with("__");
@@ -879,10 +893,8 @@ impl ConfigItemManager {
                         Style::default()
                             .bg(Color::Rgb(40, 40, 40))
                             .fg(Color::White)
-                    } else if is_editable {
-                        Style::default().fg(Color::Cyan)
                     } else {
-                        Style::default().fg(Color::DarkGray)
+                        Style::default().fg(Color::Cyan)
                     };
 
                     let key_span = Span::styled(
@@ -904,7 +916,13 @@ impl ConfigItemManager {
                     } else {
                         let mut span =
                             settings_editor.get_display_value_span(value);
-                        if key == &settings_editor.current_field {
+                        if span.style.fg == Some(Color::DarkGray) {
+                            // dont override style if already set to DarkGray (non-editable)
+                        } else if !is_editable {
+                            // override style for non-editable fields
+                            span.style = Style::default().fg(Color::DarkGray);
+                        } else if key == &settings_editor.current_field {
+                            // override style for (editable) selected field
                             span.style = Style::default()
                                 .bg(Color::Rgb(40, 40, 40))
                                 .fg(Color::White);
@@ -915,6 +933,8 @@ impl ConfigItemManager {
                     ListItem::new(Line::from(vec![key_span, value_span]))
                 })
                 .collect();
+
+            // Add new key input field if in AddingNewKey mode
             if settings_editor.edit_mode == EditMode::AddingNewKey {
                 let secure_indicator = if settings_editor.is_new_value_secure()
                 {
@@ -932,6 +952,7 @@ impl ConfigItemManager {
                         .bg(Color::Rgb(40, 40, 40))
                         .fg(Color::White),
                 )])));
+                selected_index = items.len() - 1;
             }
 
             // Add new value input field if in AddingNewValue mode
@@ -953,6 +974,7 @@ impl ConfigItemManager {
                         .bg(Color::Rgb(40, 40, 40))
                         .fg(Color::White),
                 )])));
+                selected_index = items.len() - 1;
             }
 
             let title = format!(
@@ -966,14 +988,7 @@ impl ConfigItemManager {
                 .highlight_symbol(">> ");
 
             let mut state = ListState::default();
-            state.select(Some(
-                flattened_settings
-                    .iter()
-                    .position(|(key, _, _)| {
-                        key == &settings_editor.current_field
-                    })
-                    .unwrap_or(0),
-            ));
+            state.select(Some(selected_index));
 
             f.render_stateful_widget(list, area, &mut state);
         } else {

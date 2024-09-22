@@ -110,26 +110,29 @@ impl SettingsEditor {
                     self.get_nested_value(&self.current_field)
                 {
                     match current_value {
-                        JsonValue::Object(obj)
-                            if obj.contains_key("__content") =>
-                        {
-                            let is_encrypted =
-                                obj.contains_key("__encryption_key");
-                            if is_encrypted && !self.show_secure {
-                                // Encrypted value but masked, don't allow editing
-                                (EditMode::NotEditing, true, None)
-                            } else {
-                                // Allow editing for non-encrypted or unmasked encrypted values
-                                self.start_editing();
-                                (EditMode::EditingValue, true, None)
-                            }
-                        }
                         JsonValue::Object(obj) => {
-                            if obj.is_empty() {
-                                // Empty object, don't expand
-                                (EditMode::NotEditing, false, None)
+                            if obj.contains_key("__content") {
+                                // Check if the field is editable
+                                let is_editable =
+                                    !self.current_field.starts_with("__");
+                                let is_encrypted =
+                                    obj.contains_key("__encryption_key");
+
+                                if is_editable {
+                                    if is_encrypted && !self.show_secure {
+                                        // Encrypted value but masked, don't allow editing
+                                        (EditMode::NotEditing, true, None)
+                                    } else {
+                                        // Allow editing for non-encrypted or unmasked encrypted values
+                                        self.start_editing();
+                                        (EditMode::EditingValue, true, None)
+                                    }
+                                } else {
+                                    // Non-editable field, don't allow editing
+                                    (EditMode::NotEditing, false, None)
+                                }
                             } else {
-                                // Non-empty object, expand it
+                                // Regular object, expand it
                                 self.toggle_section_expansion();
                                 (
                                     EditMode::NotEditing,
@@ -138,24 +141,24 @@ impl SettingsEditor {
                                 )
                             }
                         }
-                        JsonValue::Array(arr) => {
-                            if arr.is_empty() {
-                                // Empty array, don't expand
-                                (EditMode::NotEditing, false, None)
-                            } else {
-                                // Non-empty array, expand it
-                                self.toggle_section_expansion();
-                                (
-                                    EditMode::NotEditing,
-                                    true,
-                                    Some(SettingsAction::ToggleSection),
-                                )
-                            }
+                        JsonValue::Array(_) => {
+                            // Array, expand it
+                            self.toggle_section_expansion();
+                            (
+                                EditMode::NotEditing,
+                                true,
+                                Some(SettingsAction::ToggleSection),
+                            )
                         }
                         _ => {
-                            // Regular value, start editing
-                            self.start_editing();
-                            (EditMode::EditingValue, true, None)
+                            // Regular value, check if editable
+                            if !self.current_field.starts_with("__") {
+                                self.start_editing();
+                                (EditMode::EditingValue, true, None)
+                            } else {
+                                // Non-editable field, don't allow editing
+                                (EditMode::NotEditing, false, None)
+                            }
                         }
                     }
                 } else {
@@ -177,12 +180,12 @@ impl SettingsEditor {
                 true,
                 Some(SettingsAction::ToggleSecureVisibility),
             ),
-            KeyCode::Char('d') | KeyCode::Char('D') => (
+            KeyCode::Char('D') => (
                 EditMode::NotEditing,
                 true,
                 Some(SettingsAction::DeleteCurrentKey),
             ),
-            KeyCode::Char('c') | KeyCode::Char('C') => (
+            KeyCode::Char('C') => (
                 EditMode::NotEditing,
                 true,
                 Some(SettingsAction::ClearCurrentKey),
@@ -461,15 +464,27 @@ impl SettingsEditor {
     }
 
     pub fn move_selection(&mut self, delta: i32) {
-        let flattened = self.get_flattened_settings();
-        let current_index = flattened
+        let flattened_settings = self.get_flattened_settings();
+        let current_index = flattened_settings
             .iter()
             .position(|(key, _, _)| key == &self.current_field)
             .unwrap_or(0);
-        let new_index = (current_index as i32 + delta)
-            .rem_euclid(flattened.len() as i32)
-            as usize;
-        self.current_field = flattened[new_index].0.clone();
+
+        let mut new_index = current_index;
+        let total_items = flattened_settings.len();
+
+        for _ in 0..total_items {
+            new_index = (new_index as i32 + delta)
+                .rem_euclid(total_items as i32)
+                as usize;
+            let (key, _, _) = &flattened_settings[new_index];
+            let last_part = key.split('.').last().unwrap_or(key);
+            if !last_part.starts_with("__") {
+                break;
+            }
+        }
+
+        self.current_field = flattened_settings[new_index].0.clone();
     }
 
     fn start_editing(&mut self) {

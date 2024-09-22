@@ -107,26 +107,18 @@ impl ProfileCreator {
         let (tx, rx) = mpsc::channel(1);
         let mut db_handler = self.db_handler.clone();
         let new_profile_name = self.new_profile_name.clone();
-        let selected_provider = self.selected_provider.clone();
+        let selected_config = self.selected_provider.clone();
 
         tokio::spawn(async move {
             let mut profile_settings = json!({});
 
-            profile_settings["__name"] = json!(new_profile_name);
-
-            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_provider
-            {
-                if let Ok(mut provider_settings) = db_handler
+            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_config {
+                if let Ok(section_configuration) = db_handler
                     .get_configuration_parameters(config, MaskMode::Unmask)
                     .await
                 {
-                    match provider_settings {
-                        serde_json::Value::Object(_) => {
-                            provider_settings["__name"] = json!(config.name);
-                        }
-                        _ => {}
-                    }
-                    profile_settings["__section.provider"] = provider_settings;
+                    let section_key = format!("__section.{}", config.section);
+                    profile_settings[section_key] = section_configuration;
                 }
             }
 
@@ -200,7 +192,7 @@ impl ProfileCreator {
 
         lines.push(TextLine::new()); // Empty line for spacing
 
-        // Provider Section
+        // sub config section (provider)
         if let Some(ConfigItem::DatabaseConfig(config)) =
             &self.selected_provider
         {

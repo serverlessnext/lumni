@@ -92,10 +92,9 @@ impl ServerTrait for OpenAI {
         &self.spec
     }
 
-    fn get_profile_settings(&self) -> JsonValue {
+    fn provider_configuration(&self) -> JsonValue {
         json!({
-            "__MODEL_SERVER": "openai",
-            "OPENAI_API_KEY": {
+            "openai_api_key": {
                 "__display_name": "OpenAI API Key",
                 "__content": "",
                 "__encryption_key": "",

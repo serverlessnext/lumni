@@ -139,10 +139,8 @@ impl ServerTrait for Llama {
         &self.spec
     }
 
-    fn get_profile_settings(&self) -> JsonValue {
-        json!({
-            "__MODEL_SERVER": "llama",
-        })
+    fn provider_configuration(&self) -> JsonValue {
+        json!({}) // TODO: add endpoint configuration
     }
 
     fn process_response(

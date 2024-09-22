@@ -121,18 +121,17 @@ impl ServerTrait for Bedrock {
         &self.spec
     }
 
-    fn get_profile_settings(&self) -> JsonValue {
+    fn provider_configuration(&self) -> JsonValue {
         json!({
-            "__MODEL_SERVER": "bedrock",
-            "AWS_PROFILE": {
+            "aws_profile": {
                 "__display_name": "AWS Profile",
-                "__placeholder": "AWS Profile",
+                "__placeholder": "default",
                 "__content": "",
                 "__type_info": "string"
             },
-            "AWS_REGION": {
+            "aws_region": {
                 "__display_name": "AWS Region",
-                "__placeholder": "AWS Region",
+                "__placeholder": "us-east-1",
                 "__content": "",
                 "__type_info": "string"
             }

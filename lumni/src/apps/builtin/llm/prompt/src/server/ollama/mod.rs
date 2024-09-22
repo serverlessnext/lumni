@@ -70,10 +70,8 @@ impl ServerTrait for Ollama {
         &self.spec
     }
 
-    fn get_profile_settings(&self) -> JsonValue {
-        json!({
-            "__MODEL_SERVER": "ollama",
-        })
+    fn provider_configuration(&self) -> JsonValue {
+        json!({}) // TODO: add endpoint configuration
     }
 
     async fn initialize_with_model(

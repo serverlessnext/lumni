@@ -84,12 +84,12 @@ impl ServerTrait for ModelServer {
         }
     }
 
-    fn get_profile_settings(&self) -> JsonValue {
+    fn provider_configuration(&self) -> JsonValue {
         match self {
-            ModelServer::Llama(llama) => llama.get_profile_settings(),
-            ModelServer::Ollama(ollama) => ollama.get_profile_settings(),
-            ModelServer::Bedrock(bedrock) => bedrock.get_profile_settings(),
-            ModelServer::OpenAI(openai) => openai.get_profile_settings(),
+            ModelServer::Llama(llama) => llama.provider_configuration(),
+            ModelServer::Ollama(ollama) => ollama.provider_configuration(),
+            ModelServer::Bedrock(bedrock) => bedrock.provider_configuration(),
+            ModelServer::OpenAI(openai) => openai.provider_configuration(),
         }
     }
 
@@ -190,7 +190,7 @@ impl ServerTrait for ModelServer {
 #[async_trait]
 pub trait ServerTrait: Send + Sync {
     fn get_spec(&self) -> &dyn ServerSpecTrait;
-    fn get_profile_settings(&self) -> JsonValue;
+    fn provider_configuration(&self) -> JsonValue;
 
     async fn initialize_with_model(
         &mut self,

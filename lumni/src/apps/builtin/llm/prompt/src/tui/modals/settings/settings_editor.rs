@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use serde_json::{Map, Value as JsonValue};
+use ratatui::style::Stylize;
+use serde_json::Value as JsonValue;
 
 use super::*;
 
@@ -11,14 +12,12 @@ pub enum SettingsAction {
     ClearCurrentKey,
     SaveEdit,
     SaveNewValue,
-    CloseSection,
     ToggleSection,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SettingsEditor {
     settings: JsonValue,
-    pub current_path: Vec<String>,
     expanded_sections: HashSet<String>,
     pub current_field: String,
     edit_buffer: String,
@@ -37,7 +36,6 @@ impl SettingsEditor {
 
         Self {
             settings,
-            current_path: Vec::new(),
             expanded_sections: HashSet::new(),
             current_field,
             edit_buffer: String::new(),
@@ -50,7 +48,6 @@ impl SettingsEditor {
 
     pub fn load_settings(&mut self, settings: JsonValue) {
         self.settings = settings;
-        self.current_path.clear();
         self.edit_buffer.clear();
         self.new_key_buffer.clear();
         self.is_new_value_secure = false;
@@ -72,6 +69,29 @@ impl SettingsEditor {
         }
     }
 
+    fn get_nested_value(&self, field: &str) -> Option<&JsonValue> {
+        let (first_key, remaining_path) = if field.starts_with("__section.") {
+            let (section, rest) = field.split_at(field.find('.').unwrap() + 1);
+            let (provider, rest) =
+                rest.split_at(rest.find('.').unwrap_or(rest.len()));
+            (format!("{}{}", section, provider), rest)
+        } else {
+            let parts: Vec<&str> = field.splitn(2, '.').collect();
+            (parts[0].to_string(), parts.get(1).copied().unwrap_or(""))
+        };
+
+        let mut current = self.settings.get(&first_key)?;
+
+        for part in remaining_path.split('.').filter(|&p| !p.is_empty()) {
+            current = match current {
+                JsonValue::Object(obj) => obj.get(part)?,
+                _ => return None,
+            };
+        }
+
+        Some(current)
+    }
+
     fn handle_not_editing(
         &mut self,
         key: KeyCode,
@@ -86,65 +106,64 @@ impl SettingsEditor {
                 (EditMode::NotEditing, true, None)
             }
             KeyCode::Enter => {
-                let current_value = self.get_current_value();
-                let field_value =
-                    if self.current_field.starts_with("__section.") {
-                        Some(current_value)
-                    } else {
-                        current_value.get(&self.current_field)
-                    };
-
-                if let Some(value) = field_value {
-                    if let JsonValue::Object(obj) = value {
-                        if Self::is_encrypted_value(obj) {
-                            if self.show_secure {
-                                // Encrypted value and unmasked, allow editing
-                                self.start_editing();
-                                (EditMode::EditingValue, true, None)
-                            } else {
+                if let Some(current_value) =
+                    self.get_nested_value(&self.current_field)
+                {
+                    match current_value {
+                        JsonValue::Object(obj)
+                            if obj.contains_key("__content") =>
+                        {
+                            let is_encrypted =
+                                obj.contains_key("__encryption_key");
+                            if is_encrypted && !self.show_secure {
                                 // Encrypted value but masked, don't allow editing
                                 (EditMode::NotEditing, true, None)
+                            } else {
+                                // Allow editing for non-encrypted or unmasked encrypted values
+                                self.start_editing();
+                                (EditMode::EditingValue, true, None)
                             }
-                        } else if obj.is_empty() {
-                            // Empty object, don't expand
-                            (EditMode::NotEditing, false, None)
-                        } else {
-                            // Regular object, expand it
-                            self.toggle_section_expansion();
-                            (
-                                EditMode::NotEditing,
-                                true,
-                                Some(SettingsAction::ToggleSection),
-                            )
                         }
-                    } else if value.is_array() {
-                        self.toggle_section_expansion();
-                        (
-                            EditMode::NotEditing,
-                            true,
-                            Some(SettingsAction::ToggleSection),
-                        )
-                    } else {
-                        // Regular value, start editing
-                        self.start_editing();
-                        (EditMode::EditingValue, true, None)
+                        JsonValue::Object(obj) => {
+                            if obj.is_empty() {
+                                // Empty object, don't expand
+                                (EditMode::NotEditing, false, None)
+                            } else {
+                                // Non-empty object, expand it
+                                self.toggle_section_expansion();
+                                (
+                                    EditMode::NotEditing,
+                                    true,
+                                    Some(SettingsAction::ToggleSection),
+                                )
+                            }
+                        }
+                        JsonValue::Array(arr) => {
+                            if arr.is_empty() {
+                                // Empty array, don't expand
+                                (EditMode::NotEditing, false, None)
+                            } else {
+                                // Non-empty array, expand it
+                                self.toggle_section_expansion();
+                                (
+                                    EditMode::NotEditing,
+                                    true,
+                                    Some(SettingsAction::ToggleSection),
+                                )
+                            }
+                        }
+                        _ => {
+                            // Regular value, start editing
+                            self.start_editing();
+                            (EditMode::EditingValue, true, None)
+                        }
                     }
                 } else {
+                    // Field not found, do nothing
                     (EditMode::NotEditing, false, None)
                 }
             }
-            KeyCode::Left => {
-                if !self.current_path.is_empty() {
-                    self.close_current_section();
-                    (
-                        EditMode::NotEditing,
-                        true,
-                        Some(SettingsAction::CloseSection),
-                    )
-                } else {
-                    (EditMode::NotEditing, false, None)
-                }
-            }
+            KeyCode::Left => (EditMode::NotEditing, false, None),
             KeyCode::Char('n') => {
                 self.start_adding_new_value(false);
                 (EditMode::AddingNewKey, true, None)
@@ -250,18 +269,52 @@ impl SettingsEditor {
         }
     }
 
-    fn is_encrypted_value(obj: &serde_json::Map<String, JsonValue>) -> bool {
-        obj.contains_key("__encryption_key")
-            && obj.contains_key("__content")
-            && obj.contains_key("__type_info")
-    }
-
     pub fn get_display_value_span(&self, value: &JsonValue) -> Span<'static> {
         match value {
-            JsonValue::Object(obj) if Self::is_encrypted_value(obj) => {
-                if self.show_secure {
-                    match obj.get("__content") {
-                        Some(JsonValue::String(s)) => Span::styled(
+            JsonValue::Object(obj) if obj.contains_key("__content") => {
+                let content = obj.get("__content").unwrap();
+                let placeholder =
+                    obj.get("__placeholder").and_then(|v| v.as_str());
+
+                if obj.contains_key("__encryption_key") {
+                    // Encrypted value
+                    if self.show_secure {
+                        if let JsonValue::String(s) = content {
+                            Span::styled(
+                                s.clone(),
+                                Style::default().fg(Color::Cyan),
+                            )
+                        } else {
+                            Span::styled(
+                                "Invalid Value",
+                                Style::default().fg(Color::Red),
+                            )
+                        }
+                    } else {
+                        Span::styled(
+                            "*****",
+                            Style::default().fg(Color::DarkGray),
+                        )
+                    }
+                } else {
+                    // Non-encrypted value
+                    match content {
+                        JsonValue::String(s) if s.is_empty() => {
+                            if let Some(placeholder_text) = placeholder {
+                                Span::styled(
+                                    format!("({})", placeholder_text),
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .italic(),
+                                )
+                            } else {
+                                Span::styled(
+                                    "",
+                                    Style::default().fg(Color::DarkGray),
+                                )
+                            }
+                        }
+                        JsonValue::String(s) => Span::styled(
                             s.clone(),
                             Style::default().fg(Color::Cyan),
                         ),
@@ -270,18 +323,22 @@ impl SettingsEditor {
                             Style::default().fg(Color::Red),
                         ),
                     }
-                } else {
-                    Span::styled("*****", Style::default().fg(Color::DarkGray))
                 }
             }
             JsonValue::Object(obj) => {
-                if let Some(name) = obj.get("__name").and_then(|v| v.as_str()) {
+                if let Some(type_name) =
+                    obj.get("__type").and_then(|v| v.as_str())
+                {
                     Span::styled(
-                        format!("{} {{...}}", name),
+                        format!("{} {{...}}", type_name),
                         Style::default().fg(Color::Cyan),
                     )
                 } else {
-                    Span::styled("{...}", Style::default().fg(Color::Cyan))
+                    if obj.is_empty() {
+                        Span::styled("{}", Style::default().fg(Color::DarkGray))
+                    } else {
+                        Span::styled("{...}", Style::default().fg(Color::Cyan))
+                    }
                 }
             }
             JsonValue::Array(arr) => Span::styled(
@@ -383,18 +440,13 @@ impl SettingsEditor {
     }
 
     pub fn toggle_section_expansion(&mut self) {
-        let full_path = if self.current_path.is_empty() {
-            self.current_field.clone()
+        if self.expanded_sections.contains(&self.current_field) {
+            self.expanded_sections.remove(&self.current_field);
+            self.expanded_sections.retain(|path| {
+                !path.starts_with(&format!("{}.", self.current_field))
+            });
         } else {
-            format!("{}.{}", self.current_path.join("."), self.current_field)
-        };
-
-        if self.expanded_sections.contains(&full_path) {
-            self.expanded_sections.remove(&full_path);
-            self.expanded_sections
-                .retain(|path| !path.starts_with(&format!("{}.", full_path)));
-        } else {
-            self.expanded_sections.insert(full_path);
+            self.expanded_sections.insert(self.current_field.clone());
         }
     }
 
@@ -421,28 +473,20 @@ impl SettingsEditor {
     }
 
     fn start_editing(&mut self) {
-        let current_value = self.get_current_value().get(&self.current_field);
-
-        if let Some(value) = current_value {
+        if let Some(value) = self.get_nested_value(&self.current_field) {
             self.edit_buffer = match value {
-                JsonValue::Object(obj)
-                    if obj.contains_key("__encryption_key") =>
-                {
-                    // This is a secure key
+                JsonValue::Object(obj) if obj.contains_key("__content") => {
                     match obj.get("__content") {
                         Some(JsonValue::String(s)) => s.clone(),
-                        _ => String::new(), // Default to empty string if content is invalid
+                        _ => String::new(),
                     }
                 }
                 JsonValue::String(s) => s.clone(),
-                _ => {
-                    unreachable!("Can only edit string values");
-                }
+                _ => String::new(),
             };
         } else {
             self.edit_buffer = String::new();
         }
-
         self.edit_mode = EditMode::EditingValue;
     }
 
@@ -458,35 +502,10 @@ impl SettingsEditor {
 
     pub fn clear(&mut self) {
         self.settings = JsonValue::Object(serde_json::Map::new());
-        self.current_path.clear();
         self.current_field = String::new();
         self.edit_buffer.clear();
         self.new_key_buffer.clear();
         self.is_new_value_secure = false;
-    }
-
-    fn close_current_section(&mut self) {
-        if let Some(parent_key) = self.current_path.pop() {
-            self.current_field = parent_key;
-        }
-    }
-
-    pub fn get_current_value(&self) -> &JsonValue {
-        let mut current = &self.settings;
-        for key in &self.current_path {
-            if key.starts_with("__section.") {
-                if let Some(section) = current.get(key) {
-                    if let Some(settings) = section.get("settings") {
-                        current = settings;
-                    } else {
-                        current = section;
-                    }
-                }
-            } else {
-                current = &current[key];
-            }
-        }
-        current
     }
 }
 

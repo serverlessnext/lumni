@@ -489,8 +489,7 @@ impl ConfigItemManager {
                         SettingsAction::SaveNewValue => {
                             self.save_new_value(&item).await?
                         }
-                        SettingsAction::CloseSection
-                        | SettingsAction::ToggleSection => {
+                        SettingsAction::ToggleSection => {
                             // Section is already opened in SettingsEditor, just update UI
                         }
                     }
@@ -898,8 +897,16 @@ impl ConfigItemManager {
                     let indent = "  ".repeat(*depth);
                     let is_editable = !key.starts_with("__");
 
-                    // Extract the last part of the key
-                    let display_key = key.split('.').last().unwrap_or(key);
+                    // Get display name if available, otherwise use the last part of the key
+                    let display_name = if let JsonValue::Object(obj) = value {
+                        obj.get("__display_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_else(|| {
+                                key.split('.').last().unwrap_or(key)
+                            })
+                    } else {
+                        key.split('.').last().unwrap_or(key)
+                    };
 
                     let key_style = if key == &settings_editor.current_field {
                         Style::default()
@@ -912,7 +919,7 @@ impl ConfigItemManager {
                     };
 
                     let key_span = Span::styled(
-                        format!("{}{}: ", indent, display_key),
+                        format!("{}{}: ", indent, display_name),
                         key_style,
                     );
 
@@ -941,7 +948,6 @@ impl ConfigItemManager {
                     ListItem::new(Line::from(vec![key_span, value_span]))
                 })
                 .collect();
-
             if settings_editor.edit_mode == EditMode::AddingNewKey {
                 let secure_indicator = if settings_editor.is_new_value_secure()
                 {
@@ -982,28 +988,11 @@ impl ConfigItemManager {
                 )])));
             }
 
-            let mut title = format!(
+            let title = format!(
                 "{} Settings: {}",
                 item.item_type(),
                 <ConfigItem as SettingsItem>::name(item)
             );
-            if !settings_editor.current_path.is_empty() {
-                let path_display: Vec<String> = settings_editor
-                    .current_path
-                    .iter()
-                    .map(|key| {
-                        if key.starts_with("__section.") {
-                            let section_type =
-                                key.split('.').nth(1).unwrap_or("Unknown");
-                            section_type.to_string().capitalize()
-                        } else {
-                            key.clone()
-                        }
-                    })
-                    .collect();
-                title = format!("{} > {}", title, path_display.join(" > "));
-            }
-
             let list = List::new(items)
                 .block(Block::default().borders(Borders::ALL).title(title))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))

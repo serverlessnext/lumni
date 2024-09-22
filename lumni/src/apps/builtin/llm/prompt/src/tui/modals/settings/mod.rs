@@ -25,8 +25,8 @@ use super::{
     ApplicationError, ChatSessionManager, ConversationDbHandler,
     ConversationEvent, DatabaseConfigurationItem, KeyTrack, MaskMode,
     ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec,
-    ReadDocument, ServerTrait, SimpleString, TextLine, UserProfile,
-    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    ReadDocument, ServerTrait, TextLine, UserProfile, UserProfileDbHandler,
+    WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -338,22 +338,6 @@ impl ConfigItemCreator {
             }
         };
         Ok(Self { creator })
-    }
-}
-
-trait Capitalize {
-    fn capitalize(&self) -> String;
-}
-
-impl Capitalize for str {
-    fn capitalize(&self) -> String {
-        let mut chars = self.chars();
-        match chars.next() {
-            None => String::new(),
-            Some(first) => {
-                first.to_uppercase().collect::<String>() + chars.as_str()
-            }
-        }
     }
 }
 

@@ -19,7 +19,7 @@ pub struct ProviderCreator {
     name: String,
     provider_type: String,
     model_identifier: Option<String>,
-    additional_settings: HashMap<String, ProviderConfigOptions>,
+    additional_settings: JsonValue,
     db_handler: UserProfileDbHandler,
     pub current_step: ProviderCreationStep,
     available_models: Vec<ModelSpec>,
@@ -40,7 +40,7 @@ impl ProviderCreator {
             name: String::new(),
             provider_type: String::new(),
             model_identifier: None,
-            additional_settings: HashMap::new(),
+            additional_settings: JsonValue::Object(serde_json::Map::new()),
             db_handler,
             current_step: ProviderCreationStep::EnterName,
             available_models: Vec::new(),
@@ -188,28 +188,33 @@ impl ProviderCreator {
         }
 
         // Additional Settings
-        if !self.additional_settings.is_empty() {
-            let mut settings_line = TextLine::new();
-            settings_line.add_segment(
-                "Additional Settings:",
-                Some(Style::default().add_modifier(Modifier::BOLD)),
-            );
-            lines.push(settings_line);
+        if let JsonValue::Object(settings) = &self.additional_settings {
+            if !settings.is_empty() {
+                let mut settings_line = TextLine::new();
+                settings_line.add_segment(
+                    "Additional Settings:",
+                    Some(Style::default().add_modifier(Modifier::BOLD)),
+                );
+                lines.push(settings_line);
 
-            for (key, setting) in &self.additional_settings {
-                let mut setting_line = TextLine::new();
-                setting_line.add_segment(
-                    format!("  {}: ", key),
-                    Some(Style::default().fg(Color::Yellow)),
-                );
-                setting_line.add_segment(
-                    &setting.value,
-                    Some(Style::default().fg(Color::Cyan)),
-                );
-                lines.push(setting_line);
+                for (key, setting) in settings {
+                    let mut setting_line = TextLine::new();
+                    setting_line.add_segment(
+                        format!("  {}: ", key),
+                        Some(Style::default().fg(Color::Yellow)),
+                    );
+                    if let Some(content) = setting.get("__content") {
+                        let content_str =
+                            content.as_str().unwrap_or("").to_string();
+                        setting_line.add_segment(
+                            content_str,
+                            Some(Style::default().fg(Color::Cyan)),
+                        );
+                    }
+                    lines.push(setting_line);
+                }
             }
         }
-
         lines
     }
 
@@ -331,66 +336,61 @@ impl ProviderCreator {
     }
 
     pub fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
-        let items: Vec<ListItem> = self
-            .additional_settings
-            .iter()
-            .map(|(key, setting)| {
-                let (key_style, value_style) =
-                    if Some(key) == self.current_setting_key.as_ref() {
-                        (
+        let items: Vec<ListItem> = if let JsonValue::Object(settings) =
+            &self.additional_settings
+        {
+            settings
+                .iter()
+                .map(|(key, value)| {
+                    let is_editable = !key.starts_with("__");
+                    let display_name = value
+                        .get("__display_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(key);
+
+                    let key_style =
+                        if Some(key) == self.current_setting_key.as_ref() {
                             Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::BOLD),
-                            if self.is_editing {
-                                Style::default().fg(Color::Cyan)
-                            } else {
-                                Style::default().fg(Color::Yellow)
-                            },
-                        )
+                                .bg(Color::Rgb(40, 40, 40))
+                                .fg(Color::White)
+                        } else if is_editable {
+                            Style::default().fg(Color::Cyan)
+                        } else {
+                            Style::default().fg(Color::DarkGray)
+                        };
+
+                    let key_span =
+                        Span::styled(format!("{}: ", display_name), key_style);
+
+                    let value_content = if self.is_editing
+                        && Some(key) == self.current_setting_key.as_ref()
+                        && is_editable
+                    {
+                        &self.edit_buffer
                     } else {
-                        (Style::default(), Style::default())
+                        value
+                            .get("__content")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
                     };
 
-                let key_content = format!("{}: ", setting.display_name);
-                let value_content = if self.is_editing
-                    && Some(key) == self.current_setting_key.as_ref()
-                {
-                    &self.edit_buffer
-                } else {
-                    &setting.value
-                };
+                    let value_span = Span::styled(
+                        value_content,
+                        if Some(key) == self.current_setting_key.as_ref() {
+                            Style::default()
+                                .bg(Color::Rgb(40, 40, 40))
+                                .fg(Color::White)
+                        } else {
+                            Style::default().fg(Color::White)
+                        },
+                    );
 
-                let simple_string = SimpleString::from(format!(
-                    "{}{}",
-                    key_content, value_content
-                ));
-                let wrapped_spans = simple_string.wrapped_spans(
-                    area.width as usize - 2,
-                    Some(key_style),
-                    None,
-                );
-
-                ListItem::new(
-                    wrapped_spans
-                        .into_iter()
-                        .map(|spans| {
-                            let mut line_spans = Vec::new();
-                            for (i, span) in spans.into_iter().enumerate() {
-                                if i == 0 && span.content == key_content {
-                                    line_spans.push(span);
-                                } else {
-                                    line_spans.push(Span::styled(
-                                        span.content,
-                                        value_style,
-                                    ));
-                                }
-                            }
-                            Line::from(line_spans)
-                        })
-                        .collect::<Vec<Line>>(),
-                )
-            })
-            .collect();
+                    ListItem::new(Line::from(vec![key_span, value_span]))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         let list = List::new(items)
             .block(
@@ -402,9 +402,13 @@ impl ProviderCreator {
             .highlight_symbol("> ");
 
         let mut state = ListState::default();
-        state.select(self.current_setting_key.as_ref().and_then(|key| {
-            self.additional_settings.keys().position(|k| k == key)
-        }));
+        if let JsonValue::Object(settings) = &self.additional_settings {
+            state.select(
+                self.current_setting_key
+                    .as_ref()
+                    .and_then(|key| settings.keys().position(|k| k == key)),
+            );
+        }
 
         f.render_stateful_widget(list, area, &mut state);
     }
@@ -427,10 +431,15 @@ impl ProviderCreator {
                 Ok(CreatorAction::Continue)
             }
             ProviderCreationStep::ConfirmCreate => {
-                if self.additional_settings.is_empty() {
-                    self.current_step = ProviderCreationStep::SelectModel;
+                if let JsonValue::Object(settings) = &self.additional_settings {
+                    if settings.is_empty() {
+                        self.current_step = ProviderCreationStep::SelectModel;
+                    } else {
+                        self.current_step =
+                            ProviderCreationStep::ConfigureSettings;
+                    }
                 } else {
-                    self.current_step = ProviderCreationStep::ConfigureSettings;
+                    self.current_step = ProviderCreationStep::SelectModel;
                 }
                 Ok(CreatorAction::Continue)
             }
@@ -550,7 +559,7 @@ impl ProviderCreator {
         Ok(CreatorAction::Continue)
     }
 
-    fn handle_configure_settings(
+    pub fn handle_configure_settings(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
@@ -608,29 +617,36 @@ impl ProviderCreator {
     }
 
     fn move_setting_selection(&mut self, delta: i32) {
-        let keys: Vec<_> = self.additional_settings.keys().collect();
-        if keys.is_empty() {
-            // No settings to select, so we can't move the selection
-            return;
+        if let Some(settings) = self.additional_settings.as_object() {
+            let keys: Vec<_> = settings.keys().collect();
+            if keys.is_empty() {
+                return;
+            }
+
+            let current_index = self
+                .current_setting_key
+                .as_ref()
+                .and_then(|key| keys.iter().position(|&k| k == key))
+                .unwrap_or(0);
+
+            let keys_len = keys.len() as i32;
+            let new_index = (((current_index as i32 + delta) % keys_len)
+                + keys_len)
+                % keys_len;
+
+            self.current_setting_key =
+                Some(keys[new_index as usize].to_string());
         }
-
-        let current_index = self
-            .current_setting_key
-            .as_ref()
-            .and_then(|key| keys.iter().position(|&k| k == key))
-            .unwrap_or(0);
-
-        let keys_len = keys.len() as i32;
-        let new_index =
-            (((current_index as i32 + delta) % keys_len) + keys_len) % keys_len;
-
-        self.current_setting_key = Some(keys[new_index as usize].clone());
     }
 
     fn start_editing_current_setting(&mut self) {
         if let Some(key) = &self.current_setting_key {
             if let Some(setting) = self.additional_settings.get(key) {
-                self.edit_buffer = setting.value.clone();
+                self.edit_buffer = setting
+                    .get("__content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 self.is_editing = true;
             }
         }
@@ -639,15 +655,21 @@ impl ProviderCreator {
     fn save_current_setting(&mut self) {
         if let Some(key) = &self.current_setting_key {
             if let Some(setting) = self.additional_settings.get_mut(key) {
-                setting.value = self.edit_buffer.clone();
+                if let Some(content) = setting.get_mut("__content") {
+                    *content = JsonValue::String(self.edit_buffer.clone());
+                }
             }
         }
     }
 
     fn is_last_setting(&self) -> bool {
         if let Some(current_key) = &self.current_setting_key {
-            let keys: Vec<_> = self.additional_settings.keys().collect();
-            keys.last().map(|&k| k) == Some(current_key)
+            if let Some(settings) = self.additional_settings.as_object() {
+                let keys: Vec<_> = settings.keys().collect();
+                keys.last().map(|&k| k) == Some(current_key)
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -729,45 +751,18 @@ impl ProviderCreator {
     }
 
     pub fn prepare_additional_settings(&mut self, model_server: &ModelServer) {
-        self.additional_settings.clear();
-        let additional_settings = model_server.get_profile_settings();
-        if let JsonValue::Object(map) = additional_settings {
-            for (key, value) in map {
-                if !key.starts_with("__") {
-                    if let JsonValue::Object(setting_map) = value {
-                        let display_name = setting_map
-                            .get("__display_name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(&key)
-                            .to_string();
-                        let is_secure =
-                            setting_map.get("__encryption_key").is_some();
-                        let placeholder = setting_map
-                            .get("__placeholder")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        self.additional_settings.insert(
-                            key.clone(),
-                            ProviderConfigOptions {
-                                name: key.clone(),
-                                display_name,
-                                value: String::new(),
-                                is_secure,
-                                placeholder,
-                            },
-                        );
-                    }
-                }
-            }
-        }
+        self.additional_settings = model_server.provider_configuration();
 
-        if self.additional_settings.is_empty() {
-            self.current_step = ProviderCreationStep::ConfirmCreate;
+        if let JsonValue::Object(obj) = &self.additional_settings {
+            if obj.is_empty() {
+                self.current_step = ProviderCreationStep::ConfirmCreate;
+            } else {
+                self.current_step = ProviderCreationStep::ConfigureSettings;
+                self.current_setting_key = obj.keys().next().cloned();
+            }
         } else {
-            self.current_step = ProviderCreationStep::ConfigureSettings;
-            self.current_setting_key =
-                self.additional_settings.keys().next().cloned();
+            // Handle unexpected JsonValue type
+            self.current_step = ProviderCreationStep::ConfirmCreate;
         }
     }
 
@@ -788,7 +783,7 @@ impl ProviderCreator {
 
     fn create_provider_parameters(&self) -> serde_json::Value {
         json!({
-            "provider_type": self.provider_type,
+            "__type": self.provider_type,
             "model_identifier": self.model_identifier,
             "additional_settings": self.additional_settings,
         })
@@ -808,13 +803,4 @@ impl ProviderCreator {
 
         f.render_widget(paragraph, area);
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ProviderConfigOptions {
-    pub name: String,
-    pub display_name: String,
-    pub value: String,
-    pub is_secure: bool,
-    pub placeholder: String,
 }

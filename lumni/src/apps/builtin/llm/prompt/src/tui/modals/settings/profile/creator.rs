@@ -22,14 +22,14 @@ pub enum SubPartCreationState {
 
 pub struct ProfileCreator {
     new_profile_name: String,
-    pub creation_step: ProfileCreationStep,
+    creation_step: ProfileCreationStep,
     db_handler: UserProfileDbHandler,
-    pub background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
+    background_task: Option<mpsc::Receiver<BackgroundTaskResult>>,
     task_start_time: Option<Instant>,
     selected_provider: Option<ConfigItem>,
     provider_configs: Vec<ConfigItem>,
     selected_provider_index: usize,
-    pub sub_part_creation_state: SubPartCreationState,
+    sub_part_creation_state: SubPartCreationState,
     text_area: Option<TextArea<ReadDocument>>,
 }
 
@@ -57,7 +57,29 @@ impl ProfileCreator {
         })
     }
 
-    pub async fn handle_select_provider(
+    pub fn render_creator(&mut self, f: &mut Frame, area: Rect) {
+        match self.sub_part_creation_state {
+            SubPartCreationState::NotCreating => match self.creation_step {
+                ProfileCreationStep::EnterName => {
+                    self.render_enter_name(f, area)
+                }
+                ProfileCreationStep::SelectProvider => {
+                    self.render_select_provider(f, area)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.render_confirm_create(f, area)
+                }
+                ProfileCreationStep::CreatingProfile => {
+                    self.render_creating_profile(f, area)
+                }
+            },
+            SubPartCreationState::CreatingProvider(ref mut creator) => {
+                creator.render(f, area);
+            }
+        }
+    }
+
+    async fn handle_select_provider(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
@@ -135,7 +157,7 @@ impl ProfileCreator {
         Ok(CreatorAction::CreateItem)
     }
 
-    pub fn render_select_provider(&self, f: &mut Frame, area: Rect) {
+    fn render_select_provider(&self, f: &mut Frame, area: Rect) {
         let mut items: Vec<ListItem> = self
             .provider_configs
             .iter()
@@ -237,10 +259,12 @@ impl ProfileCreator {
                             format!("    • {}: ", key),
                             Some(Style::default().fg(Color::Yellow)),
                         );
-                        setting_line.add_segment(
-                            value.as_str().unwrap_or("").to_string(),
-                            Some(Style::default().fg(Color::Cyan)),
-                        );
+                        if let Some(content) = value.get("__content") {
+                            setting_line.add_segment(
+                                content.as_str().unwrap_or("").to_string(),
+                                Some(Style::default().fg(Color::Cyan)),
+                            );
+                        }
                         lines.push(setting_line);
                     }
                 }
@@ -364,7 +388,7 @@ impl ProfileCreator {
         self.text_area = Some(TextArea::with_read_document(Some(text_lines)));
     }
 
-    pub fn handle_confirm_create(
+    fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
@@ -419,7 +443,7 @@ impl ProfileCreator {
         result
     }
 
-    pub fn render_enter_name(&self, f: &mut Frame, area: Rect) {
+    fn render_enter_name(&self, f: &mut Frame, area: Rect) {
         let input = Paragraph::new(self.new_profile_name.as_str())
             .style(Style::default().fg(Color::Yellow))
             .block(
@@ -430,7 +454,7 @@ impl ProfileCreator {
         f.render_widget(input, area);
     }
 
-    pub fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
+    fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(3)])
@@ -483,7 +507,7 @@ impl ProfileCreator {
         f.render_widget(create_button, button_chunks[1]);
     }
 
-    pub fn go_to_previous_step(
+    fn go_to_previous_step(
         &mut self,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match self.creation_step {
@@ -503,7 +527,7 @@ impl ProfileCreator {
         }
     }
 
-    pub fn render_creating_profile(&self, f: &mut Frame, area: Rect) {
+    fn render_creating_profile(&self, f: &mut Frame, area: Rect) {
         let elapsed = self
             .task_start_time
             .map(|start| start.elapsed().as_secs())

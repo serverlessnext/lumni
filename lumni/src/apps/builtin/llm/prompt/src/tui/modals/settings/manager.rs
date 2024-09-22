@@ -180,25 +180,7 @@ impl Creator<ConfigItem> for ProfileCreator {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect) {
-        match self.sub_part_creation_state {
-            SubPartCreationState::NotCreating => match self.creation_step {
-                ProfileCreationStep::EnterName => {
-                    self.render_enter_name(f, area)
-                }
-                ProfileCreationStep::SelectProvider => {
-                    self.render_select_provider(f, area)
-                }
-                ProfileCreationStep::ConfirmCreate => {
-                    self.render_confirm_create(f, area)
-                }
-                ProfileCreationStep::CreatingProfile => {
-                    self.render_creating_profile(f, area)
-                }
-            },
-            SubPartCreationState::CreatingProvider(ref mut creator) => {
-                creator.render(f, area);
-            }
-        }
+        self.render_creator(f, area);
     }
 
     async fn create_item(
@@ -234,35 +216,18 @@ impl Creator<ConfigItem> for ProviderCreator {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect) {
-        match self.current_step {
-            ProviderCreationStep::EnterName => self.render_enter_name(f, area),
-            ProviderCreationStep::SelectProviderType => {
-                self.render_select_provider_type(f, area)
-            }
-            ProviderCreationStep::SelectModel => {
-                self.render_select_model(f, area)
-            }
-            ProviderCreationStep::ConfigureSettings => {
-                self.render_configure_settings(f, area)
-            }
-            ProviderCreationStep::ConfirmCreate => {
-                self.render_confirm_create(f, area)
-            }
-            ProviderCreationStep::CreatingProvider => {
-                self.render_creating_provider(f, area)
-            }
-        }
+        self.render_creator(f, area);
     }
 
     async fn create_item(
         &mut self,
     ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-        self.current_step = ProviderCreationStep::CreatingProvider;
+        self.set_current_step(ProviderCreationStep::CreatingProvider);
         match self.create_provider().await {
             Ok(new_config) => Ok(CreatorAction::Finish(new_config)),
             Err(e) => {
                 log::error!("Failed to create provider: {}", e);
-                self.current_step = ProviderCreationStep::ConfirmCreate;
+                self.set_current_step(ProviderCreationStep::ConfirmCreate);
                 Ok(CreatorAction::Continue)
             }
         }
@@ -518,7 +483,9 @@ impl ConfigItemManager {
         current_tab: ConfigTab,
     ) -> Result<WindowMode, ApplicationError> {
         if let Some(creator) = &mut self.creator {
+            eprintln!("Handling creation input");
             let action = creator.handle_input(key_event).await?;
+            eprintln!("Action: {:?}", action);
             match action {
                 CreatorAction::Continue => {
                     Ok(WindowMode::Modal(ModalEvent::UpdateUI))

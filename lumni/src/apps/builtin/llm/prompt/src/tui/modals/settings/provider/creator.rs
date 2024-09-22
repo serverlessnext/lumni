@@ -4,7 +4,7 @@ use serde_json::{json, Value as JsonValue};
 
 use super::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProviderCreationStep {
     EnterName,
     SelectProviderType,
@@ -21,7 +21,7 @@ pub struct ProviderCreator {
     model_identifier: Option<String>,
     additional_settings: JsonValue,
     db_handler: UserProfileDbHandler,
-    pub current_step: ProviderCreationStep,
+    current_step: ProviderCreationStep,
     available_models: Vec<ModelSpec>,
     current_setting_key: Option<String>,
     edit_buffer: String,
@@ -54,7 +54,11 @@ impl ProviderCreator {
         })
     }
 
-    pub fn render(&mut self, f: &mut Frame, area: Rect) {
+    pub fn set_current_step(&mut self, step: ProviderCreationStep) {
+        self.current_step = step;
+    }
+
+    pub fn render_creator(&mut self, f: &mut Frame, area: Rect) {
         match self.current_step {
             ProviderCreationStep::EnterName => self.render_enter_name(f, area),
             ProviderCreationStep::SelectProviderType => {
@@ -75,7 +79,7 @@ impl ProviderCreator {
         }
     }
 
-    pub fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
+    fn render_confirm_create(&mut self, f: &mut Frame, area: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(3)])
@@ -222,26 +226,26 @@ impl ProviderCreator {
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-        match input.code {
-            KeyCode::Esc => {
-                if self.current_step == ProviderCreationStep::ConfirmCreate {
-                    self.text_area = None;
-                }
-                return self.go_to_previous_step();
-            }
-            KeyCode::Backspace => match self.current_step {
-                ProviderCreationStep::EnterName if !self.name.is_empty() => {
-                    self.name.pop();
-                    return Ok(CreatorAction::Continue);
-                }
-                ProviderCreationStep::ConfirmCreate => {
-                    self.text_area = None;
-                    return self.go_to_previous_step();
-                }
-                _ => return self.go_to_previous_step(),
-            },
-            _ => {}
-        }
+        //        match input.code {
+        //            KeyCode::Esc => {
+        //                if self.current_step == ProviderCreationStep::ConfirmCreate {
+        //                    self.text_area = None;
+        //                }
+        //                return self.go_to_previous_step();
+        //            }
+        //            KeyCode::Backspace => match self.current_step {
+        //                ProviderCreationStep::EnterName if !self.name.is_empty() => {
+        //                    self.name.pop();
+        //                    return Ok(CreatorAction::Continue);
+        //                }
+        //                ProviderCreationStep::ConfirmCreate => {
+        //                    self.text_area = None;
+        //                    return self.go_to_previous_step();
+        //                }
+        //                _ => return self.go_to_previous_step(),
+        //            },
+        //            _ => {}
+        //        }
 
         match self.current_step {
             ProviderCreationStep::EnterName => self.handle_enter_name(input),
@@ -263,7 +267,7 @@ impl ProviderCreator {
         }
     }
 
-    pub fn render_enter_name(&self, f: &mut Frame, area: Rect) {
+    fn render_enter_name(&self, f: &mut Frame, area: Rect) {
         let input = Paragraph::new(self.name.as_str())
             .style(Style::default().fg(Color::Yellow))
             .block(
@@ -274,7 +278,7 @@ impl ProviderCreator {
         f.render_widget(input, area);
     }
 
-    pub fn render_select_provider_type(&self, f: &mut Frame, area: Rect) {
+    fn render_select_provider_type(&self, f: &mut Frame, area: Rect) {
         let provider_types: Vec<String> = SUPPORTED_MODEL_ENDPOINTS
             .iter()
             .map(|s| s.to_string())
@@ -314,7 +318,7 @@ impl ProviderCreator {
         f.render_stateful_widget(list, area, &mut state);
     }
 
-    pub fn render_select_model(&mut self, f: &mut Frame, area: Rect) {
+    fn render_select_model(&mut self, f: &mut Frame, area: Rect) {
         if let Some(error_message) = &self.model_fetch_error {
             let mut error_text_area =
                 TextArea::with_read_document(Some(vec![TextLine::from_text(
@@ -335,7 +339,7 @@ impl ProviderCreator {
         }
     }
 
-    pub fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
+    fn render_configure_settings(&self, f: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = if let JsonValue::Object(settings) =
             &self.additional_settings
         {
@@ -348,24 +352,20 @@ impl ProviderCreator {
                         .and_then(|v| v.as_str())
                         .unwrap_or(key);
 
-                    let key_style =
-                        if Some(key) == self.current_setting_key.as_ref() {
-                            Style::default()
-                                .bg(Color::Rgb(40, 40, 40))
-                                .fg(Color::White)
-                        } else if is_editable {
-                            Style::default().fg(Color::Cyan)
-                        } else {
-                            Style::default().fg(Color::DarkGray)
-                        };
+                    let is_current =
+                        Some(key) == self.current_setting_key.as_ref();
+                    let is_editing = self.is_editing && is_current;
+
+                    let key_style = if is_editable {
+                        Style::default().fg(Color::Cyan)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    };
 
                     let key_span =
                         Span::styled(format!("{}: ", display_name), key_style);
 
-                    let value_content = if self.is_editing
-                        && Some(key) == self.current_setting_key.as_ref()
-                        && is_editable
-                    {
+                    let value_content = if is_editing {
                         &self.edit_buffer
                     } else {
                         value
@@ -374,16 +374,13 @@ impl ProviderCreator {
                             .unwrap_or("")
                     };
 
-                    let value_span = Span::styled(
-                        value_content,
-                        if Some(key) == self.current_setting_key.as_ref() {
-                            Style::default()
-                                .bg(Color::Rgb(40, 40, 40))
-                                .fg(Color::White)
-                        } else {
-                            Style::default().fg(Color::White)
-                        },
-                    );
+                    let value_style = if is_editing {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default().fg(Color::White)
+                    };
+
+                    let value_span = Span::styled(value_content, value_style);
 
                     ListItem::new(Line::from(vec![key_span, value_span]))
                 })
@@ -392,14 +389,22 @@ impl ProviderCreator {
             Vec::new()
         };
 
+        let highlight_style = if self.is_editing {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Yellow)
+        };
+
         let list = List::new(items)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .title("Configure Settings"),
             )
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-            .highlight_symbol("> ");
+            .highlight_style(highlight_style)
+            .highlight_symbol(">");
 
         let mut state = ListState::default();
         if let JsonValue::Object(settings) = &self.additional_settings {
@@ -450,7 +455,7 @@ impl ProviderCreator {
         }
     }
 
-    pub fn handle_enter_name(
+    fn handle_enter_name(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
@@ -466,6 +471,15 @@ impl ProviderCreator {
                 }
                 Ok(CreatorAction::Continue)
             }
+            KeyCode::Backspace => {
+                if !self.name.is_empty() {
+                    self.name.pop();
+                    Ok(CreatorAction::Continue)
+                } else {
+                    self.go_to_previous_step()
+                }
+            }
+            KeyCode::Esc => self.go_to_previous_step(),
             _ => Ok(CreatorAction::Continue),
         }
     }
@@ -511,6 +525,9 @@ impl ProviderCreator {
                     self.load_models().await?;
                 }
             }
+            KeyCode::Esc | KeyCode::Backspace => {
+                return self.go_to_previous_step()
+            }
             _ => {}
         }
         Ok(CreatorAction::Continue)
@@ -531,7 +548,16 @@ impl ProviderCreator {
                     list_widget.move_selection(&mut self.model_list_state, 1);
                 }
             }
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Tab => {
+                // Skip model selection if there's an error or no models available
+                if self.model_fetch_error.is_some() || self.model_list.is_none()
+                {
+                    let model_server =
+                        ModelServer::from_str(&self.provider_type)?;
+                    self.prepare_additional_settings(&model_server);
+                    return Ok(CreatorAction::LoadAdditionalSettings);
+                }
+
                 if let Some(list_widget) = &self.model_list {
                     if let Some(model_name) = list_widget
                         .get_selected_item_content(&self.model_list_state)
@@ -544,15 +570,8 @@ impl ProviderCreator {
                     }
                 }
             }
-            KeyCode::Tab => {
-                // Skip model selection if there's an error or no models available
-                if self.model_fetch_error.is_some() || self.model_list.is_none()
-                {
-                    let model_server =
-                        ModelServer::from_str(&self.provider_type)?;
-                    self.prepare_additional_settings(&model_server);
-                    return Ok(CreatorAction::LoadAdditionalSettings);
-                }
+            KeyCode::Esc | KeyCode::Backspace => {
+                return self.go_to_previous_step()
             }
             _ => {}
         }
@@ -607,6 +626,51 @@ impl ProviderCreator {
             KeyCode::Backspace => {
                 if self.is_editing {
                     self.edit_buffer.pop();
+                    if self.edit_buffer.is_empty() {
+                        // Exit editing mode when the buffer becomes empty
+                        self.save_current_setting();
+                        self.is_editing = false;
+                    }
+                } else {
+                    return self.go_to_previous_step();
+                }
+            }
+            KeyCode::Esc => {
+                if self.is_editing {
+                    let was_empty = if let Some(key) = &self.current_setting_key
+                    {
+                        if let Some(setting) = self.additional_settings.get(key)
+                        {
+                            setting
+                                .get("__content")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.is_empty())
+                                .unwrap_or(true)
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    };
+
+                    if was_empty {
+                        // If the previous content was empty, save the current edit
+                        self.save_current_setting();
+                    } else {
+                        // If not empty, restore the original content
+                        if let Some(key) = &self.current_setting_key {
+                            if let Some(setting) =
+                                self.additional_settings.get(key)
+                            {
+                                self.edit_buffer = setting
+                                    .get("__content")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                            }
+                        }
+                    }
+                    self.is_editing = false;
                 } else {
                     return self.go_to_previous_step();
                 }
@@ -694,7 +758,7 @@ impl ProviderCreator {
                     }
                 }
             }
-            KeyCode::Esc => {
+            KeyCode::Esc | KeyCode::Backspace => {
                 self.text_area = None;
                 self.go_to_previous_step()
             }
@@ -751,14 +815,24 @@ impl ProviderCreator {
     }
 
     pub fn prepare_additional_settings(&mut self, model_server: &ModelServer) {
-        self.additional_settings = model_server.provider_configuration();
+        // Only initialize additional_settings if it's empty
+        if self
+            .additional_settings
+            .as_object()
+            .map_or(true, |obj| obj.is_empty())
+        {
+            self.additional_settings = model_server.provider_configuration();
+        }
 
         if let JsonValue::Object(obj) = &self.additional_settings {
             if obj.is_empty() {
                 self.current_step = ProviderCreationStep::ConfirmCreate;
             } else {
                 self.current_step = ProviderCreationStep::ConfigureSettings;
-                self.current_setting_key = obj.keys().next().cloned();
+                // Only set current_setting_key if it's not already set
+                if self.current_setting_key.is_none() {
+                    self.current_setting_key = obj.keys().next().cloned();
+                }
             }
         } else {
             // Handle unexpected JsonValue type
@@ -789,7 +863,7 @@ impl ProviderCreator {
         })
     }
 
-    pub fn render_creating_provider(&self, f: &mut Frame, area: Rect) {
+    fn render_creating_provider(&self, f: &mut Frame, area: Rect) {
         let content = format!("Creating provider '{}'...", self.name);
 
         let paragraph = Paragraph::new(content)

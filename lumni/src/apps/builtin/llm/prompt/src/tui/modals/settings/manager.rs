@@ -792,7 +792,7 @@ impl ConfigItemManager {
         Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
 
-    pub fn render_list(&self, f: &mut Frame, area: Rect) {
+    pub fn render_list(&self, f: &mut Frame, area: Rect, tab_focus: TabFocus) {
         let items: Vec<ListItem> = self
             .list
             .get_items()
@@ -824,6 +824,13 @@ impl ConfigItemManager {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .border_style(Style::default().fg(
+                        if tab_focus == TabFocus::List {
+                            Color::Yellow
+                        } else {
+                            Color::Gray
+                        },
+                    ))
                     .title(self.get_list_title()),
             )
             .highlight_style(Style::default().add_modifier(Modifier::BOLD))
@@ -849,141 +856,31 @@ impl ConfigItemManager {
         }
     }
 
-    pub fn render_settings(&self, f: &mut Frame, area: Rect) {
-        let item = self.list.get_selected_item();
-        let settings_editor = &self.settings_editor;
+    pub fn render_settings(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        tab_focus: TabFocus,
+    ) {
+        let block = Block::default().borders(Borders::ALL).border_style(
+            Style::default().fg(if tab_focus == TabFocus::Settings {
+                Color::Yellow
+            } else {
+                Color::Gray
+            }),
+        );
 
-        if let Some(item) = item {
-            let flattened_settings = settings_editor.get_flattened_settings();
-            let mut visible_items: Vec<(&String, &JsonValue, &usize)> =
-                Vec::new();
-            let mut selected_index = 0;
-            let mut found_selected = false;
-
-            for (key, value, depth) in flattened_settings.iter() {
-                let last_part = key.split('.').last().unwrap_or(key);
-                if !last_part.starts_with("__") {
-                    if !found_selected && key == &settings_editor.current_field
-                    {
-                        selected_index = visible_items.len();
-                        found_selected = true;
-                    }
-                    visible_items.push((key, value, depth));
-                }
-            }
-
-            let mut items: Vec<ListItem> = visible_items
-                .into_iter()
-                .map(|(key, value, depth)| {
-                    let indent = "  ".repeat(*depth);
-                    let is_editable = !key.starts_with("__");
-
-                    // Get display name if available, otherwise use the last part of the key
-                    let display_name = if let JsonValue::Object(obj) = value {
-                        obj.get("__display_name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_else(|| {
-                                key.split('.').last().unwrap_or(key)
-                            })
-                    } else {
-                        key.split('.').last().unwrap_or(key)
-                    };
-
-                    let key_style = if key == &settings_editor.current_field {
-                        Style::default()
-                            .bg(Color::Rgb(40, 40, 40))
-                            .fg(Color::White)
-                    } else {
-                        Style::default().fg(Color::Cyan)
-                    };
-
-                    let key_span = Span::styled(
-                        format!("{}{}: ", indent, display_name),
-                        key_style,
-                    );
-
-                    let value_span = if settings_editor.edit_mode
-                        == EditMode::EditingValue
-                        && key == &settings_editor.current_field
-                        && is_editable
-                    {
-                        Span::styled(
-                            settings_editor.get_edit_buffer(),
-                            Style::default()
-                                .bg(Color::Rgb(40, 40, 40))
-                                .fg(Color::White),
-                        )
-                    } else {
-                        let mut span =
-                            settings_editor.get_display_value_span(value);
-                        if span.style.fg == Some(Color::DarkGray) {
-                            // dont override style if already set to DarkGray (non-editable)
-                        } else if !is_editable {
-                            // override style for non-editable fields
-                            span.style = Style::default().fg(Color::DarkGray);
-                        } else if key == &settings_editor.current_field {
-                            // override style for (editable) selected field
-                            span.style = Style::default()
-                                .bg(Color::Rgb(40, 40, 40))
-                                .fg(Color::White);
-                        }
-                        span
-                    };
-
-                    ListItem::new(Line::from(vec![key_span, value_span]))
-                })
-                .collect();
-
-            // Add new key input field if in AddingNewKey mode
-            if settings_editor.edit_mode == EditMode::AddingNewKey {
-                let secure_indicator = if settings_editor.is_new_value_secure()
-                {
-                    "🔒 "
-                } else {
-                    ""
-                };
-                items.push(ListItem::new(Line::from(vec![Span::styled(
-                    format!(
-                        "{}New key: {}",
-                        secure_indicator,
-                        settings_editor.get_new_key_buffer()
-                    ),
-                    Style::default()
-                        .bg(Color::Rgb(40, 40, 40))
-                        .fg(Color::White),
-                )])));
-                selected_index = items.len() - 1;
-            }
-
-            // Add new value input field if in AddingNewValue mode
-            if settings_editor.edit_mode == EditMode::AddingNewValue {
-                let secure_indicator = if settings_editor.is_new_value_secure()
-                {
-                    "🔒 "
-                } else {
-                    ""
-                };
-                items.push(ListItem::new(Line::from(vec![Span::styled(
-                    format!(
-                        "{}{}: {}",
-                        secure_indicator,
-                        settings_editor.get_new_key_buffer(),
-                        settings_editor.get_edit_buffer()
-                    ),
-                    Style::default()
-                        .bg(Color::Rgb(40, 40, 40))
-                        .fg(Color::White),
-                )])));
-                selected_index = items.len() - 1;
-            }
+        if let Some(item) = self.list.get_selected_item() {
+            let (items, selected_index) = self.prepare_settings_items(item);
 
             let title = format!(
                 "{} Settings: {}",
                 item.item_type(),
                 <ConfigItem as SettingsItem>::name(item)
             );
+
             let list = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title(title))
+                .block(block.title(title))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
 
@@ -992,11 +889,128 @@ impl ConfigItemManager {
 
             f.render_stateful_widget(list, area, &mut state);
         } else {
-            let paragraph = Paragraph::new("No item selected").block(
-                Block::default().borders(Borders::ALL).title("Settings"),
-            );
+            let paragraph = Paragraph::new("No item selected")
+                .block(block.title("Settings"));
             f.render_widget(paragraph, area);
         }
+    }
+
+    fn prepare_settings_items(
+        &self,
+        item: &ConfigItem,
+    ) -> (Vec<ListItem>, usize) {
+        let settings_editor = &self.settings_editor;
+        let flattened_settings = settings_editor.get_flattened_settings();
+        let mut visible_items: Vec<(&String, &JsonValue, &usize)> = Vec::new();
+        let mut selected_index = 0;
+        let mut found_selected = false;
+
+        for (key, value, depth) in flattened_settings.iter() {
+            let last_part = key.split('.').last().unwrap_or(key);
+            if !last_part.starts_with("__") {
+                if !found_selected && key == &settings_editor.current_field {
+                    selected_index = visible_items.len();
+                    found_selected = true;
+                }
+                visible_items.push((key, value, depth));
+            }
+        }
+
+        let mut items: Vec<ListItem> = visible_items
+            .into_iter()
+            .map(|(key, value, depth)| {
+                let indent = "  ".repeat(*depth);
+                let is_editable = !key.starts_with("__");
+
+                let display_name = if let JsonValue::Object(obj) = value {
+                    obj.get("__display_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_else(|| key.split('.').last().unwrap_or(key))
+                } else {
+                    key.split('.').last().unwrap_or(key)
+                };
+
+                let key_style = if key == &settings_editor.current_field {
+                    Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White)
+                } else {
+                    Style::default().fg(Color::Cyan)
+                };
+
+                let key_span = Span::styled(
+                    format!("{}{}: ", indent, display_name),
+                    key_style,
+                );
+
+                let value_span = if settings_editor.edit_mode
+                    == EditMode::EditingValue
+                    && key == &settings_editor.current_field
+                    && is_editable
+                {
+                    Span::styled(
+                        settings_editor.get_edit_buffer(),
+                        Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White),
+                    )
+                } else {
+                    let mut span =
+                        settings_editor.get_display_value_span(value);
+                    if span.style.fg == Some(Color::DarkGray) {
+                        // dont override style if already set to DarkGray (non-editable)
+                    } else if !is_editable {
+                        // override style for non-editable fields
+                        span.style = Style::default().fg(Color::DarkGray);
+                    } else if key == &settings_editor.current_field {
+                        // override style for (editable) selected field
+                        span.style = Style::default()
+                            .bg(Color::Rgb(40, 40, 40))
+                            .fg(Color::White);
+                    }
+                    span
+                };
+
+                ListItem::new(Line::from(vec![key_span, value_span]))
+            })
+            .collect();
+
+        // Add new key input field if in AddingNewKey mode
+        if settings_editor.edit_mode == EditMode::AddingNewKey {
+            let secure_indicator = if settings_editor.is_new_value_secure() {
+                "🔒 "
+            } else {
+                ""
+            };
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!(
+                    "{}New key: {}",
+                    secure_indicator,
+                    settings_editor.get_new_key_buffer()
+                ),
+                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+            )])));
+            selected_index = items.len() - 1;
+        }
+
+        // Add new value input field if in AddingNewValue mode
+        if settings_editor.edit_mode == EditMode::AddingNewValue {
+            let secure_indicator = if settings_editor.is_new_value_secure() {
+                "🔒 "
+            } else {
+                ""
+            };
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!(
+                    "{}{}: {}",
+                    secure_indicator,
+                    settings_editor.get_new_key_buffer(),
+                    settings_editor.get_edit_buffer()
+                ),
+                Style::default().bg(Color::Rgb(40, 40, 40)).fg(Color::White),
+            )])));
+            selected_index = items.len() - 1;
+        }
+
+        (items, selected_index)
     }
 
     pub fn render_content(
@@ -1007,7 +1021,7 @@ impl ConfigItemManager {
     ) {
         match tab_focus {
             TabFocus::Settings | TabFocus::List => {
-                self.render_settings(f, area);
+                self.render_settings(f, area, tab_focus);
             }
             TabFocus::Creation => {
                 if let Some(creator) = &mut self.creator {

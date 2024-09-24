@@ -121,7 +121,11 @@ impl SettingsModal {
             .block(Block::default().borders(Borders::ALL))
             .select(tab_index)
             .style(Style::default().fg(Color::Cyan))
-            .highlight_style(Style::default().fg(Color::Yellow));
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            );
         f.render_widget(tabs, area);
     }
 
@@ -187,7 +191,8 @@ impl ModalWindowTrait for SettingsModal {
             ])
             .split(chunks[1]);
 
-        self.manager.render_list(frame, main_chunks[0]);
+        self.manager
+            .render_list(frame, main_chunks[0], self.tab_focus);
         self.manager
             .render_content(frame, main_chunks[1], self.tab_focus);
 

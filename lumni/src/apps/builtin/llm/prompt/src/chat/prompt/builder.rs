@@ -148,7 +148,10 @@ impl PromptInstructionBuilder {
                 }
                 Ok(_) => None,
                 Err(e) => {
-                    log::warn!("Failed to check if conversation is equal: {}", e);
+                    log::warn!(
+                        "Failed to check if conversation is equal: {}",
+                        e
+                    );
                     None
                 }
             }

@@ -31,6 +31,7 @@ pub struct ProfileCreator {
     selected_provider_index: usize,
     sub_part_creation_state: SubPartCreationState,
     text_area: Option<TextArea<ReadDocument>>,
+    editing_profile: Option<UserProfile>,
 }
 
 impl ProfileCreator {
@@ -54,7 +55,14 @@ impl ProfileCreator {
             selected_provider_index: 0,
             sub_part_creation_state: SubPartCreationState::NotCreating,
             text_area: None,
+            editing_profile: None,
         })
+    }
+
+    pub fn set_editing_mode(&mut self, profile: UserProfile) {
+        self.editing_profile = Some(profile.clone());
+        self.new_profile_name = profile.name.clone();
+        self.creation_step = ProfileCreationStep::SelectProvider;
     }
 
     pub fn render_creator(&mut self, f: &mut Frame, area: Rect) {
@@ -155,6 +163,46 @@ impl ProfileCreator {
         self.creation_step = ProfileCreationStep::CreatingProfile;
 
         Ok(CreatorAction::CreateItem)
+    }
+
+    pub async fn update_profile(
+        &mut self,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        if let (Some(profile), Some(ConfigItem::DatabaseConfig(config))) =
+            (&self.editing_profile, &self.selected_provider)
+        {
+            let mut profile_settings = json!({
+                "name": self.new_profile_name,
+                "provider_type": config.section
+            });
+
+            if let Ok(section_configuration) = self
+                .db_handler
+                .get_configuration_parameters(config, MaskMode::Unmask)
+                .await
+            {
+                let section_key = format!("__section.{}", config.section);
+                profile_settings[section_key] = section_configuration;
+            }
+
+            self.db_handler
+                .update_configuration_item(&profile.into(), &profile_settings)
+                .await?;
+
+            // Fetch the updated profile
+            let updated_profile =
+                self.db_handler.get_profile_by_id(profile.id).await?.ok_or(
+                    ApplicationError::InvalidState(
+                        "Updated profile not found".to_string(),
+                    ),
+                )?;
+
+            Ok(CreatorAction::Finish(updated_profile))
+        } else {
+            Err(ApplicationError::InvalidState(
+                "No profile or provider selected for update".to_string(),
+            ))
+        }
     }
 
     fn render_select_provider(&self, f: &mut Frame, area: Rect) {
@@ -319,7 +367,7 @@ impl ProfileCreator {
                         self.handle_select_provider(input).await
                     }
                     ProfileCreationStep::ConfirmCreate => {
-                        self.handle_confirm_create(input)
+                        self.handle_confirm_create(input).await
                     }
                     ProfileCreationStep::CreatingProfile => {
                         Ok(CreatorAction::Continue)
@@ -388,15 +436,19 @@ impl ProfileCreator {
         self.text_area = Some(TextArea::with_read_document(Some(text_lines)));
     }
 
-    fn handle_confirm_create(
+    async fn handle_confirm_create(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         match input.code {
             KeyCode::Enter => {
                 self.text_area = None;
-                self.creation_step = ProfileCreationStep::CreatingProfile;
-                Ok(CreatorAction::CreateItem)
+                if self.editing_profile.is_some() {
+                    self.update_profile().await
+                } else {
+                    self.creation_step = ProfileCreationStep::CreatingProfile;
+                    Ok(CreatorAction::CreateItem)
+                }
             }
             KeyCode::Esc => {
                 self.text_area = None;

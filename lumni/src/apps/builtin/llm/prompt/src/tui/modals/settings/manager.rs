@@ -462,17 +462,56 @@ impl ConfigItemManager {
             return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
         }
 
-        if self.settings_editor.edit_mode == EditMode::NotEditing
-            && (key_event.code == KeyCode::Left
-                || key_event.code == KeyCode::Char('q')
-                || key_event.code == KeyCode::Esc
-                || key_event.code == KeyCode::Tab)
-        {
-            *tab_focus = TabFocus::List;
-            return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
+        if self.settings_editor.edit_mode == EditMode::NotEditing {
+            match key_event.code {
+                KeyCode::Char('e') => {
+                    if let Some(current_field) = self
+                        .settings_editor
+                        .get_current_field()
+                        .split('.')
+                        .next()
+                    {
+                        if current_field == "__section" {
+                            return self
+                                .start_provider_selection(tab_focus)
+                                .await;
+                        }
+                    }
+                }
+                KeyCode::Left
+                | KeyCode::Char('q')
+                | KeyCode::Esc
+                | KeyCode::Tab => {
+                    *tab_focus = TabFocus::List;
+                    return Ok(WindowMode::Modal(ModalEvent::UpdateUI));
+                }
+                _ => {}
+            }
         }
 
         Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+    }
+
+    async fn start_provider_selection(
+        &mut self,
+        tab_focus: &mut TabFocus,
+    ) -> Result<WindowMode, ApplicationError> {
+        if let Some(ConfigItem::UserProfile(profile)) =
+            self.list.get_selected_item()
+        {
+            let mut creator =
+                ProfileCreator::new(self.db_handler.clone()).await?;
+            creator.set_editing_mode(profile.clone());
+
+            self.creator = Some(Box::new(creator));
+            *tab_focus = TabFocus::Creation;
+
+            Ok(WindowMode::Modal(ModalEvent::UpdateUI))
+        } else {
+            Err(ApplicationError::InvalidState(
+                "No profile selected".to_string(),
+            ))
+        }
     }
 
     async fn handle_creation_input(

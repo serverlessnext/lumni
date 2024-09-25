@@ -151,7 +151,6 @@ async fn interactive_mode(
 ) -> Result<(), ApplicationError> {
     let app = App::new(prompt_instruction, Arc::clone(&db_conn)).await?;
     let mut stdout = io::stdout().lock();
-
     // Enable raw mode and setup the screen
     if let Err(e) = enable_raw_mode() {
         execute!(stdout, Show, LeaveAlternateScreen)?;

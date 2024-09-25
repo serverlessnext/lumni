@@ -56,30 +56,36 @@ impl UserProfileDbHandler {
     pub async fn model_backend(
         &mut self,
     ) -> Result<Option<ModelBackend>, ApplicationError> {
-        let user_profile = self.profile.clone();
-
-        if let Some(profile) = user_profile {
+        if let Some(profile) = self.profile.clone() {
             self.unlock_profile_settings(&profile).await?;
             let settings = self
                 .get_configuration_parameters(&profile.into(), MaskMode::Unmask)
                 .await?;
 
-            let model_server = match settings
-                .get("__TEMPLATE.__MODEL_SERVER")
-                .and_then(|v| v.as_str())
+            let provider = match settings
+                .get("__section.provider")
+                .and_then(|v| v.as_object())
             {
-                Some(server) => server,
+                Some(provider) => provider,
                 None => return Ok(None),
             };
 
+            let model_server =
+                match provider.get("__type").and_then(|v| v.as_str()) {
+                    Some(server) => server,
+                    None => return Ok(None),
+                };
+
             let server = ModelServer::from_str(model_server)?;
 
-            let model = settings
-                .get("__TEMPLATE.MODEL_IDENTIFIER")
-                .and_then(|v| v.as_str())
-                .map(|identifier| ModelSpec::new_with_validation(identifier))
-                .transpose()?;
-
+            let model =
+                match provider.get("model_identifier").and_then(|v| v.as_str())
+                {
+                    Some(identifier) => {
+                        Some(ModelSpec::new_with_validation(identifier)?)
+                    }
+                    None => return Ok(None),
+                };
             Ok(Some(ModelBackend { server, model }))
         } else {
             Ok(None)

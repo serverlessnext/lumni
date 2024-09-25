@@ -107,7 +107,6 @@ impl PromptInstructionBuilder {
                     "Failed to get model backend".to_string(),
                 )
             })?;
-
         // TODO: assistant, user_options and instructions should be loaded from
         // the profile if not yet defined. Note that the current profile does not yet support
         // configuring these. Adding support within profile should be done first.
@@ -136,7 +135,6 @@ impl PromptInstructionBuilder {
             initial_messages: Some(initial_messages),
             parent: None,
         };
-
         let mut db_handler = self.db_conn.get_conversation_handler(None);
         let conversation_id = self.db_conn.fetch_last_conversation_id().await?;
 
@@ -149,7 +147,10 @@ impl PromptInstructionBuilder {
                     Some(PromptInstruction::from_reader(&db_handler).await?)
                 }
                 Ok(_) => None,
-                Err(e) => return Err(e.into()),
+                Err(e) => {
+                    log::warn!("Failed to check if conversation is equal: {}", e);
+                    None
+                }
             }
         } else {
             None
@@ -163,7 +164,6 @@ impl PromptInstructionBuilder {
                     .await?
             }
         };
-
         Ok(prompt_instruction)
     }
 }

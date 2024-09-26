@@ -1,5 +1,5 @@
-mod creator;
+mod provider;
 
-pub use creator::{ProviderCreationStep, ProviderCreator};
+pub use provider::{ProviderCreationStep, ProviderCreator};
 
 use super::*;

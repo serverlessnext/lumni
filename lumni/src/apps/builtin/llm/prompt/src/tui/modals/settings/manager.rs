@@ -2,9 +2,8 @@ use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
+use super::creators::{ProfileCreationStep, ProviderCreationStep};
 use super::list::ListItemTrait;
-use super::profile::ProfileCreationStep;
-use super::provider::ProviderCreationStep;
 use super::*;
 
 #[async_trait]
@@ -316,6 +315,26 @@ impl ConfigItemManager {
                     "Provider".to_string(),
                 )
             }
+            ConfigTab::Prompts => {
+                let prompts =
+                    self.db_handler.list_configuration_items("prompt").await?;
+                (
+                    prompts
+                        .into_iter()
+                        .map(|p| {
+                            ConfigItem::DatabaseConfig(
+                                DatabaseConfigurationItem {
+                                    id: p.id,
+                                    name: p.name,
+                                    section: "prompt".to_string(),
+                                },
+                            )
+                        })
+                        .collect(),
+                    None,
+                    "Prompt".to_string(),
+                )
+            }
         };
 
         self.list = if let Some(selected_item) = self.list.get_selected_item() {
@@ -623,6 +642,7 @@ impl ConfigItemManager {
         let creation_type = match current_tab {
             ConfigTab::Profiles => ConfigCreationType::UserProfile,
             ConfigTab::Providers => ConfigCreationType::Provider,
+            ConfigTab::Prompts => ConfigCreationType::Prompt,
         };
         self.creator = Some(Box::new(
             ConfigItemCreator::new(self.db_handler.clone(), creation_type)

@@ -14,9 +14,9 @@ use super::{
     ApplicationError, ChatSessionManager, Conversation, ConversationDbHandler,
     ConversationEvent, ConversationId, ConversationStatus,
     DatabaseConfigurationItem, KeyTrack, MaskMode, ModalEvent, ModelServer,
-    ModelSpec, ReadDocument, ServerTrait, TextLine, ThreadedChatSession,
-    UserEvent, UserProfile, UserProfileDbHandler, WindowMode,
-    SUPPORTED_MODEL_ENDPOINTS,
+    ModelSpec, ReadDocument, ReadWriteDocument, ServerTrait, TextLine,
+    ThreadedChatSession, UserEvent, UserProfile, UserProfileDbHandler,
+    WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug, Clone, PartialEq)]

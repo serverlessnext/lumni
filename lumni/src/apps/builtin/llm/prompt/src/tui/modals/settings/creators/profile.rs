@@ -10,6 +10,7 @@ use super::*;
 pub enum ProfileCreationStep {
     EnterName,
     SelectProvider,
+    SelectPrompt,
     ConfirmCreate,
     CreatingProfile,
 }
@@ -18,6 +19,7 @@ pub enum ProfileCreationStep {
 pub enum SubPartCreationState {
     NotCreating,
     CreatingProvider(ProviderCreator),
+    CreatingPrompt(PromptCreator),
 }
 
 pub struct ProfileCreator {
@@ -29,6 +31,9 @@ pub struct ProfileCreator {
     selected_provider: Option<ConfigItem>,
     provider_configs: Vec<ConfigItem>,
     selected_provider_index: usize,
+    selected_prompt: Option<ConfigItem>,
+    prompt_configs: Vec<ConfigItem>,
+    selected_prompt_index: usize,
     sub_part_creation_state: SubPartCreationState,
     text_area: Option<TextArea<ReadDocument>>,
     editing_profile: Option<UserProfile>,
@@ -44,6 +49,12 @@ impl ProfileCreator {
             .map(ConfigItem::DatabaseConfig)
             .collect();
 
+        let prompts = db_handler.list_configuration_items("prompt").await?;
+        let prompt_configs = prompts
+            .into_iter()
+            .map(ConfigItem::DatabaseConfig)
+            .collect();
+
         Ok(Self {
             new_profile_name: String::new(),
             creation_step: ProfileCreationStep::EnterName,
@@ -53,6 +64,9 @@ impl ProfileCreator {
             selected_provider: None,
             provider_configs,
             selected_provider_index: 0,
+            selected_prompt: None,
+            prompt_configs,
+            selected_prompt_index: 0,
             sub_part_creation_state: SubPartCreationState::NotCreating,
             text_area: None,
             editing_profile: None,
@@ -78,6 +92,9 @@ impl ProfileCreator {
                 ProfileCreationStep::SelectProvider => {
                     self.render_select_provider(f, area)
                 }
+                ProfileCreationStep::SelectPrompt => {
+                    self.render_select_prompt(f, area)
+                }
                 ProfileCreationStep::ConfirmCreate => {
                     self.render_confirm_create(f, area)
                 }
@@ -86,6 +103,9 @@ impl ProfileCreator {
                 }
             },
             SubPartCreationState::CreatingProvider(ref mut creator) => {
+                creator.render(f, area);
+            }
+            SubPartCreationState::CreatingPrompt(ref mut creator) => {
                 creator.render(f, area);
             }
         }
@@ -134,24 +154,73 @@ impl ProfileCreator {
         Ok(CreatorAction::Continue)
     }
 
+    fn render_select_provider(&self, f: &mut Frame, area: Rect) {
+        let mut items: Vec<ListItem> = self
+            .provider_configs
+            .iter()
+            .map(|config| {
+                if let ConfigItem::DatabaseConfig(config) = config {
+                    ListItem::new(format!(
+                        "{}: {}",
+                        config.name, config.section
+                    ))
+                } else {
+                    ListItem::new("Invalid config item")
+                }
+            })
+            .collect();
+
+        // Add "Create new Provider" option
+        items.push(
+            ListItem::new("Create new Provider")
+                .style(Style::default().fg(Color::Green)),
+        );
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Select Provider"),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+            .highlight_symbol("> ");
+
+        let mut state = ListState::default();
+        state.select(Some(self.selected_provider_index));
+
+        f.render_stateful_widget(list, area, &mut state);
+    }
+
     pub async fn create_profile(
         &mut self,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         let (tx, rx) = mpsc::channel(1);
         let mut db_handler = self.db_handler.clone();
         let new_profile_name = self.new_profile_name.clone();
-        let selected_config = self.selected_provider.clone();
+        let selected_provider = self.selected_provider.clone();
+        let selected_prompt = self.selected_prompt.clone();
 
         tokio::spawn(async move {
             let mut profile_settings = json!({});
 
-            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_config {
+            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_provider
+            {
                 if let Ok(section_configuration) = db_handler
                     .get_configuration_parameters(config, MaskMode::Unmask)
                     .await
                 {
                     let section_key = format!("__section.{}", config.section);
                     profile_settings[section_key] = section_configuration;
+                }
+            }
+
+            if let Some(ConfigItem::DatabaseConfig(config)) = &selected_prompt {
+                if let Ok(prompt_configuration) = db_handler
+                    .get_configuration_parameters(config, MaskMode::Unmask)
+                    .await
+                {
+                    let section_key = format!("__section.{}", config.section);
+                    profile_settings[section_key] = prompt_configuration;
                 }
             }
 
@@ -208,25 +277,65 @@ impl ProfileCreator {
         }
     }
 
-    fn render_select_provider(&self, f: &mut Frame, area: Rect) {
+    pub async fn handle_select_prompt(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        match input.code {
+            KeyCode::Up => {
+                if self.selected_prompt_index > 0 {
+                    self.selected_prompt_index -= 1;
+                } else {
+                    self.selected_prompt_index =
+                        self.prompt_configs.len().saturating_sub(1);
+                }
+            }
+            KeyCode::Down => {
+                if self.selected_prompt_index
+                    < self.prompt_configs.len().saturating_sub(1)
+                {
+                    self.selected_prompt_index += 1;
+                } else {
+                    self.selected_prompt_index = 0;
+                }
+            }
+            KeyCode::Enter => {
+                if self.selected_prompt_index == self.prompt_configs.len() {
+                    // "Create new Prompt" option selected
+                    let creator = PromptCreator::new(self.db_handler.clone());
+                    self.sub_part_creation_state =
+                        SubPartCreationState::CreatingPrompt(creator);
+                } else {
+                    // Existing prompt selected
+                    self.selected_prompt = Some(
+                        self.prompt_configs[self.selected_prompt_index].clone(),
+                    );
+                    return self.go_to_next_step().await;
+                }
+            }
+            KeyCode::Esc | KeyCode::Backspace => {
+                return self.go_to_previous_step();
+            }
+            _ => {}
+        };
+        Ok(CreatorAction::Continue)
+    }
+
+    pub fn render_select_prompt(&self, f: &mut Frame, area: Rect) {
         let mut items: Vec<ListItem> = self
-            .provider_configs
+            .prompt_configs
             .iter()
             .map(|config| {
                 if let ConfigItem::DatabaseConfig(config) = config {
-                    ListItem::new(format!(
-                        "{}: {}",
-                        config.name, config.section
-                    ))
+                    ListItem::new(config.name.clone())
                 } else {
                     ListItem::new("Invalid config item")
                 }
             })
             .collect();
 
-        // Add "Create new Provider" option
         items.push(
-            ListItem::new("Create new Provider")
+            ListItem::new("Create new Prompt")
                 .style(Style::default().fg(Color::Green)),
         );
 
@@ -234,13 +343,13 @@ impl ProfileCreator {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("Select Provider"),
+                    .title("Select Prompt"),
             )
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
             .highlight_symbol("> ");
 
         let mut state = ListState::default();
-        state.select(Some(self.selected_provider_index));
+        state.select(Some(self.selected_prompt_index));
 
         f.render_stateful_widget(list, area, &mut state);
     }
@@ -333,6 +442,50 @@ impl ProfileCreator {
             lines.push(no_provider_line);
         }
 
+        // sub config section (prompt)
+        if let Some(ConfigItem::DatabaseConfig(config)) = &self.selected_prompt
+        {
+            let mut prompt_line = TextLine::new();
+            prompt_line.add_segment(
+                "Prompt:",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            lines.push(prompt_line);
+
+            let mut name_line = TextLine::new();
+            name_line.add_segment(
+                format!("  Name: {}", config.name),
+                Some(Style::default().fg(Color::Cyan)),
+            );
+            lines.push(name_line);
+
+            if let Ok(settings) = self
+                .db_handler
+                .get_configuration_parameters(config, MaskMode::Mask)
+                .await
+            {
+                if let Some(content) = settings["content"].as_str() {
+                    let mut content_line = TextLine::new();
+                    content_line.add_segment(
+                        format!("  Content: {}", content),
+                        Some(Style::default().fg(Color::Cyan)),
+                    );
+                    lines.push(content_line);
+                }
+            }
+        } else {
+            let mut no_prompt_line = TextLine::new();
+            no_prompt_line.add_segment(
+                "Prompt: ",
+                Some(Style::default().add_modifier(Modifier::BOLD)),
+            );
+            no_prompt_line.add_segment(
+                "No prompt selected",
+                Some(Style::default().fg(Color::Red)),
+            );
+            lines.push(no_prompt_line);
+        }
+
         lines
     }
 }
@@ -368,6 +521,9 @@ impl ProfileCreator {
                     }
                     ProfileCreationStep::SelectProvider => {
                         self.handle_select_provider(input).await
+                    }
+                    ProfileCreationStep::SelectPrompt => {
+                        self.handle_select_prompt(input).await
                     }
                     ProfileCreationStep::ConfirmCreate => {
                         self.handle_confirm_create(input).await
@@ -407,6 +563,43 @@ impl ProfileCreator {
                             SubPartCreationState::NotCreating;
                         self.creation_step =
                             ProfileCreationStep::SelectProvider;
+                        Ok(CreatorAction::Continue)
+                    }
+                    _ => Ok(CreatorAction::Continue),
+                }
+            }
+            SubPartCreationState::CreatingPrompt(creator) => {
+                match input.code {
+                    KeyCode::Esc => {
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step = ProfileCreationStep::SelectPrompt;
+                        return Ok(CreatorAction::Continue);
+                    }
+                    _ => {}
+                }
+
+                let result = creator.handle_input(input).await?;
+                match result {
+                    CreatorAction::Finish(new_config) => {
+                        if let ConfigItem::DatabaseConfig(config) = new_config {
+                            self.prompt_configs.push(
+                                ConfigItem::DatabaseConfig(config.clone()),
+                            );
+                            self.selected_prompt =
+                                Some(ConfigItem::DatabaseConfig(config));
+                            self.selected_prompt_index =
+                                self.prompt_configs.len() - 1;
+                        }
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step = ProfileCreationStep::SelectPrompt;
+                        Ok(CreatorAction::Continue)
+                    }
+                    CreatorAction::Cancel => {
+                        self.sub_part_creation_state =
+                            SubPartCreationState::NotCreating;
+                        self.creation_step = ProfileCreationStep::SelectPrompt;
                         Ok(CreatorAction::Continue)
                     }
                     _ => Ok(CreatorAction::Continue),
@@ -581,8 +774,12 @@ impl ProfileCreator {
                     self.creation_step = ProfileCreationStep::EnterName;
                     Ok(CreatorAction::Continue)
                 }
-                ProfileCreationStep::ConfirmCreate => {
+                ProfileCreationStep::SelectPrompt => {
                     self.creation_step = ProfileCreationStep::SelectProvider;
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.creation_step = ProfileCreationStep::SelectPrompt;
                     Ok(CreatorAction::Continue)
                 }
                 ProfileCreationStep::CreatingProfile => {
@@ -598,6 +795,7 @@ impl ProfileCreator {
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
         if self.editing_profile.is_some() {
             self.creation_step = ProfileCreationStep::ConfirmCreate;
+            // Initialize the confirm state in final step
             self.initialize_confirm_create_state().await;
             Ok(CreatorAction::Continue)
         } else {
@@ -611,7 +809,12 @@ impl ProfileCreator {
                     Ok(CreatorAction::Continue)
                 }
                 ProfileCreationStep::SelectProvider => {
+                    self.creation_step = ProfileCreationStep::SelectPrompt;
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::SelectPrompt => {
                     self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    // Initialize the confirm state in final step
                     self.initialize_confirm_create_state().await;
                     Ok(CreatorAction::Continue)
                 }

@@ -1,15 +1,13 @@
+mod creators;
 mod list;
 mod manager;
-mod profile;
-mod provider;
 mod settings_editor;
 
 use async_trait::async_trait;
+use creators::{ProfileCreator, PromptCreator, ProviderCreator};
 use crossterm::event::{KeyCode, KeyEvent};
 use list::{SettingsList, SettingsListTrait};
 use manager::{ConfigItemManager, Creator, CreatorAction, ManagedItem};
-use profile::ProfileCreator;
-use provider::ProviderCreator;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -25,8 +23,8 @@ use super::{
     ApplicationError, ChatSessionManager, ConversationDbHandler,
     ConversationEvent, DatabaseConfigurationItem, KeyTrack, MaskMode,
     ModalEvent, ModalWindowTrait, ModalWindowType, ModelServer, ModelSpec,
-    ReadDocument, ServerTrait, TextLine, UserProfile, UserProfileDbHandler,
-    WindowMode, SUPPORTED_MODEL_ENDPOINTS,
+    ReadDocument, ReadWriteDocument, ServerTrait, TextLine, UserProfile,
+    UserProfileDbHandler, WindowMode, SUPPORTED_MODEL_ENDPOINTS,
 };
 
 #[derive(Debug)]
@@ -53,6 +51,7 @@ pub enum TabFocus {
 pub enum ConfigTab {
     Profiles,
     Providers,
+    Prompts,
 }
 
 pub struct SettingsModal {
@@ -104,7 +103,8 @@ impl SettingsModal {
     async fn switch_tab(&mut self) -> Result<(), ApplicationError> {
         self.current_tab = match self.current_tab {
             ConfigTab::Profiles => ConfigTab::Providers,
-            ConfigTab::Providers => ConfigTab::Profiles,
+            ConfigTab::Providers => ConfigTab::Prompts,
+            ConfigTab::Prompts => ConfigTab::Profiles,
         };
         self.tab_focus = TabFocus::List;
         self.manager.refresh_list(self.current_tab).await?;
@@ -112,10 +112,11 @@ impl SettingsModal {
     }
 
     fn render_tab_bar(&self, f: &mut Frame, area: Rect) {
-        let tabs = vec!["Profiles", "Providers"];
+        let tabs = vec!["Profiles", "Providers", "Prompts"];
         let tab_index = match self.current_tab {
             ConfigTab::Profiles => 0,
             ConfigTab::Providers => 1,
+            ConfigTab::Prompts => 2,
         };
         let tabs = Tabs::new(tabs)
             .block(Block::default().borders(Borders::ALL))
@@ -327,6 +328,7 @@ impl Creator<ConfigItem> for ConfigItemCreator {
 enum ConfigCreationType {
     UserProfile,
     Provider,
+    Prompt,
 }
 
 impl ConfigItemCreator {
@@ -341,176 +343,40 @@ impl ConfigItemCreator {
             ConfigCreationType::Provider => {
                 Box::new(ProviderCreator::new(db_handler).await?)
             }
+            ConfigCreationType::Prompt => {
+                Box::new(PromptCreator::new(db_handler))
+            }
         };
         Ok(Self { creator })
     }
 }
 
-// generic config example
-//pub struct ConfigurationCreator {
-//    db_handler: UserProfileDbHandler,
-//    name: String,
-//    section: String,
-//    parameters: serde_json::Value,
-//    creation_step: ConfigurationCreationStep,
-//}
-//
-//#[derive(Debug, Clone, PartialEq)]
-//enum ConfigurationCreationStep {
-//    EnterName,
-//    EnterSection,
-//    EnterParameters,
-//    ConfirmCreate,
-//    CreatingConfiguration,
-//}
-//
-//impl ConfigurationCreator {
-//    pub async fn new(
-//        db_handler: UserProfileDbHandler,
-//    ) -> Result<Self, ApplicationError> {
-//        Ok(Self {
-//            db_handler,
-//            name: String::new(),
-//            section: String::new(),
-//            parameters: json!({}),
-//            creation_step: ConfigurationCreationStep::EnterName,
-//        })
-//    }
-//
-//    pub async fn handle_input(
-//        &mut self,
-//        input: KeyEvent,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        match self.creation_step {
-//            ConfigurationCreationStep::EnterName => {
-//                self.handle_enter_name(input)
-//            }
-//            ConfigurationCreationStep::EnterSection => {
-//                self.handle_enter_section(input)
-//            }
-//            ConfigurationCreationStep::EnterParameters => {
-//                self.handle_enter_parameters(input)
-//            }
-//            ConfigurationCreationStep::ConfirmCreate => {
-//                self.handle_confirm_create(input)
-//            }
-//            ConfigurationCreationStep::CreatingConfiguration => {
-//                Ok(CreatorAction::Continue)
-//            }
-//        }
-//    }
-//
-//    fn handle_enter_name(
-//        &mut self,
-//        input: KeyEvent,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        match input.code {
-//            KeyCode::Char(c) => {
-//                self.name.push(c);
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Backspace => {
-//                self.name.pop();
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Enter => {
-//                if !self.name.is_empty() {
-//                    self.creation_step =
-//                        ConfigurationCreationStep::EnterSection;
-//                }
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Esc => Ok(CreatorAction::Cancel),
-//            _ => Ok(CreatorAction::Continue),
-//        }
-//    }
-//
-//    fn handle_enter_section(
-//        &mut self,
-//        input: KeyEvent,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        match input.code {
-//            KeyCode::Char(c) => {
-//                self.section.push(c);
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Backspace => {
-//                self.section.pop();
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Enter => {
-//                if !self.section.is_empty() {
-//                    self.creation_step =
-//                        ConfigurationCreationStep::EnterParameters;
-//                }
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Esc => {
-//                self.creation_step = ConfigurationCreationStep::EnterName;
-//                Ok(CreatorAction::Continue)
-//            }
-//            _ => Ok(CreatorAction::Continue),
-//        }
-//    }
-//
-//    fn handle_enter_parameters(
-//        &mut self,
-//        input: KeyEvent,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        // sophisticated way to edit JSON, possibly using a text editor or a form.
-//        match input.code {
-//            KeyCode::Enter => {
-//                self.creation_step = ConfigurationCreationStep::ConfirmCreate;
-//                Ok(CreatorAction::Continue)
-//            }
-//            KeyCode::Esc => {
-//                self.creation_step = ConfigurationCreationStep::EnterSection;
-//                Ok(CreatorAction::Continue)
-//            }
-//            _ => Ok(CreatorAction::Continue),
-//        }
-//    }
-//
-//    fn handle_confirm_create(
-//        &mut self,
-//        input: KeyEvent,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        match input.code {
-//            KeyCode::Char('y') | KeyCode::Char('Y') => {
-//                self.creation_step =
-//                    ConfigurationCreationStep::CreatingConfiguration;
-//                Ok(CreatorAction::CreateItem)
-//            }
-//            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-//                self.creation_step = ConfigurationCreationStep::EnterParameters;
-//                Ok(CreatorAction::Continue)
-//            }
-//            _ => Ok(CreatorAction::Continue),
-//        }
-//    }
-//
-//    pub async fn create_configuration(
-//        &mut self,
-//    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
-//        let new_config = self
-//            .db_handler
-//            .create_configuration_item(
-//                self.name.clone(),
-//                &self.section,
-//                self.parameters.clone(),
-//            )
-//            .await?;
-//
-//        Ok(CreatorAction::Finish(ConfigItem::DatabaseConfig(
-//            new_config,
-//        )))
-//    }
-//
-//    pub fn poll_background_task(
-//        &mut self,
-//    ) -> Option<CreatorAction<ConfigItem>> {
-//        // If there's no background task, just return None
-//        None
-//    }
-//}
-//
+#[async_trait]
+impl Creator<ConfigItem> for PromptCreator {
+    async fn handle_input(
+        &mut self,
+        input: KeyEvent,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        self.handle_key_event(input).await
+    }
+
+    fn render(&mut self, f: &mut Frame, area: Rect) {
+        self.render_creator(f, area);
+    }
+
+    async fn create_item(
+        &mut self,
+    ) -> Result<CreatorAction<ConfigItem>, ApplicationError> {
+        match self.create_prompt().await {
+            Ok(config_item) => Ok(CreatorAction::Finish(config_item)),
+            Err(e) => {
+                log::error!("Failed to create prompt: {}", e);
+                Ok(CreatorAction::Continue)
+            }
+        }
+    }
+
+    fn poll_background_task(&mut self) -> Option<CreatorAction<ConfigItem>> {
+        None // PromptCreator doesn't have a background task
+    }
+}

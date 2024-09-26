@@ -1,5 +1,5 @@
 mod creator;
 
-pub use creator::ProfileCreator;
+pub use creator::{ProfileCreationStep, ProfileCreator};
 
 use super::*;

@@ -32,6 +32,31 @@ impl<T: ListItemTrait> SettingsList<T> {
         list
     }
 
+    pub fn new_with_selected_item(
+        items: Vec<T>,
+        default_item: Option<T>,
+        item_type: String,
+        list_item_id: i64,
+    ) -> Self {
+        let selected_index = items
+            .iter()
+            .position(|item| item.id() == list_item_id)
+            .unwrap_or(0);
+
+        let mut list = SettingsList {
+            items,
+            selected_index,
+            default_item: None,
+            item_type,
+        };
+
+        if let Some(default) = default_item {
+            list.mark_as_default(&default);
+        }
+
+        list
+    }
+
     pub fn get_selected_item(&self) -> Option<&T> {
         self.items.get(self.selected_index)
     }

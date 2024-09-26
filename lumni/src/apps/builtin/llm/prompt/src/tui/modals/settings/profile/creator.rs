@@ -59,10 +59,14 @@ impl ProfileCreator {
         })
     }
 
-    pub fn set_editing_mode(&mut self, profile: UserProfile) {
+    pub fn set_editing_mode(
+        &mut self,
+        profile: UserProfile,
+        step: ProfileCreationStep,
+    ) {
         self.editing_profile = Some(profile.clone());
         self.new_profile_name = profile.name.clone();
-        self.creation_step = ProfileCreationStep::SelectProvider;
+        self.creation_step = step;
     }
 
     pub fn render_creator(&mut self, f: &mut Frame, area: Rect) {
@@ -119,8 +123,7 @@ impl ProfileCreator {
                         self.provider_configs[self.selected_provider_index]
                             .clone(),
                     );
-                    self.creation_step = ProfileCreationStep::ConfirmCreate;
-                    self.initialize_confirm_create_state().await;
+                    return self.go_to_next_step().await;
                 }
             }
             KeyCode::Esc | KeyCode::Backspace => {
@@ -361,7 +364,7 @@ impl ProfileCreator {
 
                 match self.creation_step {
                     ProfileCreationStep::EnterName => {
-                        self.handle_enter_name(input)
+                        self.handle_enter_name(input).await
                     }
                     ProfileCreationStep::SelectProvider => {
                         self.handle_select_provider(input).await
@@ -412,7 +415,7 @@ impl ProfileCreator {
         }
     }
 
-    fn handle_enter_name(
+    async fn handle_enter_name(
         &mut self,
         input: KeyEvent,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
@@ -421,12 +424,7 @@ impl ProfileCreator {
                 self.new_profile_name.push(c);
                 Ok(CreatorAction::Continue)
             }
-            KeyCode::Enter => {
-                if !self.new_profile_name.is_empty() {
-                    self.creation_step = ProfileCreationStep::SelectProvider;
-                }
-                Ok(CreatorAction::Continue)
-            }
+            KeyCode::Enter => self.go_to_next_step().await,
             _ => Ok(CreatorAction::Continue),
         }
     }
@@ -446,8 +444,7 @@ impl ProfileCreator {
                 if self.editing_profile.is_some() {
                     self.update_profile().await
                 } else {
-                    self.creation_step = ProfileCreationStep::CreatingProfile;
-                    Ok(CreatorAction::CreateItem)
+                    self.go_to_next_step().await
                 }
             }
             KeyCode::Esc => {
@@ -549,32 +546,84 @@ impl ProfileCreator {
             .alignment(Alignment::Center);
         f.render_widget(back_button, button_chunks[0]);
 
-        let create_button = Paragraph::new("[ Create Profile ]")
-            .style(
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .alignment(Alignment::Center);
-        f.render_widget(create_button, button_chunks[1]);
+        let action_button = if self.editing_profile.is_some() {
+            Paragraph::new("[ Update Profile ]")
+                .style(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .alignment(Alignment::Center)
+        } else {
+            Paragraph::new("[ Create Profile ]")
+                .style(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .alignment(Alignment::Center)
+        };
+        f.render_widget(action_button, button_chunks[1]);
     }
 
     fn go_to_previous_step(
         &mut self,
     ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
-        match self.creation_step {
-            ProfileCreationStep::EnterName => Ok(CreatorAction::Cancel),
-            ProfileCreationStep::SelectProvider => {
-                self.creation_step = ProfileCreationStep::EnterName;
-                Ok(CreatorAction::Continue)
+        if self.editing_profile.is_some() {
+            // If editing a profile, any "back" action should cancel the edit
+            self.editing_profile = None;
+            Ok(CreatorAction::Cancel)
+        } else {
+            // Normal behavior for non-editing mode
+            match self.creation_step {
+                ProfileCreationStep::EnterName => Ok(CreatorAction::Cancel),
+                ProfileCreationStep::SelectProvider => {
+                    self.creation_step = ProfileCreationStep::EnterName;
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.creation_step = ProfileCreationStep::SelectProvider;
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::CreatingProfile => {
+                    self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    Ok(CreatorAction::Continue)
+                }
             }
-            ProfileCreationStep::ConfirmCreate => {
-                self.creation_step = ProfileCreationStep::SelectProvider;
-                Ok(CreatorAction::Continue)
-            }
-            ProfileCreationStep::CreatingProfile => {
-                self.creation_step = ProfileCreationStep::ConfirmCreate;
-                Ok(CreatorAction::Continue)
+        }
+    }
+
+    async fn go_to_next_step(
+        &mut self,
+    ) -> Result<CreatorAction<UserProfile>, ApplicationError> {
+        if self.editing_profile.is_some() {
+            self.creation_step = ProfileCreationStep::ConfirmCreate;
+            self.initialize_confirm_create_state().await;
+            Ok(CreatorAction::Continue)
+        } else {
+            // Normal behavior for non-editing mode
+            match self.creation_step {
+                ProfileCreationStep::EnterName => {
+                    if !self.new_profile_name.is_empty() {
+                        self.creation_step =
+                            ProfileCreationStep::SelectProvider;
+                    }
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::SelectProvider => {
+                    self.creation_step = ProfileCreationStep::ConfirmCreate;
+                    self.initialize_confirm_create_state().await;
+                    Ok(CreatorAction::Continue)
+                }
+                ProfileCreationStep::ConfirmCreate => {
+                    self.creation_step = ProfileCreationStep::CreatingProfile;
+                    Ok(CreatorAction::CreateItem)
+                }
+                ProfileCreationStep::CreatingProfile => {
+                    unreachable!(
+                        "Unexpected state: no next step after CreatingProfile"
+                    );
+                }
             }
         }
     }

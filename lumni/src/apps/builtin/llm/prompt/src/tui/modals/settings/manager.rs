@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
+use super::list::ListItemTrait;
+use super::profile::ProfileCreationStep;
 use super::provider::ProviderCreationStep;
 use super::*;
 
@@ -316,7 +318,17 @@ impl ConfigItemManager {
             }
         };
 
-        self.list = SettingsList::new(items, default_item, item_type);
+        self.list = if let Some(selected_item) = self.list.get_selected_item() {
+            let selected_item_id = selected_item.id();
+            SettingsList::new_with_selected_item(
+                items,
+                default_item,
+                item_type,
+                selected_item_id,
+            )
+        } else {
+            SettingsList::new(items, default_item, item_type)
+        };
         self.load_selected_item_settings().await?;
         Ok(WindowMode::Modal(ModalEvent::UpdateUI))
     }
@@ -501,7 +513,10 @@ impl ConfigItemManager {
         {
             let mut creator =
                 ProfileCreator::new(self.db_handler.clone()).await?;
-            creator.set_editing_mode(profile.clone());
+            creator.set_editing_mode(
+                profile.clone(),
+                ProfileCreationStep::SelectProvider,
+            );
 
             self.creator = Some(Box::new(creator));
             *tab_focus = TabFocus::Creation;
@@ -532,19 +547,18 @@ impl ConfigItemManager {
                     Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
                 CreatorAction::Finish(new_item) => {
-                    self.list.add_item(new_item);
                     self.creator = None;
                     *tab_focus = TabFocus::List;
+                    self.update_list_with_item(new_item).await?;
                     Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                 }
                 CreatorAction::CreateItem => {
                     let result = creator.create_item().await?;
                     match result {
                         CreatorAction::Finish(new_item) => {
-                            self.list.add_item(new_item);
                             self.creator = None;
                             *tab_focus = TabFocus::List;
-                            self.refresh_list(current_tab).await?;
+                            self.update_list_with_item(new_item).await?;
                             Ok(WindowMode::Modal(ModalEvent::UpdateUI))
                         }
                         _ => Ok(WindowMode::Modal(
@@ -559,6 +573,29 @@ impl ConfigItemManager {
         } else {
             Ok(WindowMode::Modal(ModalEvent::UpdateUI))
         }
+    }
+
+    async fn update_list_with_item(
+        &mut self,
+        item: ConfigItem,
+    ) -> Result<(), ApplicationError> {
+        // Check if the item already exists in the list
+        if let Some(index) = self
+            .list
+            .items
+            .iter()
+            .position(|existing| existing.id() == item.id())
+        {
+            // Update existing item
+            self.list.items[index] = item;
+            self.list.selected_index = index;
+        } else {
+            // Add new item
+            self.list.add_item(item);
+        }
+        // Refresh the entire list to ensure consistency with the database
+        self.refresh_list(ConfigTab::Profiles).await?;
+        Ok(())
     }
 
     async fn load_selected_item_settings(

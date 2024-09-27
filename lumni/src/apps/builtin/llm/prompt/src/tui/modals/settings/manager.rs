@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use ratatui::prelude::*;
 use serde_json::{json, Value as JsonValue};
 
-use super::creators::{ProfileCreationStep, ProviderCreationStep};
+use super::creators::{
+    ProfileCreationStep, ProfileSection, ProviderCreationStep,
+};
 use super::list::ListItemTrait;
 use super::*;
 
@@ -534,7 +536,7 @@ impl ConfigItemManager {
                 ProfileCreator::new(self.db_handler.clone()).await?;
             creator.set_editing_mode(
                 profile.clone(),
-                ProfileCreationStep::SelectProvider,
+                ProfileCreationStep::SelectSection(ProfileSection::Provider),
             );
 
             self.creator = Some(Box::new(creator));

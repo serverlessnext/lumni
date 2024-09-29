@@ -11,8 +11,7 @@ use ratatui::Frame;
 use super::widgets::{FileBrowserState, FileBrowserWidget};
 use super::{
     ApplicationError, ChatSessionManager, ConversationDbHandler,
-    ConversationEvent, KeyTrack, ModalEvent, ModalWindowTrait, ModalWindowType,
-    ThreadedChatSession, WindowMode,
+    ConversationEvent, KeyTrack, ModalEvent, ModalWindowTrait, ModalWindowType, WindowMode,
 };
 pub use crate::external as lumni;
 

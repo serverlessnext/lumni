@@ -5,12 +5,12 @@ mod text_document;
 mod text_window;
 mod window_config;
 
-pub use cursor::MoveCursor;
+pub use cursor::{Cursor, MoveCursor};
 use lumni::api::error::ApplicationError;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Borders;
-pub use text_display::LineType;
+pub use text_display::{CodeBlock, LineType, TextDisplay};
 pub use text_document::{
     ReadDocument, ReadWriteDocument, SimpleString, TextDocumentTrait, TextLine,
     TextSegment,

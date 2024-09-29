@@ -9,8 +9,8 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::{
-    KeyTrack, ReadDocument, ReadWriteDocument, TextBuffer, TextDocumentTrait,
-    TextLine,
+    KeyTrack, MoveCursor, ReadDocument, ReadWriteDocument, TextBuffer,
+    TextDocumentTrait, TextLine,
 };
 
 #[derive(Debug, Clone)]
@@ -133,16 +133,67 @@ impl<'a, T: TextDocumentTrait> TextAreaState<'a, T> {
         self.key_track.process_key(key_event);
 
         match key_event.code {
-            KeyCode::Up => self.scroll_up(1),
-            KeyCode::Down => self.scroll_down(1),
+            KeyCode::Up => self.move_cursor(MoveCursor::Up(1)),
+            KeyCode::Down => self.move_cursor(MoveCursor::Down(1)),
+            KeyCode::Left => self.move_cursor(MoveCursor::Left(1)),
+            KeyCode::Right => self.move_cursor(MoveCursor::Right(1)),
+            KeyCode::Home => self.move_cursor(MoveCursor::StartOfLine),
+            KeyCode::End => self.move_cursor(MoveCursor::EndOfLine),
             KeyCode::PageUp => self.scroll_up(self.viewport_height),
             KeyCode::PageDown => self.scroll_down(self.viewport_height),
+            KeyCode::Backspace => self.handle_backspace(),
+            KeyCode::Delete => self.handle_delete(),
+            KeyCode::Enter => self.handle_enter(),
+            KeyCode::Char(c) => self.handle_char(c),
+            KeyCode::Tab => self.handle_tab(),
             _ => {
-                eprintln!(
-                    "Received key event for TextArea: {:?}",
-                    self.key_track.current_key()
-                );
+                // Handle other keys or modifiers if needed
             }
+        }
+
+        self.update_scroll();
+    }
+
+    fn move_cursor(&mut self, direction: MoveCursor) {
+        self.text_buffer.move_cursor(direction, true);
+    }
+
+    fn handle_backspace(&mut self) {
+        if let Err(e) = self.text_buffer.text_delete(false, 1) {
+            eprintln!("Error handling backspace: {:?}", e);
+        }
+    }
+
+    fn handle_delete(&mut self) {
+        if let Err(e) = self.text_buffer.text_delete(true, 1) {
+            eprintln!("Error handling delete: {:?}", e);
+        }
+    }
+
+    fn handle_enter(&mut self) {
+        if let Err(e) = self.text_buffer.text_insert_add("\n", None) {
+            eprintln!("Error handling enter: {:?}", e);
+        }
+    }
+
+    fn handle_char(&mut self, c: char) {
+        if let Err(e) = self.text_buffer.text_insert_add(&c.to_string(), None) {
+            eprintln!("Error handling character input: {:?}", e);
+        }
+    }
+
+    fn handle_tab(&mut self) {
+        if let Err(e) = self.text_buffer.text_insert_add("    ", None) {
+            eprintln!("Error handling tab: {:?}", e);
+        }
+    }
+
+    fn update_scroll(&mut self) {
+        let (_, cursor_row) = self.text_buffer.get_column_row();
+        if cursor_row < self.scroll_offset {
+            self.scroll_offset = cursor_row;
+        } else if cursor_row >= self.scroll_offset + self.viewport_height {
+            self.scroll_offset = cursor_row - self.viewport_height + 1;
         }
     }
 

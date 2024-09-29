@@ -1,13 +1,12 @@
 mod text_render;
 
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use text_render::DisplayWindowRenderer;
 
 use super::cursor::Cursor;
 use super::text_document::{TextLine, TextWrapper};
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct CodeBlock {
     pub start: u16,       // start line of the code block
@@ -90,10 +89,11 @@ impl<'a> LineSegment<'a> {
 
 #[derive(Debug, Clone)]
 pub struct TextDisplay<'a> {
-    pub wrap_lines: Vec<LineSegment<'a>>, // Text (e.g., wrapped, highlighted) for display
-    pub display_width: usize, // Width of the display area, used for wrapping
+    pub wrap_lines: Vec<LineSegment<'a>>,
+    pub display_width: usize,
     pub column: usize,
     pub row: usize,
+    code_blocks: Vec<CodeBlock>,
 }
 
 impl<'a> TextDisplay<'a> {
@@ -103,10 +103,16 @@ impl<'a> TextDisplay<'a> {
             display_width,
             column: 0,
             row: 0,
+            code_blocks: Vec::new(),
         }
     }
 
-    pub fn update(&mut self, text_lines: &Vec<TextLine>, cursor: &Cursor) {
+    pub fn update(
+        &mut self,
+        text_lines: &Vec<TextLine>,
+        cursor: &Cursor,
+        show_cursor: bool,
+    ) {
         self.clear();
         let text_wrapper = TextWrapper::new(self.width());
         for (idx, line) in text_lines.iter().enumerate() {
@@ -118,7 +124,6 @@ impl<'a> TextDisplay<'a> {
             if wrapped_lines.is_empty() {
                 self.handle_empty_line(trailing_spaces, line.get_background());
             } else {
-                // process wrapped lines
                 self.process_wrapped_lines(
                     wrapped_lines,
                     idx,
@@ -128,17 +133,68 @@ impl<'a> TextDisplay<'a> {
                 );
             }
         }
+        self.mark_code_blocks();
+        if show_cursor {
+            self.render_cursor(cursor);
+        }
+    }
+
+    fn render_cursor(&mut self, cursor: &Cursor) {
+        let (column, row) = self.update_column_row(cursor);
+        let mut line_column = column;
+
+        if let Some(current_line) = self.wrap_lines.get_mut(row) {
+            let line_length = current_line.length;
+            let last_segment = current_line.last_segment;
+            let spans = current_line.spans_mut();
+            if line_column >= line_length && last_segment {
+                spans
+                    .push(Span::styled("_", Style::default().bg(Color::Green)));
+            } else {
+                let mut new_spans = Vec::new();
+                let mut span_offset = 0;
+                for span in spans.iter() {
+                    let span_length = span.content.len();
+                    if line_column < span_length {
+                        let mut chars = span.content.chars();
+                        let before = chars
+                            .by_ref()
+                            .take(line_column)
+                            .collect::<String>();
+                        let cursor_char = chars.next().unwrap_or(' ');
+                        let after = chars.collect::<String>();
+
+                        if !before.is_empty() {
+                            new_spans.push(Span::styled(before, span.style));
+                        }
+
+                        new_spans.push(Span::styled(
+                            cursor_char.to_string(),
+                            span.style.bg(Color::Yellow),
+                        ));
+
+                        if !after.is_empty() {
+                            new_spans.push(Span::styled(after, span.style));
+                        }
+
+                        new_spans.extend(
+                            spans.iter().skip(span_offset + 1).cloned(),
+                        );
+                        break;
+                    } else {
+                        new_spans.push(span.clone());
+                        line_column -= span_length;
+                    }
+                    span_offset += 1;
+                }
+                *spans = new_spans;
+            }
+        }
     }
 
     pub fn update_column_row(&mut self, cursor: &Cursor) -> (usize, usize) {
-        // Get the current row in the wrapped text display based on the cursor position
         let cursor_position = cursor.real_position();
-        let mut new_line_position = 0;
-
-        self.column = 0;
-        self.row = 0;
-
-        let last_line = self.wrap_lines.len().saturating_sub(1);
+        let mut current_position = 0;
 
         for (row, line) in self.wrap_lines.iter().enumerate() {
             let line_length = if line.last_segment {
@@ -147,18 +203,17 @@ impl<'a> TextDisplay<'a> {
                 line.length
             };
 
-            // position_newline
-            if new_line_position + line_length > cursor_position
-                || row == last_line
-            {
-                // Cursor is on this line
-                let column = cursor_position.saturating_sub(new_line_position);
-                self.column = column;
+            if current_position + line_length > cursor_position {
+                self.column = cursor_position - current_position;
                 self.row = row;
-                break;
+                return (self.column, self.row);
             }
-            new_line_position += line_length;
+            current_position += line_length;
         }
+
+        // If we're here, the cursor is at the very end
+        self.row = self.wrap_lines.len().saturating_sub(1);
+        self.column = self.wrap_lines.last().map_or(0, |line| line.length);
         (self.column, self.row)
     }
 
@@ -211,7 +266,6 @@ impl<'a> TextDisplay<'a> {
         background: Option<Color>,
     ) {
         if trailing_spaces > 0 {
-            // Add trailing spaces to the line
             let spaces = std::iter::repeat(' ')
                 .take(trailing_spaces)
                 .collect::<String>();
@@ -224,7 +278,6 @@ impl<'a> TextDisplay<'a> {
                 background,
             );
         } else {
-            // add empty row
             self.push_line(
                 Line::from(Span::raw("")),
                 0,
@@ -310,7 +363,78 @@ impl<'a> TextDisplay<'a> {
                 None,
                 background,
             );
-            char_pos += 1; // account for newline character
+            char_pos += 1;
         }
+    }
+
+    pub fn mark_code_blocks(&mut self) {
+        let mut in_code_block = false;
+        let mut current_code_block_start: Option<u16> = None;
+        let mut code_block_ptr = 0;
+
+        self.code_blocks.clear();
+        let reset = Style::reset();
+
+        for (line_number, line) in self.wrap_lines.iter_mut().enumerate() {
+            let line_number = line_number as u16;
+
+            if in_code_block && line.background == reset.bg {
+                in_code_block = false;
+            }
+
+            if line.length == 3 && line.line.to_string() == "```" {
+                if in_code_block {
+                    in_code_block = false;
+
+                    if let Some(_) = current_code_block_start {
+                        if let Some(last_code_block) =
+                            self.code_blocks.last_mut()
+                        {
+                            last_code_block.end = Some(line_number);
+                        }
+                    }
+
+                    line.line_type = Some(LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::End,
+                    )));
+                    code_block_ptr += 1;
+                } else {
+                    in_code_block = true;
+                    current_code_block_start = Some(line_number);
+                    self.code_blocks.push(CodeBlock {
+                        start: line_number,
+                        end: None,
+                    });
+                    line.line_type = Some(LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::Start,
+                    )));
+                }
+            } else {
+                line.line_type = Some(if in_code_block {
+                    let bg_default = line.background;
+                    for span in line.spans_mut() {
+                        if span.style.bg == bg_default {
+                            span.style.bg = None;
+                        }
+                    }
+                    LineType::Code(CodeBlockLine::new(
+                        code_block_ptr,
+                        CodeBlockLineType::Line,
+                    ))
+                } else {
+                    LineType::Text
+                });
+            }
+
+            if !in_code_block {
+                current_code_block_start = None;
+            }
+        }
+    }
+
+    pub fn get_code_block(&self, ptr: u16) -> Option<&CodeBlock> {
+        self.code_blocks.get(ptr as usize)
     }
 }

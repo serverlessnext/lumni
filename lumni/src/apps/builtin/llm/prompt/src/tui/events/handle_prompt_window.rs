@@ -81,25 +81,11 @@ pub fn handle_prompt_window_event(
             } else if !app_ui.conversation_ui.prompt.is_status_insert() {
                 // process regular key
                 match key {
-                    't' | 'T' => {
-                        return Ok(app_ui
-                            .conversation_ui
-                            .set_response_window());
-                    }
                     'i' | 'I' => {
+                        // change to insert mode
                         return Ok(app_ui
                             .conversation_ui
                             .set_prompt_window(true));
-                    }
-                    ' ' => {
-                        if let Some(prev) = key_track.previous_key_str() {
-                            if prev == " " {
-                                // change to insert mode if double space
-                                return Ok(app_ui
-                                    .conversation_ui
-                                    .set_prompt_window(true));
-                            }
-                        }
                     }
                     _ => {}
                 }

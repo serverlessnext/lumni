@@ -6,6 +6,7 @@ pub use filebrowser::{FileBrowser, FileBrowserState, FileBrowserWidget};
 pub use list::{ListWidget, ListWidgetState};
 pub use textarea::{TextArea, TextAreaState, TextAreaWidget};
 
+use super::window::MoveCursor;
 use super::{
     KeyTrack, ModalEvent, PromptWindow, ReadDocument, ReadWriteDocument,
     TextBuffer, TextDocumentTrait, TextLine, TextWindowTrait,

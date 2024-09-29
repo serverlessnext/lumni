@@ -12,9 +12,7 @@ pub use text_window_trait::TextWindowTrait;
 
 use super::cursor::{Cursor, MoveCursor};
 use super::scroller::Scroller;
-use super::text_display::{
-    CodeBlock, CodeBlockLine, CodeBlockLineType, TextDisplay,
-};
+use super::text_display::{CodeBlock, TextDisplay};
 use super::text_document::{
     ReadDocument, ReadWriteDocument, TextDocumentTrait, TextLine,
 };

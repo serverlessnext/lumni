@@ -20,7 +20,6 @@ pub struct Cursor {
     pub row: usize,
     anchor_col: usize, // column for anchor, start of selection
     anchor_row: usize, // row for anchor, start of selection
-    show_cursor: bool, // show current cursor position
     selection_enabled: bool,
     desired_col: usize, // Desired column position, independent of actual line length
     real_position: usize, // real position of the cursor in the text buffer
@@ -33,7 +32,6 @@ impl Cursor {
             row: 0,
             anchor_col: 0,
             anchor_row: 0,
-            show_cursor: false,
             selection_enabled: false,
             desired_col: 0,
             real_position: 0,
@@ -54,14 +52,6 @@ impl Cursor {
 
     pub fn real_position(&self) -> usize {
         self.real_position
-    }
-
-    pub fn set_visibility(&mut self, visible: bool) {
-        self.show_cursor = visible;
-    }
-
-    pub fn show_cursor(&mut self) -> bool {
-        self.show_cursor
     }
 
     pub fn selection_enabled(&self) -> bool {
